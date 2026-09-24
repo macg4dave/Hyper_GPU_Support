@@ -1,20 +1,22 @@
 ---
 agent: agent
-description: Change a public or headless API without contract drift
+description: Change a Rust module or public interface without contract drift
 ---
 
 Make the requested API change.
 
-1. Locate the current API documentation, implementation, client, and tests.
-2. Prefer additive, backward-compatible behavior unless a breaking change is
-   explicit.
-3. Update the contract documentation alongside the implementation.
-4. Validate missing, malformed, boundary, and unsupported inputs.
-5. Keep platform-specific effects behind existing core/backend boundaries.
-6. Update examples, SDK behavior, changelog/backlog notes, and tests affected by
-   the contract.
-7. Run the focused checks documented by the repository and report exact results.
+Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
+[module design](../../docs/ENGINEERING.md#code-and-module-design),
+[errors and lifetimes](../../docs/ENGINEERING.md#errors-and-operation-lifetimes),
+and [required checks](../../docs/ENGINEERING.md#required-checks-and-ci).
 
-Do not invent an OpenAPI schema or generated artifact unless the repository
-actually adopts one.
-
+1. Map the existing interface, callers, implementation, documentation, and tests.
+2. Keep visibility and surface area minimal; preserve contracts unless the task
+   explicitly changes them. For a breaking change, document the rationale,
+   affected callers, migration, and any applicable version impact.
+3. Keep Windows effects behind focused interfaces and the core GUI-independent.
+4. Test valid, malformed, boundary, unsupported, and failure behavior as relevant,
+   including ownership and cleanup obligations across the interface.
+5. Update affected callers, Rust documentation, examples, and contract tests in
+   the same change. Do not introduce SDKs, schemas, or generated artifacts unless
+   the task requires them.

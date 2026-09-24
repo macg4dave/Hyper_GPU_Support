@@ -41,8 +41,8 @@ See [native boundaries](ARCHITECTURE.md#native-windows-boundaries).
 
 Complete the hardware reproduction milestone before a Rust product skeleton.
 Start comparisons with matching unmodified vendor runtimes; add only shims
-needed by a failing workload. Keep necessary C/C++ ABI components small and
-attributed instead of rewriting them solely to change language.
+needed by a failing workload. The earlier preference to retain C/C++ shims is
+superseded by [DEC-009](#dec-009); the reproduce-before-product gate remains.
 
 Reason: source inspection, DLL loading and physical GPU specifications cannot
 establish guest behavior. Native management, driver staging, compatibility
@@ -58,7 +58,12 @@ Use independent project history: `origin` is our repository when one is known;
 GitHub fork-network membership is optional. Keep upstream history/authorship
 available without importing its working tree or routinely merging it into ours.
 
-REF-001 will establish the local Git relationship. Future reviews:
+REF-001 will establish the remaining local upstream Git relationship.
+The DOC-002 workspace check found local commit `dd95e58` and an existing origin
+at `https://github.com/macg4dave/Hyper_GPU_Support.git`; upstream/ref preservation
+remains REF-001 work. Do not reinitialize or replace the existing history/remotes.
+
+Future reviews:
 
 1. Fetch without merging. Compare last-reviewed and new commits in upstream's
    own history, not a merge-base with our unrelated project history.
@@ -85,10 +90,19 @@ redistribution permission. Do not import proprietary binaries into this project.
   Adopt the responsibility boundaries; defer code adoption to hardware evidence.
   Full findings: [source map](ARCHITECTURE.md#upstream-reference-map).
   No code imported or target capability verified.
+- 2026-09-24, DOC-002: selectively rechecked the **same pinned commit**, not a new
+  revision range. Confirmed HCS fallback/assignment-status behavior and inspected
+  provisioning/copy errors, ACLs, runtime and compute-hook dependencies, project
+  build inputs, signing branches and notices. Defer adoption until hardware proof;
+  reject default-GPU fallback, masked failures and broad permission changes.
+  See [hazards](ARCHITECTURE.md#reference-implementation-hazards). No build/run.
 
 ## DEC-005
 
 **Accepted | 2026-09-24 | Five documents with one task register**
+
+The five planning-document responsibilities below remain; [DEC-009](#dec-009)
+adds a separate engineering policy without introducing another planning store.
 
 Use ROADMAP, BACKLOG, ARCHITECTURE, DECISIONS and CHANGELOG under `docs/`.
 Keep blockers, task cards and one overwrite-in-place resume note in BACKLOG,
@@ -107,9 +121,86 @@ store to synchronize. No tracker service, scripts or generated dashboards.
 Revisit if measured lookup cost justifies automation; any generated index must
 derive from this single task source.
 
-Keep FORK_PLAN.md only as a migration pointer. Existing optional workflow
-prompts remain available, but sessions must not read all of them.
+FORK_PLAN.md was a migration pointer, never a planning authority. Its later
+user deletion is preserved; the pointer need not be restored. Existing optional
+workflow prompts remain available, but sessions must not read all of them.
 Create evidence files only when a task has real procedures/results to retain.
+
+## DEC-006
+
+**Accepted by user | 2026-09-24 | Essential v1.0 workloads and guest count**
+
+Essential workloads are D3D11 and D3D12 hardware graphics plus CUDA compute on
+one Windows 11 x64 guest. Concurrent guests are experimental. Keep other APIs
+in the probe matrix but outside the essential release gate; the detailed scope
+is owned by the [v1.0 contract](ROADMAP.md#version-10-contract).
+
+This refines DEC-003: reproduction before implementation still applies. The old
+blanket gate requiring parity for every optional passing upstream probe is replaced
+by essential-workload parity, with optional gaps recorded individually. This follows
+the user's explicit choices and request that speculative APIs not block v1.0.
+It does not authorize silently dropping CUDA or either Direct3D requirement.
+
+## DEC-007
+
+**Proposed, evidence-triggered | 2026-09-24 | Resolve a failed baseline or backend gap**
+
+No new backend decision is made by this plan. GPU-006 selects the minimum proven
+path under DEC-002, and records reasons and remaining limitations.
+
+| Trigger / options | Practical implication / recommendation | Who resolves |
+|---|---|---|
+| Essential VMMS probe fails: repair provisioning/session/identity; or run minimal HCS comparison | First isolate a reproducible cause. Recommend bounded HCS research only after matching native runtimes fail; do not create two production backends speculatively. | Technical evidence in GPU-005/006; ask user if HCS requires a broader VM-management product. |
+| Safe upstream reference cannot be built/run: find a safe pinned artifact; use a source-derived minimal reference; or pause | Recommend finding a safe artifact first. A source-derived reference changes the reproduction contract and needs explicit user acceptance before substituting it. | User after REF-002/GPU-004 evidence. No signing/isolation exception is proposed. |
+| Essential capability fails on both paths | Diagnose and retry a specific cause, change target/scope, or stop. Do not hide failure by marking it optional. | User after exact blocker and experiment results. |
+
+These are conditional decisions, not present blockers. No question about choosing
+a backend can be answered reliably before target measurements.
+
+## DEC-008
+
+**Proposed, owner input before packaging | 2026-09-24 | Distribution and licensing**
+
+DOC-004 must obtain the owner's project license and intended delivery channel.
+Options: source release with reproducible local build; portable CLI archive without
+a publisher signature (simpler delivery, less publisher identity assurance); or
+signed portable CLI archive (identity and certificate/service cost). An installer
+adds maintenance without being needed for existing-VM operation.
+
+Recommendation: a portable archive plus source, checksums, notices and build recipe;
+use publisher signing if available. This is **not** selection of a license, purchase
+of a certificate, or permission to publish. The owner can resolve this at M4 after
+the actual component set and terms are known. No keys enter the repository and no
+test-signing/Secure Boot change is an acceptable packaging workaround. Proprietary
+driver/OS binaries remain local inputs under their actual terms, not release payload.
+
+## DEC-009
+
+**Accepted by user | 2026-09-24 | Rust-native implementation and shared engineering standards**
+
+Implement all project functionality in Rust wherever technically possible,
+including utilities and compatibility components. Native Windows facilities remain
+the integration boundary; using an existing utility does not itself add an
+implementation language. Supersede DEC-003's C/C++ retention preference and the
+former architecture default to PowerShell adapters. Reference artifacts remain
+external comparison inputs; ABI or upstream language alone cannot justify a
+non-Rust implementation.
+
+[ENGINEERING.md](ENGINEERING.md) owns detailed language-exception, quality,
+testing, toolchain, dependency, CI and code-documentation rules. AGENTS remains
+the concise mandatory entry point and session/protected-operation authority;
+agent-specific instructions and optional prompts link to these sources.
+This extends DEC-005's document map without changing its single task register.
+
+Reason: the user's DOC-007 request requires maintainable, idiomatic Rust developed
+in small tested changes, with no duplicated or conflicting agent policy. Initial
+hardware-independent tests and minimal Windows PR checks start in CORE-001;
+CORE-013 extends and verifies them. No application scaffolding or CI is introduced
+by this documentation task, and the hardware reproduction gate is unchanged.
+
+Revisit a language exception only with a specific technical limitation and an
+investigated Rust-native alternative, recorded before introducing the exception.
+See [DOC-007](BACKLOG.md#doc-007) for review and validation evidence.
 
 ## Decision template
 

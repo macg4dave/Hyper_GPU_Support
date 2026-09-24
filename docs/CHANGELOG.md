@@ -6,6 +6,12 @@ remain in its Resume block. Do not duplicate detailed test output here.
 
 ## 2026-09-24
 
+- [DOC-002](BACKLOG.md#doc-002): expanded the plan to v1.0 across M0-M5 and 45
+  permanent task cards, preserving existing IDs. Recorded user-selected essential
+  D3D11/D3D12/CUDA and single-guest scope; added research gates, transactional
+  configuration/recovery, hardening, qualification and release work. Rechecked
+  selected upstream/official sources and completed independent plan review plus
+  link/dependency/gate checks. Planning only; no application or hardware changes.
 - [DOC-001](BACKLOG.md#doc-001): established five documentation files, one task
   register, linked blockers, bounded context loading and compact handover.
   Migrated FORK_PLAN.md into the owned documents and aligned agent prompts.

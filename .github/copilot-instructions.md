@@ -3,6 +3,8 @@
 Follow [AGENTS.md](../AGENTS.md), including its bounded context-loading workflow
 and protected-operation rules.
 
-Use [docs/BACKLOG.md](../docs/BACKLOG.md) for the task register, card, blockers
-and handover. Read only linked context; FORK_PLAN.md is a legacy redirect.
-Use a matching prompt in `.github/prompts/` only when invoked or relevant.
+Use [docs/ENGINEERING.md](../docs/ENGINEERING.md) as the authoritative Rust,
+testing, and quality standard; load the sections relevant to the active task.
+Use [docs/BACKLOG.md](../docs/BACKLOG.md) for task status, acceptance, blockers,
+and handover. Use a matching prompt in `.github/prompts/` only when invoked or
+relevant; prompts add task-specific guidance to these shared rules.
