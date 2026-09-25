@@ -143,10 +143,21 @@ pub trait InventorySource {
 }
 
 /// Failure to collect or validate an inventory report.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum InventoryError {
-    /// The platform adapter could not be started or did not finish successfully.
-    AdapterFailed,
+    /// The platform adapter could not be started.
+    AdapterLaunch {
+        /// Portable I/O category.
+        kind: std::io::ErrorKind,
+        /// Native OS error code when Windows supplied one.
+        code: Option<i32>,
+    },
+    /// The platform adapter exceeded its deadline and was terminated.
+    AdapterTimeout,
+    /// The platform adapter exceeded the bounded output allowance.
+    AdapterOutputTooLarge,
+    /// The platform adapter returned an unsuccessful exit status and diagnostic.
+    AdapterExit(Option<i32>, String),
     /// The adapter returned malformed structured output.
     InvalidProtocol,
     /// A fact key was empty or contained unsupported characters.
@@ -157,12 +168,23 @@ pub enum InventoryError {
 
 impl fmt::Display for InventoryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(match self {
-            Self::AdapterFailed => "inventory adapter failed",
-            Self::InvalidProtocol => "inventory adapter returned invalid data",
-            Self::InvalidKey => "inventory adapter returned an invalid key",
-            Self::DuplicateKey => "inventory adapter returned a duplicate key",
-        })
+        match self {
+            Self::AdapterLaunch { kind, code } => write!(
+                formatter,
+                "inventory adapter launch failed: {kind} (OS code {code:?})"
+            ),
+            Self::AdapterTimeout => formatter.write_str("inventory adapter timed out"),
+            Self::AdapterOutputTooLarge => {
+                formatter.write_str("inventory adapter exceeded its output limit")
+            }
+            Self::AdapterExit(code, diagnostic) => write!(
+                formatter,
+                "inventory adapter exited unsuccessfully (code {code:?}): {diagnostic}"
+            ),
+            Self::InvalidProtocol => formatter.write_str("inventory adapter returned invalid data"),
+            Self::InvalidKey => formatter.write_str("inventory adapter returned an invalid key"),
+            Self::DuplicateKey => formatter.write_str("inventory adapter returned a duplicate key"),
+        }
     }
 }
 

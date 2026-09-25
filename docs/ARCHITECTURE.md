@@ -7,21 +7,24 @@ evidence requirements, not implementation progress.
 
 ## Current state
 
-The hardware-independent Rust CLI/library foundation provides help and version
-output. Build and check commands are in [README.md](../README.md). The proposed
-GPU-PV components below are not implemented.
+The Rust CLI/library foundation provides help, version and a read-only inventory
+command. Inventory uses a typed Rust report/selection boundary plus the bounded,
+query-only Windows process adapter recorded in [DEC-013](DECISIONS.md#dec-013).
+Build and check commands are in [README.md](../README.md). Mutating GPU-PV
+components below are not implemented.
 The target is a Windows 11 x64 host and guest with an NVIDIA RTX 5060 8 GB.
 The user has run AppSandbox successfully on this hardware, establishing a
-known-working HCS GPU-PV reference. This project has not yet captured its own
-adapter, driver or D3D11/D3D12/CUDA evidence, and native Hyper-V/VMMS parity is
-still untested; those narrower questions do not reopen general GPU-PV feasibility.
+known-working HCS GPU-PV reference. HV-001 and CORE-001 captured host, adapter,
+driver and query-rights inventory, but there is no registered VM and no
+D3D11/D3D12/CUDA evidence. Native Hyper-V/VMMS assignment parity is still
+untested; those narrower questions do not reopen general GPU-PV feasibility.
 
 The inherited research snapshot is dated **24 September 2026**, from AppSandbox
 [`6f3adb6aafd4fc819d7715bdfacf52ac87df26a6`][upstream-commit] (0.1.9 version
 bump). The pinned source map records inspection of that revision. Reorganizing
 these notes does not constitute a new upstream audit, local inventory, build,
-VM run, or graphics/compute/video test. Exact Windows editions/builds, NVIDIA
-driver, available management facilities, and guest preparation remain unknown.
+VM run, or graphics/compute/video test. The exact host and management inventory
+is in [HV-001 evidence](evidence/HV-001.md); guest preparation remains absent.
 
 Windows provides the graphics kernel/VMBus path between guest user-mode drivers
 and the host GPU. Full-VM driver provisioning still requires attention; this
@@ -67,11 +70,15 @@ use fixed operations, typed parameters and structured data, never arbitrary scri
 ## Foundation source layout
 
 `src/main.rs` owns process I/O and exit codes; `src/cli.rs` owns argument parsing
-and usage errors; `src/lib.rs` exposes the hardware-independent library boundary.
-`tests/cli.rs` exercises the built executable. No backend has been selected.
+and usage errors; `src/inventory.rs` owns typed facts, validation, reporting and
+the replaceable source contract; `src/windows_inventory.rs` owns the bounded
+query-process transport and Rust target/VM selection. `src/lib.rs` exposes the
+library boundary and `tests/cli.rs` exercises the built executable. No mutation
+backend has been selected.
 
-Add `config` for validation in CORE-004, `windows`/`hyperv` for native adapters in
-CORE-005, `gpu` for inventory in CORE-001 and `gpupv` for assignment in CORE-002.
+Add `config` for validation in CORE-004, privileged `windows`/`hyperv` adapters in
+CORE-005 and `gpupv` for assignment in CORE-002. Revisit CORE-001's bounded query
+transport after HV-003 fixes the native interface/rights matrix.
 Diagnostics/logging belong in `diagnostics` when inventory introduces operations
 to report. Introduce shared `error`/`types` modules when multiple callers need
 them; utilities stay with their owning responsibility until reuse is demonstrated.

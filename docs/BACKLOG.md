@@ -5,13 +5,14 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-25, target inventory completed ([HV-001](#hv-001)).
-- Changed: added `docs/evidence/HV-001.md` with exact host/Hyper-V/GPU findings,
-  approved administrator query evidence, GPU-P identity and zero registered VMs.
+- Last session: 2026-09-25, target inventory and the Rust read-only inventory
+  slice completed ([HV-001](#hv-001), [CORE-001](#core-001)).
+- Changed: added exact host evidence plus typed/versioned Rust inventory, bounded
+  Windows query transport, deterministic selection/error tests and DEC-013.
 - Outstanding: no candidate Hyper-V guest, parent/child roots or guest evidence;
   the pending host reboot and unknown host Secure Boot state remain recorded.
-- Next recommended: [CORE-001](#core-001); [HV-003](#hv-003),
-  [GPU-002](#gpu-002) and [REF-001](#ref-001) are also ready.
+- Next recommended: [HV-003](#hv-003); [GPU-002](#gpu-002) and
+  [REF-001](#ref-001) are also ready.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -49,7 +50,7 @@ contribute to their milestone's required exit.
 | [GPU-010](#gpu-010) | M1 | P0 | planned | GPU-005 |
 | [GPU-011](#gpu-011) | M1 | P0 | planned | GPU-005 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
-| [CORE-001](#core-001) | M0 | P0 | in progress | HV-001, CORE-019 |
+| [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
 | [CORE-004](#core-004) | M1 | P0 | planned | CORE-001, GPU-003 |
 | [CORE-005](#core-005) | M1 | P0 | planned | CORE-001, HV-003, REF-001, GPU-003 |
 | [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
@@ -475,8 +476,24 @@ for future work is not an invented current blocker.
   tests and Windows PR checks with focused inventory coverage and strict warnings.
 - Acceptance: Extend the existing CLI/library boundary with read-only inventory of selected VM/GPU/driver facts and unknowns. Report missing facility/denial distinctly. Preserve pinned tools and locked builds; document inventory commands and focused Windows validation; keep backend access replaceable for tests. Record exact introduced paths before follow-up work.
 - Files/output: Existing `src/`, build instructions and proposed `docs/evidence/CORE-001.md`.
-- Owner: Codex `/root`, 2026-09-25.
-- Result: pending.
+- Result: 2026-09-25 added `inventory` through `src/inventory.rs` and
+  `src/windows_inventory.rs`, with a typed replaceable source, versioned report,
+  exact RTX 5060/GPU-P correlation, unambiguous VM selection and distinct
+  known/missing/denied/unavailable outcomes. The fixed query-only Windows child
+  is bounded to 15 seconds and 64 KiB per stream; Rust kills/reaps on timeout,
+  validates its hex protocol and preserves bounded structured launch/exit/native
+  diagnostics. [DEC-013](DECISIONS.md#dec-013) records the native investigation,
+  narrow transport rationale and HV-003 revisit gate. On Windows 11 Pro 25H2
+  `26200.9457` x64, fmt, strict locked Clippy, 16 library + 2 binary + 4
+  integration + 1 doc tests, locked build and rustdoc passed with warnings denied.
+  The real unelevated command returned exact host/RTX facts and structured GPU-P/
+  VM denial. Independent architecture review drove fixes for process bounds,
+  transport ownership, identity correlation, classifications, diagnostics and a
+  malformed-index panic; final recheck found no blocking issue and independently
+  passed all eight adapter tests plus `git diff --check`. Reviewer runtime model
+  metadata was unavailable. Evidence: [`docs/evidence/CORE-001.md`](evidence/CORE-001.md).
+  No elevated project binary, host/VM mutation or workload test; positive VM/GPU-P
+  behavior remains unverified and M0 remains current.
 
 ## CORE-004
 

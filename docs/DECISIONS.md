@@ -315,6 +315,33 @@ Reason: the earlier protected-operation wording was sound for host resources but
 did not expressly authorize ordinary development, while the project Codex config
 left sandbox and approval behavior to higher-level defaults.
 
+## DEC-013
+
+**Implemented for CORE-001 | 2026-09-25 | Bounded query-process inventory adapter**
+
+Retain one fixed, parameter-free Windows PowerShell process as the read-only query
+transport for the initial inventory slice. Rust owns the operation deadline,
+termination/reaping, bounded stdout/stderr, protocol validation, status semantics,
+RTX 5060/interface correlation, VM selection and final reporting. The script owns
+no configuration or policy decision, accepts no user input and invokes only
+registry, CIM and installed Hyper-V query facilities.
+
+The Rust-native alternatives were evaluated before retaining this narrow boundary.
+`windows-registry` can safely replace the registry reads, and `wmi` or direct
+`windows` bindings can query CIM/COM in-process. Their synchronous provider calls
+do not provide the bounded cancellation contract required here; abandoning an
+in-process thread on timeout would leave an untracked WMI operation. Direct COM
+cancellation and SetupAPI enumeration would also require new unsafe/FFI surface
+before HV-003 has fixed the required native interface and rights matrix. A child
+process can be killed and reaped on deadline while keeping the current read-only
+provider operation isolated. Calling the installed Windows utility is permitted by
+DEC-009, but embedding selection or mutation logic in it is not.
+
+Revisit after HV-003. Replace registry and device discovery with safe Rust bindings
+when the complete query set can retain deadlines, cancellation and structured
+Windows codes; keep any Hyper-V cmdlet transport only for interfaces that lack an
+equivalent bounded native route. No mutation may be added to this adapter.
+
 ## Decision template
 
 ```markdown

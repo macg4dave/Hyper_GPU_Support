@@ -12,8 +12,9 @@ while returning the host and driver facts established by HV-001.
 The report begins with `inventory.schema=1` and emits sorted
 `key=status[:value]` records. Status is one of `known`, `missing`, `denied` or
 `unavailable`; a successful command can contain any of them. Record delimiters
-and percent signs in values are escaped. Adapter launch, exit and protocol
-failures return process exit code 1 without echoing raw command output.
+and percent signs in values are escaped. Adapter launch, timeout, output-limit,
+exit and protocol failures return process exit code 1 with bounded, sanitized
+diagnostics.
 
 ## Boundaries and introduced paths
 
@@ -22,19 +23,22 @@ failures return process exit code 1 without echoing raw command output.
   hardware-independent behavior tests.
 - `src/windows_inventory.rs`: Windows-only adapter invoking one fixed,
   parameter-free PowerShell query set. It accepts no user script or target and
-  contains no mutation cmdlet. Values are hex encoded across the process boundary
-  before Rust validates and renders them.
+  contains no mutation cmdlet. Rust enforces a 15-second deadline, kills/reaps on
+  timeout and bounds stdout/stderr to 64 KiB each. Values are hex encoded across
+  the process boundary; Rust validates them, correlates the exact RTX PCI identity
+  to its GPU-P interface and performs unambiguous VM selection.
 - `src/cli.rs`, `src/main.rs`: `inventory` parsing, dispatch and exit behavior.
 - `tests/cli.rs`: executable inventory smoke test that accepts missing/denied
   facilities and therefore remains valid on hosted Windows without Hyper-V/GPU.
 - `README.md`: command, schema, status and source-boundary documentation.
 
-The adapter uses the installed Windows PowerShell/CIM and Hyper-V facilities
-because Hyper-V's GPU-P cmdlets are the installed client interface measured by
-HV-001. Process access is confined behind the Rust trait and structured protocol;
-future direct Windows bindings can replace it without changing report logic.
-No dependency, feature, unsafe code, GUI, daemon, configuration schema or mutating
-operation was introduced.
+The Rust-native registry/WMI/COM alternatives and their cancellation limitation
+were evaluated in [DEC-013](../DECISIONS.md#dec-013). The bounded child is retained
+only as query transport for installed Windows/CIM and Hyper-V facilities;
+selection, policy, error semantics and reporting remain Rust. Process access is
+confined behind the Rust trait and structured protocol so direct Windows bindings
+can replace it without changing report logic. No dependency, feature, unsafe code,
+GUI, daemon, configuration schema or mutating operation was introduced.
 
 ## Target observation
 
@@ -47,14 +51,14 @@ gpu.driverinf=known:oem59.inf
 gpu.driverversion=known:32.0.16.1692
 gpu.model=known:NVIDIA GeForce RTX 5060
 gpu.pciid=known:VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1
-gpup.interface=denied
+gpup.interface=denied:access.denied
 host.architecture=known:X64
 host.build=known:26200.9457
 host.edition=known:Professional
 host.version=known:25H2
 hyperv.moduleversion=known:2.0.0.0
-vm.count=denied
-vm.selection=denied
+vm.count=denied:access.denied
+vm.selection=denied:access.denied
 ```
 
 This is inventory evidence only. It does not prove a guest, GPU assignment or
@@ -63,6 +67,25 @@ registered VMs; the normal CLI run intentionally did not reuse that authorizatio
 
 ## Verification
 
-Verification commands and final outcomes are recorded on the
-[CORE-001 task card](../BACKLOG.md#core-001). No host/guest mutation or elevated
-project binary execution occurred.
+On Windows 11 Pro 25H2 build `26200.9457` x64, the final working tree on base
+revision `1f21a5d3881415befe5cc307e74f9193fec4fcea` passed:
+
+- `cargo fmt --all -- --check`;
+- strict locked Clippy across workspace/all targets/all features;
+- locked tests: 16 library, 2 binary, 4 executable integration and 1 doc test;
+- locked workspace build and rustdoc with warnings denied;
+- real unelevated `inventory` launch, returning exact host/RTX facts and structured
+  `denied:access.denied` GPU-P/VM results;
+- Git whitespace and targeted Markdown/task/link consistency checks.
+
+The independent architecture reviewer initially identified unbounded process
+execution, an undocumented query-transport choice, uncorrelated GPU-P identity,
+missing-facility/error-classification gaps and missing deterministic branches.
+After fixes, a second pass found a noncanonical-index panic; canonical validation
+and the requested single-VM/no-match fixtures resolved it. The final recheck found
+no blocking CORE-001 issue and independently passed all eight adapter tests plus
+`git diff --check`. Reviewer runtime model metadata was unavailable.
+
+Positive administrator VM/GPU-P behavior and guest workloads remain unverified;
+there is no registered VM. DEC-013 requires the query transport to be revisited
+after HV-003. No host/guest mutation or elevated project binary execution occurred.

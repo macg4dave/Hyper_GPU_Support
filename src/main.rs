@@ -41,7 +41,12 @@ fn inventory_output() -> Result<String, hyper_gpu_support::inventory::InventoryE
 
 #[cfg(not(windows))]
 fn inventory_output() -> Result<String, hyper_gpu_support::inventory::InventoryError> {
-    Err(hyper_gpu_support::inventory::InventoryError::AdapterFailed)
+    Err(
+        hyper_gpu_support::inventory::InventoryError::AdapterLaunch {
+            kind: std::io::ErrorKind::Unsupported,
+            code: None,
+        },
+    )
 }
 
 fn write_output(writer: &mut impl Write, output: &str) -> io::Result<()> {

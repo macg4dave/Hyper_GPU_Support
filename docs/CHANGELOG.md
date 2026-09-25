@@ -6,6 +6,12 @@ remain in its Resume block. Do not duplicate detailed test output here.
 
 ## 2026-09-25
 
+- [CORE-001](BACKLOG.md#core-001): added versioned read-only Rust inventory with
+  exact RTX/GPU-P correlation, typed availability states, bounded/cancellable
+  Windows query transport and deterministic failure/selection coverage. Strict
+  build/lint/test/doc checks and independent architecture review passed; positive
+  VM/GPU-P behavior remains untested. Evidence: [CORE-001](evidence/CORE-001.md).
+
 - [HV-001](BACKLOG.md#hv-001): inventoried Windows 11 Pro 25H2 build
   `26200.9457`, active Hyper-V facilities and the RTX 5060/616.92 driver and
   GPU-P interface. An explicitly approved administrator read-only rerun found

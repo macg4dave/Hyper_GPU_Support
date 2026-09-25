@@ -71,6 +71,13 @@ vm.selection=denied
 ```
 
 The command accepts no target or script argument and performs no mutation.
+Its child query process has a 15-second deadline and 64 KiB limits for both stdout
+and stderr; Rust terminates and reaps it on timeout. Rust also validates the
+protocol, correlates the GPU-P interface to the exact RTX 5060 PCI identity and
+selects a VM only when exactly one is registered. Missing cmdlets, denied access,
+provider failures, ambiguity and adapter launch/timeout/exit failures remain
+distinct. The narrow query-process decision is recorded in
+[DEC-013](docs/DECISIONS.md#dec-013).
 Administrator execution is not required by the CLI contract and must follow the
 repository permission boundary when explicitly needed for protected facts.
 
