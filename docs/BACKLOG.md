@@ -5,11 +5,12 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-24, v1.0 planning completed ([DOC-002](#doc-002)); no task owned.
-- Changed: five planning documents; existing user deletion of FORK_PLAN.md preserved.
+- Last session: 2026-09-25, Rust foundation completed ([CORE-019](#core-019)); no task owned.
+- Changed: Cargo/toolchain/configuration, CLI/library, tests, Windows CI, README,
+  and affected planning docs; existing DOC-007 backlog/changelog edits preserved.
 - Outstanding: no target inventory or hardware workload evidence; backend remains unselected.
   Owner license/distribution/signing choice is scheduled in DOC-004, not assumed.
-- Next recommended after planning: [HV-001](#hv-001); [REF-001](#ref-001) can run independently.
+- Next recommended: [HV-001](#hv-001); [REF-001](#ref-001) can run independently.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -26,7 +27,8 @@ contribute to their milestone's required exit.
 |---|---|---|---|---|
 | [DOC-001](#doc-001) | M0 | P0 | completed | - |
 | [DOC-002](#doc-002) | M0 | P0 | completed | DOC-001, GPU-001 |
-| [DOC-007](#doc-007) | M0 | P0 | in progress | DOC-002 |
+| [DOC-007](#doc-007) | M0 | P0 | completed | DOC-002 |
+| [CORE-019](#core-019) | M0 | P1 | completed | DOC-007 |
 | [GPU-001](#gpu-001) | M0 | P0 | completed | - |
 | [HV-001](#hv-001) | M0 | P0 | ready | - |
 | [REF-001](#ref-001) | M0 | P1 | ready | - |
@@ -42,7 +44,7 @@ contribute to their milestone's required exit.
 | [GPU-010](#gpu-010) | M1 | P0 | planned | GPU-005 |
 | [GPU-011](#gpu-011) | M1 | P0 | planned | GPU-005 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
-| [CORE-001](#core-001) | M2 | P1 | planned | GPU-006, REF-001 |
+| [CORE-001](#core-001) | M2 | P1 | planned | GPU-006, REF-001, CORE-019 |
 | [CORE-004](#core-004) | M2 | P1 | planned | CORE-001 |
 | [CORE-005](#core-005) | M2 | P1 | planned | CORE-001 |
 | [CORE-006](#core-006) | M2 | P1 | planned | CORE-004, CORE-005 |
@@ -160,14 +162,26 @@ for future work is not an invented current blocker.
 - Context/scope: review every repository AI instruction and prompt; establish one
   detailed engineering standard with concise entry points. Documentation only;
   preserve existing planning changes and the user deletion of FORK_PLAN.md.
-- Owner: Codex /root, 2026-09-24; prompt review delegated within this task.
 - Read: user request, AGENTS.md, all `.github` instructions/prompts, and relevant
   planning sections whose language or validation requirements need alignment.
 - Acceptance: Rust-first exceptions, idiomatic modular code, incremental work,
   meaningful testing, strict linting, documentation, diagnostics, dependencies,
   reproducibility and CI standards; no stale fork instructions or conflicting
   authorities. Independent review plus link and scope checks; no implementation.
-- Result: pending.
+- Result: 2026-09-25: reviewed and updated all 13 AI instruction/prompt files
+  (AGENTS.md, Copilot instructions and 11 prompts). Added the authoritative
+  [engineering standards](ENGINEERING.md) and [DEC-009](DECISIONS.md#dec-009);
+  aligned architecture and CORE-001/005/013 so Rust is the implementation default
+  and tests/basic Windows PR checks begin with the first code. Removed obsolete
+  fork-pointer, convenience-PowerShell and C/C++ retention guidance; retained
+  attribution, hardware evidence and protected-operation boundaries.
+  Validation: independent final review against all 12 requested areas found no
+  remaining defects; checked all 19 Markdown files for local links/anchors and
+  reference definitions, 11 prompt frontmatter blocks, 46 unique task row/card
+  pairs, dependencies, acyclicity and status readiness; `git diff --check` passed.
+  No Cargo project, application implementation, CI execution or hardware test;
+  existing planning edits and the FORK_PLAN.md deletion preserved. See the
+  [change entry](CHANGELOG.md#2026-09-25).
 
 ## GPU-001
 
@@ -324,16 +338,15 @@ for future work is not an invented current blocker.
 
 ## CORE-001
 
-**Create the minimal Rust CLI/library and inventory**
+**Extend the Rust CLI/library with inventory**
 
-- Context/scope: One Windows x64 package, small modules, no GUI/daemon or general VM manager.
+- Context/scope: Extend the CORE-019 foundation with inventory in one Windows x64 package; no GUI/daemon or general VM manager.
 - Read: GPU-006 result and [proposed components](ARCHITECTURE.md#proposed-components).
 - Apply: [toolchain policy](ENGINEERING.md#toolchain-dependencies-and-features) and
-  [required checks/CI](ENGINEERING.md#required-checks-and-ci). Establish meaningful
-  unit/integration/doc tests as applicable and minimal Windows x64 PR checks with
-  the first Rust code, including strict warnings and committed dependency locking.
-- Acceptance: Pin Rust/toolchain dependencies, create CLI/library boundary and read-only inventory of selected VM/GPU/driver facts and unknowns. Report missing facility/denial distinctly. Establish actual build/run/check commands and focused Windows validation; keep backend access replaceable for tests. Record exact introduced paths before follow-up work.
-- Files/output: Proposed `Cargo.toml`, `src/`, build instructions and `docs/evidence/CORE-001.md`.
+  [required checks/CI](ENGINEERING.md#required-checks-and-ci). Extend CORE-019's
+  tests and Windows PR checks with focused inventory coverage and strict warnings.
+- Acceptance: Extend the existing CLI/library boundary with read-only inventory of selected VM/GPU/driver facts and unknowns. Report missing facility/denial distinctly. Preserve pinned tools and locked builds; document inventory commands and focused Windows validation; keep backend access replaceable for tests. Record exact introduced paths before follow-up work.
+- Files/output: Existing `src/`, build instructions and proposed `docs/evidence/CORE-001.md`.
 - Result: pending.
 
 ## CORE-004
@@ -627,3 +640,32 @@ Add one register row and one card; never repeat row fields in the card.
 For unfinished work record the exact next action and linked blocker if any,
 then refresh Resume with completed IDs, changed files and next recommended task.
 Do not append a transcript or duplicate the task-status register.
+
+## CORE-019
+
+**Establish the hardware-independent Rust project foundation**
+
+- Context/scope: User-requested early scaffolding split from CORE-001; single
+  CLI/library package, help/version, errors, tests, pinned tools and Windows CI.
+  No inventory, configuration schema, native adapters or GPU-PV implementation.
+- Read: DOC-007 result, engineering standards, architecture components and M0/M2 gates.
+- Acceptance: Windows x64 build/run; meaningful unit/integration/doc tests; fmt,
+  strict Clippy, locked tests/build and rustdoc; clean-clone setup documentation;
+  preserve existing edits and pinned upstream references. No hardware requirement.
+- Result: 2026-09-25: created one dependency-free Rust 2024 package/workspace,
+  exact Rust/MSRV 1.94.0 and x64 MSVC target, lockfile, repository hygiene,
+  CLI/library with help/version and consistent errors, and SHA-pinned Windows CI.
+  Paths and clean-machine commands: [README.md](../README.md); boundaries and
+  future module locations: [architecture](ARCHITECTURE.md#foundation-source-layout).
+  Scope/toolchain/cache decisions: [DEC-010](DECISIONS.md#dec-010).
+  No pre-existing Cargo project/tests to baseline. Actual Windows 25H2 build
+  26200.9457 x64 (legacy ProductName reports Windows 10 Pro), MSVC 14.51.36231,
+  SDK 10.0.26100.0, rustc 1.94.0 (4a4ef493e): fmt check, strict Clippy across
+  all targets/features, locked tests/build and rustdoc passed with warnings denied.
+  Six unit tests, three executable integration tests and one doc test passed;
+  CLI help/version launched successfully. Final run used repository-local target/;
+  incremental-cache error 5 was resolved as described in DEC-010, with no lint
+  suppression. Git whitespace and local Markdown/task consistency checks passed.
+  cargo-audit/cargo-deny are unavailable; no third-party crates/advisory database
+  check. Hosted CI and a separate clean Windows installation have not been run.
+  No GPU/driver/API-runtime workload or host/guest mutation; M0 remains current.

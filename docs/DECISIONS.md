@@ -202,6 +202,40 @@ Revisit a language exception only with a specific technical limitation and an
 investigated Rust-native alternative, recorded before introducing the exception.
 See [DOC-007](BACKLOG.md#doc-007) for review and validation evidence.
 
+## DEC-010
+
+**Accepted | 2026-09-25 | Early hardware-independent foundation**
+
+The user's scaffolding request brings the non-hardware portion of CORE-001
+forward into CORE-019 at M0. CORE-001 retains inventory behind GPU-006/REF-001;
+no hardware reproduction or backend-selection gate is waived.
+
+Use one root package/workspace, Rust edition 2024, resolver 3, exact Rust 1.94.0
+and the same declared minimum version, targeting x86_64-pc-windows-msvc. This
+matches the installed stable compiler, now installed under its exact version
+name; it is not a claim to use the latest release. The
+[official release](https://blog.rust-lang.org/2026/03/05/Rust-1.94.0/)
+identifies the compiler. Updates remain separately validated changes.
+
+The standard library suffices for two informational options, typed usage errors
+and process I/O. No dependency, serialization format, structured logging library,
+Windows bindings or backend abstraction is warranted yet. CLI growth in CORE-004
+is the point to reevaluate a maintained parser and configuration crates; inventory
+will introduce diagnostics. There is no non-Rust implementation exception.
+
+Forbid unsafe code in the foundation. Revisit this lint narrowly when native FFI
+is justified, using the engineering safety requirements. Use default rustfmt and
+Clippy, warnings-as-errors verification, and a SHA-pinned checkout action. Native
+SDK/MSVC inputs and actual commands live in [README.md](../README.md).
+No project license is selected; registry publication is disabled pending DEC-008.
+
+Repository-local validation exposed Windows error 5 when rustc finalized its
+incremental cache (the same code passed in the shell's external target directory).
+Disable dev-profile incremental compilation, inherited by tests, for this small
+foundation. This avoids the failing optional cache operation without suppressing
+warnings or changing security settings. Revisit if build time warrants diagnosing
+the filesystem/cache interaction; the exact external cause is not established.
+
 ## Decision template
 
 ```markdown

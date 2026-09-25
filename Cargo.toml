@@ -1,0 +1,20 @@
+[workspace]
+members = ["."]
+resolver = "3"
+
+[package]
+name = "hyper-gpu-support"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94.0"
+description = "Windows GPU-PV project foundation"
+publish = false
+
+# Avoid incremental-cache finalization failures observed on the Windows workspace.
+# The foundation is small; revisit caching when build time becomes material.
+[profile.dev]
+incremental = false
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"

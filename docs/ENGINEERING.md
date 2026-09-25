@@ -6,9 +6,9 @@ operations; [BACKLOG.md](BACKLOG.md) owns tasks and evidence. Read the sections
 relevant to the active change. Prompts add task-specific guidance, not competing
 rules. Changes to these standards require explicit task scope.
 
-The repository currently has no Cargo project. These are requirements for future
-implementation, not claims of existing tooling or passing checks. CORE-001 starts
-tests and basic PR checks with the first Rust code; CORE-013 extends that baseline.
+CORE-019 establishes the Cargo project, tests and basic Windows PR checks.
+CORE-001 extends the foundation with inventory; CORE-013 extends test coverage.
+Actual commands are in [README.md](../README.md); results belong on task cards.
 
 ## Rust and native Windows
 
@@ -140,7 +140,7 @@ authorization. Report skipped, blocked and untested cases distinctly from passes
 
 ## Toolchain, dependencies and features
 
-- At CORE-001, select and record an exact stable Rust toolchain in
+- At CORE-019, select and record an exact stable Rust toolchain in
   [`rust-toolchain.toml`](https://rust-lang.github.io/rustup/overrides.html), including
   rustfmt/Clippy and the Windows x64 MSVC target. Use one explicit edition consistently
   ([2024](https://doc.rust-lang.org/edition-guide/rust-2024/index.html) for new code unless a documented
@@ -195,7 +195,7 @@ of invoking an invalid combination or silently reducing coverage.
   applicable, in addition to Clippy's `-D warnings`. Test touched runnable examples;
   check generated rustdoc with warnings denied when public docs/interfaces change.
   Do not enable every optional lint family or ban language constructs indiscriminately.
-- CORE-001 adds minimal Windows x64 PR checks with the first code: formatting,
+- CORE-019 adds minimal Windows x64 PR checks with the first code: formatting,
   strict Clippy, locked build/tests and applicable doc tests. CORE-013 extends
   feature coverage and failure/artifact checks. Every PR runs the applicable gates;
   docs-only work checks links/consistency without requiring hardware or a new crate.

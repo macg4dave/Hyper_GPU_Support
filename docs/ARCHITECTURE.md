@@ -7,8 +7,9 @@ evidence requirements, not implementation progress.
 
 ## Current state
 
-This is a documentation-only project. The proposed components below are not
-implemented; there is no Cargo project or established application build command.
+The hardware-independent Rust CLI/library foundation provides help and version
+output. Build and check commands are in [README.md](../README.md). The proposed
+GPU-PV components below are not implemented.
 The target is a Windows 11 x64 host and guest with an NVIDIA RTX 5060 8 GB.
 That configuration remains **untested**, not a support claim.
 
@@ -32,8 +33,8 @@ support policy. [Microsoft support boundaries][ms-support]
 
 ## Proposed components
 
-After a reproducible baseline exists, use one Rust package with a CLI and
-reusable library, organized as ordinary modules:
+The foundation uses one Rust package with a CLI and reusable library. After a
+reproducible hardware baseline exists, add ordinary modules for these responsibilities:
 
 | Responsibility | Boundary |
 |---|---|
@@ -57,6 +58,19 @@ non-Rust glue or shim requires the documented exception process in
 require C/C++ implementation. Each workaround still needs a reproduced failure,
 affected driver/build range, validation and removal condition. Process adapters
 use fixed operations, typed parameters and structured data, never arbitrary scripts.
+
+## Foundation source layout
+
+`src/main.rs` owns process I/O and exit codes; `src/cli.rs` owns argument parsing
+and usage errors; `src/lib.rs` exposes the hardware-independent library boundary.
+`tests/cli.rs` exercises the built executable. No backend has been selected.
+
+Add `config` for validation in CORE-004, `windows`/`hyperv` for native adapters in
+CORE-005, `gpu` for inventory in CORE-001 and `gpupv` for assignment in CORE-010.
+Diagnostics/logging belong in `diagnostics` when inventory introduces operations
+to report. Introduce shared `error`/`types` modules when multiple callers need
+them; utilities stay with their owning responsibility until reuse is demonstrated.
+These are navigation intentions, not empty files or fixed backend interfaces.
 
 ## Configuration and recovery contract
 
@@ -268,7 +282,7 @@ determinism and isolation; this table maps project evidence to tasks.
 
 | Lane | Verifies | Evidence owner |
 |---|---|---|
-| Hardware-free Windows CI | Configuration/identity validation, planner diffs, structured adapter failures, journal/recovery state machine, locking, path/secret handling and report contracts using fixtures/fakes. Never claims GPU execution. | CORE-001 establishes the baseline; CORE-013 extends it; each implementation card adds relevant cases. |
+| Hardware-free Windows CI | Configuration/identity validation, planner diffs, structured adapter failures, journal/recovery state machine, locking, path/secret handling and report contracts using fixtures/fakes. Never claims GPU execution. | CORE-019 establishes the baseline; CORE-001/013 extend it; each implementation card adds relevant cases. |
 | Native management integration | Installed interfaces, rights, explicit VM/GPU selection, effective settings, guest transfer and legal lifecycle states on an authorized dedicated VM. | HV-003, GPU-009/011, CORE-005/008/002/010/011. |
 | Physical target workloads | D3D11/D3D12 checked frames and CUDA checked kernels; per-API optional results; identical host control and guest inputs, explicit hardware renderer and session. | GPU-008 defines probes; GPU-004/005/006 and CORE-003 execute them. |
 | Failure and maintenance | Interrupted/denied/full-disk/stale-plan operations, preimage conflicts, driver/build drift, device-not-ready diagnostics, cold restoration and a controlled driver transition. | CORE-014/015 and GPU-013. |

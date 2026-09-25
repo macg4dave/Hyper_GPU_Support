@@ -4,6 +4,22 @@ Record meaningful completed changes in one short entry per change, with task
 IDs and evidence links. Task statuses remain in BACKLOG; partial session notes
 remain in its Resume block. Do not duplicate detailed test output here.
 
+## 2026-09-25
+
+- [CORE-019](BACKLOG.md#core-019): added a single Rust CLI/library workspace,
+  pinned toolchain and lockfile, help/version and explicit errors, ten passing
+  tests, Windows CI and clean-machine development instructions. Formatting,
+  strict Clippy, locked build/tests, rustdoc and CLI smoke checks passed locally.
+  Recorded the incremental-cache workaround in DEC-010. Hardware gates unchanged.
+
+- [DOC-007](BACKLOG.md#doc-007): aligned all 13 AI instruction/prompt files with
+  shared [Rust engineering standards](ENGINEERING.md). Documented narrow language
+  exceptions, meaningful testing, strict checks, reproducible tooling and native
+  operation cleanup; corrected conflicting architecture/decision guidance and
+  required initial tests/PR checks with the first Rust code. Independent review
+  and Markdown/task consistency checks passed. Documentation only; no application
+  implementation, CI execution or hardware validation.
+
 ## 2026-09-24
 
 - [DOC-002](BACKLOG.md#doc-002): expanded the plan to v1.0 across M0-M5 and 45

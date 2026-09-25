@@ -7,7 +7,8 @@ milestone membership and task dependencies; follow its links for executable card
 Build reproducible GPU-PV for Windows 11 x64 host/guest and one NVIDIA RTX 5060
 8 GB. Start with an existing dedicated Generation 2 VM, native Windows management
 and a Rust CLI/library. AppSandbox is a pinned technical reference. There is no
-application code or established build command yet. Research is not hardware proof.
+GPU-PV implementation yet. CORE-019 provides the hardware-independent foundation
+and [build commands](../README.md#windows-development). Research is not hardware proof.
 
 ## Version 1.0 contract
 
@@ -35,7 +36,7 @@ requires the user, not a task-status edit.
 **Objective:** prepare a source-grounded, executable experiment on the real target.
 
 - Entry: documentation-only workspace; preserve existing local changes.
-- Work: environment/interface inventory, pinned reference and runnable artifact
+- Work: hardware-independent scaffolding (CORE-019), environment/interface inventory, pinned reference and runnable artifact
   preparation, selected-driver manifest, probe definitions and recovery procedure.
   Task cards are indexed under M0 in the [register](BACKLOG.md#task-register).
 - Research gates: [technical gaps](ARCHITECTURE.md#technical-gaps-and-research-gates)
@@ -43,7 +44,7 @@ requires the user, not a task-status edit.
   or reference build/signing dependencies must be resolved or explicitly blocked.
 - Validation: read-only queries distinguish denial from absence; inspect artifact
   provenance and setup side effects; define host controls and expected probe output.
-- Exit: HV-001, HV-003, REF-001/002, GPU-002/008/003 results identify exact
+- Exit: CORE-019 establishes the build/test foundation; HV-001, HV-003, REF-001/002, GPU-002/008/003 results identify exact
   environment, workloads, inputs, named targets, privileges and restoration.
   All M0 required cards completed; no protected setup implied by this gate.
 
@@ -78,7 +79,7 @@ requires the user, not a task-status edit.
   preflight/planning, durable operation journal, guest transfer, manifest staging,
   assignment, restore, lifecycle, diagnostics and probe reporting. CORE-001/002/003
   retain their IDs; new CORE cards split their formerly broad implementation scope.
-  CORE-001 includes the initial tests and Windows PR checks required by
+  CORE-001 extends the initial tests and Windows PR checks from CORE-019 required by
   [engineering standards](ENGINEERING.md#required-checks-and-ci); CORE-013 extends them.
 - Risks: elevation and credential boundaries, PowerShell marshalling, external
   state drift, partial file/registry writes and conflicting operations.
