@@ -5,14 +5,16 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-25, target inventory and the Rust read-only inventory
-  slice completed ([HV-001](#hv-001), [CORE-001](#core-001)).
-- Changed: added exact host evidence plus typed/versioned Rust inventory, bounded
-  Windows query transport, deterministic selection/error tests and DEC-013.
-- Outstanding: no candidate Hyper-V guest, parent/child roots or guest evidence;
-  the pending host reboot and unknown host Secure Boot state remain recorded.
-- Next recommended: [HV-003](#hv-003); [GPU-002](#gpu-002) and
-  [REF-001](#ref-001) are also ready.
+- Last session: 2026-09-25, M0 completed with the driver/reference/probe manifests
+  and exact M1 procedure ([GPU-002](#gpu-002), [REF-002](#ref-002),
+  [GPU-008](#gpu-008), [GPU-003](#gpu-003)).
+- Changed: pinned the signed NVIDIA/AppSandbox inputs and workload oracles; selected
+  `Z:\HyperGpuSupport`, one vacant native slot and a fixed runner/recovery boundary.
+- Outstanding: M1 has not executed. Host pending reboot and unknown Secure Boot
+  block protected setup; no native parent/child or enrolled VM exists. Existing
+  AppSandbox and repository-local checkpoint-chain files remain untouched.
+- Next recommended: owner approval for BLK-002 host stabilization, then
+  [CORE-004](#core-004) and [CORE-005](#core-005) implementation before HV-002.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -36,13 +38,13 @@ contribute to their milestone's required exit.
 | [CORE-019](#core-019) | M0 | P1 | completed | DOC-007 |
 | [GPU-001](#gpu-001) | M0 | P0 | completed | - |
 | [HV-001](#hv-001) | M0 | P0 | completed | - |
-| [REF-001](#ref-001) | M0 | P1 | ready | - |
+| [REF-001](#ref-001) | M0 | P1 | completed | - |
 | [REF-004](#ref-004) | M0 | P0 | completed | GPU-001 |
-| [HV-003](#hv-003) | M0 | P0 | ready | HV-001 |
-| [GPU-002](#gpu-002) | M0 | P0 | ready | GPU-001, HV-001 |
-| [REF-002](#ref-002) | M0 | P0 | planned | REF-001, HV-001, GPU-002 |
-| [GPU-008](#gpu-008) | M0 | P0 | planned | HV-001, GPU-002 |
-| [GPU-003](#gpu-003) | M0 | P0 | planned | GPU-002, HV-003, REF-002, GPU-008 |
+| [HV-003](#hv-003) | M0 | P0 | completed | HV-001 |
+| [GPU-002](#gpu-002) | M0 | P0 | completed | GPU-001, HV-001 |
+| [REF-002](#ref-002) | M0 | P0 | completed | REF-001, HV-001, GPU-002 |
+| [GPU-008](#gpu-008) | M0 | P0 | completed | HV-001, GPU-002 |
+| [GPU-003](#gpu-003) | M0 | P0 | completed | GPU-002, HV-003, REF-002, GPU-008 |
 | [HV-002](#hv-002) | M1 | P0 | planned | DOC-002, GPU-003, CORE-005 |
 | [GPU-004](#gpu-004) | M1 | P0 | planned | HV-002 |
 | [GPU-009](#gpu-009) | M1 | P0 | planned | HV-002, CORE-009 |
@@ -51,8 +53,8 @@ contribute to their milestone's required exit.
 | [GPU-011](#gpu-011) | M1 | P0 | planned | GPU-005 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
 | [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
-| [CORE-004](#core-004) | M1 | P0 | planned | CORE-001, GPU-003 |
-| [CORE-005](#core-005) | M1 | P0 | planned | CORE-001, HV-003, REF-001, GPU-003 |
+| [CORE-004](#core-004) | M1 | P0 | ready | CORE-001, GPU-003 |
+| [CORE-005](#core-005) | M1 | P0 | ready | CORE-001, HV-003, REF-001, GPU-003 |
 | [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
 | [CORE-007](#core-007) | M1 | P1 | planned | CORE-006 |
 | [CORE-008](#core-008) | M1 | P0 | planned | CORE-005, HV-002 |
@@ -111,10 +113,10 @@ contribute to their milestone's required exit.
 
 ## Blocker register
 
-No execution blocker has been established: target inventory and experiments
-have not run. Missing evidence is planned work, not a discovered hardware failure.
 The documented client/desktop vendor-support exclusion is a known project
-constraint, not proof that measured GPU-PV execution is impossible.
+constraint, not proof that measured GPU-PV execution is impossible. M1 setup is
+currently held at the explicit host-stabilization blocker below; no protected
+action is authorized merely because it is registered here.
 Anticipated risks/questions are owned by the
 [gap index](ARCHITECTURE.md#technical-gaps-and-research-gates); conditional product
 choices are in DEC-007/008. Promote an actual impediment here with evidence.
@@ -122,6 +124,7 @@ choices are in DEC-007/008. Promote an actual impediment here with evidence.
 | ID | State | Affected task IDs | Problem and evidence | Unblock condition / next action |
 |---|---|---|---|---|
 | BLK-001 | resolved 2026-09-25 | HV-001; CORE-001; GPU-002; HV-003 | The initial non-elevated inventory identified the host and RTX 5060 but Hyper-V denied partitionable-GPU, VM and supported-version queries; see [`docs/evidence/HV-001.md`](evidence/HV-001.md). | User approved the bounded administrator read-only rerun. It captured the GPU-P interface/ranges, supported versions and zero registered VMs without mutation. HV-001 completed; dependent cards became ready. |
+| BLK-002 | active 2026-09-25 | HV-002; GPU-004; CORE-005 | The target still reports `PendingFileRenameOperations`; host Secure Boot remains unknown because the normal-token query was denied. Starting parent/reference/runner setup on an unstable or unverified host would invalidate the M1 baseline. See [GPU-003](evidence/GPU-003.md#status-and-gate). | Owner approves one normal reboot of this host and the subsequent bounded administrator **read-only** Secure Boot, pending-reboot, Hyper-V/GPU/VM inventory. After normal boot, the marker must be absent, Secure Boot enabled and all pinned identities unchanged; otherwise refresh the plan instead of mutating. |
 
 Use permanent BLK-NNN IDs; retain resolved entries and link the resolution.
 A failed essential experiment blocks GPU-006 or the relevant release gate even
@@ -313,7 +316,19 @@ for future work is not an invented current blocker.
 - Read: [DEC-004](DECISIONS.md#dec-004).
 - Acceptance: Verify origin and pinned upstream URL; fetch non-shallow AppSandbox history without importing/merging its tree; preserve reviewed commit under a durable ref. Record actual remotes/refs and ancestry. No push, repository publication or global identity changes.
 - Files/output: Result on this card; update upstream review log only for newly inspected source.
-- Result: pending.
+- Result: 2026-09-25 verified `origin` as
+  `https://github.com/macg4dave/Hyper_GPU_Support.git`, added `upstream` as
+  `https://github.com/jamesstringer90/appsandbox.git`, and fetched its complete
+  non-shallow history/tags without merge, checkout or tree import. Preserved the
+  reviewed 0.1.9 commit as
+  `refs/upstream-reviewed/appsandbox/0.1.9` ->
+  `6f3adb6aafd4fc819d7715bdfacf52ac87df26a6`; tag `v0.1.9` and current
+  `upstream/main` resolve to the same commit. The commit has 250 reachable commits,
+  parent `214d6b59b650a35a2f67025e5bafc0147d1330b5`, is an ancestor of upstream main,
+  and has no merge base with independent project HEAD
+  `45229448f992bf4abb57ff09daa83c6b5124826f`. The FORK_PLAN.md deletion remains
+  untracked/absent. No source was newly reviewed, so the DEC-004 review log was
+  not extended. No push, merge, checkout, publication or identity change.
 
 ## REF-004
 
@@ -353,7 +368,19 @@ for future work is not an invented current blocker.
 - Read: [native boundaries](ARCHITECTURE.md#native-windows-boundaries) and gaps G1/G3/G7/G9.
 - Acceptance: Capture installed Add/Get/Set/Remove GPU adapter parameter sets, WMI/HCS availability as relevant, explicit GPU selection syntax, reported resource ranges/units/counts, current assignments and query rights. Map each proposed query/mutation to required host/guest rights and allowed VM states; mark unproven state rules for GPU-011. Do not change host partition count or infer percentages from raw values.
 - Files/output: `docs/evidence/HV-003.md`: interface/privilege matrix and exact unresolved experiments.
-- Result: pending.
+- Result: 2026-09-25 inspected installed Hyper-V module `2.0.0.0`, exact
+  add/get/set/remove parameter sets, native WMI classes/instances and HCS SDK/DLL
+  availability. Non-elevated WMI returned the exact RTX interface, partition count
+  32 and raw VRAM/encode/decode/compute ranges; Hyper-V PowerShell host/VM queries
+  were denied to that token, while HV-001's approved administrator query succeeded
+  and found zero VMs. There are zero GPU partition setting instances/current
+  assignments. Explicit selection is `Add-VMGpuPartitionAdapter -InstancePath`
+  using the identity-correlated provider path; no default/enumeration fallback.
+  Recorded a per-operation privilege matrix, absent host partition-count cmdlet,
+  HCS availability without invocation, and unproven mutation/VM-state rules for
+  CORE-005/GPU-011. Raw resource values are not percentages/bytes/enforcement
+  claims. Evidence: [`docs/evidence/HV-003.md`](evidence/HV-003.md). Read-only
+  only; no VM, adapter, partition-count or HCS mutation.
 
 ## GPU-002
 
@@ -363,7 +390,16 @@ for future work is not an invented current blocker.
 - Read: [source map](ARCHITECTURE.md#upstream-reference-map), [recovery contract](ARCHITECTURE.md#configuration-and-recovery-contract), DEC-004.
 - Acceptance: List source/destination, version/hash, package/license origin, required/optional classification and copy/transform step. Include ICD/registry/junction/ACL/owner effects needed to reproduce staging in a clean disposable child. Separate Windows, NVIDIA and AppSandbox files; inspect NVAPI dependencies of compute hooks. Identify drift/reboot conditions and exact package terms; no copying, binary modification or driver distribution.
 - Files/output: `docs/evidence/GPU-002.md`: reviewable manifest specification and dependency closure.
-- Result: pending.
+- Result: Completed 2026-09-25. Pinned the exact 217-file signed NVIDIA
+  DriverStore package, tree/hash algorithm, critical file anchors and a complete
+  host-to-guest staging rule. The native baseline copies the verified package
+  byte-for-byte into the disposable child's `HostDriverStore` mirror, creates
+  only the required CUDA loader alias, and leaves Windows components untouched.
+  Optional ICD/registry/junction/ACL/owner effects and all AppSandbox shims are
+  excluded until a named failure/probe justifies a reviewed experiment. Recorded
+  NVAPI's compute-hook dependency, strict drift/reboot rules and the no-driver-
+  redistribution boundary. Evidence: [`docs/evidence/GPU-002.md`](evidence/GPU-002.md).
+  Inspection only; no copy, transform, driver distribution or host/guest mutation.
 
 ## REF-002
 
@@ -373,7 +409,17 @@ for future work is not an invented current blocker.
 - Read: [reference hazards](ARCHITECTURE.md#reference-implementation-hazards), DEC-004 and DEC-007.
 - Acceptance: Pin source/artifact hash, inspect actual setup/build side effects and selected project dependencies (MSVC/SDK, WDK only if needed, exports, shims and notices). Verify signing/isolation/Secure Boot preservation and document a usable build or artifact-acquisition recipe. If building is needed, report only commands actually run; inspect before running scripts. No signing-key access, test-signing, permission broadening or host installs. If no safe route exists, record evidence/options and block the reference path for user decision.
 - Files/output: `docs/evidence/REF-002.md`: artifact identity, dependency list, exact recipe and safety review.
-- Result: pending.
+- Result: Completed 2026-09-25. Selected the publisher-signed AppSandbox 0.1.9
+  Windows x64 release at its GitHub SHA-256 and paired it with pinned source
+  commit `6f3adb6a`. All 25 PE/catalog signatures validated and all three
+  Microsoft-signed driver catalogs covered their INFs. Recorded exports/shim
+  closure, omitted release notices, exact acquisition checks and why rebuilding
+  the WDK/signing solution is not the reference path. Static review found that
+  even startup can create a machine VMMS certificate/ACL and delete fixed HCN
+  networks, so execution remains a separately scoped protected M1 operation.
+  Existing user-owned AppSandbox `Win11` state was identified read-only but not
+  enrolled or touched. Evidence: [`docs/evidence/REF-002.md`](evidence/REF-002.md).
+  No artifact execution/build, elevation or host/guest mutation.
 
 ## GPU-008
 
@@ -383,7 +429,15 @@ for future work is not an invented current blocker.
 - Read: [validation contract](ARCHITECTURE.md#validation-contract), [v1.0 contract](ROADMAP.md#version-10-contract).
 - Acceptance: Pin obtainable source/binary/runtime versions, license and build/run recipe for D3D11, D3D12 offscreen checked rendering and CUDA allocation/transfer/kernel with CPU-checked output. Record requested/negotiated D3D feature level and shader model, plus CUDA compilation target architecture. Choose Blackwell-capable CUDA compiler/runtime against the selected driver; define hardware identity/no-software-fallback checks and host control runs. Define representative optional API/video/interop tests or a specific unavailable-dependency reason. Record expected outputs/tolerances, duration, timeout, session, inputs and failure interpretation; do not claim execution before M1.
 - Files/output: `docs/evidence/GPU-008.md`: probe manifest and expected-result table; no application skeleton.
-- Result: pending.
+- Result: Completed 2026-09-25. Pinned official DirectX, DXC and CUDA sample/
+  toolchain inputs and defined identical host/reference/native workloads. D3D11
+  and D3D12 use hardware-only offscreen rendering with a full 256x256 readback
+  and exact hash; CUDA uses the unchanged `vectorAddDrv` allocation/transfer/
+  kernel/CPU-check path compiled for `sm_120`. Cross-API LUID identity, feature/
+  shader/compute levels, sessions, timeouts, repetitions and failure categories
+  are explicit. Optional API/interop candidates and the unavailable video-SDK
+  dependency are recorded without claiming execution. Evidence:
+  [`docs/evidence/GPU-008.md`](evidence/GPU-008.md). No probe built or run.
 
 ## GPU-003
 
@@ -393,7 +447,15 @@ for future work is not an invented current blocker.
 - Read: Dependency results and root protected-operation rules.
 - Acceptance: Specify exact parent/child roots, logical disposable slot and initial enrolled VM identity, host/guest versions, artifact inputs, settings, guest access, probe order and host control. Define immutable-parent checks, runner-owned GUID enrollment, differencing-child creation/recreation, stop/start/staging/assignment operations and abort thresholds. Define the privileged runner's fixed operation allowlist, log/result path, installation approval and revocation. Explain reference/native and presentation-session differences. Prepare exact target/effect/recovery scopes before requesting any protected action; no generic approval request or setup execution.
 - Files/output: `docs/evidence/GPU-003.md`: reviewable ordered procedure and authorization scopes.
-- Result: pending.
+- Result: Completed 2026-09-25. Bound the M1 workflow to the planned canonical
+  `Z:\HyperGpuSupport` root, one vacant `gpu-pv-slot-01`, exact parent/child/
+  runner/result paths, the RTX interface and pinned ISO/driver/reference/probe
+  inputs. Defined the sealed-parent checks, Generation 2 settings, ordered host/
+  reference/native procedure, timeouts/abort thresholds, ephemeral guest access,
+  runner allowlist/enrollment/audit/revocation and five separate authorization
+  scopes. Existing AppSandbox and repository-local checkpoint-chain files remain
+  unqualified and untouched. Evidence: [`docs/evidence/GPU-003.md`](evidence/GPU-003.md).
+  Planning/read-only inspection only; no setup or approval implied.
 
 ## HV-002
 

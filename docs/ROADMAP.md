@@ -1,6 +1,7 @@
 # Roadmap to v1.0
 
-**Current milestone: M0.** Advance only on the exit evidence below. The
+**Current milestone: M1.** M0 exit evidence is complete; advance only on the M1
+exit evidence below. The
 [backlog register](BACKLOG.md#task-register) alone owns task status, priority,
 milestone membership and task dependencies; follow its links for executable cards.
 
