@@ -144,6 +144,86 @@ disks or manage arbitrary VMs. Unsupported save/checkpoint/migration/sleep paths
 reported as unvalidated and are never selected as recovery. Hardware qualification,
 not a reported quota, determines the recommended resource preset.
 
+## Installation media and local image baseline
+
+Use an official, unmodified Windows 11 x64 ISO. AppSandbox's pinned source exposes
+two different operations that its `iso-patch.exe` name can obscure:
+
+- Its legacy one-argument mode copies the source ISO to a new UDF image and replaces
+  only `efi/microsoft/boot/efisys.bin` and `cdboot.efi` with Microsoft's existing
+  `_noprompt` variants. This suppresses the optical-media “Press any key” prompt for
+  automation; it does not add GPU drivers or change `install.wim`. The input ISO is
+  mounted read-only and remains unchanged. [Pinned legacy mode][u-iso-patch]
+- The current Windows create path calls `--to-vhdx`: it reads `install.wim` or
+  `install.esd` from the ISO, creates/partitions a new GPT VHDX, applies the selected
+  image with DISM, installs UEFI boot files with `bcdboot`, and stages files into the
+  new Windows volume. This modifies the VHDX, not the installation ISO.
+  [Pinned create path][u-core-create] [Pinned converter][u-iso-to-vhdx]
+
+AppSandbox stages an answer file, setup scripts, its agent/input/clipboard/audio
+helpers, custom VDD/VAD display/audio drivers, optional OpenSSH, and—on the shared
+Windows/macOS provisioning path—conditional shared-memory and NetKVM drivers. It
+also stages selected host GPU driver files under `HostDriverStore`; NVIDIA profiles,
+runtime shims and mapping layers have a separate guest provisioning path. Its
+answer/setup flow can create a local administrator and one-time autologon, bypass
+network OOBE, change recovery/boot-status policy, disable automatic device
+encryption for templates, run Sysprep, and optionally enable test signing/install
+test certificates. ARM64-only setup branches bypass TPM/RAM/Secure Boot checks.
+[Pinned answer/setup generator][u-win-provision] [Pinned staging manifest][u-disk]
+
+Those changes support unattended product installation, AppSandbox guest services,
+its custom display/audio/transport/network paths, templating and broad runtime
+compatibility. They are not prerequisites for Windows GPU-PV. This project's x64
+Generation 2 baseline keeps Secure Boot and vTPM enabled, performs a normal Windows
+installation, and adds only the measured GPU assignment and minimum matching guest
+runtime after installation on a disposable child. Driver/runtime work can use
+PowerShell Direct or explicitly approved offline servicing; a custom resources ISO
+is unnecessary. Modified media is reconsidered only after a reproducible essential
+workload failure proves that neither normal post-install configuration nor scoped
+child-disk servicing can supply a required pre-boot change.
+
+The local artifact layout is documented in [`data/README.md`](../data/README.md).
+The repository-relative `data/` tree is the small-machine default; future versioned
+configuration supplies one canonical absolute data root for external storage and
+derives all leaves from it. The privileged runner pins the resolved parent, child
+and result roots and rejects reparse-point escapes.
+
+The golden workflow is deliberately native and shallow:
+
+1. Create a normal Generation 2 VM from the original ISO with Windows Secure Boot,
+   vTPM, at least two virtual processors, 4 GB RAM and a 64 GB-or-larger VHDX; use
+   the eventual test VM's hardware profile. [Windows 11 VM requirements][ms-win11-vm]
+2. Install the selected edition legitimately, apply normal updates/integration
+   support, and add no GPU-PV assignment, copied host driver payload or AppSandbox
+   component. Do not embed credentials or product keys in the image.
+3. Run `sysprep /generalize /oobe /shutdown /mode:vm` inside the VM. `/mode:vm` is
+   appropriate only when descendants stay on Hyper-V with the same hardware profile.
+   [Sysprep VM mode][ms-sysprep]
+4. Remove the build VM registration without booting the disk again. Place the parent
+   at a stable, versioned path under `images/golden/`, record its edition/build and
+   SHA-256, back it up, and protect it with ACLs so the experimental identity and
+   runner cannot write it.
+5. For each test, use `New-VHD -Differencing -ParentPath <parent>` to create one
+   writable child under `images/disposable/`, register a fresh Generation 2 VM, and
+   create that VM's security state/vTPM. Verify `Get-VHD` reports the intended
+   `ParentPath` before start. Never rename, move, resize, mount writable, service or
+   boot the parent while any child exists. [New-VHD][ms-new-vhd]
+6. Perform GPU-PV/runtime experiments only in the child. On damage or uncertain
+   state, shut down and remove only the enrolled disposable VM/child through the
+   authorized runner, then create a fresh child. Do not merge a test child into the
+   golden parent and do not use checkpoints as the recovery contract.
+
+Generalizing before first descendant boot gives each registered child a fresh
+Windows specialization and machine identity; the VM GUID, virtual TPM/key protector
+and VM configuration are also per disposable VM, not inherited from the VHDX. A
+differencing disk still depends on the exact parent path/identity. Activation is
+separate from identity and licensing: cloning does not grant additional Windows use
+rights, automatic Windows Server VM activation does not apply to a Windows 11 client
+guest, and a child may require activation appropriate to its licensed edition and
+virtual hardware. Confirm the owner's entitlement before image preparation and use
+one active child only as the project test policy, not as a licensing conclusion.
+[Microsoft Windows 11 virtualization licensing][ms-win11-license]
+
 ## Display and presentation boundary
 
 GPU-PV assignment exposes a render/compute device; desktop presentation is a
@@ -371,6 +451,10 @@ these states and instruct recreation from the unchanged parent.
 [u-vdd]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/tools/vdd/vdd.cpp
 [u-display]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/src/backend_win/vm_display_idd.c
 [u-core]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/src/backend_win/asb_core.c#L3320
+[u-core-create]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/src/backend_win/asb_core.c#L1281
+[u-iso-patch]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/tools/iso-patch/iso-patch.c#L2
+[u-iso-to-vhdx]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/tools/iso-patch/iso-patch.c#L708
+[u-win-provision]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/tools/provision/win_provision.c#L132
 [ms-gpupv]: https://learn.microsoft.com/en-us/windows-hardware/drivers/display/gpu-paravirtualization
 [ms-support]: https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/troubleshoot-hyper-v-gpu-assignment-partitioning-passthrough-issues
 [ms-hcs-schema]: https://learn.microsoft.com/en-us/virtualization/api/hcs/schemareference#gpuconfiguration
@@ -383,6 +467,9 @@ these states and instruct recreation from the unchanged parent.
 [ms-psdirect]: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/powershell-direct
 [ms-hyperv-install]: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/get-started/install-hyper-v
 [ms-new-vhd]: https://learn.microsoft.com/en-us/powershell/module/hyper-v/new-vhd
+[ms-win11-vm]: https://learn.microsoft.com/en-us/windows/whats-new/windows-11-requirements#virtual-machine-support
+[ms-sysprep]: https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/sysprep-command-line-options?view=windows-11
+[ms-win11-license]: https://www.microsoft.com/licensing/guidance/Windows-11-Licensing-for-Virtual-Desktops
 [ms-task-security]: https://learn.microsoft.com/en-us/windows/win32/taskschd/security-contexts-for-running-tasks
 [ms-hyperv-admins]: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/appendix-b--privileged-accounts-and-groups-in-active-directory#hyper-v-administrators
 [nv-5060]: https://www.nvidia.com/en-us/geforce/graphics-cards/50-series/rtx-5060-family/

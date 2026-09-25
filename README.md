@@ -70,11 +70,14 @@ The [architecture source map](docs/ARCHITECTURE.md#foundation-source-layout)
 identifies where future modules belong. Configuration, logging and Windows
 adapters are deferred until meaningful behavior requires them.
 
-Keep machine-local files in ignored `local/` and build output in `target/`.
-Never add secrets, VM disks, OS images or proprietary drivers. Ignore rules are
-only a convenience; review staged content. Source and configuration templates
-belong in Git. Project licensing/distribution remains an owner decision before
-packaging (DEC-008); the package is not publishable to a registry.
+Keep small machine-local settings in ignored `local/`, build output in `target/`,
+and OS/VM/driver/test artifacts in the reproducible ignored
+[`data/` layout](data/README.md). The relative tree is the default; hardware work
+records an explicit external data root when large artifacts live elsewhere. Never
+add secrets, VM disks, OS images or proprietary drivers. Ignore rules are only a
+convenience; review staged content. Source and configuration templates belong in
+Git. Project licensing/distribution remains an owner decision before packaging
+(DEC-008); the package is not publishable to a registry.
 
 AppSandbox remains an external, pinned [reference map](docs/ARCHITECTURE.md#upstream-reference-map).
 No upstream implementation or binary has been copied into this scaffold.

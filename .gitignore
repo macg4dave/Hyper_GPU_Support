@@ -14,6 +14,19 @@
 *.vhd
 *.vhdx
 *.avhdx
+*.avhd
+*.vhdset
+*.vhds
+*.wim
+*.esd
+*.swm
 *.pfx
 *.p12
 *.key
+
+# Local OS media, VM disks, driver payloads, staging, logs and hardware evidence.
+# Keep only the documented directory skeleton in Git.
+/data/**
+!/data/**/
+!/data/README.md
+!/data/**/.gitkeep

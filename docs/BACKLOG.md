@@ -5,13 +5,13 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-25, autonomous-development permission audit completed
-  ([DOC-010](#doc-010)).
-- Changed: root permission boundary, engineering/Copilot pointers, project Codex
-  sandbox/approval defaults, decision and task records; earlier changes preserved.
-- Outstanding: no project-native target inventory or workload evidence; exact
-  golden parent/child locations and privileged-runner permissions remain unmeasured.
-  Owner license/distribution/signing choice is scheduled in DOC-004, not assumed.
+- Last session: 2026-09-25, unmodified-media and local image baseline completed
+  ([REF-004](#ref-004)).
+- Changed: reproducible ignored `data/` artifact tree, expanded image exclusions,
+  pinned AppSandbox ISO/VHDX analysis and native golden-parent/child guidance.
+- Outstanding: no project-native target inventory or workload evidence; actual
+  external parent/child roots and privileged-runner permissions remain unmeasured.
+  Windows VM licensing/activation entitlement must be confirmed before preparation.
 - Next recommended: [HV-001](#hv-001); [REF-001](#ref-001) can run independently.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
@@ -37,6 +37,7 @@ contribute to their milestone's required exit.
 | [GPU-001](#gpu-001) | M0 | P0 | completed | - |
 | [HV-001](#hv-001) | M0 | P0 | ready | - |
 | [REF-001](#ref-001) | M0 | P1 | ready | - |
+| [REF-004](#ref-004) | M0 | P0 | completed | GPU-001 |
 | [HV-003](#hv-003) | M0 | P0 | planned | HV-001 |
 | [GPU-002](#gpu-002) | M0 | P0 | planned | GPU-001, HV-001 |
 | [REF-002](#ref-002) | M0 | P0 | planned | REF-001, HV-001, GPU-002 |
@@ -304,6 +305,36 @@ for future work is not an invented current blocker.
 - Acceptance: Verify origin and pinned upstream URL; fetch non-shallow AppSandbox history without importing/merging its tree; preserve reviewed commit under a durable ref. Record actual remotes/refs and ancestry. No push, repository publication or global identity changes.
 - Files/output: Result on this card; update upstream review log only for newly inspected source.
 - Result: pending.
+
+## REF-004
+
+**Establish the unmodified-media and disposable-image baseline**
+
+- Context/scope: Determine whether pinned AppSandbox installation-media changes
+  are GPU-PV requirements or product automation, establish ignored local artifact
+  roots, and document the smallest native golden-parent/differencing-child workflow.
+  No ISO/VHD servicing, VM/host/driver mutation, or new VM-management framework.
+- Read: pinned [upstream reference map](ARCHITECTURE.md#upstream-reference-map),
+  [DEC-011](DECISIONS.md#dec-011), and official Windows/Hyper-V documentation.
+- Acceptance: Account for AppSandbox ISO/disk preparation effects and separate
+  installation automation, guest services, networking/display, and GPU runtime
+  staging from GPU-PV requirements. Decide whether an official unmodified Windows
+  11 ISO is the baseline and identify any evidence-triggered exception. Add a
+  configurable, reproducible ignored `data/` layout; verify no prohibited large
+  artifacts are tracked. Document activation, identity, parent-chain protection,
+  reset, and external-root considerations. Validate links/consistency and Git
+  ignore behavior; identify the next practical implementation task.
+- Files/output: repository artifact skeleton, ignore rules, concise architecture/
+  operator guidance, source references, result and changelog entry.
+- Result: completed 2026-09-25. Pinned source inspection found that the legacy
+  patcher only substitutes no-prompt UEFI boot files in a new output ISO, while
+  the current path reads the official ISO and applies/stages a new VHDX. Neither
+  is a GPU-PV requirement. Established an official unmodified ISO baseline,
+  post-install child provisioning, native generalized parent/differencing-child
+  workflow, and ignored trackable `data/` layout. Verified all intended sample
+  artifacts ignored, skeleton files trackable, no prohibited large types tracked,
+  unique task entry/reference definitions and `git diff --check`; no ISO/VHD/VM,
+  host, driver or hardware action. Next: HV-001 read-only target inventory.
 
 ## HV-003
 

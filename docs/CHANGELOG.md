@@ -6,6 +6,13 @@ remain in its Resume block. Do not duplicate detailed test output here.
 
 ## 2026-09-25
 
+- [REF-004](BACKLOG.md#ref-004): established an official unmodified Windows 11
+  ISO baseline after separating AppSandbox's no-prompt ISO rebuild and VHDX
+  provisioning from GPU-PV requirements. Added the ignored reproducible `data/`
+  artifact tree and documented the native generalized-parent/differencing-child
+  workflow, activation/licensing boundary and external-root contract. Ignore,
+  tracked-artifact, link/reference, task and diff checks passed; no host/VM change.
+
 - [DOC-010](BACKLOG.md#doc-010): made routine repository development explicitly
   autonomous, retained scoped approval for privileged/destructive/host-wide work,
   and configured future Codex sessions for workspace writes with on-request
