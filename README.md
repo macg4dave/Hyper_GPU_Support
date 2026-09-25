@@ -2,8 +2,8 @@
 
 A Windows 11 x64 GPU-PV project targeting one Windows 11 guest and an NVIDIA
 RTX 5060 8 GB. AppSandbox is the user's known-working HCS reference on this
-hardware; the current project executable only provides help and version output
-and has not yet reproduced GPU-PV through its own Rust/native path.
+hardware. The project executable provides help, version and read-only inventory;
+it has not yet reproduced GPU-PV through its own Rust/native path.
 
 ## Windows development
 
@@ -21,6 +21,7 @@ rustup show
 cargo build --locked --workspace --all-features
 cargo run --locked -- --help
 cargo run --locked -- --version
+cargo run --locked -- inventory
 ```
 
 `rust-toolchain.toml` selects Rust 1.94.0, rustfmt, Clippy and the Windows x64
@@ -51,9 +52,27 @@ cargo doc --locked --workspace --all-features --no-deps
 Tests include unit tests, executable integration tests and a runnable doc test.
 They require no elevation, Hyper-V, GPU, guest or network once the toolchain is
 installed. Windows CI runs the same checks on hosted x64 runners; hosted CI is
-not hardware qualification. Exit codes are 0 for help/version, 2 for invalid
-arguments and 1 for output failure (including unavailable stderr). Errors go to
-stderr; normal output to stdout.
+not hardware qualification. Exit codes are 0 for help/version/inventory, 2 for
+invalid arguments and 1 for adapter or output failure (including unavailable
+stderr). Errors go to stderr; normal output to stdout.
+
+`inventory` executes fixed, read-only Windows/Hyper-V queries and emits a stable
+line-oriented report beginning with `inventory.schema=1`. Each fact is
+`key=status[:value]`, where status is `known`, `missing`, `denied` or
+`unavailable`. Newlines, carriage returns and percent signs in values are percent
+escaped. A successful report may contain denied or missing facts; those are
+observations, not process failures. Run it without elevation for normal diagnosis:
+
+```text
+inventory.schema=1
+gpu.model=known:NVIDIA GeForce RTX 5060
+gpup.interface=denied
+vm.selection=denied
+```
+
+The command accepts no target or script argument and performs no mutation.
+Administrator execution is not required by the CLI contract and must follow the
+repository permission boundary when explicitly needed for protected facts.
 
 ## Source map
 
@@ -62,6 +81,8 @@ stderr; normal output to stdout.
 | `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml` | One package/workspace and pinned build inputs |
 | `src/main.rs` | Process arguments, output and exit codes |
 | `src/lib.rs`, `src/cli.rs` | Library boundary, CLI parser and unit tests |
+| `src/inventory.rs` | Typed fact/report model, validated adapter protocol and tests |
+| `src/windows_inventory.rs` | Fixed read-only Windows/Hyper-V process adapter |
 | `tests/cli.rs` | Executable behavior tests |
 | `.github/workflows/ci.yml` | Windows build, lint, test and rustdoc checks |
 | `docs/` | Architecture, roadmap, task evidence and engineering policy |

@@ -13,8 +13,28 @@ fn help_and_default_invocation_succeed() {
         assert!(output.stderr.is_empty());
         let stdout = String::from_utf8(output.stdout).unwrap();
         assert!(stdout.contains("Usage: hyper-gpu-support"));
-        assert!(stdout.contains("GPU-PV operations are not implemented yet."));
+        assert!(stdout.contains("Mutating GPU-PV operations are not implemented yet."));
     }
+}
+
+#[test]
+fn inventory_emits_a_versioned_report_without_elevation() {
+    let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
+        .arg("inventory")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.starts_with("inventory.schema=1\n"));
+    assert!(stdout.contains("host.build=known:"));
+    assert!(stdout.contains("gpu.model="));
+    assert!(stdout.contains("gpup.interface="));
+    assert!(stdout.contains("vm.selection="));
 }
 
 #[test]

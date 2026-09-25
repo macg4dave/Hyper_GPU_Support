@@ -4,6 +4,8 @@ use std::io::{self, Write};
 use std::process::ExitCode;
 
 use hyper_gpu_support::cli::{self, Command};
+#[cfg(windows)]
+use hyper_gpu_support::inventory::InventorySource;
 
 fn main() -> ExitCode {
     let command = match cli::parse(std::env::args_os().skip(1)) {
@@ -13,10 +15,14 @@ fn main() -> ExitCode {
         }
     };
     let output = match command {
-        Command::Help => cli::HELP,
-        Command::Version => cli::VERSION,
+        Command::Help => cli::HELP.to_owned(),
+        Command::Version => cli::VERSION.to_owned(),
+        Command::Inventory => match inventory_output() {
+            Ok(output) => output,
+            Err(error) => return report_error(&mut io::stderr().lock(), &error, 1),
+        },
     };
-    match write_output(&mut io::stdout().lock(), output) {
+    match write_output(&mut io::stdout().lock(), &output) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => report_error(
             &mut io::stderr().lock(),
@@ -24,6 +30,18 @@ fn main() -> ExitCode {
             1,
         ),
     }
+}
+
+#[cfg(windows)]
+fn inventory_output() -> Result<String, hyper_gpu_support::inventory::InventoryError> {
+    hyper_gpu_support::windows_inventory::WindowsInventory
+        .collect()
+        .map(|report| report.render())
+}
+
+#[cfg(not(windows))]
+fn inventory_output() -> Result<String, hyper_gpu_support::inventory::InventoryError> {
+    Err(hyper_gpu_support::inventory::InventoryError::AdapterFailed)
 }
 
 fn write_output(writer: &mut impl Write, output: &str) -> io::Result<()> {

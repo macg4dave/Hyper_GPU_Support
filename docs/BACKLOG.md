@@ -5,14 +5,13 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-25, unmodified-media and local image baseline completed
-  ([REF-004](#ref-004)).
-- Changed: reproducible ignored `data/` artifact tree, expanded image exclusions,
-  pinned AppSandbox ISO/VHDX analysis and native golden-parent/child guidance.
-- Outstanding: no project-native target inventory or workload evidence; actual
-  external parent/child roots and privileged-runner permissions remain unmeasured.
-  Windows VM licensing/activation entitlement must be confirmed before preparation.
-- Next recommended: [HV-001](#hv-001); [REF-001](#ref-001) can run independently.
+- Last session: 2026-09-25, target inventory completed ([HV-001](#hv-001)).
+- Changed: added `docs/evidence/HV-001.md` with exact host/Hyper-V/GPU findings,
+  approved administrator query evidence, GPU-P identity and zero registered VMs.
+- Outstanding: no candidate Hyper-V guest, parent/child roots or guest evidence;
+  the pending host reboot and unknown host Secure Boot state remain recorded.
+- Next recommended: [CORE-001](#core-001); [HV-003](#hv-003),
+  [GPU-002](#gpu-002) and [REF-001](#ref-001) are also ready.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -35,11 +34,11 @@ contribute to their milestone's required exit.
 | [DOC-010](#doc-010) | M0 | P0 | completed | DOC-007 |
 | [CORE-019](#core-019) | M0 | P1 | completed | DOC-007 |
 | [GPU-001](#gpu-001) | M0 | P0 | completed | - |
-| [HV-001](#hv-001) | M0 | P0 | ready | - |
+| [HV-001](#hv-001) | M0 | P0 | completed | - |
 | [REF-001](#ref-001) | M0 | P1 | ready | - |
 | [REF-004](#ref-004) | M0 | P0 | completed | GPU-001 |
-| [HV-003](#hv-003) | M0 | P0 | planned | HV-001 |
-| [GPU-002](#gpu-002) | M0 | P0 | planned | GPU-001, HV-001 |
+| [HV-003](#hv-003) | M0 | P0 | ready | HV-001 |
+| [GPU-002](#gpu-002) | M0 | P0 | ready | GPU-001, HV-001 |
 | [REF-002](#ref-002) | M0 | P0 | planned | REF-001, HV-001, GPU-002 |
 | [GPU-008](#gpu-008) | M0 | P0 | planned | HV-001, GPU-002 |
 | [GPU-003](#gpu-003) | M0 | P0 | planned | GPU-002, HV-003, REF-002, GPU-008 |
@@ -50,7 +49,7 @@ contribute to their milestone's required exit.
 | [GPU-010](#gpu-010) | M1 | P0 | planned | GPU-005 |
 | [GPU-011](#gpu-011) | M1 | P0 | planned | GPU-005 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
-| [CORE-001](#core-001) | M0 | P0 | planned | HV-001, CORE-019 |
+| [CORE-001](#core-001) | M0 | P0 | in progress | HV-001, CORE-019 |
 | [CORE-004](#core-004) | M1 | P0 | planned | CORE-001, GPU-003 |
 | [CORE-005](#core-005) | M1 | P0 | planned | CORE-001, HV-003, REF-001, GPU-003 |
 | [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
@@ -121,7 +120,7 @@ choices are in DEC-007/008. Promote an actual impediment here with evidence.
 
 | ID | State | Affected task IDs | Problem and evidence | Unblock condition / next action |
 |---|---|---|---|---|
-| - | - | - | No execution records yet | Begin HV-001 / REF-001 |
+| BLK-001 | resolved 2026-09-25 | HV-001; CORE-001; GPU-002; HV-003 | The initial non-elevated inventory identified the host and RTX 5060 but Hyper-V denied partitionable-GPU, VM and supported-version queries; see [`docs/evidence/HV-001.md`](evidence/HV-001.md). | User approved the bounded administrator read-only rerun. It captured the GPU-P interface/ranges, supported versions and zero registered VMs without mutation. HV-001 completed; dependent cards became ready. |
 
 Use permanent BLK-NNN IDs; retain resolved entries and link the resolution.
 A failed essential experiment blocks GPU-006 or the relevant release gate even
@@ -294,7 +293,16 @@ for future work is not an invented current blocker.
 - Read: [native boundaries](ARCHITECTURE.md#native-windows-boundaries).
 - Acceptance: Record host edition/build/x64, firmware virtualization/SLAT evidence, Hyper-V feature/service/module versions, elevation context, GPU PCI/interface identity and driver package. Record guest edition/build/x64, VM GUID (redacted externally), configuration version, Gen 2, Secure Boot/vTPM, CPU/RAM/storage and pending reboot information, or no guest. Distinguish unavailable data, permission denial and absent facility.
 - Files/output: `docs/evidence/HV-001.md`: commands, date, results, unknowns and redaction.
-- Result: pending.
+- Result: 2026-09-25 inventory recorded Windows 11 Pro 25H2
+  `26200.9457` x64, active Hyper-V facilities, firmware virtualization, pending
+  host reboot, and a healthy RTX 5060 at PCI `10DE:2D05` with NVIDIA driver
+  `616.92` / package `32.0.16.1692`. SLAT fields are inconclusive under the active
+  hypervisor. An explicitly approved administrator read-only rerun captured one
+  RTX 5060 GPU-P interface, raw resource ranges, configuration versions through
+  default `12.0`, and zero registered Hyper-V VMs. Candidate-guest fields are
+  therefore absent rather than permission-blocked. [BLK-001](#blocker-register)
+  is resolved. Evidence: [`docs/evidence/HV-001.md`](evidence/HV-001.md). No
+  protected mutation occurred.
 
 ## REF-001
 
@@ -467,6 +475,7 @@ for future work is not an invented current blocker.
   tests and Windows PR checks with focused inventory coverage and strict warnings.
 - Acceptance: Extend the existing CLI/library boundary with read-only inventory of selected VM/GPU/driver facts and unknowns. Report missing facility/denial distinctly. Preserve pinned tools and locked builds; document inventory commands and focused Windows validation; keep backend access replaceable for tests. Record exact introduced paths before follow-up work.
 - Files/output: Existing `src/`, build instructions and proposed `docs/evidence/CORE-001.md`.
+- Owner: Codex `/root`, 2026-09-25.
 - Result: pending.
 
 ## CORE-004

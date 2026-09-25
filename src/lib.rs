@@ -1,6 +1,10 @@
-//! Hardware-independent foundation for the Windows GPU-PV CLI.
+//! Core library for the Windows GPU-PV CLI.
 //!
-//! Native management and configuration contracts will be introduced after the
-//! relevant roadmap gates. This library performs no host or guest discovery.
+//! The inventory boundary is read-only and keeps Windows process access behind a
+//! replaceable source so report logic can be tested without Hyper-V or a GPU.
 
 pub mod cli;
+pub mod inventory;
+
+#[cfg(windows)]
+pub mod windows_inventory;

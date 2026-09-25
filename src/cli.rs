@@ -6,13 +6,16 @@ use std::fmt;
 /// Help for the currently implemented commands.
 pub const HELP: &str = "hyper-gpu-support - Windows GPU-PV project foundation
 
-Usage: hyper-gpu-support [OPTIONS]
+Usage: hyper-gpu-support [COMMAND] [OPTIONS]
+
+Commands:
+  inventory        Report read-only host, GPU and Hyper-V facts
 
 Options:
   -h, --help       Display help
   -V, --version    Display version
 
-GPU-PV operations are not implemented yet.
+Mutating GPU-PV operations are not implemented yet.
 ";
 
 /// Application version, taken from the package metadata.
@@ -25,6 +28,8 @@ pub enum Command {
     Help,
     /// Show the application version.
     Version,
+    /// Report read-only inventory facts.
+    Inventory,
 }
 
 /// Invalid arguments. User-provided content is omitted from error output.
@@ -58,6 +63,7 @@ pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Command, U
     let command = match argument.to_str() {
         Some("--help" | "-h") => Command::Help,
         Some("--version" | "-V") => Command::Version,
+        Some("inventory") => Command::Inventory,
         None | Some(_) => return Err(UsageError),
     };
     if arguments.next().is_some() {
@@ -76,12 +82,13 @@ mod tests {
     }
 
     #[test]
-    fn accepts_help_and_version_aliases() {
+    fn accepts_supported_commands_and_aliases() {
         for (argument, expected) in [
             ("--help", Command::Help),
             ("-h", Command::Help),
             ("--version", Command::Version),
             ("-V", Command::Version),
+            ("inventory", Command::Inventory),
         ] {
             assert_eq!(parse([argument.into()]), Ok(expected));
         }

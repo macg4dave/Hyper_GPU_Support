@@ -6,6 +6,12 @@ remain in its Resume block. Do not duplicate detailed test output here.
 
 ## 2026-09-25
 
+- [HV-001](BACKLOG.md#hv-001): inventoried Windows 11 Pro 25H2 build
+  `26200.9457`, active Hyper-V facilities and the RTX 5060/616.92 driver and
+  GPU-P interface. An explicitly approved administrator read-only rerun found
+  zero registered Hyper-V VMs and resolved the initial permission blocker without
+  changing the host. Evidence: [target inventory](evidence/HV-001.md).
+
 - [REF-004](BACKLOG.md#ref-004): established an official unmodified Windows 11
   ISO baseline after separating AppSandbox's no-prompt ISO rebuild and VHDX
   provisioning from GPU-PV requirements. Added the ignored reproducible `data/`
