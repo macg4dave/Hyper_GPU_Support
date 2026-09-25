@@ -11,7 +11,10 @@ The hardware-independent Rust CLI/library foundation provides help and version
 output. Build and check commands are in [README.md](../README.md). The proposed
 GPU-PV components below are not implemented.
 The target is a Windows 11 x64 host and guest with an NVIDIA RTX 5060 8 GB.
-That configuration remains **untested**, not a support claim.
+The user has run AppSandbox successfully on this hardware, establishing a
+known-working HCS GPU-PV reference. This project has not yet captured its own
+adapter, driver or D3D11/D3D12/CUDA evidence, and native Hyper-V/VMMS parity is
+still untested; those narrower questions do not reopen general GPU-PV feasibility.
 
 The inherited research snapshot is dated **24 September 2026**, from AppSandbox
 [`6f3adb6aafd4fc819d7715bdfacf52ac87df26a6`][upstream-commit] (0.1.9 version
@@ -33,20 +36,22 @@ support policy. [Microsoft support boundaries][ms-support]
 
 ## Proposed components
 
-The foundation uses one Rust package with a CLI and reusable library. After a
-reproducible hardware baseline exists, add ordinary modules for these responsibilities:
+The foundation uses one Rust package with a CLI and reusable library. After HV-001
+supplies exact target identities, build a thin vertical slice from ordinary modules
+for these responsibilities and validate each privileged step on the disposable VM:
 
 | Responsibility | Boundary |
 |---|---|
 | Inventory and diagnostics | Read host/guest identity, driver versions, partition availability, device status, and results. |
 | GPU configuration | Validate intent, produce a concrete change plan, call native management, and verify the actual assignment. |
-| Guest driver/runtime preparation | Produce a selected-driver manifest; transfer, validate, and restore necessary files/settings. |
+| Guest driver/runtime preparation | Produce a selected-driver manifest; transfer and validate necessary files/settings in a disposable child. |
 | Capability probes and reporting | Invoke focused workloads and produce readable and machine-readable evidence. |
-| Configuration and operation state | Versioned intent, immutable reviewed plan, effective-state comparison, per-VM/physical-GPU locks and durable recovery journal. |
-| Maintenance and lifecycle | Call native VM start/shutdown/restart; detect driver/build drift; restage only through a new reviewed transaction. |
+| Configuration and operation state | Versioned intent, immutable reviewed plan, effective-state comparison, per-VM/physical-GPU locks and bounded audit records. |
+| Maintenance and lifecycle | Call native VM start/shutdown/restart; detect driver/build drift; recreate/restage only through a new reviewed operation. |
 
-Configuration targets an existing VM ID. Windows owns VM lifecycle, storage,
-and integration services. Keep GPU logic callable without a GUI; a future
+Configuration targets one designated disposable VM ID and an immutable parent
+image identity. Windows owns VM lifecycle, storage, differencing disks and
+integration services. Keep GPU logic callable without a GUI; a future
 configuration editor may call the same core. Fixed scope and backend selection
 criteria are recorded in [DECISIONS.md](DECISIONS.md).
 
@@ -66,7 +71,7 @@ and usage errors; `src/lib.rs` exposes the hardware-independent library boundary
 `tests/cli.rs` exercises the built executable. No backend has been selected.
 
 Add `config` for validation in CORE-004, `windows`/`hyperv` for native adapters in
-CORE-005, `gpu` for inventory in CORE-001 and `gpupv` for assignment in CORE-010.
+CORE-005, `gpu` for inventory in CORE-001 and `gpupv` for assignment in CORE-002.
 Diagnostics/logging belong in `diagnostics` when inventory introduces operations
 to report. Introduce shared `error`/`types` modules when multiple callers need
 them; utilities stay with their owning responsibility until reuse is demonstrated.
@@ -88,30 +93,71 @@ environment fingerprint and VM state again under exclusive VM and physical-GPU
 locks acquired in a fixed order. Recheck existing/in-flight assignments across
 VMs under the GPU lock so simultaneous commands cannot bypass the one-guest limit.
 Windows users/tools do not honor our locks; verify native state again at each
-mutation and refuse detected external conflicts. Each native action
-records its preimage and outcome before the next action. Windows operations are
-not one atomic transaction: recovery uses verified compensating actions, and may
-stop with an exact manual recovery instruction when state has changed externally.
+mutation and refuse detected external conflicts. Record the requested operation,
+validated identities, each native result and final verification. Host mutations
+retain the small preimage needed to detach the adapter or undo a project-owned
+setting; uncertain guest state is recovered by recreating the disposable child,
+not by building a general transaction/rollback engine.
 
-Driver staging records path, size/hash/version, origin, destination and original
-absence/content plus registry type/value, ACL/owner, ICD JSON and junction state
-where applicable. Reject path traversal, unexpected reparse points, changed source
-hashes and overwriting unowned changes. Backups/journals have restricted access;
-interruption, full disk and failed restoration cannot delete the only recovery
-copy. Removal touches only project-owned changes and never removes the VM/disk.
+The clean Windows 11 parent VHDX is shut down, versioned, access-controlled and
+never attached for experimental writes. Each run uses a new differencing VHDX and
+a freshly registered Generation 2 test VM with its own identity and security state.
+Driver staging in the child records path, hash/version, origin, destination and
+registry/ICD settings for repeatability and diagnosis, but guest recovery discards
+the child. Reject path traversal, unexpected reparse points, changed source hashes
+and writes outside the configured child/guest scope. The runner must never accept
+the parent path or another VM as a mutation target.
 
-Use the caller's Windows authorization for fixed native operations; do not install
-a privileged service or silently elevate. Missing rights produce actionable errors.
+Ordinary commands use the caller's unelevated Windows token. A separately approved
+privileged test runner may execute only fixed, typed operations needed by the GPU-PV
+experiment. Its installed executable and policy are administrator-owned outside the
+repository; the agent can submit a bounded request and read a result but cannot
+replace the executable, edit its policy or supply a command line/script. Policy pins
+one logical disposable slot, GPU identity, parent/child roots, allowed operations
+and timeouts. For `reset`, the runner validates and removes only the currently
+enrolled disposable VM/child, creates the next child/VM itself, and atomically stores
+the generated VM GUID in an administrator-owned enrollment record. Every later
+request must name that current GUID; agent input can neither enroll another VM nor
+select a path. Every request/result is logged and invalid, ambiguous or stale
+identity fails closed. Installing, updating or broadening this boundary needs new approval;
+tool sandbox approval is not Windows elevation. Do not run the editor or arbitrary
+repository binaries with a general elevated token merely for convenience.
+
+The runner may be hosted by an on-demand Scheduled Task or an equivalent small
+native launcher after HV-003 proves the minimum Windows rights. Prefer a dedicated
+principal in Hyper-V Administrators when its measured operations succeed; use a
+broader administrator token only for an individually justified operation that the
+limited principal cannot perform. It is not a background GPU service or product
+control plane. [New-VHD differencing disks][ms-new-vhd]
+[Task Scheduler security contexts][ms-task-security]
+[Hyper-V Administrators][ms-hyperv-admins]
+
 Guest sessions use ephemeral credentials supplied securely at execution time, no
 passwords on process command lines or in reports. Native subprocess adapters must
 handle timeouts, structured output, stderr, encoding, cancellation and nonzero
 exit status. These boundaries are tested separately from GPU capabilities.
 
-The first release configures an existing VM, verifies prerequisites and provides
-native lifecycle operations. It does not create networking, resize guest disks or
-install an OS automatically. Unsupported save/checkpoint/migration/sleep paths are
-reported as unvalidated and are never selected as automatic recovery. Hardware
-qualification, not a reported quota, determines the recommended resource preset.
+The development path prepares a clean parent manually, creates one disposable VM
+from a differencing disk, verifies prerequisites and provides native lifecycle
+operations. It does not install Windows, create general networking, resize guest
+disks or manage arbitrary VMs. Unsupported save/checkpoint/migration/sleep paths are
+reported as unvalidated and are never selected as recovery. Hardware qualification,
+not a reported quota, determines the recommended resource preset.
+
+## Display and presentation boundary
+
+GPU-PV assignment exposes a render/compute device; desktop presentation is a
+separate concern. Use VMConnect, Enhanced Session Mode or RDP for operator access
+when available, while essential probes select the intended NVIDIA adapter and check
+offscreen output/hardware identity. A responsive remote desktop, the Microsoft
+Remote Display Adapter or the host's existing Phaze virtual display driver is not
+evidence that the guest workload used the RTX 5060.
+
+AppSandbox's IddCx virtual monitor and transport serve its product display path.
+They are not copied into this project. A custom indirect display device becomes a
+candidate only if a named essential workload fails specifically because no suitable
+display target exists and the same workload succeeds with that component. Display
+convenience, frame transport and low-latency presentation remain outside v1.
 
 ## Technical gaps and research gates
 
@@ -121,15 +167,15 @@ were selectively checked on 2026-09-24; no target inventory or workloads were ru
 
 | Gap | Evidence / unanswered question | Owning work and decision consequence |
 |---|---|---|
-| G1: supported interface versus supported system | Hyper-V cmdlets/WMI and HCS GPU fields are documented; client/GeForce deployment is outside Microsoft's supported GPU-P/DDA configurations. Installed edition, module shape and partition interface remain unknown. | HV-001/003; stop for missing prerequisites. Product promise remains version-pinned experimental compatibility, not vendor certification. |
+| G1: native interface versus working HCS reference | AppSandbox works on the user's target through HCS; client/GeForce deployment remains outside Microsoft's supported GPU-P/DDA configurations. Installed VMMS/WMI partition identity and mutation behavior remain unknown. | HV-001/003 and CORE-001/005; test the native equivalent, then isolate only a demonstrated VMMS/HCS gap. Product claims remain version-pinned, not vendor certification. |
 | G2: reference reproducibility and safety | Pinned source has test-signing, certificate/setup and Secure Boot test-mode branches; solution builds can invoke packaging/signing. Which minimal signed artifact/provisioning route preserves project boundaries? | REF-002 before GPU-003/HV-002. Review only chosen dependencies; blocked safe baseline requires the decision route in DEC-007. |
 | G3: VMMS versus HCS vendor behavior | HCS documents AllowVendorExtension and the GPU-PV 0xffff sentinel; secure-VM vendor escape restrictions exist. No established VMMS equivalence for our CUDA workload. | HV-003, GPU-005/006; compare identical runtimes and session before bounded HCS test. Never relax isolation to obtain parity. |
-| G4: runtime servicing and provenance | Microsoft documents guest user-mode/host kernel driver pairing and disabled automatic full-VM driver-store copying in released OS. Exact NVIDIA files/ICDs and legal terms depend on the chosen package. | GPU-002/009; prove minimum native staging/restoration, then CORE-009/015 and REF-003. Hashes and actual execution, not filenames, establish the tested combination. |
+| G4: runtime servicing and provenance | Microsoft documents guest user-mode/host kernel driver pairing and disabled automatic full-VM driver-store copying in released OS. Exact NVIDIA files/ICDs and legal terms depend on the chosen package. | GPU-002/009; prove minimum staging in a disposable child, then CORE-009/015 and REF-003. Hashes and actual execution, not filenames, establish the tested combination; discard the child for recovery. |
 | G5: target API feasibility | RTX specifications describe physical capability, not guest CUDA, video, interop or monitoring. Probe SDK/driver compatibility, Blackwell-capable CUDA toolchain and software fallback can confound results. | GPU-008/004/005; pin probe dependencies and host control; essential APIs gate GPU-006, optional APIs receive individual results. |
-| G6: guest access and presentation | PowerShell Direct needs a local running configured guest, host Hyper-V rights and guest credentials. Offscreen rendering and interactive sessions may select different adapters. | HV-001, GPU-003/009; validate native transfer and named session. Offline servicing is a separately approved fallback, not a required second implementation. |
+| G6: guest access and presentation | PowerShell Direct needs a local running configured guest, host Hyper-V rights and guest credentials. VMConnect/RDP display and offscreen workloads may select different adapters. | HV-001, GPU-003/009; validate native transfer and explicit adapter identity. Custom display infrastructure is evidence-triggered, not part of the baseline. |
 | G7: resource sharing | Cmdlets expose VRAM bytes and driver-defined compute/encode/decode units. Advertised limits/partition counts do not prove enforcement, safe VRAM budget or a supported number of guests. | HV-003, GPU-010; conservative one-guest envelope. GPU-015 independently measures two-guest contention; no percentage/fairness SLA. |
-| G8: lifecycle and compatibility drift | No verified target guarantee for saved states, live checkpoints, host sleep or driver updates. File/registry/ACL changes may survive a failed setup. | GPU-011, CORE-014/015, GPU-012/013; cold recovery and stale-plan refusal before optional lifecycle claims. |
-| G9: privileges and concurrency | Host management and guest system writes need appropriate rights; a second operator/process can invalidate a preimage. | HV-003, CORE-005/007/008/016; privilege matrix, VM/physical-GPU locks and state recheck. Multi-guest scheduling is not required for v1.0. |
+| G8: lifecycle and compatibility drift | No verified target guarantee for saved states, live checkpoints, host sleep or driver updates. File/registry/ACL changes may survive in a failed child. | GPU-011, CORE-014/015, GPU-012/013; discard/recreate the child and refuse stale plans before optional lifecycle claims. |
+| G9: privileges and concurrency | Host management and guest system writes need appropriate rights; a second operator/process can invalidate observed state. | HV-003, CORE-005/007/008/016; privilege matrix, runner-owned disposable-slot enrollment, VM/physical-GPU locks and state recheck. Multi-guest scheduling is not required for v1.0. |
 | G10: distribution | AppSandbox MIT ownership does not cover all bundled components; Windows NVIDIA driver redistribution is not assumed. Project license/distribution/signing choice is the owner's. | REF-003 and DOC-004; see DEC-008 options. Exclude drivers, OS images, credentials and keys from artifacts. |
 
 Primary-source basis: [GPU-PV/WDDM][ms-gpupv], [support boundary][ms-support],
@@ -214,9 +260,10 @@ retain provenance and applicable notices as described in
 
 ## Native Windows boundaries
 
-The proposed default is an existing, dedicated, persistent Generation 2 Windows
-11 VM managed by Hyper-V/VMMS. A clean guest may initially be prepared manually
-with normal Windows tools; a general VM installer is not an early component.
+The proposed default is one disposable Generation 2 Windows 11 VM managed by
+Hyper-V/VMMS and backed by a differencing VHDX whose clean parent is never used
+for experiments. Prepare and seal the parent manually with normal Windows tools;
+a general VM installer is not an early component.
 
 | Need | Native facility to evaluate |
 |---|---|
@@ -282,10 +329,10 @@ determinism and isolation; this table maps project evidence to tasks.
 
 | Lane | Verifies | Evidence owner |
 |---|---|---|
-| Hardware-free Windows CI | Configuration/identity validation, planner diffs, structured adapter failures, journal/recovery state machine, locking, path/secret handling and report contracts using fixtures/fakes. Never claims GPU execution. | CORE-019 establishes the baseline; CORE-001/013 extend it; each implementation card adds relevant cases. |
+| Hardware-free Windows CI | Configuration/identity validation, planner diffs, structured adapter failures, audit/locking and disposable-recreation decisions, path/secret handling and report contracts using fixtures/fakes. Never claims GPU execution. | CORE-019 establishes the baseline; CORE-001/013 extend it; each implementation card adds relevant cases. |
 | Native management integration | Installed interfaces, rights, explicit VM/GPU selection, effective settings, guest transfer and legal lifecycle states on an authorized dedicated VM. | HV-003, GPU-009/011, CORE-005/008/002/010/011. |
 | Physical target workloads | D3D11/D3D12 checked frames and CUDA checked kernels; per-API optional results; identical host control and guest inputs, explicit hardware renderer and session. | GPU-008 defines probes; GPU-004/005/006 and CORE-003 execute them. |
-| Failure and maintenance | Interrupted/denied/full-disk/stale-plan operations, preimage conflicts, driver/build drift, device-not-ready diagnostics, cold restoration and a controlled driver transition. | CORE-014/015 and GPU-013. |
+| Failure and maintenance | Interrupted/denied/full-disk/stale-plan operations, identity conflicts, driver/build drift, device-not-ready diagnostics, disposable recreation and a controlled driver transition. | CORE-014/015 and GPU-013. |
 | Endurance and release | Repeated starts, authorized host reboots, sustained/pressure load and fresh-guest reproduction from candidate artifacts/instructions. | GPU-012/014 and DOC-005. |
 
 Keep benchmark inputs/tolerances and timeout/abort limits in the probe/resource
@@ -296,10 +343,10 @@ affected compatibility record until revalidated. Hardware runs require explicit
 authorization for their protected setup/lifecycle changes; CI must not mutate a
 developer's machine merely because tests were invoked.
 
-Initial lifecycle support is graceful shutdown/start/restart and verified cold
-recovery. Host sleep/hibernate, live save/restore, checkpoints and migration remain
-unvalidated/outside the release guarantee. Report these states and instruct a
-measured cold recovery, rather than silently discarding saved state.
+Initial lifecycle support is graceful shutdown/start/restart, adapter detach and
+verified disposable-child recreation. Host sleep/hibernate, live save/restore,
+checkpoints and migration remain unvalidated/outside the release guarantee. Report
+these states and instruct recreation from the unchanged parent.
 
 ## Source references
 
@@ -335,6 +382,9 @@ measured cold recovery, rather than silently discarding saved state.
 [ms-wmi-settings]: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-gpupartitionsettingdata
 [ms-psdirect]: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/powershell-direct
 [ms-hyperv-install]: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/get-started/install-hyper-v
+[ms-new-vhd]: https://learn.microsoft.com/en-us/powershell/module/hyper-v/new-vhd
+[ms-task-security]: https://learn.microsoft.com/en-us/windows/win32/taskschd/security-contexts-for-running-tasks
+[ms-hyperv-admins]: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/appendix-b--privileged-accounts-and-groups-in-active-directory#hyper-v-administrators
 [nv-5060]: https://www.nvidia.com/en-us/geforce/graphics-cards/50-series/rtx-5060-family/
 [nv-license]: https://www.nvidia.com/en-us/drivers/nvidia-license/
 [u-signing]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/tools/sign/SIGNING.md

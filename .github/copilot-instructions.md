@@ -1,7 +1,9 @@
 # Copilot repository instructions
 
 Follow [AGENTS.md](../AGENTS.md), including its bounded context-loading workflow
-and protected-operation rules.
+and [permission boundary](../AGENTS.md#permission-boundary). Routine repository
+development proceeds automatically; only new privileged, destructive or
+host-wide effects require approval.
 
 Use [docs/ENGINEERING.md](../docs/ENGINEERING.md) as the authoritative Rust,
 testing, and quality standard; load the sections relevant to the active task.

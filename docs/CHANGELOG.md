@@ -6,6 +6,25 @@ remain in its Resume block. Do not duplicate detailed test output here.
 
 ## 2026-09-25
 
+- [DOC-010](BACKLOG.md#doc-010): made routine repository development explicitly
+  autonomous, retained scoped approval for privileged/destructive/host-wide work,
+  and configured future Codex sessions for workspace writes with on-request
+  escalation and dependency network access. Consolidated the detailed policy in
+  AGENTS and linked engineering/Copilot guidance to it.
+
+- [DOC-008](BACKLOG.md#doc-008): changed development to an immutable Windows 11
+  parent plus disposable differencing child, separated presentation from GPU proof,
+  and defined a constrained on-demand privileged Rust runner. Moved the thin Rust
+  inventory/config/adapter/staging/assignment/probe slice before the final hardware
+  gate while preserving task IDs. Independent review closed dependency, identity
+  rotation and runner-ordering issues; documentation consistency checks passed.
+
+- [DOC-009](BACKLOG.md#doc-009): configured a project Sol default and an
+  Astra/high read-only reviewer with an explicit-model fallback for clients
+  without named-agent selection. Added the implementation handoff and verified
+  TOML syntax, links and diff whitespace. Runtime model identity was unavailable;
+  the first cross-model milestone run remains to be verified.
+
 - [CORE-019](BACKLOG.md#core-019): added a single Rust CLI/library workspace,
   pinned toolchain and lockfile, help/version and explicit errors, ten passing
   tests, Windows CI and clean-machine development instructions. Formatting,

@@ -1,14 +1,17 @@
 # Rust engineering standards
 
 This is the authoritative engineering policy for all AI-driven coding sessions.
-[AGENTS.md](../AGENTS.md) owns session workflow, scope, provenance and protected
-operations; [BACKLOG.md](BACKLOG.md) owns tasks and evidence. Read the sections
+[AGENTS.md](../AGENTS.md) owns session workflow, scope, provenance and the
+three-category [permission boundary](../AGENTS.md#permission-boundary);
+[BACKLOG.md](BACKLOG.md) owns tasks and evidence. Read the sections
 relevant to the active change. Prompts add task-specific guidance, not competing
 rules. Changes to these standards require explicit task scope.
 
 CORE-019 establishes the Cargo project, tests and basic Windows PR checks.
 CORE-001 extends the foundation with inventory; CORE-013 extends test coverage.
 Actual commands are in [README.md](../README.md); results belong on task cards.
+Routine repository edits, dependency changes, development commands and targeted
+cleanup are normal task execution and do not require separate approval.
 
 ## Rust and native Windows
 

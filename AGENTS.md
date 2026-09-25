@@ -47,6 +47,17 @@ instructions link here and to engineering standards instead of duplicating them.
 4. Add/update meaningful tests alongside logic. Run the [required checks](docs/ENGINEERING.md#required-checks-and-ci),
    correct introduced warnings/failures and verify acceptance. Documentation-only
    changes use link/consistency checks; do not invent a Cargo project to test them.
+   For an implementation milestone, delegate a read-only independent review to
+   the project `architecture_reviewer` agent after the patch and checks are ready.
+   If the client cannot select named agents, spawn the reviewer explicitly with
+   `model = "gpt-6-astra"` and `reasoning_effort = "high"` (and a non-full
+   context fork when required by the tool), give it a no-edit review task, and
+   do not infer its model from the task name or claim enforced read-only access
+   without checking the actual permissions.
+   Give it the task IDs, applicable gate, diff and test evidence; wait for its
+   findings, fix blocking issues, rerun affected checks and request another review
+   when the fixes materially change the design. Record the reviewer model from
+   runtime metadata when available; a model name in a prompt is not proof.
    Set `completed` only with concise
    result evidence; otherwise record the exact next action or linked blocker.
    Update only affected architecture/decisions and add a short changelog entry
@@ -87,14 +98,40 @@ instructions link here and to engineering standards instead of duplicating them.
   boundaries to make a test pass. Flag unsupported capability claims,
   lost attribution, unreviewed privileged actions and unrelated changes in review.
 
-## Protected operations
+## Permission boundary
 
-Host drivers, network adapters, virtualization features, VMs, guest disks,
-firmware settings, code-signing state, and files outside the repository are
-protected. Read-only discovery is allowed when in scope. Obtain explicit user
-approval before installing, removing, restarting, enabling, disabling, or
-otherwise mutating any protected target; name the exact target, expected
-effect, and recovery path.
+Permission follows an operation's effect, not whether it writes a file or runs a
+command:
 
-Existing explicit authorization applies to its stated scope. Prepare concrete
-operations before asking; a task status or handover note is not authorization.
+| Category | Agent behavior |
+|---|---|
+| Routine repository development | Proceed without approval. This includes creating, editing, moving and deleting project files; Rust modules, documentation, prompts, task records, dependencies and test fixtures; Cargo build/check/fmt/Clippy/test commands; non-destructive Git inspection; small refactors and warning fixes; and targeted cleanup of generated artifacts inside this repository after verifying the target. |
+| Previously authorized test operation | Repeat without asking while the exact approved target, operation set, identity, paths and recovery boundary still match. Stop when the authorization or observed target no longer matches. |
+| New privileged, destructive or host-wide operation | Obtain explicit user approval after naming the exact target, effect and recovery path. |
+
+The last category includes Windows administrator elevation; host drivers,
+network adapters, virtualization features, security settings, firmware or
+code-signing changes; mutations to VMs or guest disks outside an approved test
+mechanism; physical-disk operations; deletion outside the repository; changes
+to the golden VM image or unrelated VMs/disks; destructive Git operations that
+discard work; unnecessary credential/secret access; and broad cleanup with an
+unverified target. Read-only discovery is allowed when it is in scope.
+
+Routine repository work is authorized by the assigned task and needs no extra
+confirmation. A task status alone does not authorize a protected operation.
+Existing explicit authorization applies only to its stated scope.
+
+Repository instructions cannot expand the active Codex/VS Code sandbox or
+approval policy. Obey platform enforcement and report a configuration blocker
+instead of claiming that prompt text bypasses it.
+
+Codex tool/sandbox approval is not Windows UAC elevation. Never run the editor,
+agent or arbitrary repository binaries with a general administrator token merely
+to make hardware iteration easier. A user-approved privileged test runner may
+repeat an already authorized operation only when its administrator-owned executable
+and policy pin one disposable slot, its runner-owned current VM-GUID enrollment,
+GPU identity, allowed operation set, paths and audit output. The agent must not be
+able to replace that executable, edit policy/enrollment, choose a replacement VM,
+target the golden parent image or submit arbitrary commands. Installing,
+updating, broadening or removing the runner is itself a protected operation needing
+new explicit approval and a recovery/revocation path.

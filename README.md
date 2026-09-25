@@ -1,8 +1,9 @@
 # Hyper GPU Support
 
 A Windows 11 x64 GPU-PV project targeting one Windows 11 guest and an NVIDIA
-RTX 5060 8 GB. The current executable only provides help and version output;
-GPU-PV capability has not been validated.
+RTX 5060 8 GB. AppSandbox is the user's known-working HCS reference on this
+hardware; the current project executable only provides help and version output
+and has not yet reproduced GPU-PV through its own Rust/native path.
 
 ## Windows development
 
@@ -79,3 +80,20 @@ AppSandbox remains an external, pinned [reference map](docs/ARCHITECTURE.md#upst
 No upstream implementation or binary has been copied into this scaffold.
 Start future sessions at [AGENTS.md](AGENTS.md) and the
 [backlog](docs/BACKLOG.md).
+
+## Development target workflow
+
+The hardware path uses one immutable clean Windows 11 Generation 2 parent VHDX
+and one disposable test VM backed by a differencing VHDX. GPU-PV assignment,
+NVIDIA runtime staging and probes occur only in the disposable child. If its state
+is damaged or uncertain, discard and recreate the child instead of repairing it;
+never boot or modify the parent for an experiment.
+
+Normal Rust builds and tests remain unelevated. Planned hardware tests use a
+separately approved, administrator-installed runner with fixed operations and
+explicit VM/GPU identities. The repository and agent cannot modify its installed
+binary or policy. VMConnect, Enhanced Session Mode or RDP may be used for operator
+access; no project virtual display driver is planned, and display connectivity is
+not evidence of NVIDIA workload execution. See the
+[configuration and recovery contract](docs/ARCHITECTURE.md#configuration-and-recovery-contract)
+and [display boundary](docs/ARCHITECTURE.md#display-and-presentation-boundary).

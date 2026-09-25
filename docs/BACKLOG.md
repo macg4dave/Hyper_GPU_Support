@@ -5,10 +5,12 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-25, Rust foundation completed ([CORE-019](#core-019)); no task owned.
-- Changed: Cargo/toolchain/configuration, CLI/library, tests, Windows CI, README,
-  and affected planning docs; existing DOC-007 backlog/changelog edits preserved.
-- Outstanding: no target inventory or hardware workload evidence; backend remains unselected.
+- Last session: 2026-09-25, autonomous-development permission audit completed
+  ([DOC-010](#doc-010)).
+- Changed: root permission boundary, engineering/Copilot pointers, project Codex
+  sandbox/approval defaults, decision and task records; earlier changes preserved.
+- Outstanding: no project-native target inventory or workload evidence; exact
+  golden parent/child locations and privileged-runner permissions remain unmeasured.
   Owner license/distribution/signing choice is scheduled in DOC-004, not assumed.
 - Next recommended: [HV-001](#hv-001); [REF-001](#ref-001) can run independently.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
@@ -28,6 +30,9 @@ contribute to their milestone's required exit.
 | [DOC-001](#doc-001) | M0 | P0 | completed | - |
 | [DOC-002](#doc-002) | M0 | P0 | completed | DOC-001, GPU-001 |
 | [DOC-007](#doc-007) | M0 | P0 | completed | DOC-002 |
+| [DOC-008](#doc-008) | M0 | P0 | completed | DOC-007, CORE-019 |
+| [DOC-009](#doc-009) | M0 | P1 | completed | DOC-007 |
+| [DOC-010](#doc-010) | M0 | P0 | completed | DOC-007 |
 | [CORE-019](#core-019) | M0 | P1 | completed | DOC-007 |
 | [GPU-001](#gpu-001) | M0 | P0 | completed | - |
 | [HV-001](#hv-001) | M0 | P0 | ready | - |
@@ -37,25 +42,25 @@ contribute to their milestone's required exit.
 | [REF-002](#ref-002) | M0 | P0 | planned | REF-001, HV-001, GPU-002 |
 | [GPU-008](#gpu-008) | M0 | P0 | planned | HV-001, GPU-002 |
 | [GPU-003](#gpu-003) | M0 | P0 | planned | GPU-002, HV-003, REF-002, GPU-008 |
-| [HV-002](#hv-002) | M1 | P0 | planned | DOC-002, GPU-003 |
+| [HV-002](#hv-002) | M1 | P0 | planned | DOC-002, GPU-003, CORE-005 |
 | [GPU-004](#gpu-004) | M1 | P0 | planned | HV-002 |
-| [GPU-009](#gpu-009) | M1 | P0 | planned | HV-002, GPU-004 |
-| [GPU-005](#gpu-005) | M1 | P0 | planned | GPU-009 |
+| [GPU-009](#gpu-009) | M1 | P0 | planned | HV-002, CORE-009 |
+| [GPU-005](#gpu-005) | M1 | P0 | planned | GPU-004, GPU-009, CORE-003 |
 | [GPU-010](#gpu-010) | M1 | P0 | planned | GPU-005 |
 | [GPU-011](#gpu-011) | M1 | P0 | planned | GPU-005 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
-| [CORE-001](#core-001) | M2 | P1 | planned | GPU-006, REF-001, CORE-019 |
-| [CORE-004](#core-004) | M2 | P1 | planned | CORE-001 |
-| [CORE-005](#core-005) | M2 | P1 | planned | CORE-001 |
-| [CORE-006](#core-006) | M2 | P1 | planned | CORE-004, CORE-005 |
-| [CORE-007](#core-007) | M2 | P1 | planned | CORE-006 |
-| [CORE-008](#core-008) | M2 | P1 | planned | CORE-005 |
-| [CORE-009](#core-009) | M2 | P1 | planned | CORE-007, CORE-008 |
-| [CORE-002](#core-002) | M2 | P1 | planned | CORE-009 |
+| [CORE-001](#core-001) | M0 | P0 | planned | HV-001, CORE-019 |
+| [CORE-004](#core-004) | M1 | P0 | planned | CORE-001, GPU-003 |
+| [CORE-005](#core-005) | M1 | P0 | planned | CORE-001, HV-003, REF-001, GPU-003 |
+| [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
+| [CORE-007](#core-007) | M1 | P1 | planned | CORE-006 |
+| [CORE-008](#core-008) | M1 | P0 | planned | CORE-005, HV-002 |
+| [CORE-009](#core-009) | M1 | P0 | planned | CORE-007, CORE-008, GPU-002 |
+| [CORE-002](#core-002) | M1 | P0 | planned | CORE-006, CORE-009 |
 | [CORE-010](#core-010) | M2 | P1 | planned | CORE-002 |
 | [CORE-011](#core-011) | M2 | P1 | planned | CORE-002, CORE-010 |
 | [CORE-012](#core-012) | M2 | P1 | planned | CORE-002 |
-| [CORE-003](#core-003) | M2 | P1 | planned | CORE-011, CORE-012, GPU-008 |
+| [CORE-003](#core-003) | M1 | P0 | planned | CORE-002, GPU-008 |
 | [CORE-013](#core-013) | M2 | P1 | planned | CORE-001 |
 | [CORE-014](#core-014) | M3 | P1 | planned | CORE-003, CORE-013 |
 | [CORE-015](#core-015) | M3 | P1 | planned | CORE-003 |
@@ -89,9 +94,10 @@ contribute to their milestone's required exit.
   capability or satisfy a milestone that requires a passing workload.
 - Before claiming, read this register, dependency result pointers, the relevant
   card and blockers. Release unfinished ownership to ready/blocked at handover.
-- No implementation or protected mutation is authorized by a task status.
-  Obtain scoped approval for concrete protected targets/effects/recovery only
-  when the steps are prepared; preserve prior explicit authorization.
+- Task status tracks ownership; the assigned task authorizes routine repository
+  implementation under the root permission boundary. It does not authorize a
+  protected mutation. Request scoped approval for a new protected target/effect/
+  recovery only when concrete steps are prepared; preserve prior authorization.
 - Proposed evidence/code/document paths in cards do not exist yet. Create them
   only when actual procedures/results/work exist. Later code tasks locate modules
   via dependency results and record exact paths before editing.
@@ -183,6 +189,89 @@ for future work is not an invented current blocker.
   existing planning edits and the FORK_PLAN.md deletion preserved. See the
   [change entry](CHANGELOG.md#2026-09-25).
 
+## DOC-008
+
+**Refine the single-VM, single-GPU configuration architecture**
+
+- Context/scope: apply the user's narrowed existing-VM scope to the roadmap,
+  backlog, architecture, decisions and AI instructions. Preserve IDs, completed
+  work and useful upstream research; no application implementation or hardware changes.
+- Acceptance: a small configuration/CLI path, explicit native Windows ownership,
+  immutable golden parent plus disposable differencing child, minimal presentation,
+  constrained repeatable privilege boundary and a native-first Rust GPU experiment.
+  Consistent task gates and links; independent review.
+- Files/output: affected planning/instruction documents and README navigation.
+- Result: 2026-09-25: accepted [DEC-011](DECISIONS.md#dec-011), treating the
+  user's successful AppSandbox HCS run as the working reference while retaining
+  project-specific D3D11/D3D12/CUDA proof. Replaced guest rollback machinery with
+  an immutable parent VHDX, disposable differencing child and runner-owned logical
+  VM slot/GUID enrollment. Kept VMConnect/Enhanced Session/RDP separate from GPU
+  evidence and excluded custom display infrastructure absent an essential failure.
+  Defined an on-demand, administrator-installed Rust runner that cannot execute
+  repository commands, with fixed operations/targets, protected policy/enrollment
+  and audited results; installation or policy expansion still needs approval.
+  Moved CORE-001 and the Rust config/adapter/staging/assignment/probe slice ahead
+  of GPU-006 without adding task IDs; removed semantic dependency cycles and made
+  CORE-005 own the minimal runner before HV-002 uses it. Validation: `git diff
+  --check`; 49 unique task row/card pairs with existing acyclic dependencies;
+  local file links across 20 Markdown files; targeted stale-policy scan. Independent
+  architecture review found and then verified fixes for dependency, VM-identity and
+  runner-ordering defects; no blocking findings remain. Reviewer runtime model ID
+  was unavailable. No Rust/hardware test or protected mutation was performed.
+
+## DOC-009
+
+**Configure independent Astra review for implementation milestones**
+
+- Context/scope: add a project-scoped GPT-5.6 Sol default, read-only GPT-6
+  Astra reviewer and Codex handoff instruction. Do not advance a milestone.
+- Acceptance: configuration pins reviewer model and reasoning effort; the
+  implementation workflow invokes review after checks, addresses blocking
+  findings and records actual model evidence when available; links validate.
+- Files/output: `.codex/config.toml`, `.codex/agents/architecture_reviewer.toml`,
+  `AGENTS.md`, this card.
+- Result: 2026-09-25: added project Sol default and a project-scoped
+  `architecture_reviewer` pinned to GPT-6 Astra/high with a read-only sandbox
+  default. AGENTS now requires review after implementation milestone checks,
+  response to blocking findings and repeat review after material design fixes.
+  A runtime without named-agent selection must pass the Astra model explicitly.
+  Python `tomllib` parsed both TOML files; `git diff --check` passed and
+  DOC-009 links/anchors were checked. An independent reviewer found the
+  named-agent selection gap; the explicit-model fallback resolved it. This
+  runtime did not expose a verified subagent model ID or enforceable sandbox
+  metadata, so an actual Sol-to-Astra handoff remains unproven. No milestone
+  implementation, Cargo check or hardware test was performed.
+
+## DOC-010
+
+**Clarify autonomous development and protected-operation permissions**
+
+- Context/scope: audit repository, Copilot and Codex instructions so ordinary
+  repository development proceeds without approval while new privileged,
+  destructive or host-wide effects remain user-controlled. Documentation and
+  project-local Codex configuration only; do not weaken platform safeguards.
+- Acceptance: one concise authoritative three-category permission policy;
+  other agent instructions reference it without conflicting approval rules;
+  project Codex defaults permit workspace development while retaining approval
+  for escalation; explain platform/configuration boundaries and verify syntax,
+  links and instruction consistency.
+- Files/output: `AGENTS.md`, affected instruction/configuration files, decisions,
+  changelog and this card.
+- Result: 2026-09-25: audited AGENTS, ENGINEERING, Copilot instructions, all 11
+  task prompts, both project Codex TOML files and the absence of repository VS
+  Code settings. Replaced the ambiguous backlog statement that task status
+  authorized no implementation, made AGENTS the explicit effect-based authority,
+  and linked ENGINEERING/Copilot to it. Set future project Codex sessions to
+  `workspace-write`, `on-request` approval and workspace network access; retained
+  the read-only reviewer. Read-only client inspection found this trusted project,
+  no user-level approval/sandbox key, no managed `requirements.toml` and no
+  matching VS Code user setting. Platform policy still takes precedence and no
+  Windows elevation is implied. Validation: Python `tomllib` parsed both configs;
+  local links passed across 20 Markdown files; 11 prompt frontmatter blocks and
+  50 unique task row/card pairs matched; targeted approval-language scan and
+  `git diff --check` passed (line-ending notice only). No Cargo/hardware test or
+  protected mutation was needed.
+
 ## GPU-001
 
 **Map the reference GPU-PV responsibilities**
@@ -232,7 +321,7 @@ for future work is not an invented current blocker.
 
 - Context/scope: Inspect the installed package and pinned reference for only the x64 target and selected APIs.
 - Read: [source map](ARCHITECTURE.md#upstream-reference-map), [recovery contract](ARCHITECTURE.md#configuration-and-recovery-contract), DEC-004.
-- Acceptance: List source/destination, version/hash, package/license origin, required/optional classification and copy/transform step. Include ICD/registry/junction/ACL/owner preimages and restoration. Separate Windows, NVIDIA and AppSandbox files; inspect NVAPI dependencies of compute hooks. Identify drift/reboot conditions and exact package terms; no copying, binary modification or driver distribution.
+- Acceptance: List source/destination, version/hash, package/license origin, required/optional classification and copy/transform step. Include ICD/registry/junction/ACL/owner effects needed to reproduce staging in a clean disposable child. Separate Windows, NVIDIA and AppSandbox files; inspect NVAPI dependencies of compute hooks. Identify drift/reboot conditions and exact package terms; no copying, binary modification or driver distribution.
 - Files/output: `docs/evidence/GPU-002.md`: reviewable manifest specification and dependency closure.
 - Result: pending.
 
@@ -262,17 +351,17 @@ for future work is not an invented current blocker.
 
 - Context/scope: Turn real inventory, artifact and probe specifications into an executable comparison and recovery plan.
 - Read: Dependency results and root protected-operation rules.
-- Acceptance: Specify exact VM/disk names, host/guest versions, artifact inputs, settings, guest access/credentials, probe order and host control. Include prerequisite preparation, clean comparable guest states, stop/start/staging/remove operations, storage needed for cold backups and verified recovery steps. Explain reference/native session differences and approved abort thresholds. Prepare exact target/effect/recovery scopes before requesting any protected action; no generic approval request or setup execution.
+- Acceptance: Specify exact parent/child roots, logical disposable slot and initial enrolled VM identity, host/guest versions, artifact inputs, settings, guest access, probe order and host control. Define immutable-parent checks, runner-owned GUID enrollment, differencing-child creation/recreation, stop/start/staging/assignment operations and abort thresholds. Define the privileged runner's fixed operation allowlist, log/result path, installation approval and revocation. Explain reference/native and presentation-session differences. Prepare exact target/effect/recovery scopes before requesting any protected action; no generic approval request or setup execution.
 - Files/output: `docs/evidence/GPU-003.md`: reviewable ordered procedure and authorization scopes.
 - Result: pending.
 
 ## HV-002
 
-**Prepare dedicated baseline guest states**
+**Prepare the golden image and disposable guest**
 
-- Context/scope: Execute the reviewed setup only under explicit scoped authorization.
+- Context/scope: Execute the reviewed golden-image setup only under explicit scoped authorization.
 - Read: GPU-003 result and root protected-operation rules.
-- Acceptance: Prepare named Win11 x64 reference/native clean states with recorded equivalent resources/builds, legitimate OS/driver inputs and native guest access. Preserve normal Secure Boot, signing and isolation. Verify stopped-guest backup/recreation recovery and sufficient storage; do not assume live GPU checkpoints work. Record guest reachability and rollback test; any required host feature/driver/network change needs its own exact authorization.
+- Acceptance: Prepare and shut down a clean updated Win11 x64 Generation 2 parent with legitimate OS inputs, normal Secure Boot/signing/isolation, integration support and no experimental GPU/runtime changes. Protect and fingerprint the parent; never boot it for experiments. Through the approved runner, create one named disposable slot on a differencing VHDX with its own VM identity/security state and atomically enroll the generated GUID. Prove discard/recreation from the same parent, enrollment rotation and guest reachability. Check storage and differencing-chain identity. Any host feature, driver or network change and initial privileged-runner installation needs its own exact authorization.
 - Files/output: `docs/evidence/HV-002.md`: actual targets, authorizations, preparation and clean-state recovery.
 - Result: pending.
 
@@ -288,12 +377,12 @@ for future work is not an invented current blocker.
 
 ## GPU-009
 
-**Prove native guest staging and restoration**
+**Prove native guest staging and disposable recovery**
 
-- Context/scope: Validate minimum unmodified runtime provisioning in the clean native guest before compatibility hooks.
+- Context/scope: Validate minimum unmodified runtime provisioning in the disposable native guest before compatibility hooks.
 - Read: GPU-002/003 manifests and [recovery contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Under scoped authorization, prove native transfer/execution, hash-verified staged driver/runtime/registry inputs and guest readiness. Test interrupted copy and restoration to preimages including absence and permissions; distinguish restore from reinstalling a full vendor guest package. Use offline servicing only if proven necessary and separately approved. Any added shim dependency requires reproduced failure evidence and reversible manifest delta.
-- Files/output: `docs/evidence/GPU-009.md`: staging/restore recipe, transport choice and exact manifest.
+- Acceptance: Under scoped authorization, prove native transfer/execution, hash-verified staged driver/runtime/registry inputs and guest readiness. Test interrupted staging, mark uncertain state unusable, discard the child and recreate a clean child from the protected parent. Repeat staging successfully on the replacement. Use offline servicing only if proven necessary and separately approved. Any added shim dependency requires reproduced failure evidence and a bounded manifest delta.
+- Files/output: `docs/evidence/GPU-009.md`: staging/recreation recipe, transport choice and exact manifest.
 - Result: pending.
 
 ## GPU-005
@@ -302,7 +391,7 @@ for future work is not an invented current blocker.
 
 - Context/scope: Compare explicit VMMS assignment with the reference using matched builds, files and workloads.
 - Read: GPU-004/009 results, HV-003 and [DEC-007](DECISIONS.md#dec-007).
-- Acceptance: Run essential probes and compare available optional probes. Verify actual adapter/effective resources and hardware renderer; isolate assignment, runtime, vendor extension and presentation failures. Introduce one justified shim dependency set at a time with before/after and restore checks. Only a demonstrated gap permits a bounded HCS experiment; broader backend/scope changes use DEC-007. No silent default GPU or success after failed attachment.
+- Acceptance: Run essential probes and compare available optional probes. Verify actual adapter/effective resources and hardware renderer; isolate assignment, runtime, vendor extension and presentation failures. Introduce one justified shim dependency set at a time with before/after and clean-child recreation checks. Only a demonstrated gap permits a bounded HCS experiment; broader backend/scope changes use DEC-007. No silent default GPU or success after failed attachment.
 - Files/output: `docs/evidence/GPU-005.md`: native/reference comparison and minimum component candidates.
 - Result: pending.
 
@@ -318,11 +407,11 @@ for future work is not an invented current blocker.
 
 ## GPU-011
 
-**Verify baseline lifecycle and cold recovery**
+**Verify lifecycle and disposable recreation**
 
 - Context/scope: Establish legal operation states and recovery without assuming checkpoint support.
 - Read: GPU-003 recovery plan, HV-003 state questions and GPU-009 preimages.
-- Acceptance: Under authorization run at least five clean shutdown/start cycles, one guest reboot, attach/remove/reapply and a controlled invalid assignment. Check essential probes after each stable state and restored files/settings after removal. Record failed boot/device-not-ready diagnosis and prove the stopped-guest recovery path. Saved state/checkpoints/host sleep remain explicitly unvalidated unless separately tested; never force-stop by default.
+- Acceptance: Under authorization run at least five clean shutdown/start cycles, one guest reboot, attach/remove/reapply and a controlled invalid assignment. Check essential probes after each stable state and adapter removal. Record failed boot/device-not-ready diagnosis, discard the affected child and prove recreation from the unchanged parent. Saved state/checkpoints/host sleep remain explicitly unvalidated unless separately tested; never force-stop by default.
 - Files/output: `docs/evidence/GPU-011.md`: state transitions, outcomes and verified recovery.
 - Result: pending.
 
@@ -330,9 +419,9 @@ for future work is not an invented current blocker.
 
 **Verify reproducibility and choose the minimum path**
 
-- Context/scope: Close the essential reproduction gate before product implementation.
+- Context/scope: Close the first Rust GPU-PV demonstration and select its minimum proven path.
 - Read: GPU-004/005/009/010/011 results, [M1](ROADMAP.md#m1), DEC-002/006/007.
-- Acceptance: Essential D3D11/D3D12/CUDA workloads pass on repeated native/minimum-path runs and reproduce successful essential reference behavior. Record backend/component decision, exact tested versions, manifest, resource envelope and cold recovery. Optional comparisons keep individual limitations. An essential gap or unusable safe reference blocks this gate until repaired or explicitly resolved by the user; failed experiments do not prove success.
+- Acceptance: Essential D3D11/D3D12/CUDA workloads pass through the Rust-driven native/minimum path and reproduce the user's known-working reference behavior. Record backend/component decision, exact tested versions, manifest, resource envelope and disposable-child recreation. Optional comparisons keep individual limitations. A specific essential gap is diagnosed against AppSandbox/HCS evidence and repaired or presented to the user; failed experiments do not prove success.
 - Files/output: `docs/evidence/GPU-006.md`, new accepted backend decision and affected architecture sections.
 - Result: pending.
 
@@ -341,7 +430,7 @@ for future work is not an invented current blocker.
 **Extend the Rust CLI/library with inventory**
 
 - Context/scope: Extend the CORE-019 foundation with inventory in one Windows x64 package; no GUI/daemon or general VM manager.
-- Read: GPU-006 result and [proposed components](ARCHITECTURE.md#proposed-components).
+- Read: HV-001 result, CORE-019 result and [proposed components](ARCHITECTURE.md#proposed-components).
 - Apply: [toolchain policy](ENGINEERING.md#toolchain-dependencies-and-features) and
   [required checks/CI](ENGINEERING.md#required-checks-and-ci). Extend CORE-019's
   tests and Windows PR checks with focused inventory coverage and strict warnings.
@@ -354,20 +443,20 @@ for future work is not an invented current blocker.
 **Define configuration and CLI data contracts**
 
 - Context/scope: Small versioned configuration, plan and report types; choose serialization as an implementation detail.
-- Read: [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract) and GPU-006.
+- Read: [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract) and GPU-003.
 - Acceptance: Specify VM GUID, GPU identity, measured resource values, manifest identity and CLI operations inventory/plan/apply/status/validate/remove/recover/lifecycle. Reject unknown schema/fields, ambiguous targets, invalid ranges and credentials. Define stable error categories/exit behavior and examples; test round-trip, invalid input and defaults without hardware. No invented percentage abstraction.
 - Files/output: Configuration/types/parser/help modules introduced here; examples and `docs/evidence/CORE-004.md`.
 - Result: pending.
 
 ## CORE-005
 
-**Implement fixed native management adapters**
+**Implement fixed native adapters and the minimal privileged runner**
 
-- Context/scope: Implement Rust adapters for only the measured Windows operations
-  needed by the selected backend. Prefer native Rust/API access; justify any
+- Context/scope: Implement Rust adapters and a stable privileged broker for only
+  the measured Windows operations needed by the first vertical slice. Prefer native Rust/API access; justify any
   necessary command/script boundary through [the exception policy](ENGINEERING.md#rust-and-native-windows).
-- Read: HV-003 and GPU-006; [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Use fixed operations and typed parameters, structured results and explicit VM/GPU identifiers. Preserve native error codes and handle missing rights and timeout/cancellation. For required subprocesses, handle encoding, stderr, nonzero exits and partial output; no arbitrary script input or silent elevation. Test invalid identities, query denial and native failures through controlled adapters, plus paths/metacharacters and process failures where applicable, then read-only target queries. Retain detailed native errors without secrets.
+- Read: HV-003, REF-001 and GPU-003; [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
+- Acceptance: Build and test the minimal runner plus unelevated client adapter. Use fixed operations and typed parameters, structured results and explicit VM/GPU identifiers. Implement administrator-owned installed code/policy/enrollment, one pinned disposable slot/GPU/roots, runner-owned differencing-child and VM create/reset, atomic generated-GUID rotation, operation allowlist, request/result audit, replay protection and fail-closed validation. Never execute repository binaries or arbitrary commands elevated on the host. Preserve native error codes and handle missing rights and timeout/cancellation. Test invalid/stale identities, attempted agent enrollment/path selection, parent writes, query denial, policy tampering, partial reset and native failures using fakes; then run read-only target queries. Retain detailed native errors without secrets. Installation/execution on the target occurs only through HV-002's scoped authorization.
 - Files/output: Native adapter modules and `docs/evidence/CORE-005.md`.
 - Result: pending.
 
@@ -376,18 +465,18 @@ for future work is not an invented current blocker.
 **Implement read-only preflight and change planning**
 
 - Context/scope: Convert desired configuration and observed state into a concrete diff before mutation.
-- Read: GPU-006 and [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
+- Read: GPU-003 and [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
 - Acceptance: Check edition/interfaces, rights, VM state/security, guest access prerequisites, driver/build fingerprints, resource ranges and backup capacity. Emit named targets, ordered changes, warnings, recovery and plan fingerprint. Reject wrong GPU, unsupported states and missing essential input; unchanged configuration yields empty plan. Test stale identities and malformed resource values; planning must not mutate a guest/host.
 - Files/output: Planner/preflight modules and `docs/evidence/CORE-006.md`.
 - Result: pending.
 
 ## CORE-007
 
-**Implement operation journal and target locking**
+**Implement operation audit and target locking**
 
-- Context/scope: Durable coordination for compensating changes, not a claim of atomic Windows transactions.
+- Context/scope: Bounded coordination and audit for one disposable VM, not a general transaction engine.
 - Read: [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Persist restricted-access operation ID, fingerprint, preimages, intent and verified step outcome. Acquire VM and host/physical-GPU locks by stable identity in a fixed order; revalidate plan/state and all existing/in-flight assignments under lock. Refuse conflicting or unresolved operations. Test simultaneous applies to two VM GUIDs on one GPU, interrupted journal writes, duplicate invocation, stale locks, full disk and external state changes. Never discard the sole recoverable preimage or blindly replay a non-idempotent step.
+- Acceptance: Persist restricted-access request ID, plan fingerprint, exact target, intent and verified step outcomes. Acquire VM and host/physical-GPU locks by stable identity in a fixed order; revalidate plan/state and assignments under lock. Refuse conflicting, duplicate, stale or out-of-policy operations. Test a wrong VM GUID, simultaneous requests, interrupted audit writes, replay and external state changes. Retain only host-setting preimages needed for safe detach; uncertain guest state produces an explicit discard/recreate result.
 - Files/output: Journal/state/lock modules and `docs/evidence/CORE-007.md`.
 - Result: pending.
 
@@ -395,8 +484,8 @@ for future work is not an invented current blocker.
 
 **Implement native guest sessions and verified file transfer**
 
-- Context/scope: Use the transport proven in GPU-009; no custom network agent/protocol.
-- Read: GPU-009 and [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
+- Context/scope: Implement the PowerShell Direct/native transport specified by GPU-003 and validate it here; no custom network agent/protocol.
+- Read: HV-002/GPU-003 and [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
 - Acceptance: Acquire guest credentials ephemerally and keep secrets out of CLI arguments/logs/configuration. Verify guest identity/readiness, restrict transfer paths, checksum contents and time out stalled operations. Test denied credentials, unavailable integration, interrupted transfer, path traversal/reparse points and retry cleanup; perform an authorized harmless transfer on the dedicated guest. No network/security configuration side effects.
 - Files/output: Guest session/transfer modules and `docs/evidence/CORE-008.md`.
 - Result: pending.
@@ -405,9 +494,9 @@ for future work is not an invented current blocker.
 
 **Implement manifest-based runtime staging**
 
-- Context/scope: Encode only the minimum driver/runtime and conditional shim set selected by GPU-006.
-- Read: GPU-002/009, [reference hazards](ARCHITECTURE.md#reference-implementation-hazards), DEC-004.
-- Acceptance: Validate origin/hash/version and capture all preimages before staged writes; apply in journaled steps and verify files/settings/permissions after each. Detect missing required payload, identical-size/different-content files and changed source driver. Repeat staging is a no-op; restore on controlled write failure. If a shim is required, retain source commit/path, authorship, ABI/build dependency and version-range tests; adapt only the measured dependency closure.
+- Context/scope: Encode the minimum driver/runtime manifest derived by GPU-002; add a conditional shim only after a reproduced failure.
+- Read: GPU-002/REF-002, [reference hazards](ARCHITECTURE.md#reference-implementation-hazards), DEC-004.
+- Acceptance: Validate origin/hash/version; apply audited steps in the disposable child and verify files/settings/permissions after each. Detect missing required payload, identical-size/different-content files and changed source driver. Repeat staging is a no-op; a controlled partial-write failure marks the child unusable and recreation proves recovery. If a shim is required, retain source commit/path, authorship, ABI/build dependency and version-range tests; adapt only the measured dependency closure.
 - Files/output: Manifest/staging modules, conditional attributed shim sources if proven necessary, and `docs/evidence/CORE-009.md`.
 - Result: pending.
 
@@ -415,20 +504,20 @@ for future work is not an invented current blocker.
 
 **Encode validated GPU assignment and apply orchestration**
 
-- Context/scope: Retained task ID; staging, transactions and restoration are split into dedicated cards.
-- Read: CORE-006/007/009 and GPU-006 results.
+- Context/scope: Retained task ID; staging, audit/locking and disposable reset are split into dedicated cards.
+- Read: CORE-006/007/009, HV-003 and GPU-003 results.
 - Acceptance: Apply only a reviewed, current plan with exact selected adapter/resources; verify actual attachment and staged readiness separately. Journal all native settings changed. Refuse duplicate/foreign assignments or an unvalidated second-guest configuration by default. Test native assignment failure, wrong returned adapter, state drift and no-op reapply; run essential probes after authorized target apply. Failure must not be reported as success.
 - Files/output: Assignment/apply modules and `docs/evidence/CORE-002.md`.
 - Result: pending.
 
 ## CORE-010
 
-**Implement detach and restoration**
+**Complete detach/reset CLI integration and hardening**
 
-- Context/scope: Undo project-owned GPU changes without deleting the VM or its disk.
+- Context/scope: Integrate and harden the CORE-005 runner's existing detach/reset operations in the completed CLI workflow; never touch the parent image.
 - Read: GPU-009/011 and CORE-007/009 preimage formats.
-- Acceptance: Plan and execute removal/restoration in measured safe states, including original absence, registry/ICD/junction/ACL/owner state. Detect externally edited files and conflicting assignments; halt with exact recovery rather than overwrite. Test remove twice, partially applied operations, missing backup and restore failure; verify target matches baseline after authorized apply/remove. Retain recovery data until verification succeeds.
-- Files/output: Remove/restore modules and `docs/evidence/CORE-010.md`.
+- Acceptance: Plan and execute adapter removal in measured safe states, detect external changes/conflicting assignments and verify host state. For uncertain guest files/settings, stop and delete only the policy-pinned disposable VM/child after explicit operation authorization, then recreate it from the fingerprinted parent. Test remove twice, wrong identity, partial assignment, missing child and parent mismatch. Never delete or attach the master for writes.
+- Files/output: Detach/reset modules and `docs/evidence/CORE-010.md`.
 - Result: pending.
 
 ## CORE-011
@@ -447,7 +536,7 @@ for future work is not an invented current blocker.
 
 - Context/scope: Explain failures at inventory, assignment, PnP, runtime, workload or presentation layer.
 - Read: [validation contract](ARCHITECTURE.md#validation-contract), GPU-004/005/011 failure evidence.
-- Acceptance: Collect relevant native errors/events, environment, effective state, manifest hashes and operation journal references. Emit readable and versioned machine-readable reports with tested/unknown distinctions and actionable next checks; never auto-restart devices. Test partial access, missing logs, code-43-like status and redaction of credentials/sensitive identifiers. Confirm a real guest failure/success can be diagnosed without leaking binary payloads.
+- Acceptance: Collect relevant native errors/events, environment, effective state, manifest hashes and operation audit references. Emit readable and versioned machine-readable reports with tested/unknown distinctions and actionable next checks; never auto-restart devices. Test partial access, missing logs, code-43-like status and redaction of credentials/sensitive identifiers. Confirm a real guest failure/success can be diagnosed without leaking binary payloads.
 - Files/output: Diagnostics/report modules and `docs/evidence/CORE-012.md`.
 - Result: pending.
 
@@ -456,7 +545,7 @@ for future work is not an invented current blocker.
 **Make the baseline probes repeatable through the core**
 
 - Context/scope: Invoke the existing pinned probe kit, not a new general benchmarking framework.
-- Read: GPU-008/006 and [validation contract](ARCHITECTURE.md#validation-contract).
+- Read: GPU-008, CORE-002 and [validation contract](ARCHITECTURE.md#validation-contract).
 - Acceptance: Produce per-workload pass/fail/blocked/untested/unsupported-with-evidence outcomes with exact environment, hardware adapter, runtime/probe version, inputs, checked outputs and logs. Handle timeouts and software fallback correctly; an absent probe is never pass. Run the essential M1 baseline through the CLI on the target and compare outputs; preserve optional failures distinctly.
 - Files/output: Probe runner/report integration and `docs/evidence/CORE-003.md`.
 - Result: pending.
@@ -474,11 +563,11 @@ for future work is not an invented current blocker.
 
 ## CORE-014
 
-**Verify interrupted apply and recover operations**
+**Verify interrupted apply and disposable recovery**
 
-- Context/scope: Close crash/cancellation gaps in the completed apply/remove transaction path.
+- Context/scope: Ensure interruption cannot target the wrong VM/parent or report success; recover uncertain guest state by recreation.
 - Read: CORE-007/009/010 and [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Inject process interruption before/after every mutation boundary using fake adapters, then selected authorized guest interruptions. On restart, reconcile observed state to the journal and propose safe resume/compensation. Test concurrent invocations, changed preimages, denied restoration and storage exhaustion. No false success, wrong-target change or lost recovery copy; a manual stop includes exact next action.
+- Acceptance: Inject process interruption before/after every mutation boundary using fake adapters, then selected authorized guest interruptions. On restart, reconcile observed host state to the audit record: safely detach a verified project assignment or stop and require child recreation. Test concurrent/replayed requests, wrong identities, parent-write attempts, denied cleanup and storage exhaustion. No false success or wrong-target change; a manual stop includes the exact discard/recreate or host-cleanup action.
 - Files/output: Recovery implementation fixes as needed and `docs/evidence/CORE-014.md` failure matrix.
 - Result: pending.
 
@@ -488,7 +577,7 @@ for future work is not an invented current blocker.
 
 - Context/scope: Maintain the tested combination without automating host driver/OS installation.
 - Read: GPU-002/006, CORE-006/009/012 and [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Compare current host/guest build, driver/package hashes and essential runtimes to last-validated record at plan/start/validate. Mark unknown or mismatched versions unvalidated and refuse stale apply; explain requalification. Generate an explicit restaging/rollback plan with pending-reboot handling; no silent DLL refresh, host downgrade or backup deletion. Test host-only update, guest-only update, changed GPU path and partial refresh using fixtures.
+- Acceptance: Compare current host/guest build, driver/package hashes and essential runtimes to last-validated record at plan/start/validate. Mark unknown or mismatched versions unvalidated and refuse stale apply; explain requalification. Generate an explicit new-child restaging plan with pending-reboot handling; no silent DLL refresh, host downgrade or parent mutation. Test host-only update, guest-only update, changed GPU path and partial staging using fixtures.
 - Files/output: Compatibility/restage modules and `docs/evidence/CORE-015.md`.
 - Result: pending.
 
@@ -517,8 +606,8 @@ for future work is not an invented current blocker.
 **Review privilege boundaries and release-blocking defects**
 
 - Context/scope: Independent code/security review of the implemented local CLI, not a general penetration-testing product.
-- Read: Native adapter, journal, transfer and staging modules; [reference hazards](ARCHITECTURE.md#reference-implementation-hazards).
-- Acceptance: Review injection/path/reparse attacks, forged plans/journals, secret handling, binary provenance, ACLs, dependency risks and untrusted guest/probe output. Verify no isolation/signing/network boundary weakened and no automatic privileged maintenance. Reproduce and fix findings threatening wrong-target changes, data loss, credentials or essential workloads, allocating permanent defect cards if needed; run affected tests and target regressions. Essential findings keep this gate open.
+- Read: Native adapter, privileged runner, audit, transfer and staging modules; [reference hazards](ARCHITECTURE.md#reference-implementation-hazards).
+- Acceptance: Review injection/path/reparse attacks, forged plans/requests/audits, runner replacement/policy tampering, parent-image protection, secret handling, binary provenance, ACLs, dependency risks and untrusted guest/probe output. Verify no isolation/signing/network boundary weakened and no automatic privileged maintenance outside the allowlist. Reproduce and fix findings threatening wrong-target changes, data loss, credentials or essential workloads, allocating permanent defect cards if needed; run affected tests and target regressions. Essential findings keep this gate open.
 - Files/output: `docs/evidence/CORE-016.md`: reviewer findings, fixes and residual limitations.
 - Result: pending.
 
@@ -586,9 +675,9 @@ for future work is not an invented current blocker.
 
 **Write the operator and recovery guide from tested workflows**
 
-- Context/scope: Explain using the candidate on the measured existing-VM configuration.
+- Context/scope: Explain using the candidate with the measured golden-parent/disposable-VM configuration.
 - Read: GPU-006, CORE-003/010/011/015, GPU-012/013 and CORE-017.
-- Acceptance: Document prerequisites and legitimate local driver inputs, rights/credential handling, exact config examples, plan/apply/validate/lifecycle/remove/recover steps, logs, maintenance and cold recovery. State exact compatibility matrix and optional/untested features, resource limits, no automatic host updates and project versus vendor support boundary. Every command matches actual candidate help; guide requires no hidden machine-specific paths.
+- Acceptance: Document prerequisites and legitimate local driver inputs, rights/credential handling, exact config examples, parent protection, child creation, plan/apply/validate/lifecycle/detach/discard/recreate steps, logs and maintenance. State exact compatibility matrix and optional/untested features, resource limits, no automatic host updates and project versus vendor support boundary. Every command matches actual candidate help; guide requires no hidden machine-specific paths.
 - Files/output: Proposed `README.md`, `docs/OPERATIONS.md` and `docs/evidence/DOC-003.md`; technical results stay in existing task evidence.
 - Result: pending.
 

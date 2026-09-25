@@ -23,7 +23,7 @@ Revisit only for an explicit requirement, not to accommodate upstream structure.
 
 ## DEC-002
 
-**Accepted investigation direction | 2026-09-24 | Native management first**
+**Accepted, refined by DEC-011 | 2026-09-24 | Native management first**
 
 Prefer a dedicated persistent Generation 2 VM managed by Hyper-V/VMMS.
 Measure the AppSandbox HCS reference against native Hyper-V operations using
@@ -35,9 +35,12 @@ extension behavior need target evidence. HCS becomes an implementation choice
 only for a demonstrated gap, recorded by GPU-006.
 See [native boundaries](ARCHITECTURE.md#native-windows-boundaries).
 
+DEC-011 replaces the persistent experimental guest with one disposable child
+while retaining native-management-first and evidence-triggered HCS comparison.
+
 ## DEC-003
 
-**Accepted | 2026-09-24 | Reproduce before implementing**
+**Superseded by DEC-011 | 2026-09-24 | Reproduce before implementing**
 
 Complete the hardware reproduction milestone before a Rust product skeleton.
 Start comparisons with matching unmodified vendor runtimes; add only shims
@@ -48,6 +51,9 @@ Reason: source inspection, DLL loading and physical GPU specifications cannot
 establish guest behavior. Native management, driver staging, compatibility
 hooks and desktop presentation must be evaluated independently.
 See the [validation contract](ARCHITECTURE.md#validation-contract).
+
+DEC-011 retains measured workload validation but removes the requirement to
+finish the whole reproduction milestone before a thin Rust vertical slice.
 
 ## DEC-004
 
@@ -204,11 +210,12 @@ See [DOC-007](BACKLOG.md#doc-007) for review and validation evidence.
 
 ## DEC-010
 
-**Accepted | 2026-09-25 | Early hardware-independent foundation**
+**Accepted, refined by DEC-011 | 2026-09-25 | Early hardware-independent foundation**
 
-The user's scaffolding request brings the non-hardware portion of CORE-001
-forward into CORE-019 at M0. CORE-001 retains inventory behind GPU-006/REF-001;
-no hardware reproduction or backend-selection gate is waived.
+The user's scaffolding request brought the non-hardware portion of CORE-001
+forward into CORE-019 at M0. DEC-011 subsequently moved CORE-001's read-only
+inventory directly behind HV-001 and moved the thin Rust vertical slice into M1;
+backend selection still follows measured native/reference workload results.
 
 Use one root package/workspace, Rust edition 2024, resolver 3, exact Rust 1.94.0
 and the same declared minimum version, targeting x86_64-pc-windows-msvc. This
@@ -235,6 +242,78 @@ Disable dev-profile incremental compilation, inherited by tests, for this small
 foundation. This avoids the failing optional cache operation without suppressing
 warnings or changing security settings. Revisit if build time warrants diagnosing
 the filesystem/cache interaction; the exact external cause is not established.
+
+## DEC-011
+
+**Accepted by user | 2026-09-25 | Disposable-VM vertical slice and controlled elevation**
+
+Treat the user's successful AppSandbox operation on this RTX 5060 host as evidence
+that the hardware/Windows combination can execute GPU-PV through AppSandbox's HCS
+path. The project must still measure its own D3D11, D3D12 and CUDA results and must
+not infer that Hyper-V/VMMS exposes every HCS capability.
+
+Develop against one designated disposable Generation 2 VM whose OS disk is a
+differencing VHDX based on a shut-down, immutable clean Windows 11 parent. The
+parent contains normal updates and integration support but no experimental GPU-PV
+assignment, copied NVIDIA runtime or compatibility shim. A damaged or uncertain
+child is destroyed and recreated; checkpoints and guest-file rollback are not the
+primary recovery system. The project never deletes or mutates the parent image.
+
+Begin a small Rust vertical slice after target inventory and interface discovery:
+inventory the explicit RTX/VM, read a versioned configuration, invoke only fixed
+native operations, stage the measured minimum runtime into the disposable child,
+assign GPU-PV, and run identity-checked D3D11/D3D12/CUDA probes. AppSandbox remains
+the known-working reference for GPU discovery, HCS assignment, provisioning and
+conditional vendor handling. Investigate a specific VMMS/HCS difference only when
+the native path fails; do not restart general hardware-feasibility planning.
+
+GPU acceleration and desktop presentation are separate. VMConnect, Enhanced
+Session Mode or RDP may provide operator access, but their display adapter is not
+GPU proof. No custom indirect display driver or transport enters v1 unless a named
+essential workload is shown to require it. Existing Phaze and remote-display
+drivers on the host are observed components, not project dependencies or mutation
+targets.
+
+Ordinary builds and tests stay unelevated. Repeated privileged tests use a small
+administrator-installed Rust runner or equivalently narrow native boundary, not an
+elevated editor or arbitrary administrative shell. Its executable and policy are
+outside agent-writable paths; policy pins one logical disposable slot, the selected
+GPU identity, an operation allowlist and parent/child/test roots. The runner alone
+creates a child/VM during reset and atomically enrolls its generated VM GUID in an
+administrator-owned record. Later requests must match that current GUID; the agent
+cannot choose or rewrite it. The runner validates every request, logs request/result,
+rejects arbitrary commands and fails closed. Installing, updating or broadening the
+runner remains a separately approved protected action; Codex sandbox approval does
+not itself grant a Windows elevated token.
+
+Reason: disposable children make guest restoration machinery unnecessary, while a
+fixed privileged interface supports practical iteration without granting the agent
+general host administration. The shortest useful proof is the project's own Rust
+path reproducing the already observed reference behavior.
+
+Revisit when: differencing-disk performance prevents representative testing; an
+essential workload demonstrably needs a custom display device; or the measured
+VMMS path lacks a capability available only through HCS.
+
+## DEC-012
+
+**Accepted by user | 2026-09-25 | Effect-based development permissions**
+
+Routine repository development proceeds autonomously. Existing authorization may
+be reused only within its exact test scope; new administrator, destructive or
+host-wide effects require explicit approval. [AGENTS.md](../AGENTS.md#permission-boundary)
+is the single detailed permission policy; engineering standards and agent prompts
+reference it rather than restating it.
+
+Project Codex defaults use a workspace-write sandbox with on-request escalation
+and workspace network access. These settings permit normal edits, Cargo work and
+dependency retrieval while retaining a platform boundary around external writes.
+Repository text cannot override client, organization or sandbox enforcement, and
+Codex approval never supplies a Windows administrator token.
+
+Reason: the earlier protected-operation wording was sound for host resources but
+did not expressly authorize ordinary development, while the project Codex config
+left sandbox and approval behavior to higher-level defaults.
 
 ## Decision template
 

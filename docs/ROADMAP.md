@@ -5,10 +5,12 @@
 milestone membership and task dependencies; follow its links for executable cards.
 
 Build reproducible GPU-PV for Windows 11 x64 host/guest and one NVIDIA RTX 5060
-8 GB. Start with an existing dedicated Generation 2 VM, native Windows management
+8 GB. Start with one disposable Generation 2 VM based on an immutable clean parent, native Windows management
 and a Rust CLI/library. AppSandbox is a pinned technical reference. There is no
-GPU-PV implementation yet. CORE-019 provides the hardware-independent foundation
-and [build commands](../README.md#windows-development). Research is not hardware proof.
+GPU-PV implementation yet. The user's successful AppSandbox use on this host is
+the known-working HCS reference; project tests must reproduce it but do not need to
+re-prove general hardware feasibility. CORE-019 provides the hardware-independent
+foundation and [build commands](../README.md#windows-development).
 
 ## Version 1.0 contract
 
@@ -33,62 +35,67 @@ requires the user, not a task-status edit.
 
 ## M0
 
-**Objective:** prepare a source-grounded, executable experiment on the real target.
+**Objective:** prepare the real target and start the smallest Rust vertical slice.
 
 - Entry: documentation-only workspace; preserve existing local changes.
-- Work: hardware-independent scaffolding (CORE-019), environment/interface inventory, pinned reference and runnable artifact
-  preparation, selected-driver manifest, probe definitions and recovery procedure.
+- Work: hardware-independent scaffolding (CORE-019), environment/interface inventory,
+  pinned reference and runnable artifact preparation, selected-driver manifest,
+  probe definitions, golden-image/disposable-child procedure, controlled-elevation
+  contract and read-only Rust inventory (CORE-001).
   Task cards are indexed under M0 in the [register](BACKLOG.md#task-register).
 - Research gates: [technical gaps](ARCHITECTURE.md#technical-gaps-and-research-gates)
-  G1-G6. Unknown edition, interface availability, guest access, driver provisioning
-  or reference build/signing dependencies must be resolved or explicitly blocked.
+  G1-G6. Unknown native interface availability, guest access, driver provisioning
+  or reference build/signing dependencies must be resolved or explicitly blocked;
+  AppSandbox's working HCS result is the baseline, not a question to reopen.
 - Validation: read-only queries distinguish denial from absence; inspect artifact
   provenance and setup side effects; define host controls and expected probe output.
-- Exit: CORE-019 establishes the build/test foundation; HV-001, HV-003, REF-001/002, GPU-002/008/003 results identify exact
-  environment, workloads, inputs, named targets, privileges and restoration.
+- Exit: CORE-019/001 establish the build/test and read-only inventory foundation;
+  HV-001/003, REF-001/002 and GPU-002/008/003 identify exact environment,
+  workloads, inputs, parent/child targets, privilege boundary and recreation path.
   All M0 required cards completed; no protected setup implied by this gate.
 
 ## M1
 
-**Objective:** reproduce the essential GPU-PV path before choosing implementation.
+**Objective:** produce the first Rust-driven GPU-PV demonstration on a disposable VM.
 
 - Dependency: M0. Execute only specifically authorized guest/host changes.
-- Work: clean reference/native guest states; reference results; minimal guest
-  provisioning and restoration; native comparison; resource headroom; lifecycle
-  and recovery experiments. M1 cards are in the register.
-- Risks: upstream needs disallowed signing changes; reference artifact cannot run;
-  CUDA or D3D fails; vendor-extension or runtime hooks differ by backend; resource
-  fields do not provide reliable enforcement. Record actual impediments as blockers.
+- Work: immutable clean parent plus disposable child; AppSandbox reference capture;
+  minimal configuration, native adapters and controlled privileged runner; guest
+  transfer/runtime staging; explicit assignment; D3D11/D3D12/CUDA probes; native/HCS
+  comparison only where behavior differs; resource headroom and child recreation.
+- Risks: runner policy is too broad or agent-writable; parent image is accidentally
+  targeted; upstream needs disallowed signing changes; native VMMS lacks a specific
+  HCS capability; CUDA or D3D fails; resource fields do not enforce requested limits.
+  Record actual impediments as blockers.
 - Validation: same essential probes, files and builds for reference/native runs;
   distinguish management, staging, runtime, renderer/session and workload failures.
-  At least five clean stop/start cycles plus guest reboot and restoration checks.
-- Exit: GPU-006 records essential workload passes, reproducible preparation,
-  conservative single-guest resource settings, tested recovery and one justified
-  backend/component choice. All required M1 cards complete. Optional API comparison
-  results may fail or remain untested with reasons and do not establish support.
+  Verify fixed privileged policy/identity checks, at least five clean stop/start
+  cycles, guest reboot, deliberate child discard and recreation from unchanged parent.
+- Exit: GPU-006 records essential workload passes through the Rust-driven path,
+  reproducible preparation, conservative single-guest settings, tested disposable
+  recreation and one justified backend/component choice. All required M1 cards
+  complete. Optional API results may fail or remain untested with reasons.
 - If the reference cannot run or an essential reference capability cannot be
   reproduced, stop and present evidence and options to the user. Do not silently
   switch to an untested backend or lower the essential gate; see DEC-007.
 
 ## M2
 
-**Objective:** encode the measured procedure in a usable, GUI-independent CLI/core.
+**Objective:** complete the proof into a usable, GUI-independent CLI/core.
 
-- Dependency: M1, including the recorded backend decision.
-- Work: small Rust package, structured native adapters, configuration contract,
-  preflight/planning, durable operation journal, guest transfer, manifest staging,
-  assignment, restore, lifecycle, diagnostics and probe reporting. CORE-001/002/003
-  retain their IDs; new CORE cards split their formerly broad implementation scope.
-  CORE-001 extends the initial tests and Windows PR checks from CORE-019 required by
-  [engineering standards](ENGINEERING.md#required-checks-and-ci); CORE-013 extends them.
-- Risks: elevation and credential boundaries, PowerShell marshalling, external
-  state drift, partial file/registry writes and conflicting operations.
+- Dependency: M1, including the measured vertical slice and backend decision.
+- Work: finish detach/disposable reset, lifecycle, diagnostics, CI coverage and
+  operator-quality reporting around the M1 configuration, adapters, staging,
+  assignment and probe path. CORE-013 extends the Windows checks established by
+  CORE-019/001.
+- Risks: credential handling, external state drift, privileged-runner version/policy
+  drift, parent/child identity mistakes and conflicting operations.
 - Validation: Windows CI for pure logic and fake adapters; native integration and
   the M1 probes on the authorized target. No hosted-CI claim of GPU coverage.
 - Exit: all M2 cards completed; CLI follows a reviewed configuration through plan,
-  apply, inspect, validate and remove/restore. Reapplying the same state is a no-op;
-  wrong GPU, stale plan or failed assignment cannot report success. Guest credentials
-  never enter persisted configuration/logs. Actual build/test commands are documented.
+  apply, inspect, validate, detach and disposable reset. Reapplying the same state
+  is a no-op; wrong VM/GPU/parent, stale plan or failed assignment cannot report
+  success. Guest credentials never enter persisted configuration/logs.
 
 ## M3
 
@@ -144,10 +151,11 @@ requires the user, not a task-status edit.
 
 ## Execution guidance
 
-The critical sequence is inventory -> exact reference/probe procedure -> hardware
-proof -> backend decision -> configuration/transaction core -> hardening -> candidate
-rehearsal -> release audit. REF-001 can run alongside HV-001; once the core foundation
-exists, configuration, adapters and hardware-free CI can proceed independently.
+The critical sequence is inventory/reference map -> golden image and controlled
+runner -> thin Rust inventory/config/native adapter -> stage/assign/probe on a
+disposable child -> isolate any VMMS/HCS difference -> harden -> candidate rehearsal
+-> release audit. REF-001 can run alongside HV-001; CORE-001 starts as soon as
+HV-001 supplies exact identities instead of waiting for the full hardware milestone.
 Use task dependencies, not numeric ID order, to select the next session.
 
 Every required card in a milestone contributes to its exit; GPU-007 and GPU-015 are
