@@ -284,13 +284,13 @@ Ordinary builds and tests stay unelevated. Repeated privileged tests use a small
 administrator-installed Rust runner or equivalently narrow native boundary, not an
 elevated editor or arbitrary administrative shell. Its executable and policy are
 outside agent-writable paths; policy pins one logical disposable slot, the selected
-GPU identity, an operation allowlist and parent/child/test roots. The runner alone
-creates a child/VM during reset and atomically enrolls its generated VM GUID in an
-administrator-owned record. Later requests must match that current GUID; the agent
-cannot choose or rewrite it. The runner validates every request, logs request/result,
-rejects arbitrary commands and fails closed. Installing, updating or broadening the
-runner remains a separately approved protected action; Codex sandbox approval does
-not itself grant a Windows elevated token.
+GPU identity, an operation allowlist and parent/child/test roots. DEC-015 narrows
+this target to one administrator-enrolled fixed VM GUID: the runner recreates only
+its child disk and cannot accept or rewrite a VM identity/path. The runner validates
+every request, logs request/result, rejects arbitrary commands and fails closed.
+Installing, updating or broadening the runner remains a separately approved
+protected action; Codex sandbox approval does not itself grant a Windows elevated
+token.
 
 Reason: disposable children make guest restoration machinery unnecessary, while a
 fixed privileged interface supports practical iteration without granting the agent
@@ -367,6 +367,34 @@ its exact scope; the golden master and unrelated VMs remain protected.
 Reason: file-backed procedures are reviewable and reproducible, and host lifecycle
 effects require a stronger boundary than ordinary privileged test operations without
 adding approval friction to normal repository development.
+
+## DEC-015
+
+**Accepted by user | 2026-09-26 | Fixed VM identity without Sysprep**
+
+Retain the completed Windows installation without Sysprep and use it only through
+one persistent Hyper-V VM shell. The shell pins VM GUID `2627E735-5B33-4104-B739-
+622727DD3A40`, Generation 2 firmware, Secure Boot, vTPM, MAC address and the guest's
+existing `TESTVM` identity. Reset discards and recreates only the differencing child;
+the VM configuration is neither cloned nor recreated. No two descendants run or
+exist as separately registered Windows machines.
+
+Microsoft requires generalization when an image is deployed to another computer.
+This workflow instead repeatedly restores storage state for the same virtual
+computer, preserving the user's local account and avoiding unnecessary OOBE. If the
+project later creates a new VM GUID, concurrent clone, domain-joined descendant or
+portable image, rebuild/generalize a parent before that use; do not silently extend
+this exception.
+
+The owner also chose not to gate this development master on Windows activation or
+four remaining offered Windows/Defender/.NET updates. Those facts remain recorded
+as limitations rather than being reported as ready/passing checks.
+
+Reason: the disposable test policy requires one active instance, while preserving
+the completed local setup materially simplifies repeated GPU-PV development.
+
+Revisit when: a second VM identity is required, the VM shell/vTPM is lost, domain
+membership is introduced, or supported multi-machine image deployment is needed.
 
 ## Decision template
 

@@ -6,6 +6,17 @@ remain in its Resume block. Do not duplicate detailed test output here.
 
 ## 2026-09-26
 
+- [HV-002](BACKLOG.md#hv-002): converted the completed Windows 11 VM into a
+  hash-protected read-only parent plus fixed-identity disposable child, preserving
+  the local account without Sysprep under DEC-015. Retained a full pre-merge export,
+  matching parent backup and original merged source; disabled checkpoints, proved
+  initial and recreated-child boots, and left the VM off with no GPU adapter.
+  Evidence: [HV-002](evidence/HV-002.md).
+- [CORE-005](BACKLOG.md#core-005): implemented and installed the first Rust runner
+  slice with immutable policy, fixed `reset-slot`, lock/audit/atomic result and a
+  highest-privilege on-demand task triggerable from the normal token. Full runner
+  operations remain in progress. Evidence: [CORE-005](evidence/CORE-005.md).
+
 - [DOC-011](BACKLOG.md#doc-011): added maintained setup/diagnostics/Hyper-V/testing
   script categories and reusable Rust/documentation check scripts. Centralized the
   shell standard in ENGINEERING and made each host restart, shutdown, logout or

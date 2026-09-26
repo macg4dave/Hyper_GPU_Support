@@ -100,6 +100,13 @@ The [architecture source map](docs/ARCHITECTURE.md#foundation-source-layout)
 identifies where future modules belong. Configuration, logging and Windows
 adapters are deferred until meaningful behavior requires them.
 
+The first privileged-runner slice is now implemented in `src/runner.rs` and
+`src/bin/hyper-gpu-runner.rs`. Its installed, administrator-owned scheduled task
+accepts only the compiled `reset-slot` operation for the exact disposable VM and
+parent/child identities; it is not a general CLI or shell boundary. Installation
+identity, test evidence and remaining CORE-005 work are recorded in
+[CORE-005 evidence](docs/evidence/CORE-005.md).
+
 Keep small machine-local settings in ignored `local/`, build output in `target/`,
 and OS/VM/driver/test artifacts in the reproducible ignored
 [`data/` layout](data/README.md). The relative tree is the default; hardware work

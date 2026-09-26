@@ -5,18 +5,17 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-26, [DOC-011](#doc-011) completed the maintained-script
-  workflow and explicit host-session lifecycle permission boundary.
-- Changed: added `scripts/` categories plus reusable Rust/documentation check
-  scripts; centralized script standards in ENGINEERING and host/guest lifecycle
-  permissions in AGENTS, with prompt links rather than duplicated rules.
-- Outstanding: M1 has not executed. Host pending reboot and unknown Secure Boot
-  block protected setup; the selected AppSandbox candidate has no established
-  probe transport; no native parent/child or enrolled VM exists. Existing AppSandbox
-  and repository-local checkpoint-chain files remain untouched.
-- Next recommended: implement [CORE-004](#core-004), [CORE-005](#core-005) and
-  [CORE-020](#core-020); owner approval for BLK-002 is required before the
-  protected GPU-004/HV-002 target work.
+- Last session: 2026-09-26, [HV-002](#hv-002) completed the protected golden-parent
+  conversion, fixed disposable slot and runner-backed reset/boot proof.
+- Changed: sealed/hash-protected the parent and backup on `Z:`, retained the fixed
+  VM/vTPM/guest identity without Sysprep under DEC-015, and installed CORE-005's
+  first Rust runner slice for immutable-policy `reset-slot`.
+- Outstanding: CORE-005 implements reset only; other lifecycle/GPU/staging runner
+  operations remain. The AppSandbox candidate still has no established probe
+  transport (BLK-003). Activation and four offered guest updates are recorded but
+  explicitly not golden-image gates.
+- Next recommended: finish [CORE-005](#core-005), [CORE-004](#core-004) and
+  [CORE-020](#core-020), then proceed to the native staging/assignment path.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -48,7 +47,7 @@ contribute to their milestone's required exit.
 | [REF-002](#ref-002) | M0 | P0 | completed | REF-001, HV-001, GPU-002 |
 | [GPU-008](#gpu-008) | M0 | P0 | completed | HV-001, GPU-002 |
 | [GPU-003](#gpu-003) | M0 | P0 | completed | GPU-002, HV-003, REF-002, GPU-008 |
-| [HV-002](#hv-002) | M1 | P0 | planned | DOC-002, GPU-003, CORE-005 |
+| [HV-002](#hv-002) | M1 | P0 | completed | DOC-002, GPU-003 |
 | [GPU-004](#gpu-004) | M1 | P0 | planned | CORE-020 |
 | [GPU-009](#gpu-009) | M1 | P0 | planned | HV-002, CORE-009 |
 | [GPU-005](#gpu-005) | M1 | P0 | planned | GPU-004, GPU-009, CORE-003 |
@@ -57,7 +56,7 @@ contribute to their milestone's required exit.
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
 | [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
 | [CORE-004](#core-004) | M1 | P0 | ready | CORE-001, GPU-003 |
-| [CORE-005](#core-005) | M1 | P0 | ready | CORE-001, HV-003, REF-001, GPU-003 |
+| [CORE-005](#core-005) | M1 | P0 | in progress | CORE-001, HV-003, REF-001, GPU-003 |
 | [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
 | [CORE-007](#core-007) | M1 | P1 | planned | CORE-006 |
 | [CORE-008](#core-008) | M1 | P0 | planned | CORE-005, HV-002 |
@@ -128,7 +127,7 @@ choices are in DEC-007/008. Promote an actual impediment here with evidence.
 | ID | State | Affected task IDs | Problem and evidence | Unblock condition / next action |
 |---|---|---|---|---|
 | BLK-001 | resolved 2026-09-25 | HV-001; CORE-001; GPU-002; HV-003 | The initial non-elevated inventory identified the host and RTX 5060 but Hyper-V denied partitionable-GPU, VM and supported-version queries; see [`docs/evidence/HV-001.md`](evidence/HV-001.md). | User approved the bounded administrator read-only rerun. It captured the GPU-P interface/ranges, supported versions and zero registered VMs without mutation. HV-001 completed; dependent cards became ready. |
-| BLK-002 | active 2026-09-25 | HV-002; GPU-004; CORE-005 | The target still reports `PendingFileRenameOperations`; host Secure Boot remains unknown because the normal-token query was denied. Starting parent/reference/runner setup on an unstable or unverified host would invalidate the M1 baseline. See [GPU-003](evidence/GPU-003.md#status-and-gate). | Explain why the reboot is required and obtain the owner's explicit permission immediately before one normal host reboot; the AI must not schedule or infer permission for it. After the owner-approved reboot, run the separately scoped administrator **read-only** Secure Boot, pending-reboot, Hyper-V/GPU/VM inventory. The marker must be absent, Secure Boot enabled and all pinned identities unchanged; otherwise refresh the plan instead of mutating. |
+| BLK-002 | resolved 2026-09-26 | HV-002; GPU-004; CORE-005 | The owner authorized one normal reboot. Host Secure Boot was enabled, CBS/WU reboot state was clear and pinned identities were unchanged. The only persistent rename entry was a delete request for `gamingservicesproxy_13.dll.0`, whose active/old files were identical Microsoft Gaming Services `10.0.26100.9441`; see [HV-002](evidence/HV-002.md#inspected-baseline). | The plan was refreshed to treat only that exact reboot-persistent Gaming Services cleanup as unrelated noise. No System32/registry cleanup occurred. Any changed marker, servicing state or identity requires new review. |
 | BLK-003 | active 2026-09-26 | GPU-004; GPU-006 | The selected HCS-managed AppSandbox candidate is not a registered Hyper-V VM, so PowerShell Direct does not address it. Its persisted configuration has `SshEnabled` absent/false; no repeatable probe transfer, launch and result channel is established. | During the separately approved reference operation, use only AppSandbox's supported OpenSSH path: either verify an already installed/running guest OpenSSH service with owner-supplied ephemeral credentials, or obtain separate approval to create a recoverable reference branch/instance with AppSandbox `sshEnabled=true` and its deployed key. Pin the host-only endpoint/key, verify guest identity and binary hashes, and capture bounded commands/results. If neither route is approved or works, GPU-004 records the reference as blocked; do not use PowerShell Direct, manual config edits, clipboard injection or an arbitrary agent command. |
 
 Use permanent BLK-NNN IDs; retain resolved entries and link the resolution.
@@ -504,9 +503,20 @@ for future work is not an invented current blocker.
 
 - Context/scope: Execute the reviewed golden-image setup only under explicit scoped authorization.
 - Read: GPU-003 result and root protected-operation rules.
-- Acceptance: Prepare and shut down a clean updated Win11 x64 Generation 2 parent with legitimate OS inputs, normal Secure Boot/signing/isolation, integration support and no experimental GPU/runtime changes. Protect and fingerprint the parent; never boot it for experiments. Through the approved runner, create one named disposable slot on a differencing VHDX with its own VM identity/security state and atomically enroll the generated GUID. Prove discard/recreation from the same parent, enrollment rotation and guest reachability. Check storage and differencing-chain identity. Any host feature, driver or network change and initial privileged-runner installation needs its own exact authorization.
+- Acceptance: Prepare and shut down a clean Win11 x64 Generation 2 parent with legitimate OS inputs, normal Secure Boot/signing/isolation, integration support and no experimental GPU/runtime changes. Protect and fingerprint the parent; never boot it for experiments. Under DEC-015 retain the one enrolled fixed VM shell/GUID/security identity, and through the approved runner recreate only its differencing child. Prove discard/recreation from the same parent and guest reachability. Check storage and differencing-chain identity. Any host feature, driver or network change and initial privileged-runner installation needs its own exact authorization.
 - Files/output: `docs/evidence/HV-002.md`: actual targets, authorizations, preparation and clean-state recovery.
-- Result: pending.
+- Result: Completed 2026-09-26. Inspected the actual clean Windows 11 Pro x64
+  `26200.9457` installation, merged its one automatic checkpoint only after a full
+  Hyper-V export, and retained matching source/parent/backup files with SHA-256
+  `0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07`.
+  Protected the canonical parent read-only, moved the fixed Gen2/Secure Boot/vTPM
+  VM shell to `gpu-pv-slot-01`, disabled automatic checkpoints/dynamic memory and
+  attached a verified differencing child. Both the initial and installed-runner-
+  recreated children booted with preserved `TESTVM`/MachineGuid, clean Microsoft
+  display state and no reboot marker, then shut down gracefully. Final state is off
+  with zero checkpoints/GPU adapters. The owner waived activation/four offered
+  updates as gates and accepted DEC-015's no-Sysprep fixed-identity boundary.
+  Evidence: [`docs/evidence/HV-002.md`](evidence/HV-002.md).
 
 ## GPU-004
 
@@ -622,13 +632,20 @@ for future work is not an invented current blocker.
 
 **Implement fixed native adapters and the minimal privileged runner**
 
+- Owner: `/root`, session started 2026-09-26.
+
 - Context/scope: Implement Rust adapters and a stable privileged broker for only
   the measured Windows operations needed by the first vertical slice. Prefer native Rust/API access; justify any
   necessary command/script boundary through [the exception policy](ENGINEERING.md#rust-and-native-windows).
 - Read: HV-003, REF-001 and GPU-003; [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Build and test the minimal runner plus unelevated client adapter. Use fixed operations and typed parameters, structured results and explicit VM/GPU identifiers. Implement administrator-owned installed code/policy/enrollment, one pinned disposable slot/GPU/roots, runner-owned differencing-child and VM create/reset, atomic generated-GUID rotation, operation allowlist, request/result audit, replay protection and fail-closed validation. Never execute repository binaries or arbitrary commands elevated on the host. Preserve native error codes and handle missing rights and timeout/cancellation. Test invalid/stale identities, attempted agent enrollment/path selection, parent writes, query denial, policy tampering, partial reset and native failures using fakes; then run read-only target queries. Retain detailed native errors without secrets. Installation/execution on the target occurs only through HV-002's scoped authorization.
+- Acceptance: Build and test the minimal runner plus unelevated client adapter. Use fixed operations and typed parameters, structured results and explicit VM/GPU identifiers. Implement administrator-owned installed code/policy/enrollment, one pinned disposable slot/GPU/roots, runner-owned differencing-child reset for DEC-015's fixed VM shell, operation allowlist, request/result audit, replay protection and fail-closed validation. Never execute repository binaries or arbitrary commands elevated on the host. Preserve native error codes and handle missing rights and timeout/cancellation. Test invalid/stale identities, attempted agent enrollment/path selection, parent writes, query denial, policy tampering, partial reset and native failures using fakes; then run read-only target queries. Retain detailed native errors without secrets. Installation/execution on the target occurs only through HV-002's scoped authorization.
 - Files/output: Native adapter modules and `docs/evidence/CORE-005.md`.
-- Result: pending.
+- Result: In progress. The first Rust slice implements and installs immutable-policy
+  `reset-slot` only. An unelevated trigger ran administrator-owned operation
+  `1790391920-577596700`, recreated the exact child after hash/state/path checks,
+  emitted audit/result records, and produced a bootable clean guest. Full lifecycle,
+  GPU, staging/probe, client and minimum-rights work remains. Evidence:
+  [`docs/evidence/CORE-005.md`](evidence/CORE-005.md).
 
 ## CORE-006
 

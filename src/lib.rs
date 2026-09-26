@@ -5,6 +5,7 @@
 
 pub mod cli;
 pub mod inventory;
+pub mod runner;
 
 #[cfg(windows)]
 pub mod windows_inventory;

@@ -107,8 +107,11 @@ setting; uncertain guest state is recovered by recreating the disposable child,
 not by building a general transaction/rollback engine.
 
 The clean Windows 11 parent VHDX is shut down, versioned, access-controlled and
-never attached for experimental writes. Each run uses a new differencing VHDX and
-a freshly registered Generation 2 test VM with its own identity and security state.
+never attached for experimental writes. This target uses one persistent Generation
+2 VM shell with a fixed VM GUID, firmware, vTPM, MAC address and guest identity;
+each run replaces only its differencing VHDX. This is a single-machine state reset,
+not deployment of the image to another virtual computer. A second VM or concurrent
+descendant is outside this exception and requires a generalized parent.
 Driver staging in the child records path, hash/version, origin, destination and
 registry/ICD settings for repeatability and diagnosis, but guest recovery discards
 the child. Reject path traversal, unexpected reparse points, changed source hashes
@@ -121,12 +124,11 @@ experiment. Its installed executable and policy are administrator-owned outside 
 repository; the agent can submit a bounded request and read a result but cannot
 replace the executable, edit its policy or supply a command line/script. Policy pins
 one logical disposable slot, GPU identity, parent/child roots, allowed operations
-and timeouts. For `reset`, the runner validates and removes only the currently
-enrolled disposable VM/child, creates the next child/VM itself, and atomically stores
-the generated VM GUID in an administrator-owned enrollment record. Every later
-request must name that current GUID; agent input can neither enroll another VM nor
-select a path. Every request/result is logged and invalid, ambiguous or stale
-identity fails closed. Installing, updating or broadening this boundary needs new approval;
+and timeouts. For this fixed-identity target, `reset` validates the administrator-
+enrolled VM GUID and removes/recreates only its child disk; it never removes or
+recreates the VM shell. Caller input supplies neither a VM GUID nor a path. Every
+request/result is logged and invalid, ambiguous or stale identity fails closed.
+Installing, updating or broadening this boundary needs new approval;
 tool sandbox approval is not Windows elevation. Do not run the editor or arbitrary
 repository binaries with a general elevated token merely for convenience.
 
@@ -203,32 +205,31 @@ The golden workflow is deliberately native and shallow:
 2. Install the selected edition legitimately, apply normal updates/integration
    support, and add no GPU-PV assignment, copied host driver payload or AppSandbox
    component. Do not embed credentials or product keys in the image.
-3. Run `sysprep /generalize /oobe /shutdown /mode:vm` inside the VM. `/mode:vm` is
-   appropriate only when descendants stay on Hyper-V with the same hardware profile.
+3. Choose the identity model before sealing. A parent deployed to newly registered
+   VMs must use `sysprep /generalize /oobe /shutdown /mode:vm`. This project's
+   one-at-a-time target instead retains one fixed VM shell and deliberately skips
+   Sysprep so its completed local account and guest identity survive resets.
    [Sysprep VM mode][ms-sysprep]
-4. Remove the build VM registration without booting the disk again. Place the parent
+4. Detach the shut-down build disk without booting it again. Place the parent
    at a stable, versioned path under `images/golden/`, record its edition/build and
    SHA-256, back it up, and protect it with ACLs so the experimental identity and
    runner cannot write it.
 5. For each test, use `New-VHD -Differencing -ParentPath <parent>` to create one
-   writable child under `images/disposable/`, register a fresh Generation 2 VM, and
-   create that VM's security state/vTPM. Verify `Get-VHD` reports the intended
-   `ParentPath` before start. Never rename, move, resize, mount writable, service or
-   boot the parent while any child exists. [New-VHD][ms-new-vhd]
+   writable child under `images/disposable/` and attach it to the enrolled fixed VM
+   shell. Verify `Get-VHD` reports the intended `ParentPath` before start. Never
+   rename, move, resize, mount writable, service or boot the parent while any child
+   exists. [New-VHD][ms-new-vhd]
 6. Perform GPU-PV/runtime experiments only in the child. On damage or uncertain
-   state, shut down and remove only the enrolled disposable VM/child through the
-   authorized runner, then create a fresh child. Do not merge a test child into the
-   golden parent and do not use checkpoints as the recovery contract.
+   state, shut down and recreate only the enrolled child through the authorized
+   runner. Do not merge a test child into the golden parent and do not use
+   checkpoints as the recovery contract.
 
-Generalizing before first descendant boot gives each registered child a fresh
-Windows specialization and machine identity; the VM GUID, virtual TPM/key protector
-and VM configuration are also per disposable VM, not inherited from the VHDX. A
-differencing disk still depends on the exact parent path/identity. Activation is
-separate from identity and licensing: cloning does not grant additional Windows use
-rights, automatic Windows Server VM activation does not apply to a Windows 11 client
-guest, and a child may require activation appropriate to its licensed edition and
-virtual hardware. Confirm the owner's entitlement before image preparation and use
-one active child only as the project test policy, not as a licensing conclusion.
+The fixed-shell exception preserves the guest SID/MachineGuid, VM GUID, vTPM and
+network identity and therefore must never be used to create a second independently
+registered clone. A differencing disk still depends on the exact parent path and
+identity. Activation remains separate from identity and licensing; the owner chose
+not to gate this development image on activation or the remaining offered updates.
+One active child is project policy, not a licensing conclusion.
 [Microsoft Windows 11 virtualization licensing][ms-win11-license]
 
 ## Display and presentation boundary
