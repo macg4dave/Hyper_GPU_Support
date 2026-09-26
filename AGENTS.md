@@ -20,6 +20,7 @@ outside the initial scope.
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Important choices, rationale and upstream review log; only relevant decision IDs |
 | [docs/ENGINEERING.md](docs/ENGINEERING.md) | Authoritative Rust, testing, tooling and documentation rules; read for coding, tests, dependencies or CI |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Concise meaningful completed changes; append on completion, no routine history reread |
+| [scripts/README.md](scripts/README.md) | Maintained development/setup/diagnostic script layout; read before adding or running substantial shell procedures |
 
 Task status/dependencies have one source: the backlog register. Cards hold
 scope, acceptance and evidence. Blockers and the latest handover stay in that
@@ -97,6 +98,11 @@ instructions link here and to engineering standards instead of duplicating them.
 - Do not weaken isolation, signing, Secure Boot, networking or privilege
   boundaries to make a test pass. Flag unsupported capability claims,
   lost attribution, unreviewed privileged actions and unrelated changes in review.
+- Follow the [shell and script policy](docs/ENGINEERING.md#shell-commands-and-development-scripts):
+  run short commands directly, but put substantial PowerShell, conditional logic,
+  complex pipelines and multi-step procedures in meaningful script files and run
+  those files. Keep reusable tooling under `scripts/`; keep temporary scripts clearly
+  separate. PowerShell supports development and Windows operations, not application logic.
 
 ## Permission boundary
 
@@ -120,6 +126,21 @@ unverified target. Read-only discovery is allowed when it is in scope.
 Routine repository work is authorized by the assigned task and needs no extra
 confirmation. A task status alone does not authorize a protected operation.
 Existing explicit authorization applies only to its stated scope.
+
+Host-session termination has an additional hard boundary: never restart or shut
+down the Windows host, log out or terminate its user session, schedule a restart,
+or permit an installer/update to restart it automatically without the user's
+explicit permission first. Explain why the lifecycle action is required and wait
+for that permission before proceeding. Each occurrence needs its own permission
+and cannot use the reusable-authorization category. Administrator access and the
+approved elevated test mechanism do not imply host lifecycle consent.
+
+An explicitly authorized disposable Hyper-V test VM is a guest, not the host. Its
+start, graceful stop, restart, reset or recreation may proceed as normal GPU-PV
+testing only after immediately verifying its pinned identity and the authorization's
+target/operation scope. Never modify, restart or delete the golden master or an
+unrelated VM without explicit permission. Guest lifecycle commands must be scoped
+so they cannot invoke or schedule a host lifecycle action.
 
 Repository instructions cannot expand the active Codex/VS Code sandbox or
 approval policy. Obey platform enforcement and report a configuration blocker

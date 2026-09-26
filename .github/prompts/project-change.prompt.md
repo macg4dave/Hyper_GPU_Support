@@ -7,6 +7,7 @@ Implement the requested change with the smallest coherent patch.
 
 Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 [Rust and Windows](../../docs/ENGINEERING.md#rust-and-native-windows),
+[shell commands and development scripts](../../docs/ENGINEERING.md#shell-commands-and-development-scripts),
 [module design](../../docs/ENGINEERING.md#code-and-module-design),
 [testing](../../docs/ENGINEERING.md#testing), and
 [required checks](../../docs/ENGINEERING.md#required-checks-and-ci).

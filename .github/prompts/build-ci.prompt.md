@@ -7,6 +7,7 @@ Make the requested build, packaging, or CI change.
 
 Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 [Rust and Windows](../../docs/ENGINEERING.md#rust-and-native-windows),
+[shell commands and development scripts](../../docs/ENGINEERING.md#shell-commands-and-development-scripts),
 [toolchains and dependencies](../../docs/ENGINEERING.md#toolchain-dependencies-and-features),
 and [required checks and CI](../../docs/ENGINEERING.md#required-checks-and-ci).
 

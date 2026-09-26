@@ -13,6 +13,37 @@ Actual commands are in [README.md](../README.md); results belong on task cards.
 Routine repository edits, dependency changes, development commands and targeted
 cleanup are normal task execution and do not require separate approval.
 
+## Shell commands and development scripts
+
+Run short, straightforward commands directly. When a procedure needs multiple
+steps, substantial PowerShell, a complex pipeline, conditional logic or non-trivial
+failure handling, write it to a script and execute the script file. This makes the
+exact operation reviewable, reproducible and debuggable instead of leaving it in
+terminal history. Prefer a command such as
+`./scripts/diagnostics/check-hyperv.ps1` over an equivalent long inline command.
+
+Maintained project tooling belongs in the category described by
+[`scripts/README.md`](../scripts/README.md). Give scripts meaningful action-oriented
+names and one clear purpose. Parameterize machine-specific paths and target
+identities; validate inputs before privileged or destructive effects. Comment
+non-obvious operations, handle expected failures, preserve useful native error
+details, return meaningful nonzero exit codes and make steps safe to rerun where
+practical. Run and report the script path plus parameters so a failure can be
+reproduced. Reviewable scripts that remain useful should stay in the repository.
+
+Temporary scripts belong under ignored `local/scripts/` or another clearly marked,
+task-scoped temporary location, not in the maintained `scripts/` tree. Creating or
+editing any script is routine repository work; executing it follows the
+[permission boundary](../AGENTS.md#permission-boundary) for its actual effects.
+In particular, a script must not restart, shut down or end a host session without
+the user's explicit permission immediately before that lifecycle operation.
+
+PowerShell is permitted for repository development, diagnostics, Windows
+environment setup and invoking existing Hyper-V/Windows facilities. It must not
+become a parallel implementation of application logic, CLI behavior, validation,
+diagnostics or GPU/Hyper-V management assigned to Rust. Embedded application-side
+shell remains subject to the non-Rust exception process below.
+
 ## Rust and native Windows
 
 - Implement application logic, CLI tools, configuration, GPU discovery/management,

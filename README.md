@@ -40,14 +40,15 @@ qualified; this does not claim identical binary output across machines.
 ## Checks
 
 ```powershell
-$env:RUSTFLAGS = '-Dwarnings'
-$env:RUSTDOCFLAGS = '-Dwarnings'
-cargo fmt --all -- --check
-cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
-cargo test --locked --workspace --all-features
-cargo build --locked --workspace --all-features
-cargo doc --locked --workspace --all-features --no-deps
+.\scripts\testing\check.ps1
 ```
+
+The script runs formatting, strict Clippy, tests, build and rustdoc with locked
+dependencies and compiler/doc warnings denied. It stops on the first failure,
+returns a nonzero exit code and restores the caller's Rust flag environment.
+Documentation-only changes can also run
+`.\scripts\testing\check-docs.ps1` for local link targets, prompt frontmatter and
+diff-whitespace validation.
 
 Tests include unit tests, executable integration tests and a runnable doc test.
 They require no elevation, Hyper-V, GPU, guest or network once the toolchain is
@@ -92,6 +93,7 @@ repository permission boundary when explicitly needed for protected facts.
 | `src/windows_inventory.rs` | Fixed read-only Windows/Hyper-V process adapter |
 | `tests/cli.rs` | Executable behavior tests |
 | `.github/workflows/ci.yml` | Windows build, lint, test and rustdoc checks |
+| `scripts/` | Maintained development, setup, diagnostic, Hyper-V and test scripts |
 | `docs/` | Architecture, roadmap, task evidence and engineering policy |
 
 The [architecture source map](docs/ARCHITECTURE.md#foundation-source-layout)

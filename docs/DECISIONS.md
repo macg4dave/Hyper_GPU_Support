@@ -102,6 +102,12 @@ redistribution permission. Do not import proprietary binaries into this project.
   build inputs, signing branches and notices. Defer adoption until hardware proof;
   reject default-GPU fallback, masked failures and broad permission changes.
   See [hazards](ARCHITECTURE.md#reference-implementation-hazards). No build/run.
+- 2026-09-26, M0 gate review: selectively rechecked the **same pinned commit**,
+  specifically Windows configuration persistence/creation, the optional OpenSSH
+  guest install/deployed-key path and its loopback proxy. This established a
+  supported candidate transport but did not establish it on the existing VM,
+  whose persisted entry has no SSH enablement; BLK-003 records the M1 gate. No
+  code was adopted and no upstream artifact or VM was run.
 
 ## DEC-005
 
@@ -341,6 +347,26 @@ Revisit after HV-003. Replace registry and device discovery with safe Rust bindi
 when the complete query set can retain deadlines, cancellation and structured
 Windows codes; keep any Hyper-V cmdlet transport only for interfaces that lack an
 equivalent bounded native route. No mutation may be added to this adapter.
+
+## DEC-014
+
+**Accepted by user | 2026-09-26 | Maintained scripts and explicit host lifecycle consent**
+
+Substantial shell procedures are committed as meaningful scripts and executed as
+files; short, straightforward commands remain direct. ENGINEERING owns script
+quality, placement and Rust-boundary details, while AGENTS remains the single
+detailed permission authority. Useful tooling stays under `scripts/`; temporary
+scripts remain clearly separate under ignored `local/scripts/`.
+
+No host restart, shutdown, logout, session termination or automatic/scheduled
+restart may occur without an explanation and the user's explicit permission for
+that occurrence, including under elevation or the approved test runner. Verified,
+explicitly authorized disposable-guest lifecycle work remains autonomous within
+its exact scope; the golden master and unrelated VMs remain protected.
+
+Reason: file-backed procedures are reviewable and reproducible, and host lifecycle
+effects require a stronger boundary than ordinary privileged test operations without
+adding approval friction to normal repository development.
 
 ## Decision template
 

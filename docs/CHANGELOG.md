@@ -4,6 +4,15 @@ Record meaningful completed changes in one short entry per change, with task
 IDs and evidence links. Task statuses remain in BACKLOG; partial session notes
 remain in its Resume block. Do not duplicate detailed test output here.
 
+## 2026-09-26
+
+- [DOC-011](BACKLOG.md#doc-011): added maintained setup/diagnostics/Hyper-V/testing
+  script categories and reusable Rust/documentation check scripts. Centralized the
+  shell standard in ENGINEERING and made each host restart, shutdown, logout or
+  session termination require explicit permission while retaining normal development
+  and verified disposable-guest lifecycle autonomy. Both scripts and all normal
+  Rust checks passed; no host or guest lifecycle operation occurred.
+
 ## 2026-09-25
 
 - [GPU-003](BACKLOG.md#gpu-003): completed the reviewable M1 baseline procedure

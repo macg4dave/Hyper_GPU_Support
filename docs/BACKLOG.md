@@ -5,16 +5,18 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-25, M0 completed with the driver/reference/probe manifests
-  and exact M1 procedure ([GPU-002](#gpu-002), [REF-002](#ref-002),
-  [GPU-008](#gpu-008), [GPU-003](#gpu-003)).
-- Changed: pinned the signed NVIDIA/AppSandbox inputs and workload oracles; selected
-  `Z:\HyperGpuSupport`, one vacant native slot and a fixed runner/recovery boundary.
+- Last session: 2026-09-26, [DOC-011](#doc-011) completed the maintained-script
+  workflow and explicit host-session lifecycle permission boundary.
+- Changed: added `scripts/` categories plus reusable Rust/documentation check
+  scripts; centralized script standards in ENGINEERING and host/guest lifecycle
+  permissions in AGENTS, with prompt links rather than duplicated rules.
 - Outstanding: M1 has not executed. Host pending reboot and unknown Secure Boot
-  block protected setup; no native parent/child or enrolled VM exists. Existing
-  AppSandbox and repository-local checkpoint-chain files remain untouched.
-- Next recommended: owner approval for BLK-002 host stabilization, then
-  [CORE-004](#core-004) and [CORE-005](#core-005) implementation before HV-002.
+  block protected setup; the selected AppSandbox candidate has no established
+  probe transport; no native parent/child or enrolled VM exists. Existing AppSandbox
+  and repository-local checkpoint-chain files remain untouched.
+- Next recommended: implement [CORE-004](#core-004), [CORE-005](#core-005) and
+  [CORE-020](#core-020); owner approval for BLK-002 is required before the
+  protected GPU-004/HV-002 target work.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -35,6 +37,7 @@ contribute to their milestone's required exit.
 | [DOC-008](#doc-008) | M0 | P0 | completed | DOC-007, CORE-019 |
 | [DOC-009](#doc-009) | M0 | P1 | completed | DOC-007 |
 | [DOC-010](#doc-010) | M0 | P0 | completed | DOC-007 |
+| [DOC-011](#doc-011) | M0 | P0 | completed | DOC-007, DOC-010 |
 | [CORE-019](#core-019) | M0 | P1 | completed | DOC-007 |
 | [GPU-001](#gpu-001) | M0 | P0 | completed | - |
 | [HV-001](#hv-001) | M0 | P0 | completed | - |
@@ -46,7 +49,7 @@ contribute to their milestone's required exit.
 | [GPU-008](#gpu-008) | M0 | P0 | completed | HV-001, GPU-002 |
 | [GPU-003](#gpu-003) | M0 | P0 | completed | GPU-002, HV-003, REF-002, GPU-008 |
 | [HV-002](#hv-002) | M1 | P0 | planned | DOC-002, GPU-003, CORE-005 |
-| [GPU-004](#gpu-004) | M1 | P0 | planned | HV-002 |
+| [GPU-004](#gpu-004) | M1 | P0 | planned | CORE-020 |
 | [GPU-009](#gpu-009) | M1 | P0 | planned | HV-002, CORE-009 |
 | [GPU-005](#gpu-005) | M1 | P0 | planned | GPU-004, GPU-009, CORE-003 |
 | [GPU-010](#gpu-010) | M1 | P0 | planned | GPU-005 |
@@ -63,7 +66,8 @@ contribute to their milestone's required exit.
 | [CORE-010](#core-010) | M2 | P1 | planned | CORE-002 |
 | [CORE-011](#core-011) | M2 | P1 | planned | CORE-002, CORE-010 |
 | [CORE-012](#core-012) | M2 | P1 | planned | CORE-002 |
-| [CORE-003](#core-003) | M1 | P0 | planned | CORE-002, GPU-008 |
+| [CORE-003](#core-003) | M1 | P0 | planned | CORE-002, CORE-020 |
+| [CORE-020](#core-020) | M1 | P0 | ready | GPU-008 |
 | [CORE-013](#core-013) | M2 | P1 | planned | CORE-001 |
 | [CORE-014](#core-014) | M3 | P1 | planned | CORE-003, CORE-013 |
 | [CORE-015](#core-015) | M3 | P1 | planned | CORE-003 |
@@ -124,7 +128,8 @@ choices are in DEC-007/008. Promote an actual impediment here with evidence.
 | ID | State | Affected task IDs | Problem and evidence | Unblock condition / next action |
 |---|---|---|---|---|
 | BLK-001 | resolved 2026-09-25 | HV-001; CORE-001; GPU-002; HV-003 | The initial non-elevated inventory identified the host and RTX 5060 but Hyper-V denied partitionable-GPU, VM and supported-version queries; see [`docs/evidence/HV-001.md`](evidence/HV-001.md). | User approved the bounded administrator read-only rerun. It captured the GPU-P interface/ranges, supported versions and zero registered VMs without mutation. HV-001 completed; dependent cards became ready. |
-| BLK-002 | active 2026-09-25 | HV-002; GPU-004; CORE-005 | The target still reports `PendingFileRenameOperations`; host Secure Boot remains unknown because the normal-token query was denied. Starting parent/reference/runner setup on an unstable or unverified host would invalidate the M1 baseline. See [GPU-003](evidence/GPU-003.md#status-and-gate). | Owner approves one normal reboot of this host and the subsequent bounded administrator **read-only** Secure Boot, pending-reboot, Hyper-V/GPU/VM inventory. After normal boot, the marker must be absent, Secure Boot enabled and all pinned identities unchanged; otherwise refresh the plan instead of mutating. |
+| BLK-002 | active 2026-09-25 | HV-002; GPU-004; CORE-005 | The target still reports `PendingFileRenameOperations`; host Secure Boot remains unknown because the normal-token query was denied. Starting parent/reference/runner setup on an unstable or unverified host would invalidate the M1 baseline. See [GPU-003](evidence/GPU-003.md#status-and-gate). | Explain why the reboot is required and obtain the owner's explicit permission immediately before one normal host reboot; the AI must not schedule or infer permission for it. After the owner-approved reboot, run the separately scoped administrator **read-only** Secure Boot, pending-reboot, Hyper-V/GPU/VM inventory. The marker must be absent, Secure Boot enabled and all pinned identities unchanged; otherwise refresh the plan instead of mutating. |
+| BLK-003 | active 2026-09-26 | GPU-004; GPU-006 | The selected HCS-managed AppSandbox candidate is not a registered Hyper-V VM, so PowerShell Direct does not address it. Its persisted configuration has `SshEnabled` absent/false; no repeatable probe transfer, launch and result channel is established. | During the separately approved reference operation, use only AppSandbox's supported OpenSSH path: either verify an already installed/running guest OpenSSH service with owner-supplied ephemeral credentials, or obtain separate approval to create a recoverable reference branch/instance with AppSandbox `sshEnabled=true` and its deployed key. Pin the host-only endpoint/key, verify guest identity and binary hashes, and capture bounded commands/results. If neither route is approved or works, GPU-004 records the reference as blocked; do not use PowerShell Direct, manual config edits, clipboard injection or an arbitrary agent command. |
 
 Use permanent BLK-NNN IDs; retain resolved entries and link the resolution.
 A failed essential experiment blocks GPU-006 or the relevant release gate even
@@ -275,6 +280,39 @@ for future work is not an invented current blocker.
   50 unique task row/card pairs matched; targeted approval-language scan and
   `git diff --check` passed (line-ending notice only). No Cargo/hardware test or
   protected mutation was needed.
+
+## DOC-011
+
+**Establish reusable shell tooling and host-session lifecycle protection**
+
+- Context/scope: create a simple maintained-script layout and update shared AI
+  instructions so substantial command procedures become reviewable scripts. Make
+  explicit permission mandatory before any host restart, shutdown, logout or other
+  session termination while preserving routine development and authorized disposable
+  guest lifecycle autonomy. Documentation/tooling only; no GPU-PV implementation or
+  host/guest lifecycle operation.
+- Acceptance: `scripts/` documents maintained versus temporary tooling and contains
+  setup, diagnostics, Hyper-V and testing categories; engineering guidance defines
+  when and how to author/run scripts without making PowerShell a second application
+  implementation. The root permission policy distinguishes host from verified,
+  explicitly authorized disposable guests and cannot treat administrator access or
+  the privileged runner as host-restart consent. Relevant prompts link to the shared
+  rule rather than duplicate it. Existing scripts/references are inventoried and
+  updated where applicable; normal repository checks and instruction consistency pass.
+- Files/output: `scripts/`, `AGENTS.md`, `docs/ENGINEERING.md`, affected prompts,
+  backlog/decision/changelog records.
+- Result: completed 2026-09-26. Added the setup/diagnostics/hyperv/testing script
+  layout, concise usage guidance and maintained `check.ps1`/`check-docs.ps1`
+  entry points. AGENTS now makes every host restart/shutdown/logout/session
+  termination separately permission-gated while allowing identity-verified,
+  authorized disposable-guest lifecycle operations; ENGINEERING owns the detailed
+  script standard and Rust boundary. Three relevant prompts and Copilot instructions
+  link to that shared policy. No pre-existing standalone development scripts needed
+  relocation; the fixed read-only application inventory adapter remains governed by
+  DEC-013. Validation: both maintained scripts passed; Rust formatting, strict locked
+  Clippy, 23 tests/doc tests, locked build and rustdoc were clean; 29 Markdown files,
+  prompt frontmatter, local link targets and diff whitespace passed. No host/guest
+  lifecycle, elevation, hardware operation or GPU-PV implementation occurred.
 
 ## GPU-001
 
@@ -455,6 +493,9 @@ for future work is not an invented current blocker.
   runner allowlist/enrollment/audit/revocation and five separate authorization
   scopes. Existing AppSandbox and repository-local checkpoint-chain files remain
   unqualified and untouched. Evidence: [`docs/evidence/GPU-003.md`](evidence/GPU-003.md).
+  The independent M0 architecture re-review accepted the corrected probe-task
+  sequence, target-specific launch contracts and explicit BLK-003 transport gate
+  with no remaining blocker; reviewer runtime model metadata was unavailable.
   Planning/read-only inspection only; no setup or approval implied.
 
 ## HV-002
@@ -472,8 +513,18 @@ for future work is not an invented current blocker.
 **Measure the AppSandbox reference baseline**
 
 - Context/scope: Run the reviewed reference GPU path and chosen host controls.
-- Read: GPU-003/008 and REF-002 results; [validation contract](ARCHITECTURE.md#validation-contract).
-- Acceptance: Capture actual adapter, staged hashes, enabled shims, session, artifact and exact commands. Run all essential workloads and available optional probes; separate assignment, device readiness, runtime load and checked execution results. Include raw output and missing-dependency reasons. A failed run can complete measurement, but cannot satisfy GPU-006 or M1; no 'copy done' or desktop-only GPU claim.
+- Read: GPU-003/008, CORE-020 and REF-002 results; BLK-003; [validation contract](ARCHITECTURE.md#validation-contract).
+- Acceptance: Establish the supported AppSandbox OpenSSH loopback/internal-NAT
+  transfer, launch and result path without manual configuration edits or a new
+  arbitrary guest-agent command; verify guest identity and transferred hashes.
+  If current OpenSSH is unavailable, obtain separate approval before creating a
+  recoverable branch/instance with AppSandbox's `sshEnabled`/deployed-key path,
+  otherwise record the reference blocked. Capture actual adapter, staged hashes,
+  enabled shims, process session, artifact and exact bounded commands. Run all
+  essential workloads and available optional probes; separate assignment, device
+  readiness, runtime load and checked execution results. Include raw output and
+  missing-dependency reasons. A failed run can complete measurement, but cannot
+  satisfy GPU-006 or M1; no 'copy done' or desktop-only GPU claim.
 - Files/output: `docs/evidence/GPU-004.md`: environment and per-workload result matrix.
 - Result: pending.
 
@@ -555,7 +606,7 @@ for future work is not an invented current blocker.
   passed all eight adapter tests plus `git diff --check`. Reviewer runtime model
   metadata was unavailable. Evidence: [`docs/evidence/CORE-001.md`](evidence/CORE-001.md).
   No elevated project binary, host/VM mutation or workload test; positive VM/GPU-P
-  behavior remains unverified and M0 remains current.
+  behavior remains unverified; CORE-001 alone did not advance the M0 gate.
 
 ## CORE-004
 
@@ -664,9 +715,31 @@ for future work is not an invented current blocker.
 **Make the baseline probes repeatable through the core**
 
 - Context/scope: Invoke the existing pinned probe kit, not a new general benchmarking framework.
-- Read: GPU-008, CORE-002 and [validation contract](ARCHITECTURE.md#validation-contract).
+- Read: CORE-020, CORE-002 and [validation contract](ARCHITECTURE.md#validation-contract).
 - Acceptance: Produce per-workload pass/fail/blocked/untested/unsupported-with-evidence outcomes with exact environment, hardware adapter, runtime/probe version, inputs, checked outputs and logs. Handle timeouts and software fallback correctly; an absent probe is never pass. Run the essential M1 baseline through the CLI on the target and compare outputs; preserve optional failures distinctly.
 - Files/output: Probe runner/report integration and `docs/evidence/CORE-003.md`.
+- Result: pending.
+
+## CORE-020
+
+**Implement the standalone baseline probe kit**
+
+- Context/scope: Turn GPU-008's pinned specification into reproducible standalone
+  host/guest binaries before any reference or native guest measurement. This task
+  supplies probes; CORE-003 later integrates invocation/reporting into the product
+  CLI and does not own their initial implementation.
+- Read: GPU-008 and [validation contract](ARCHITECTURE.md#validation-contract).
+- Acceptance: Implement the D3D11 and D3D12 offscreen probes in Rust with the
+  specified hardware-only adapter selection, negotiated feature/shader reporting,
+  full readback and exact output hash. Acquire/build the unchanged pinned CUDA
+  `vectorAddDrv` input for `sm_120` with its CPU correctness check; retain licenses
+  and record source/toolchain/binary/shader/FATBIN hashes. Provide reproducible
+  build commands, bounded standalone execution and behavior tests for result parsing,
+  identity/fallback rejection and malformed output without requiring GPU hardware.
+  Run and record the required host controls only after BLK-002 is cleared. No VM,
+  driver, host feature, signing or privileged mutation.
+- Files/output: Standalone probe sources/build manifest and
+  `docs/evidence/CORE-020.md`.
 - Result: pending.
 
 ## CORE-013
@@ -876,4 +949,5 @@ Do not append a transcript or duplicate the task-status register.
   suppression. Git whitespace and local Markdown/task consistency checks passed.
   cargo-audit/cargo-deny are unavailable; no third-party crates/advisory database
   check. Hosted CI and a separate clean Windows installation have not been run.
-  No GPU/driver/API-runtime workload or host/guest mutation; M0 remains current.
+  No GPU/driver/API-runtime workload or host/guest mutation; CORE-019 alone did
+  not advance the M0 gate.
