@@ -3,6 +3,8 @@
 use std::ffi::OsString;
 use std::fmt;
 
+use crate::config::CliOperation;
+
 /// Help for the currently implemented commands.
 pub const HELP: &str = "hyper-gpu-support - Windows GPU-PV project foundation
 
@@ -10,12 +12,21 @@ Usage: hyper-gpu-support [COMMAND] [OPTIONS]
 
 Commands:
   inventory        Report read-only host, GPU and Hyper-V facts
+  plan             Produce a read-only change plan
+  apply            Apply a reviewed current plan
+  status           Show effective project-owned state
+  validate         Validate configuration and prerequisites
+  remove           Remove project-owned GPU assignment/settings
+  recover          Recreate the disposable child after uncertain state
+  start            Start the configured disposable VM
+  shutdown         Gracefully shut down the configured disposable VM
+  restart          Gracefully restart the configured disposable VM
 
 Options:
   -h, --help       Display help
   -V, --version    Display version
 
-Mutating GPU-PV operations are not implemented yet.
+Only inventory is implemented; other commands currently return exit code 70.
 ";
 
 /// Application version, taken from the package metadata.
@@ -30,6 +41,8 @@ pub enum Command {
     Version,
     /// Report read-only inventory facts.
     Inventory,
+    /// A stable declared operation whose implementation belongs to a later M1 task.
+    Declared(CliOperation),
 }
 
 /// Invalid arguments. User-provided content is omitted from error output.
@@ -64,7 +77,8 @@ pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Command, U
         Some("--help" | "-h") => Command::Help,
         Some("--version" | "-V") => Command::Version,
         Some("inventory") => Command::Inventory,
-        None | Some(_) => return Err(UsageError),
+        Some(value) => Command::Declared(CliOperation::parse(value).ok_or(UsageError)?),
+        None => return Err(UsageError),
     };
     if arguments.next().is_some() {
         return Err(UsageError);
@@ -96,7 +110,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_empty_and_extra_arguments() {
-        for arguments in [vec![""], vec!["apply"], vec!["--help", "--version"]] {
+        for arguments in [vec![""], vec!["shell"], vec!["--help", "--version"]] {
             assert_eq!(
                 parse(arguments.into_iter().map(Into::into)),
                 Err(UsageError)

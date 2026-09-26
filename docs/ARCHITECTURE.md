@@ -15,16 +15,18 @@ components below are not implemented.
 The target is a Windows 11 x64 host and guest with an NVIDIA RTX 5060 8 GB.
 The user has run AppSandbox successfully on this hardware, establishing a
 known-working HCS GPU-PV reference. HV-001 and CORE-001 captured host, adapter,
-driver and query-rights inventory, but there is no registered VM and no
-D3D11/D3D12/CUDA evidence. Native Hyper-V/VMMS assignment parity is still
-untested; those narrower questions do not reopen general GPU-PV feasibility.
+driver and query-rights inventory. HV-002 prepared the immutable parent and fixed
+disposable VM, but there is still no project D3D11/D3D12/CUDA evidence. Native
+Hyper-V/VMMS assignment parity is untested; those narrower questions do not
+reopen general GPU-PV feasibility.
 
 The inherited research snapshot is dated **24 September 2026**, from AppSandbox
 [`6f3adb6aafd4fc819d7715bdfacf52ac87df26a6`][upstream-commit] (0.1.9 version
 bump). The pinned source map records inspection of that revision. Reorganizing
 these notes does not constitute a new upstream audit, local inventory, build,
 VM run, or graphics/compute/video test. The exact host and management inventory
-is in [HV-001 evidence](evidence/HV-001.md); guest preparation remains absent.
+is in [HV-001 evidence](evidence/HV-001.md); the prepared parent/disposable-child
+state is in [HV-002 evidence](evidence/HV-002.md).
 
 Windows provides the graphics kernel/VMBus path between guest user-mode drivers
 and the host GPU. Full-VM driver provisioning still requires attention; this

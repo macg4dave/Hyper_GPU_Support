@@ -5,11 +5,11 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-26, [HV-002](#hv-002) completed the protected golden-parent
-  conversion, fixed disposable slot and runner-backed reset/boot proof.
-- Changed: sealed/hash-protected the parent and backup on `Z:`, retained the fixed
-  VM/vTPM/guest identity without Sysprep under DEC-015, and installed CORE-005's
-  first Rust runner slice for immutable-policy `reset-slot`.
+- Last session: 2026-09-26, an independent gate re-audit confirmed M0 remains
+  complete with no blocking finding.
+- Changed: restored the documented main-CLI `cargo run` commands after CORE-005
+  added a second binary, and refreshed ARCHITECTURE's current guest state to point
+  to HV-002's prepared parent/disposable child.
 - Outstanding: CORE-005 implements reset only; other lifecycle/GPU/staging runner
   operations remain. The AppSandbox candidate still has no established probe
   transport (BLK-003). Activation and four offered guest updates are recorded but
@@ -55,7 +55,7 @@ contribute to their milestone's required exit.
 | [GPU-011](#gpu-011) | M1 | P0 | planned | GPU-005 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
 | [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
-| [CORE-004](#core-004) | M1 | P0 | ready | CORE-001, GPU-003 |
+| [CORE-004](#core-004) | M1 | P0 | in progress | CORE-001, GPU-003 |
 | [CORE-005](#core-005) | M1 | P0 | in progress | CORE-001, HV-003, REF-001, GPU-003 |
 | [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
 | [CORE-007](#core-007) | M1 | P1 | planned | CORE-006 |
@@ -621,6 +621,8 @@ for future work is not an invented current blocker.
 ## CORE-004
 
 **Define configuration and CLI data contracts**
+
+- Owner: `/root`, session started 2026-09-26.
 
 - Context/scope: Small versioned configuration, plan and report types; choose serialization as an implementation detail.
 - Read: [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract) and GPU-003.

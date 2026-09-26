@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::process::ExitCode;
 
 use hyper_gpu_support::cli::{self, Command};
+use hyper_gpu_support::config::ErrorCategory;
 #[cfg(windows)]
 use hyper_gpu_support::inventory::InventorySource;
 
@@ -21,6 +22,13 @@ fn main() -> ExitCode {
             Ok(output) => output,
             Err(error) => return report_error(&mut io::stderr().lock(), &error, 1),
         },
+        Command::Declared(operation) => {
+            return report_error(
+                &mut io::stderr().lock(),
+                &format_args!("{} is declared but not implemented", operation.as_str()),
+                ErrorCategory::Implementation.exit_code(),
+            );
+        }
     };
     match write_output(&mut io::stdout().lock(), &output) {
         Ok(()) => ExitCode::SUCCESS,

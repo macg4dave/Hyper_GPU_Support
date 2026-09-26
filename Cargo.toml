@@ -9,6 +9,7 @@ edition = "2024"
 rust-version = "1.94.0"
 description = "Windows GPU-PV project foundation"
 publish = false
+default-run = "hyper-gpu-support"
 
 # Avoid incremental-cache finalization failures observed on the Windows workspace.
 # The foundation is small; revisit caching when build time becomes material.

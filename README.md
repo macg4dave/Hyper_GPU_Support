@@ -53,9 +53,13 @@ diff-whitespace validation.
 Tests include unit tests, executable integration tests and a runnable doc test.
 They require no elevation, Hyper-V, GPU, guest or network once the toolchain is
 installed. Windows CI runs the same checks on hosted x64 runners; hosted CI is
-not hardware qualification. Exit codes are 0 for help/version/inventory, 2 for
-invalid arguments and 1 for adapter or output failure (including unavailable
-stderr). Errors go to stderr; normal output to stdout.
+not hardware qualification. Exit codes are 0 for successful commands, 1 for the
+current inventory adapter/output boundary, 2 for invalid arguments, 3 for
+configuration/plan errors, 4 for permission failures, 5 for environment failures,
+6 for driver/runtime failures and 70 for implementation/protocol failures. Errors
+go to stderr; normal output to stdout. Until their owning M1 tasks implement them,
+the declared `plan`, `apply`, `status`, `validate`, `remove`, `recover`, `start`,
+`shutdown` and `restart` commands return 70 explicitly.
 
 `inventory` executes fixed, read-only Windows/Hyper-V queries and emits a stable
 line-oriented report beginning with `inventory.schema=1`. Each fact is
@@ -89,6 +93,7 @@ repository permission boundary when explicitly needed for protected facts.
 | `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml` | One package/workspace and pinned build inputs |
 | `src/main.rs` | Process arguments, output and exit codes |
 | `src/lib.rs`, `src/cli.rs` | Library boundary, CLI parser and unit tests |
+| `src/config.rs`, `examples/gpu-pv-v1.conf` | Strict version-one configuration/plan/report contracts and example |
 | `src/inventory.rs` | Typed fact/report model, validated adapter protocol and tests |
 | `src/windows_inventory.rs` | Fixed read-only Windows/Hyper-V process adapter |
 | `tests/cli.rs` | Executable behavior tests |
@@ -97,8 +102,16 @@ repository permission boundary when explicitly needed for protected facts.
 | `docs/` | Architecture, roadmap, task evidence and engineering policy |
 
 The [architecture source map](docs/ARCHITECTURE.md#foundation-source-layout)
-identifies where future modules belong. Configuration, logging and Windows
-adapters are deferred until meaningful behavior requires them.
+identifies where future modules belong. Logging and additional Windows adapters
+are deferred until meaningful behavior requires them.
+
+The version-one configuration is a strict, dependency-free `key=value` document.
+It requires one canonical VM GUID, one explicit GPU-P interface and an immutable
+manifest identity/hash; unknown or duplicate fields (including credential/path
+fields) are rejected. Each resource is either `provider-default` or an exact
+`minimum,maximum,optimal` triple in opaque provider-defined units. The checked-in
+example's all-zero manifest hash is intentionally a placeholder and must be
+replaced by CORE-009's immutable manifest hash before apply validation.
 
 The first privileged-runner slice is now implemented in `src/runner.rs` and
 `src/bin/hyper-gpu-runner.rs`. Its installed, administrator-owned scheduled task

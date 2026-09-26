@@ -4,6 +4,7 @@
 //! replaceable source so report logic can be tested without Hyper-V or a GPU.
 
 pub mod cli;
+pub mod config;
 pub mod inventory;
 pub mod runner;
 

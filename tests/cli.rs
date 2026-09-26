@@ -13,7 +13,7 @@ fn help_and_default_invocation_succeed() {
         assert!(output.stderr.is_empty());
         let stdout = String::from_utf8(output.stdout).unwrap();
         assert!(stdout.contains("Usage: hyper-gpu-support"));
-        assert!(stdout.contains("Mutating GPU-PV operations are not implemented yet."));
+        assert!(stdout.contains("Only inventory is implemented"));
     }
 }
 
@@ -53,7 +53,7 @@ fn version_matches_package_metadata() {
 
 #[test]
 fn invalid_usage_has_consistent_exit_code_and_no_stdout() {
-    for arguments in [vec!["apply"], vec!["--version", "extra"]] {
+    for arguments in [vec!["shell"], vec!["--version", "extra"]] {
         let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
             .args(arguments)
             .output()
@@ -63,6 +63,24 @@ fn invalid_usage_has_consistent_exit_code_and_no_stdout() {
         assert_eq!(
             String::from_utf8(output.stderr).unwrap().trim(),
             "error: invalid arguments; use --help for usage"
+        );
+    }
+}
+
+#[test]
+fn declared_operations_have_stable_not_implemented_exit() {
+    for operation in [
+        "plan", "apply", "status", "validate", "remove", "recover", "start", "shutdown", "restart",
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
+            .arg(operation)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(70));
+        assert!(output.stdout.is_empty());
+        assert_eq!(
+            String::from_utf8(output.stderr).unwrap().trim(),
+            format!("error: {operation} is declared but not implemented")
         );
     }
 }
