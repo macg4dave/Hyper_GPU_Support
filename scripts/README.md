@@ -24,6 +24,12 @@ facilities; application behavior remains implemented in Rust.
 
 Current maintained entry points:
 
+- `setup/install-runner-v1.ps1` installs the hash-pinned, least-privilege
+  one-shot runner only after capturing recovery preimages, staging under
+  administrator-only ACLs and quiescing the old reset task.
+- `setup/restore-runner-v1.ps1` disables/quiesces the runner tasks and restores
+  the captured executable, policy, task security and ACL preimages while
+  retaining audit/results.
 - `testing/check.ps1` runs the normal Rust quality gates.
 - `testing/check-docs.ps1` validates tracked local Markdown link targets, prompt
   frontmatter and diff whitespace.

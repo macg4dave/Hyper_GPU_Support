@@ -396,6 +396,39 @@ the completed local setup materially simplifies repeated GPU-PV development.
 Revisit when: a second VM identity is required, the VM shell/vTPM is lost, domain
 membership is introduced, or supported multi-machine image deployment is needed.
 
+## DEC-016
+
+**Implemented for CORE-005 | 2026-09-27 | Fixed Hyper-V cmdlet boundary for the enrolled slot**
+
+Retain the installed Hyper-V and Virtual Machine PowerShell modules only as a
+fixed, parameter-free adapter inside the administrator-owned Rust runner for the
+initial `inspect` and `reset-slot` operations. The scripts contain literal enrolled
+VM, GPU and parent/child identities; accept no caller values, paths or commands;
+propagate provider failures; and run in a killed/reaped child process with fixed
+deadlines and output limits. Rust owns authenticated request parsing, exact policy
+verification, replay rejection, locking, audit/result publication and operation
+selection. The interactive user cannot replace the installed script because it is
+compiled into the administrator-installed executable.
+
+The Rust-native alternatives were investigated after HV-003 fixed the available
+surface. Direct `windows` bindings expose HCS and low-level virtualization WMI,
+but the selected registered Hyper-V VMMS path has no maintained typed Rust API for
+the installed `Add/Get/Set/Remove-VMGpuPartitionAdapter`, VM storage attachment and
+PowerShell Direct contracts. Implementing those operations through raw COM/WMI and
+VirtDisk FFI would add a substantially larger unsafe/provider surface, while their
+synchronous calls still do not provide the runner's required bounded cancellation.
+The installed cmdlets are the measured native Windows management contract and can
+be isolated by terminating and reaping their process on timeout.
+
+This exception does not permit generated scripts, interpolation, arbitrary process
+execution, HCS fallback or application decisions in PowerShell. Each added fixed
+operation requires its own literal adapter review, malformed/denied/native-failure
+tests, exact policy change and protected installation approval. Revisit when a
+maintained Rust/Win32 interface covers the measured operation set with equivalent
+identity checks, native error fidelity and cancellation, or if process termination
+is shown not to bound an in-flight provider mutation; in the latter case reconcile
+native state and stop before retry.
+
 ## Decision template
 
 ```markdown

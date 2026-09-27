@@ -3,7 +3,8 @@
 use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::os::windows::fs::OpenOptionsExt;
+use std::path::Path;
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -141,7 +142,7 @@ fn append_protocol_audit(
         status,
         json_escape(diagnostic)
     )?;
-    file.flush()
+    file.sync_all()
 }
 
 fn failed_response(request: Option<&Request>, diagnostic: &str) -> Response {
@@ -179,37 +180,52 @@ fn execute_request(request: &Request) -> Result<String, &'static str> {
         _ => "replay-state-failed",
     })?;
     match request.operation {
-        Operation::Inspect => run_inspect().map_err(|_| "operation-failed"),
-        Operation::ResetSlot => run_reset().map_err(|_| "operation-failed"),
+        Operation::Inspect => run_inspect(request).map_err(|_| "operation-failed"),
+        Operation::ResetSlot => run_reset(request).map_err(|_| "operation-failed"),
         _ => Err("operation-denied"),
     }
 }
 
-fn run_reset() -> Result<String, Box<dyn std::error::Error>> {
+fn run_reset(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
     let state_directory = Path::new(INSTALL_ROOT).join("state");
     let result_directory = Path::new(INSTALL_ROOT).join("results");
     let audit_directory = Path::new(INSTALL_ROOT).join("audit");
-    let lock_path = state_directory.join("reset-slot.lock");
+    let lock_path = state_directory.join("operation.lock");
     let _lock = LockFile::acquire(&lock_path)?;
 
     let operation_id = operation_id()?;
-    append_audit(&audit_directory, &operation_id, "started", "")?;
+    append_audit(
+        &audit_directory,
+        &operation_id,
+        &request.request_id,
+        Operation::ResetSlot,
+        "started",
+        "",
+    )?;
     let output = match run_bounded(RESET_SCRIPT, TIMEOUT) {
         Ok(output) => output,
         Err(error) => {
-            append_audit(&audit_directory, &operation_id, "failed", &error)?;
+            append_audit(
+                &audit_directory,
+                &operation_id,
+                &request.request_id,
+                Operation::ResetSlot,
+                "failed",
+                &error,
+            )?;
             return Err(error.into());
         }
     };
     let result = parse_reset_result(&output)?;
     let result_json = format!(
         concat!(
-            "{{\n  \"schema\": 1,\n  \"operation_id\": \"{}\",\n",
+            "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n  \"operation_id\": \"{}\",\n",
             "  \"operation\": \"reset-slot\",\n  \"status\": \"succeeded\",\n",
             "  \"vm_id\": \"{}\",\n  \"child\": \"{}\",\n",
             "  \"parent\": \"{}\",\n  \"parent_sha256\": \"{}\"\n}}\n"
         ),
+        request.request_id,
         operation_id,
         result.vm_id,
         json_escape(&result.child),
@@ -217,36 +233,58 @@ fn run_reset() -> Result<String, Box<dyn std::error::Error>> {
         result.parent_sha256
     );
     write_atomic(&result_directory, &operation_id, &result_json)?;
-    append_audit(&audit_directory, &operation_id, "succeeded", "")?;
+    append_audit(
+        &audit_directory,
+        &operation_id,
+        &request.request_id,
+        Operation::ResetSlot,
+        "succeeded",
+        "",
+    )?;
     Ok(operation_id)
 }
 
-fn run_inspect() -> Result<String, Box<dyn std::error::Error>> {
+fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
     let state_directory = Path::new(INSTALL_ROOT).join("state");
     let result_directory = Path::new(INSTALL_ROOT).join("results");
     let audit_directory = Path::new(INSTALL_ROOT).join("audit");
-    let lock_path = state_directory.join("inspect.lock");
+    let lock_path = state_directory.join("operation.lock");
     let _lock = LockFile::acquire(&lock_path)?;
     let operation_id = operation_id()?;
-    append_audit(&audit_directory, &operation_id, "started", "")?;
+    append_audit(
+        &audit_directory,
+        &operation_id,
+        &request.request_id,
+        Operation::Inspect,
+        "started",
+        "",
+    )?;
     let output = match run_bounded(INSPECT_SCRIPT, Duration::from_secs(60)) {
         Ok(output) => output,
         Err(error) => {
-            append_audit(&audit_directory, &operation_id, "failed", &error)?;
+            append_audit(
+                &audit_directory,
+                &operation_id,
+                &request.request_id,
+                Operation::Inspect,
+                "failed",
+                &error,
+            )?;
             return Err(error.into());
         }
     };
     let result = parse_inspect_result(&output)?;
     let result_json = format!(
         concat!(
-            "{{\n  \"schema\": 1,\n  \"operation_id\": \"{}\",\n",
+            "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n  \"operation_id\": \"{}\",\n",
             "  \"operation\": \"inspect\",\n  \"status\": \"succeeded\",\n",
             "  \"vm_id\": \"{}\",\n  \"state\": \"{}\",\n",
             "  \"gpu_adapters\": {},\n  \"child\": \"{}\",\n",
             "  \"parent\": \"{}\",\n  \"parent_sha256\": \"{}\",\n",
             "  \"gpu_interface\": \"{}\"\n}}\n"
         ),
+        request.request_id,
         operation_id,
         result.vm_id,
         result.state,
@@ -257,28 +295,31 @@ fn run_inspect() -> Result<String, Box<dyn std::error::Error>> {
         json_escape(&result.gpu_interface)
     );
     write_atomic(&result_directory, &operation_id, &result_json)?;
-    append_audit(&audit_directory, &operation_id, "succeeded", "")?;
+    append_audit(
+        &audit_directory,
+        &operation_id,
+        &request.request_id,
+        Operation::Inspect,
+        "succeeded",
+        "",
+    )?;
     Ok(operation_id)
 }
 
 struct LockFile {
-    path: PathBuf,
     _file: File,
 }
 
 impl LockFile {
     fn acquire(path: &Path) -> Result<Self, std::io::Error> {
-        let file = OpenOptions::new().write(true).create_new(true).open(path)?;
-        Ok(Self {
-            path: path.to_owned(),
-            _file: file,
-        })
-    }
-}
-
-impl Drop for LockFile {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .share_mode(0)
+            .open(path)?;
+        Ok(Self { _file: file })
     }
 }
 
@@ -294,6 +335,8 @@ fn operation_id() -> Result<String, std::time::SystemTimeError> {
 fn append_audit(
     directory: &Path,
     operation_id: &str,
+    request_id: &str,
+    operation: Operation,
     status: &str,
     diagnostic: &str,
 ) -> Result<(), std::io::Error> {
@@ -301,12 +344,14 @@ fn append_audit(
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
     writeln!(
         file,
-        "{{\"operation_id\":\"{}\",\"operation\":\"reset-slot\",\"status\":\"{}\",\"diagnostic\":\"{}\"}}",
+        "{{\"request_id\":\"{}\",\"operation_id\":\"{}\",\"operation\":\"{}\",\"status\":\"{}\",\"diagnostic\":\"{}\"}}",
+        request_id,
         operation_id,
+        operation.as_str(),
         status,
         json_escape(diagnostic)
     )?;
-    file.flush()
+    file.sync_all()
 }
 
 fn write_atomic(directory: &Path, operation_id: &str, contents: &str) -> std::io::Result<()> {
@@ -418,11 +463,13 @@ $parentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1
 $parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
 $childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'administrator token required' }
+$hyperVAdministrators = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-578')
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -and
+    -not $principal.IsInRole($hyperVAdministrators)) { throw 'Hyper-V management token required' }
 $vm = Get-VM -Id $vmId
 if ($vm.Name -ne $vmName -or $vm.State -ne 'Off' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or state mismatch' }
-if ($vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction SilentlyContinue).Count -ne 0) { throw 'checkpoint state rejected' }
-if (@(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction SilentlyContinue).Count -ne 0) { throw 'GPU adapter must be removed before reset' }
+if ($vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'checkpoint state rejected' }
+if (@(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'GPU adapter must be removed before reset' }
 $parent = Get-Item -LiteralPath $parentPath
 if (-not $parent.IsReadOnly -or ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'parent protection mismatch' }
 $hash = (Get-FileHash -LiteralPath $parentPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -460,11 +507,12 @@ $parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
 $childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
 $gpuPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+$hyperVAdministrators = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-578')
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -and
-    -not $principal.IsInRole('Hyper-V Administrators')) { throw 'Hyper-V management token required' }
+    -not $principal.IsInRole($hyperVAdministrators)) { throw 'Hyper-V management token required' }
 $vm = Get-VM -Id $vmId
 if ($vm.Name -ne $vmName -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity mismatch' }
-if ($vm.State -notin @('Off','Running') -or $vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction SilentlyContinue).Count -ne 0) { throw 'enrolled VM state rejected' }
+if ($vm.State -notin @('Off','Running') -or $vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'enrolled VM state rejected' }
 $drives = @(Get-VMHardDiskDrive -VM $vm)
 if ($drives.Count -ne 1 -or $drives[0].Path -ine $childPath) { throw 'enrolled child attachment mismatch' }
 $child = Get-VHD -Path $childPath
@@ -475,7 +523,7 @@ $hash = (Get-FileHash -LiteralPath $parentPath -Algorithm SHA256).Hash.ToLowerIn
 if ($hash -ne $parentHash) { throw 'parent hash mismatch' }
 $hostGpu = Get-VMHostPartitionableGpu -Name $gpuPath
 if ($hostGpu.Name -ine $gpuPath) { throw 'partitionable GPU identity mismatch' }
-$gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction SilentlyContinue)
+$gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop)
 [Console]::Out.WriteLine('status' + "`t" + 'ok')
 [Console]::Out.WriteLine('vm_id' + "`t" + $vmId.ToString().ToLowerInvariant())
 [Console]::Out.WriteLine('state' + "`t" + [string]$vm.State)
@@ -488,10 +536,14 @@ $gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction SilentlyContinue
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::time::{Duration, Instant};
 
-    use super::{INSPECT_SCRIPT, RESET_SCRIPT, handle_request, json_escape, run_bounded};
-    use hyper_gpu_support::runner::POLICY_V1;
+    use super::{
+        INSPECT_SCRIPT, LockFile, RESET_SCRIPT, append_audit, handle_request, json_escape,
+        run_bounded,
+    };
+    use hyper_gpu_support::runner::{Operation, POLICY_V1};
 
     #[test]
     fn fixed_script_has_no_external_input_or_broad_vm_deletion() {
@@ -501,11 +553,14 @@ mod tests {
         assert!(!RESET_SCRIPT.contains("param("));
         assert!(RESET_SCRIPT.contains("Remove-VMHardDiskDrive"));
         assert!(RESET_SCRIPT.contains("Get-FileHash"));
+        assert!(RESET_SCRIPT.contains("S-1-5-32-578"));
+        assert!(!RESET_SCRIPT.contains("SilentlyContinue"));
         assert!(!INSPECT_SCRIPT.contains("Add-VM"));
         assert!(!INSPECT_SCRIPT.contains("Set-VM"));
         assert!(!INSPECT_SCRIPT.contains("Remove-VM"));
         assert!(!INSPECT_SCRIPT.contains("Start-VM"));
         assert!(!INSPECT_SCRIPT.contains("Stop-VM"));
+        assert!(!INSPECT_SCRIPT.contains("SilentlyContinue"));
     }
 
     #[test]
@@ -514,6 +569,58 @@ mod tests {
             json_escape("one\\two\r\n\"three"),
             "one\\\\two\\r\\n\\\"three"
         );
+    }
+
+    #[test]
+    fn operation_audit_records_the_actual_fixed_operation() {
+        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("local")
+            .join("test-work")
+            .join(format!(
+                "hyper-gpu-runner-audit-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+        fs::create_dir_all(&directory).unwrap();
+        append_audit(
+            &directory,
+            "1234567890-123456789",
+            "0123456789abcdef0123456789abcdef",
+            Operation::Inspect,
+            "succeeded",
+            "",
+        )
+        .unwrap();
+        let audit = fs::read_to_string(directory.join("events.jsonl")).unwrap();
+        assert!(audit.contains("\"request_id\":\"0123456789abcdef0123456789abcdef\""));
+        assert!(audit.contains("\"operation\":\"inspect\""));
+        assert!(!audit.contains("\"operation\":\"reset-slot\""));
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn operation_lock_recovers_after_owner_exit_without_deleting_marker() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("local")
+            .join("test-work")
+            .join(format!(
+                "hyper-gpu-runner-lock-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let first = LockFile::acquire(&path).unwrap();
+        assert!(LockFile::acquire(&path).is_err());
+        drop(first);
+        let second = LockFile::acquire(&path).unwrap();
+        drop(second);
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

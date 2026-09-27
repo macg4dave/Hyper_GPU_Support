@@ -5,18 +5,19 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-27, CORE-020 completed the reproducible standalone
-  D3D11/D3D12/CUDA probe kit and host positive controls.
-- Changed: added exact DXGI/D3DKMT/CUDA identity checks, checked offscreen Rust
-  probes, pinned shader/CUDA artifacts, bounded host orchestration and live
-  timeout/output-limit failure tests; the required independent review passed.
-- Outstanding: CORE-005's installed runner still implements reset only; persistent
-  replay state, client transport and lifecycle/GPU/staging operations remain. The
-  AppSandbox candidate still has no established probe
-  transport (BLK-003). Activation and four offered guest updates are recorded but
-  explicitly not golden-image gates.
-- Next recommended: finish [CORE-005](#core-005), then [CORE-006](#core-006) and
-  the native transport/staging/assignment path. GPU-004 is blocked by BLK-003.
+- Last session: 2026-09-27, CORE-005 advanced to a reviewed least-privilege
+  runner/client installation candidate; no protected installation was performed.
+- Changed: added authenticated local transport and persistent replay wiring,
+  durable correlated audit, crash-recoverable locking, fail-closed native queries,
+  exact limited-principal/file ACLs, staged hash verification and complete
+  file/task/ACL recovery preimages. DEC-016 records the fixed cmdlet boundary.
+- Outstanding: explicit approval is required to replace the old reset-only task
+  and run the candidate's read-only cross-principal inspect. CORE-005 still lacks
+  bounded pipe exchange, the full native failure matrix and lifecycle/GPU/staging/
+  probe operations. AppSandbox transport remains blocked by BLK-003.
+- Next recommended: install and read-only validate the reviewed CORE-005 candidate
+  under exact approval, then close its remaining fixed operations before CORE-006.
+  GPU-004 remains blocked by BLK-003.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -658,10 +659,13 @@ for future work is not an invented current blocker.
   emitted audit/result records, and produced a bootable clean guest. Full lifecycle,
   GPU, staging/probe, client and minimum-rights work remains. Evidence:
   [`docs/evidence/CORE-005.md`](evidence/CORE-005.md).
-  On 2026-09-27 the repository protocol added typed fixed-operation requests,
-  target/field rejection, plan freshness and in-memory nonce replay tests. It is
-  not wired to the installed runner or persistent replay storage; no protected
-  state changed and the task remains ready for completion.
+  On 2026-09-27 the repository candidate added typed fixed-operation requests,
+  target/field rejection, policy freshness, authenticated local named-pipe client
+  transport, persistent replay storage, recoverable exclusive locking and a
+  dedicated limited Hyper-V Administrators principal with exact parent/child ACLs.
+  The installed host remains on the old reset-only task; no protected state changed.
+  Candidate installation/read-only validation and the lifecycle, GPU, staging/probe
+  operations still remain, so the task is not complete.
 
 ## CORE-006
 
