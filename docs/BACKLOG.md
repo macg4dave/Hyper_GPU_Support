@@ -5,17 +5,18 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-26, an independent gate re-audit confirmed M0 remains
-  complete with no blocking finding.
-- Changed: restored the documented main-CLI `cargo run` commands after CORE-005
-  added a second binary, and refreshed ARCHITECTURE's current guest state to point
-  to HV-002's prepared parent/disposable child.
-- Outstanding: CORE-005 implements reset only; other lifecycle/GPU/staging runner
-  operations remain. The AppSandbox candidate still has no established probe
+- Last session: 2026-09-27, CORE-004 completed the strict configuration/CLI data
+  contract and CORE-005 gained repository-only typed request validation.
+- Changed: added configuration, plan/report and stable error/operation contracts,
+  declared unimplemented CLI commands with explicit exit 70, and rejected stale,
+  replayed or target-selecting runner requests in hardware-independent tests.
+- Outstanding: CORE-005's installed runner still implements reset only; persistent
+  replay state, client transport and lifecycle/GPU/staging operations remain. The
+  AppSandbox candidate still has no established probe
   transport (BLK-003). Activation and four offered guest updates are recorded but
   explicitly not golden-image gates.
-- Next recommended: finish [CORE-005](#core-005), [CORE-004](#core-004) and
-  [CORE-020](#core-020), then proceed to the native staging/assignment path.
+- Next recommended: finish [CORE-005](#core-005) and [CORE-020](#core-020), then
+  proceed to read-only planning and the native staging/assignment path.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -55,7 +56,7 @@ contribute to their milestone's required exit.
 | [GPU-011](#gpu-011) | M1 | P0 | planned | GPU-005 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
 | [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
-| [CORE-004](#core-004) | M1 | P0 | in progress | CORE-001, GPU-003 |
+| [CORE-004](#core-004) | M1 | P0 | completed | CORE-001, GPU-003 |
 | [CORE-005](#core-005) | M1 | P0 | in progress | CORE-001, HV-003, REF-001, GPU-003 |
 | [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
 | [CORE-007](#core-007) | M1 | P1 | planned | CORE-006 |
@@ -66,7 +67,7 @@ contribute to their milestone's required exit.
 | [CORE-011](#core-011) | M2 | P1 | planned | CORE-002, CORE-010 |
 | [CORE-012](#core-012) | M2 | P1 | planned | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | planned | CORE-002, CORE-020 |
-| [CORE-020](#core-020) | M1 | P0 | ready | GPU-008 |
+| [CORE-020](#core-020) | M1 | P0 | in progress | GPU-008 |
 | [CORE-013](#core-013) | M2 | P1 | planned | CORE-001 |
 | [CORE-014](#core-014) | M3 | P1 | planned | CORE-003, CORE-013 |
 | [CORE-015](#core-015) | M3 | P1 | planned | CORE-003 |
@@ -622,19 +623,28 @@ for future work is not an invented current blocker.
 
 **Define configuration and CLI data contracts**
 
-- Owner: `/root`, session started 2026-09-26.
-
 - Context/scope: Small versioned configuration, plan and report types; choose serialization as an implementation detail.
 - Read: [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract) and GPU-003.
 - Acceptance: Specify VM GUID, GPU identity, measured resource values, manifest identity and CLI operations inventory/plan/apply/status/validate/remove/recover/lifecycle. Reject unknown schema/fields, ambiguous targets, invalid ranges and credentials. Define stable error categories/exit behavior and examples; test round-trip, invalid input and defaults without hardware. No invented percentage abstraction.
 - Files/output: Configuration/types/parser/help modules introduced here; examples and `docs/evidence/CORE-004.md`.
-- Result: pending.
+- Result: Completed 2026-09-27. Added a dependency-free strict version-one
+  configuration with exact VM/GPU/manifest identities, provider-default or
+  validated opaque resource triples, canonical round trips, plan/report types,
+  stable error categories/exits and the full CLI operation inventory. Unknown,
+  duplicate, credential/path, ambiguous target, schema and range inputs fail
+  closed. Unimplemented commands explicitly return exit 70. Hardware-independent
+  tests and required checks passed (28 library, 2 runner, 2 main, 5 integration,
+  1 doc test plus formatting, strict Clippy, locked build/rustdoc and documentation
+  checks). Independent review's wildcard-selector finding was fixed and re-review
+  approved completion; reviewer runtime model metadata was unavailable. No
+  protected state changed. Evidence:
+  [`docs/evidence/CORE-004.md`](evidence/CORE-004.md).
 
 ## CORE-005
 
 **Implement fixed native adapters and the minimal privileged runner**
 
-- Owner: `/root`, session started 2026-09-26.
+- Owner: `/root`, resumed 2026-09-27.
 
 - Context/scope: Implement Rust adapters and a stable privileged broker for only
   the measured Windows operations needed by the first vertical slice. Prefer native Rust/API access; justify any
@@ -642,12 +652,16 @@ for future work is not an invented current blocker.
 - Read: HV-003, REF-001 and GPU-003; [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
 - Acceptance: Build and test the minimal runner plus unelevated client adapter. Use fixed operations and typed parameters, structured results and explicit VM/GPU identifiers. Implement administrator-owned installed code/policy/enrollment, one pinned disposable slot/GPU/roots, runner-owned differencing-child reset for DEC-015's fixed VM shell, operation allowlist, request/result audit, replay protection and fail-closed validation. Never execute repository binaries or arbitrary commands elevated on the host. Preserve native error codes and handle missing rights and timeout/cancellation. Test invalid/stale identities, attempted agent enrollment/path selection, parent writes, query denial, policy tampering, partial reset and native failures using fakes; then run read-only target queries. Retain detailed native errors without secrets. Installation/execution on the target occurs only through HV-002's scoped authorization.
 - Files/output: Native adapter modules and `docs/evidence/CORE-005.md`.
-- Result: In progress. The first Rust slice implements and installs immutable-policy
+- Result: Partial. The first Rust slice implements and installs immutable-policy
   `reset-slot` only. An unelevated trigger ran administrator-owned operation
   `1790391920-577596700`, recreated the exact child after hash/state/path checks,
   emitted audit/result records, and produced a bootable clean guest. Full lifecycle,
   GPU, staging/probe, client and minimum-rights work remains. Evidence:
   [`docs/evidence/CORE-005.md`](evidence/CORE-005.md).
+  On 2026-09-27 the repository protocol added typed fixed-operation requests,
+  target/field rejection, plan freshness and in-memory nonce replay tests. It is
+  not wired to the installed runner or persistent replay storage; no protected
+  state changed and the task remains ready for completion.
 
 ## CORE-006
 
@@ -742,6 +756,8 @@ for future work is not an invented current blocker.
 ## CORE-020
 
 **Implement the standalone baseline probe kit**
+
+- Owner: `/root`, session started 2026-09-27.
 
 - Context/scope: Turn GPU-008's pinned specification into reproducible standalone
   host/guest binaries before any reference or native guest measurement. This task

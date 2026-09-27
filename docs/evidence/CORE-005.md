@@ -50,3 +50,17 @@ CORE-005 is not complete. Start/shutdown, GPU attach/remove, staging/probe, a no
 client/result command, broader replay/request handling, minimum-rights principal
 measurement and the full fake failure matrix remain. Updating or broadening the
 installed binary, policy or task requires new exact approval.
+
+## Repository-only protocol hardening (2026-09-27)
+
+The library now recognizes the fixed version-one operation inventory and parses a
+strict typed request containing only schema, request ID, operation, fixed slot/VM,
+nonce and plan fingerprint. It rejects unknown/duplicate fields, alternate target
+identities, paths, credentials, noncanonical identifiers, substituted operations,
+stale plans and reused nonces in hardware-independent tests. Recognizing an operation does not authorize
+it: the installed policy still permits only `reset-slot`, and the new protocol is
+not yet connected to the installed runner, a named pipe or persistent replay state.
+
+No installed executable, policy, scheduled task, ACL, host/VM or guest state was
+changed. Persistent atomic replay storage, the client transport and the remaining
+fixed native operations are still required before CORE-005 can complete.

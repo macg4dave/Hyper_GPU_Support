@@ -428,13 +428,44 @@ fn is_canonical_guid(value: &str) -> bool {
 }
 
 fn is_gpu_interface(value: &str) -> bool {
-    value.len() <= 1024
-        && value.is_ascii()
-        && value.starts_with(r"\\?\PCI#")
-        && value.ends_with(r"\GPUPARAV")
-        && value.contains("VEN_")
-        && value.contains("DEV_")
-        && !value.bytes().any(|byte| byte.is_ascii_control())
+    let Some(value) = value.strip_prefix(r"\\?\PCI#") else {
+        return false;
+    };
+    let Some(value) = value.strip_suffix(r"\GPUPARAV") else {
+        return false;
+    };
+    let mut segments = value.split('#');
+    let (Some(hardware), Some(instance), Some(class)) =
+        (segments.next(), segments.next(), segments.next())
+    else {
+        return false;
+    };
+    if segments.next().is_some()
+        || class != "{064092b3-625e-43bf-9eb5-dc845897dd59}"
+        || instance.is_empty()
+        || instance.len() > 128
+        || !instance
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'&' | b'_' | b'-'))
+    {
+        return false;
+    }
+    let mut identifiers = hardware.split('&');
+    matches!(identifiers.next(), Some(value) if is_tagged_upper_hex(value, "VEN_", 4))
+        && matches!(identifiers.next(), Some(value) if is_tagged_upper_hex(value, "DEV_", 4))
+        && matches!(identifiers.next(), Some(value) if is_tagged_upper_hex(value, "SUBSYS_", 8))
+        && matches!(identifiers.next(), Some(value) if is_tagged_upper_hex(value, "REV_", 2))
+        && identifiers.next().is_none()
+}
+
+fn is_tagged_upper_hex(value: &str, tag: &str, digits: usize) -> bool {
+    let Some(value) = value.strip_prefix(tag) else {
+        return false;
+    };
+    value.len() == digits
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'A'..=b'F').contains(&byte))
 }
 
 fn is_manifest_id(value: &str) -> bool {
@@ -462,7 +493,7 @@ mod tests {
     const MINIMAL: &str = concat!(
         "schema=1\n",
         "vm_id=2627e735-5b33-4104-b739-622727dd3a40\n",
-        "gpu_interface=\\\\?\\PCI#VEN_10DE&DEV_2D05#example\\GPUPARAV\n",
+        "gpu_interface=\\\\?\\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\\GPUPARAV\n",
         "manifest_id=nvidia-616.92-baseline-v1\n",
         "manifest_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n",
     );
@@ -515,7 +546,29 @@ mod tests {
                 ConfigError::InvalidVmId,
             ),
             (
-                MINIMAL.replace(r"\\?\PCI#VEN_10DE&DEV_2D05#example\GPUPARAV", "Default GPU"),
+                MINIMAL.replace(
+                    r"\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV",
+                    "Default GPU",
+                ),
+                ConfigError::InvalidGpuIdentity,
+            ),
+            (
+                MINIMAL.replace(
+                    r"\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV",
+                    r"\\?\PCI#VEN_*&DEV_*#*\GPUPARAV",
+                ),
+                ConfigError::InvalidGpuIdentity,
+            ),
+            (
+                MINIMAL.replace("95B0EB63032DB04800", "95B0 EB63032DB04800"),
+                ConfigError::InvalidGpuIdentity,
+            ),
+            (
+                MINIMAL.replace("95B0EB63032DB04800", r"95B0EB63\..\child"),
+                ConfigError::InvalidGpuIdentity,
+            ),
+            (
+                MINIMAL.replace("VEN_10DE&DEV_2D05", "VEN_DEV_"),
                 ConfigError::InvalidGpuIdentity,
             ),
             (
@@ -565,22 +618,10 @@ mod tests {
 
     #[test]
     fn plan_and_report_keep_stale_and_unknown_results_explicit() {
-        let fingerprint =
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        assert!(
-            Plan::new(
-                CliOperation::Apply,
-                fingerprint.into(),
-                fingerprint.into()
-            )
-            .is_ok()
-        );
+        let fingerprint = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert!(Plan::new(CliOperation::Apply, fingerprint.into(), fingerprint.into()).is_ok());
         assert_eq!(
-            Plan::new(
-                CliOperation::Apply,
-                "not-a-hash".into(),
-                fingerprint.into()
-            ),
+            Plan::new(CliOperation::Apply, "not-a-hash".into(), fingerprint.into()),
             Err(ConfigError::InvalidFingerprint)
         );
         assert!(OperationReport::new(CliOperation::Apply, Outcome::Succeeded, None).is_ok());

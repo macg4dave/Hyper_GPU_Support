@@ -6,7 +6,10 @@
 pub mod cli;
 pub mod config;
 pub mod inventory;
+pub mod probe;
 pub mod runner;
 
 #[cfg(windows)]
 pub mod windows_inventory;
+#[cfg(windows)]
+pub mod windows_probe;

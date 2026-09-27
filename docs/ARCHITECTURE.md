@@ -88,9 +88,10 @@ These are navigation intentions, not empty files or fixed backend interfaces.
 
 ## Configuration and recovery contract
 
-These are proposed implementation boundaries, not existing modules or commands.
-CORE-004 chooses the small serialization format and CLI syntax. Configuration
-identifies VM GUID, explicit GPU identity, measured resource settings and driver
+These boundaries are implemented incrementally. CORE-004 established the strict
+version-one `key=value` configuration, plan/report types, operation inventory and
+stable error exits; only inventory currently executes. Configuration identifies
+VM GUID, explicit GPU identity, measured resource settings and driver
 manifest; it contains no guest password, arbitrary shell script or default-GPU
 fallback. Unknown schema versions/fields and ambiguous identity fail validation.
 Keep intended, observed and last-validated state separate; PnP paths can change

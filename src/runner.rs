@@ -120,6 +120,8 @@ pub enum RunnerError {
     InvalidRequest,
     /// The request names an identity other than the compiled fixed slot.
     IdentityMismatch,
+    /// The request operation differs from the reviewed operation.
+    OperationMismatch,
     /// The request plan no longer matches the plan authorized by the caller.
     StalePlan,
     /// The nonce has already been accepted.
@@ -133,6 +135,7 @@ impl fmt::Display for RunnerError {
             Self::InvalidProtocol => formatter.write_str("runner adapter returned invalid output"),
             Self::InvalidRequest => formatter.write_str("invalid runner request"),
             Self::IdentityMismatch => formatter.write_str("runner target identity mismatch"),
+            Self::OperationMismatch => formatter.write_str("runner operation mismatch"),
             Self::StalePlan => formatter.write_str("runner request plan is stale"),
             Self::Replay => formatter.write_str("runner request replay rejected"),
         }
@@ -175,20 +178,24 @@ pub fn parse_request(input: &str) -> Result<Request, RunnerError> {
     })
 }
 
-/// Validate freshness and consume a nonce immediately before an effect.
+/// Validate operation and plan freshness, then consume a nonce before an effect.
 ///
 /// The caller must persist `used_nonces` in administrator-owned state before
 /// invoking the native adapter. Inserting before the effect deliberately makes
 /// an uncertain/interrupted attempt non-retryable under the same nonce.
 ///
 /// # Errors
-/// Returns [`RunnerError::StalePlan`] or [`RunnerError::Replay`] without modifying
-/// the ledger for a stale plan.
+/// Returns [`RunnerError::OperationMismatch`], [`RunnerError::StalePlan`] or
+/// [`RunnerError::Replay`]. An operation/plan mismatch does not modify the ledger.
 pub fn authorize_request(
     request: &Request,
+    authorized_operation: Operation,
     authorized_plan_fingerprint: &str,
     used_nonces: &mut BTreeSet<String>,
 ) -> Result<(), RunnerError> {
+    if request.operation != authorized_operation {
+        return Err(RunnerError::OperationMismatch);
+    }
     if request.plan_fingerprint != authorized_plan_fingerprint {
         return Err(RunnerError::StalePlan);
     }
@@ -364,18 +371,45 @@ mod tests {
         let request = parse_request(REQUEST).unwrap();
         let mut used = BTreeSet::new();
         assert_eq!(
-            authorize_request(&request, &"f".repeat(64), &mut used),
+            authorize_request(&request, Operation::ResetSlot, &"f".repeat(64), &mut used),
             Err(RunnerError::StalePlan)
         );
         assert!(used.is_empty());
         assert_eq!(
-            authorize_request(&request, &request.plan_fingerprint, &mut used),
+            authorize_request(
+                &request,
+                Operation::ResetSlot,
+                &request.plan_fingerprint,
+                &mut used
+            ),
             Ok(())
         );
         assert_eq!(
-            authorize_request(&request, &request.plan_fingerprint, &mut used),
+            authorize_request(
+                &request,
+                Operation::ResetSlot,
+                &request.plan_fingerprint,
+                &mut used
+            ),
             Err(RunnerError::Replay)
         );
+    }
+
+    #[test]
+    fn substituted_operation_is_rejected_without_consuming_nonce() {
+        let mut request = parse_request(REQUEST).unwrap();
+        request.operation = Operation::AssignGpu;
+        let mut used = BTreeSet::new();
+        assert_eq!(
+            authorize_request(
+                &request,
+                Operation::ResetSlot,
+                &request.plan_fingerprint,
+                &mut used
+            ),
+            Err(RunnerError::OperationMismatch)
+        );
+        assert!(used.is_empty());
     }
 
     #[test]

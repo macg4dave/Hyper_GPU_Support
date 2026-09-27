@@ -4,6 +4,14 @@ Record meaningful completed changes in one short entry per change, with task
 IDs and evidence links. Task statuses remain in BACKLOG; partial session notes
 remain in its Resume block. Do not duplicate detailed test output here.
 
+## 2026-09-27
+
+- [CORE-004](BACKLOG.md#core-004): added strict version-one configuration,
+  plan/report and CLI operation/error contracts with exact VM/GPU/manifest
+  identities and opaque provider resource ranges. Unknown, credential/path,
+  duplicate, ambiguous and invalid inputs fail closed; unimplemented commands
+  return exit 70 explicitly. Evidence: [CORE-004](evidence/CORE-004.md).
+
 ## 2026-09-26
 
 - [HV-002](BACKLOG.md#hv-002): converted the completed Windows 11 VM into a
