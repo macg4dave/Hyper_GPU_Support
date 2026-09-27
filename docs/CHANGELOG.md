@@ -6,6 +6,12 @@ remain in its Resume block. Do not duplicate detailed test output here.
 
 ## 2026-09-27
 
+- [CORE-020](BACKLOG.md#core-020): implemented the standalone hardware-only Rust
+  D3D11/D3D12 probes, CUDA/DXGI identity companion and unchanged pinned NVIDIA
+  CUDA workload with retained hashes/licenses. Bounded failure self-tests and
+  the host warm-up plus three measured runs per API passed; independent re-review
+  accepted the fixes. Evidence: [CORE-020](evidence/CORE-020.md).
+
 - [CORE-004](BACKLOG.md#core-004): added strict version-one configuration,
   plan/report and CLI operation/error contracts with exact VM/GPU/manifest
   identities and opaque provider resource ranges. Unknown, credential/path,

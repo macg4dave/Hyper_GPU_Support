@@ -8,7 +8,7 @@ use hyper_gpu_support::probe::{
     EXPECTED_IMAGE_SHA256, ExitClass, HEIGHT, ProbeReport, WIDTH, sha256_hex,
 };
 use hyper_gpu_support::windows_probe::{AdapterSelectionError, select_rtx_5060};
-use windows::Win32::Foundation::{CloseHandle, RECT, WAIT_OBJECT_0};
+use windows::Win32::Foundation::{CloseHandle, E_INVALIDARG, RECT, WAIT_OBJECT_0};
 use windows::Win32::Graphics::Direct3D::{
     D3D_FEATURE_LEVEL, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_12_0,
     D3D_FEATURE_LEVEL_12_1, D3D_FEATURE_LEVEL_12_2, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST, ID3DBlob,
@@ -43,6 +43,13 @@ fn fail(class: ExitClass, message: &'static str) -> ExitCode {
 struct ProbeFailure {
     class: ExitClass,
     message: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShaderModelQueryError {
+    InvalidArgument,
+    Failed,
+    Unsupported,
 }
 
 impl ProbeFailure {
@@ -232,28 +239,64 @@ fn query_features(
         )
     }
     .map_err(|_| ProbeFailure::new(ExitClass::Runtime, "feature-level query failed"))?;
-    let mut shader = D3D12_FEATURE_DATA_SHADER_MODEL {
-        HighestShaderModel: D3D_SHADER_MODEL_6_9,
-    };
-    // SAFETY: the feature data pointer/size exactly match the selected feature.
-    unsafe {
-        device.CheckFeatureSupport(
-            D3D12_FEATURE_SHADER_MODEL,
-            std::ptr::addr_of_mut!(shader).cast(),
-            std::mem::size_of_val(&shader) as u32,
-        )
-    }
-    .map_err(|_| ProbeFailure::new(ExitClass::Runtime, "shader-model query failed"))?;
-    if shader.HighestShaderModel.0 < D3D_SHADER_MODEL_6_0.0 {
-        return Err(ProbeFailure::new(
-            ExitClass::Runtime,
-            "shader model 6.0 is unavailable",
-        ));
-    }
+    let shader_model = negotiate_shader_model(|requested| {
+        let mut shader = D3D12_FEATURE_DATA_SHADER_MODEL {
+            HighestShaderModel: requested,
+        };
+        // SAFETY: the feature data pointer/size exactly match the selected
+        // feature and remain live for the synchronous query.
+        match unsafe {
+            device.CheckFeatureSupport(
+                D3D12_FEATURE_SHADER_MODEL,
+                std::ptr::addr_of_mut!(shader).cast(),
+                std::mem::size_of_val(&shader) as u32,
+            )
+        } {
+            Ok(()) => Ok(shader.HighestShaderModel),
+            Err(error) if error.code() == E_INVALIDARG => {
+                Err(ShaderModelQueryError::InvalidArgument)
+            }
+            Err(_) => Err(ShaderModelQueryError::Failed),
+        }
+    })
+    .map_err(|error| match error {
+        ShaderModelQueryError::Unsupported => {
+            ProbeFailure::new(ExitClass::Runtime, "shader model 6.0 is unavailable")
+        }
+        ShaderModelQueryError::InvalidArgument | ShaderModelQueryError::Failed => {
+            ProbeFailure::new(ExitClass::Runtime, "shader-model query failed")
+        }
+    })?;
     Ok((
         levels.MaxSupportedFeatureLevel,
-        shader_model_name(shader.HighestShaderModel),
+        shader_model_name(shader_model),
     ))
+}
+
+fn negotiate_shader_model(
+    mut query: impl FnMut(D3D_SHADER_MODEL) -> Result<D3D_SHADER_MODEL, ShaderModelQueryError>,
+) -> Result<D3D_SHADER_MODEL, ShaderModelQueryError> {
+    let candidates = [
+        D3D_SHADER_MODEL_6_9,
+        D3D_SHADER_MODEL_6_8,
+        D3D_SHADER_MODEL_6_7,
+        D3D_SHADER_MODEL_6_6,
+        D3D_SHADER_MODEL_6_5,
+        D3D_SHADER_MODEL_6_4,
+        D3D_SHADER_MODEL_6_3,
+        D3D_SHADER_MODEL_6_2,
+        D3D_SHADER_MODEL_6_1,
+        D3D_SHADER_MODEL_6_0,
+    ];
+    for candidate in candidates {
+        match query(candidate) {
+            Ok(supported) if supported.0 >= D3D_SHADER_MODEL_6_0.0 => return Ok(supported),
+            Ok(_) => return Err(ShaderModelQueryError::Unsupported),
+            Err(ShaderModelQueryError::InvalidArgument) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Err(ShaderModelQueryError::Unsupported)
 }
 
 #[allow(unsafe_code)]
@@ -610,5 +653,48 @@ const fn shader_model_name(model: D3D_SHADER_MODEL) -> &'static str {
         0x69 => "6_9",
         0x6a => "6_10",
         _ => "unknown",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ShaderModelQueryError, negotiate_shader_model};
+    use windows::Win32::Graphics::Direct3D12::{
+        D3D_SHADER_MODEL_6_5, D3D_SHADER_MODEL_6_6, D3D_SHADER_MODEL_6_7, D3D_SHADER_MODEL_6_8,
+        D3D_SHADER_MODEL_6_9,
+    };
+
+    #[test]
+    fn retries_runtime_unknown_shader_models_in_descending_order() {
+        let mut requested = Vec::new();
+        let model = negotiate_shader_model(|candidate| {
+            requested.push(candidate);
+            if candidate.0 > D3D_SHADER_MODEL_6_6.0 {
+                Err(ShaderModelQueryError::InvalidArgument)
+            } else {
+                Ok(D3D_SHADER_MODEL_6_5)
+            }
+        });
+        assert_eq!(model, Ok(D3D_SHADER_MODEL_6_5));
+        assert_eq!(
+            requested,
+            [
+                D3D_SHADER_MODEL_6_9,
+                D3D_SHADER_MODEL_6_8,
+                D3D_SHADER_MODEL_6_7,
+                D3D_SHADER_MODEL_6_6,
+            ]
+        );
+    }
+
+    #[test]
+    fn preserves_non_compatibility_query_failures() {
+        let mut calls = 0;
+        let result = negotiate_shader_model(|_| {
+            calls += 1;
+            Err(ShaderModelQueryError::Failed)
+        });
+        assert_eq!(result, Err(ShaderModelQueryError::Failed));
+        assert_eq!(calls, 1);
     }
 }

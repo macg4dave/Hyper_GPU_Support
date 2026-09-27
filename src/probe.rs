@@ -190,7 +190,7 @@ fn is_luid(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        AdapterIdentity, EXPECTED_IMAGE_SHA256, ProbeContractError, ProbeReport,
+        AdapterIdentity, EXPECTED_IMAGE_SHA256, ExitClass, ProbeContractError, ProbeReport,
         parse_success_report, sha256_hex,
     };
 
@@ -228,10 +228,11 @@ mod tests {
     }
 
     #[test]
-    fn rejects_software_wrong_hardware_and_missing_luid() {
+    fn rejects_software_indirect_wrong_hardware_and_missing_luid() {
         let mut report = report();
         for mutate in [
             |adapter: &mut AdapterIdentity| adapter.software = true,
+            |adapter: &mut AdapterIdentity| adapter.indirect_display = true,
             |adapter: &mut AdapterIdentity| adapter.vendor_id = 0x1414,
             |adapter: &mut AdapterIdentity| adapter.device_id = 0xffff,
             |adapter: &mut AdapterIdentity| adapter.luid = "00000000:00000000".into(),
@@ -277,5 +278,21 @@ mod tests {
     fn canonical_image_hash_matches_specification() {
         let rgba = [255_u8, 0, 255, 255].repeat(256 * 256);
         assert_eq!(sha256_hex(&rgba), EXPECTED_IMAGE_SHA256);
+    }
+
+    #[test]
+    fn exit_classes_are_stable_and_distinct() {
+        assert_eq!(
+            [
+                ExitClass::Pass.code(),
+                ExitClass::Adapter.code(),
+                ExitClass::Runtime.code(),
+                ExitClass::Execution.code(),
+                ExitClass::IncorrectOutput.code(),
+                ExitClass::Timeout.code(),
+                ExitClass::Internal.code(),
+            ],
+            [0, 2, 3, 4, 5, 6, 7]
+        );
     }
 }

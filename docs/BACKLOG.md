@@ -5,18 +5,18 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-27, CORE-004 completed the strict configuration/CLI data
-  contract and CORE-005 gained repository-only typed request validation.
-- Changed: added configuration, plan/report and stable error/operation contracts,
-  declared unimplemented CLI commands with explicit exit 70, and rejected stale,
-  replayed or target-selecting runner requests in hardware-independent tests.
+- Last session: 2026-09-27, CORE-020 completed the reproducible standalone
+  D3D11/D3D12/CUDA probe kit and host positive controls.
+- Changed: added exact DXGI/D3DKMT/CUDA identity checks, checked offscreen Rust
+  probes, pinned shader/CUDA artifacts, bounded host orchestration and live
+  timeout/output-limit failure tests; the required independent review passed.
 - Outstanding: CORE-005's installed runner still implements reset only; persistent
   replay state, client transport and lifecycle/GPU/staging operations remain. The
   AppSandbox candidate still has no established probe
   transport (BLK-003). Activation and four offered guest updates are recorded but
   explicitly not golden-image gates.
-- Next recommended: finish [CORE-005](#core-005) and [CORE-020](#core-020), then
-  proceed to read-only planning and the native staging/assignment path.
+- Next recommended: finish [CORE-005](#core-005), then [CORE-006](#core-006) and
+  the native transport/staging/assignment path. GPU-004 is blocked by BLK-003.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
 
@@ -49,7 +49,7 @@ contribute to their milestone's required exit.
 | [GPU-008](#gpu-008) | M0 | P0 | completed | HV-001, GPU-002 |
 | [GPU-003](#gpu-003) | M0 | P0 | completed | GPU-002, HV-003, REF-002, GPU-008 |
 | [HV-002](#hv-002) | M1 | P0 | completed | DOC-002, GPU-003 |
-| [GPU-004](#gpu-004) | M1 | P0 | planned | CORE-020 |
+| [GPU-004](#gpu-004) | M1 | P0 | blocked | CORE-020 |
 | [GPU-009](#gpu-009) | M1 | P0 | planned | HV-002, CORE-009 |
 | [GPU-005](#gpu-005) | M1 | P0 | planned | GPU-004, GPU-009, CORE-003 |
 | [GPU-010](#gpu-010) | M1 | P0 | planned | GPU-005 |
@@ -67,7 +67,7 @@ contribute to their milestone's required exit.
 | [CORE-011](#core-011) | M2 | P1 | planned | CORE-002, CORE-010 |
 | [CORE-012](#core-012) | M2 | P1 | planned | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | planned | CORE-002, CORE-020 |
-| [CORE-020](#core-020) | M1 | P0 | in progress | GPU-008 |
+| [CORE-020](#core-020) | M1 | P0 | completed | GPU-008 |
 | [CORE-013](#core-013) | M2 | P1 | planned | CORE-001 |
 | [CORE-014](#core-014) | M3 | P1 | planned | CORE-003, CORE-013 |
 | [CORE-015](#core-015) | M3 | P1 | planned | CORE-003 |
@@ -757,8 +757,6 @@ for future work is not an invented current blocker.
 
 **Implement the standalone baseline probe kit**
 
-- Owner: `/root`, session started 2026-09-27.
-
 - Context/scope: Turn GPU-008's pinned specification into reproducible standalone
   host/guest binaries before any reference or native guest measurement. This task
   supplies probes; CORE-003 later integrates invocation/reporting into the product
@@ -775,7 +773,17 @@ for future work is not an invented current blocker.
   driver, host feature, signing or privileged mutation.
 - Files/output: Standalone probe sources/build manifest and
   `docs/evidence/CORE-020.md`.
-- Result: pending.
+- Result: Completed 2026-09-27. Implemented hardware-only Rust D3D11/D3D12
+  offscreen probes, exact DXGI/D3DKMT selection and a CUDA Driver API identity
+  companion. Retained hash-pinned shaders and the unchanged CUDA Samples
+  `vectorAddDrv` source/license/executable plus an `sm_120` FATBIN with
+  reproducible repository-local tool acquisition/build scripts. Strict checks
+  passed with 46 unit/integration tests and one doctest. A live timeout/overflow
+  harness self-test passed, followed by one warm-up and three measured host
+  repetitions per essential API on the physical RTX 5060; every D3D readback and
+  CUDA CPU check passed with one cross-API LUID. Independent re-review found no
+  blocking issue after fixes. No installed software, driver, VM or host setting
+  changed. Evidence: [`docs/evidence/CORE-020.md`](evidence/CORE-020.md).
 
 ## CORE-013
 

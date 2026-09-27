@@ -36,4 +36,5 @@ Current maintained entry points:
   sample for `sm_120`, verifies the FATBIN and retains its source/license/artifacts.
 - `testing/run-host-probe-controls.ps1` performs the bounded host warm-up and
   three measured correctness repetitions for D3D11, D3D12 and CUDA, enforcing
-  output caps, timeouts, exact output oracles and cross-API LUID identity.
+  output caps, timeouts, exact output oracles and cross-API LUID identity. Run
+  it with `-SelfTest` to exercise timeout, overflow, cleanup and failure capture.

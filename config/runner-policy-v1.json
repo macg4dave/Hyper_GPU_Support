@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "slot": "gpu-pv-slot-01",
+  "vm_id": "2627e735-5b33-4104-b739-622727dd3a40",
+  "vm_name": "HyperGpuSupport-Disposable-01",
+  "parent": "Z:\\HyperGpuSupport\\images\\golden\\win11-pro-25h2-26200.9457-x64-v1\\parent.vhdx",
+  "parent_sha256": "0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07",
+  "child": "Z:\\HyperGpuSupport\\images\\disposable\\gpu-pv-slot-01\\child.vhdx",
+  "gpu_interface": "\\\\?\\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\\GPUPARAV",
+  "allowed_operations": ["inspect", "reset-slot"]
+}

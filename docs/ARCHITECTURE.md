@@ -72,15 +72,19 @@ use fixed operations, typed parameters and structured data, never arbitrary scri
 ## Foundation source layout
 
 `src/main.rs` owns process I/O and exit codes; `src/cli.rs` owns argument parsing
-and usage errors; `src/inventory.rs` owns typed facts, validation, reporting and
-the replaceable source contract; `src/windows_inventory.rs` owns the bounded
-query-process transport and Rust target/VM selection. `src/lib.rs` exposes the
-library boundary and `tests/cli.rs` exercises the built executable. No mutation
-backend has been selected.
+and usage errors; `src/config.rs` owns the strict version-one desired-state,
+plan/report and error contracts. `src/inventory.rs` owns typed facts, validation,
+reporting and the replaceable source contract; `src/windows_inventory.rs` owns
+the bounded query-process transport and Rust target/VM selection. `src/runner.rs`
+owns the fixed privileged protocol while `src/bin/hyper-gpu-runner.rs` currently
+implements only the installed reset slice. `src/probe.rs`, `src/windows_probe.rs`
+and the dedicated probe binaries own the standalone D3D/CUDA contracts, exact
+DXGI/D3DKMT selection and checked host workloads. `src/lib.rs` exposes the library
+boundary and `tests/cli.rs` exercises the built product executable.
 
-Add `config` for validation in CORE-004, privileged `windows`/`hyperv` adapters in
-CORE-005 and `gpupv` for assignment in CORE-002. Revisit CORE-001's bounded query
-transport after HV-003 fixes the native interface/rights matrix.
+Add the remaining privileged `windows`/`hyperv` adapters in CORE-005 and `gpupv`
+for assignment in CORE-002. Revisit CORE-001's bounded query transport after
+HV-003 fixes the native interface/rights matrix.
 Diagnostics/logging belong in `diagnostics` when inventory introduces operations
 to report. Introduce shared `error`/`types` modules when multiple callers need
 them; utilities stay with their owning responsibility until reuse is demonstrated.

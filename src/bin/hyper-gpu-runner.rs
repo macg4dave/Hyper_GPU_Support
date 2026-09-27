@@ -1,25 +1,41 @@
 //! Administrator-installed fixed runner for the enrolled disposable Hyper-V slot.
 
+use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use hyper_gpu_support::runner::{parse_reset_result, verify_policy};
+use hyper_gpu_support::runner::{
+    Enrollment, Operation, PIPE_NAME, Request, Response, authorize_request, consume_nonce,
+    parse_enrollment, parse_inspect_result, parse_request, parse_reset_result, policy_allows,
+    policy_fingerprint, verify_policy,
+};
+use hyper_gpu_support::windows_runner::serve_one;
 
 const INSTALL_ROOT: &str = r"C:\ProgramData\HyperGpuSupport\Runner";
 const POLICY_PATH: &str = r"C:\ProgramData\HyperGpuSupport\Runner\policy-v1.json";
+const ENROLLMENT_PATH: &str = r"C:\ProgramData\HyperGpuSupport\Runner\enrollment-v1.json";
 const TIMEOUT: Duration = Duration::from_secs(300);
 const OUTPUT_LIMIT: usize = 64 * 1024;
 
 fn main() -> ExitCode {
-    match run() {
-        Ok(operation_id) => {
-            println!("reset-slot completed: {operation_id}");
-            ExitCode::SUCCESS
-        }
+    let mut arguments = std::env::args_os().skip(1);
+    let mode = arguments.next();
+    if arguments.next().is_some() {
+        eprintln!("runner error: exactly one fixed mode is required");
+        return ExitCode::FAILURE;
+    }
+    let outcome = match mode.as_deref() {
+        Some(value) if value == "serve-once" => run_server(),
+        _ => Err("only fixed serve-once mode is accepted".into()),
+    };
+    match outcome {
+        Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("runner error: {error}");
             ExitCode::FAILURE
@@ -27,13 +43,10 @@ fn main() -> ExitCode {
     }
 }
 
-fn run() -> Result<String, Box<dyn std::error::Error>> {
-    let mut arguments = std::env::args_os().skip(1);
-    if arguments.next().as_deref() != Some("reset-slot".as_ref()) || arguments.next().is_some() {
-        return Err("only the fixed reset-slot operation is accepted".into());
-    }
+fn prepare_install_state() -> Result<Enrollment, Box<dyn std::error::Error>> {
     let installed_policy = fs::read_to_string(POLICY_PATH)?;
     verify_policy(&installed_policy)?;
+    let enrollment = parse_enrollment(&fs::read_to_string(ENROLLMENT_PATH)?)?;
 
     let state_directory = Path::new(INSTALL_ROOT).join("state");
     let result_directory = Path::new(INSTALL_ROOT).join("results");
@@ -41,12 +54,148 @@ fn run() -> Result<String, Box<dyn std::error::Error>> {
     fs::create_dir_all(&state_directory)?;
     fs::create_dir_all(&result_directory)?;
     fs::create_dir_all(&audit_directory)?;
+    fs::create_dir_all(state_directory.join("nonces"))?;
+    Ok(enrollment)
+}
+
+fn run_server() -> Result<(), Box<dyn std::error::Error>> {
+    let enrollment = prepare_install_state()?;
+    serve_one(
+        PIPE_NAME,
+        enrollment.client_sid(),
+        &enrollment.pipe_sddl(),
+        |input| {
+            let response = handle_request(input);
+            Ok(response.encode().into_bytes())
+        },
+    )?;
+    Ok(())
+}
+
+fn handle_request(input: &[u8]) -> Response {
+    let parsed = std::str::from_utf8(input)
+        .map_err(|_| "invalid-request")
+        .and_then(|input| parse_request(input).map_err(|_| "invalid-request"));
+    let request = match parsed {
+        Ok(request) => request,
+        Err(diagnostic) => {
+            let response = failed_response(None, diagnostic);
+            let _ = append_protocol_audit(None, "rejected", diagnostic);
+            return response;
+        }
+    };
+    if append_protocol_audit(Some(&request), "received", "none").is_err() {
+        return failed_response(Some(&request), "audit-unavailable");
+    }
+    match execute_request(&request) {
+        Ok(operation_id) => {
+            if append_protocol_audit(Some(&request), "succeeded", "none").is_err() {
+                return Response {
+                    request_id: request.request_id.clone(),
+                    status: "failed".into(),
+                    operation_id: Some(operation_id),
+                    diagnostic: "audit-finalization-failed".into(),
+                };
+            }
+            Response {
+                request_id: request.request_id.clone(),
+                status: "succeeded".into(),
+                operation_id: Some(operation_id),
+                diagnostic: "none".into(),
+            }
+        }
+        Err(diagnostic) => {
+            if append_protocol_audit(Some(&request), "failed", diagnostic).is_err() {
+                failed_response(Some(&request), "audit-finalization-failed")
+            } else {
+                failed_response(Some(&request), diagnostic)
+            }
+        }
+    }
+}
+
+fn append_protocol_audit(
+    request: Option<&Request>,
+    status: &str,
+    diagnostic: &str,
+) -> Result<(), std::io::Error> {
+    let path = Path::new(INSTALL_ROOT).join("audit").join("events.jsonl");
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    let request_id = request.map_or_else(|| "0".repeat(32), |value| value.request_id.clone());
+    let operation = request.map_or("none", |value| value.operation.as_str());
+    let nonce = request.map_or_else(|| "0".repeat(32), |value| value.nonce.clone());
+    let plan = request.map_or_else(|| "0".repeat(64), |value| value.plan_fingerprint.clone());
+    writeln!(
+        file,
+        concat!(
+            "{{\"schema\":1,\"request_id\":\"{}\",\"operation\":\"{}\",",
+            "\"slot\":\"gpu-pv-slot-01\",",
+            "\"vm_id\":\"2627e735-5b33-4104-b739-622727dd3a40\",",
+            "\"nonce\":\"{}\",\"plan_fingerprint\":\"{}\",",
+            "\"status\":\"{}\",\"diagnostic\":\"{}\"}}"
+        ),
+        request_id,
+        operation,
+        nonce,
+        plan,
+        status,
+        json_escape(diagnostic)
+    )?;
+    file.flush()
+}
+
+fn failed_response(request: Option<&Request>, diagnostic: &str) -> Response {
+    Response {
+        request_id: request.map_or_else(|| "0".repeat(32), |value| value.request_id.clone()),
+        status: "failed".into(),
+        operation_id: None,
+        diagnostic: diagnostic.into(),
+    }
+}
+
+fn execute_request(request: &Request) -> Result<String, &'static str> {
+    if !policy_allows(request.operation) {
+        return Err("operation-denied");
+    }
+    let mut process_nonces = BTreeSet::new();
+    authorize_request(
+        request,
+        request.operation,
+        &policy_fingerprint(),
+        &mut process_nonces,
+    )
+    .map_err(|error| match error {
+        hyper_gpu_support::runner::RunnerError::StalePlan => "stale-plan",
+        _ => "authorization-failed",
+    })?;
+    consume_nonce(
+        &Path::new(INSTALL_ROOT).join("state").join("nonces"),
+        &request.nonce,
+    )
+    .map_err(|error| match error {
+        hyper_gpu_support::runner::PersistentStateError::Protocol(
+            hyper_gpu_support::runner::RunnerError::Replay,
+        ) => "replay",
+        _ => "replay-state-failed",
+    })?;
+    match request.operation {
+        Operation::Inspect => run_inspect().map_err(|_| "operation-failed"),
+        Operation::ResetSlot => run_reset().map_err(|_| "operation-failed"),
+        _ => Err("operation-denied"),
+    }
+}
+
+fn run_reset() -> Result<String, Box<dyn std::error::Error>> {
+    let _enrollment = prepare_install_state()?;
+    let state_directory = Path::new(INSTALL_ROOT).join("state");
+    let result_directory = Path::new(INSTALL_ROOT).join("results");
+    let audit_directory = Path::new(INSTALL_ROOT).join("audit");
     let lock_path = state_directory.join("reset-slot.lock");
     let _lock = LockFile::acquire(&lock_path)?;
 
     let operation_id = operation_id()?;
     append_audit(&audit_directory, &operation_id, "started", "")?;
-    let output = match run_bounded() {
+    let output = match run_bounded(RESET_SCRIPT, TIMEOUT) {
         Ok(output) => output,
         Err(error) => {
             append_audit(&audit_directory, &operation_id, "failed", &error)?;
@@ -66,6 +215,46 @@ fn run() -> Result<String, Box<dyn std::error::Error>> {
         json_escape(&result.child),
         json_escape(&result.parent),
         result.parent_sha256
+    );
+    write_atomic(&result_directory, &operation_id, &result_json)?;
+    append_audit(&audit_directory, &operation_id, "succeeded", "")?;
+    Ok(operation_id)
+}
+
+fn run_inspect() -> Result<String, Box<dyn std::error::Error>> {
+    let _enrollment = prepare_install_state()?;
+    let state_directory = Path::new(INSTALL_ROOT).join("state");
+    let result_directory = Path::new(INSTALL_ROOT).join("results");
+    let audit_directory = Path::new(INSTALL_ROOT).join("audit");
+    let lock_path = state_directory.join("inspect.lock");
+    let _lock = LockFile::acquire(&lock_path)?;
+    let operation_id = operation_id()?;
+    append_audit(&audit_directory, &operation_id, "started", "")?;
+    let output = match run_bounded(INSPECT_SCRIPT, Duration::from_secs(60)) {
+        Ok(output) => output,
+        Err(error) => {
+            append_audit(&audit_directory, &operation_id, "failed", &error)?;
+            return Err(error.into());
+        }
+    };
+    let result = parse_inspect_result(&output)?;
+    let result_json = format!(
+        concat!(
+            "{{\n  \"schema\": 1,\n  \"operation_id\": \"{}\",\n",
+            "  \"operation\": \"inspect\",\n  \"status\": \"succeeded\",\n",
+            "  \"vm_id\": \"{}\",\n  \"state\": \"{}\",\n",
+            "  \"gpu_adapters\": {},\n  \"child\": \"{}\",\n",
+            "  \"parent\": \"{}\",\n  \"parent_sha256\": \"{}\",\n",
+            "  \"gpu_interface\": \"{}\"\n}}\n"
+        ),
+        operation_id,
+        result.vm_id,
+        result.state,
+        result.gpu_adapters,
+        json_escape(&result.child),
+        json_escape(&result.parent),
+        result.parent_sha256,
+        json_escape(&result.gpu_interface)
     );
     write_atomic(&result_directory, &operation_id, &result_json)?;
     append_audit(&audit_directory, &operation_id, "succeeded", "")?;
@@ -141,7 +330,7 @@ fn json_escape(value: &str) -> String {
         .replace('\n', "\\n")
 }
 
-fn run_bounded() -> Result<String, String> {
+fn run_bounded(script: &str, timeout: Duration) -> Result<String, String> {
     let mut child = Command::new("powershell.exe")
         .args([
             "-NoLogo",
@@ -150,7 +339,7 @@ fn run_bounded() -> Result<String, String> {
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            RESET_SCRIPT,
+            script,
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -158,10 +347,20 @@ fn run_bounded() -> Result<String, String> {
         .map_err(|error| format!("cannot launch fixed Hyper-V adapter: {error}"))?;
     let stdout = child.stdout.take().ok_or("stdout unavailable")?;
     let stderr = child.stderr.take().ok_or("stderr unavailable")?;
-    let stdout_reader = thread::spawn(move || read_bounded(stdout));
-    let stderr_reader = thread::spawn(move || read_bounded(stderr));
-    let deadline = Instant::now() + TIMEOUT;
+    let overflow = Arc::new(AtomicBool::new(false));
+    let stdout_overflow = Arc::clone(&overflow);
+    let stderr_overflow = Arc::clone(&overflow);
+    let stdout_reader = thread::spawn(move || read_bounded(stdout, &stdout_overflow));
+    let stderr_reader = thread::spawn(move || read_bounded(stderr, &stderr_overflow));
+    let deadline = Instant::now() + timeout;
     let status = loop {
+        if overflow.load(Ordering::Acquire) {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
+            return Err("fixed adapter output exceeded limit".into());
+        }
         match child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(50)),
@@ -195,7 +394,7 @@ fn run_bounded() -> Result<String, String> {
     String::from_utf8(stdout).map_err(|_| "fixed adapter output was not UTF-8".into())
 }
 
-fn read_bounded(mut reader: impl Read) -> std::io::Result<Vec<u8>> {
+fn read_bounded(mut reader: impl Read, overflow: &AtomicBool) -> std::io::Result<Vec<u8>> {
     let mut output = Vec::new();
     let mut buffer = [0_u8; 4096];
     loop {
@@ -204,6 +403,7 @@ fn read_bounded(mut reader: impl Read) -> std::io::Result<Vec<u8>> {
             return Ok(output);
         }
         if output.len() + count > OUTPUT_LIMIT {
+            overflow.store(true, Ordering::Release);
             return Err(std::io::Error::other("adapter output exceeded limit"));
         }
         output.extend_from_slice(&buffer[..count]);
@@ -251,9 +451,46 @@ if ($verifiedDrive.Path -ine $childPath -or $verifiedChild.ParentPath -ine $pare
 [Console]::Out.WriteLine('parent_sha256' + "`t" + $hash)
 "#;
 
+const INSPECT_SCRIPT: &str = r#"
+$ErrorActionPreference = 'Stop'
+$vmId = [guid]'2627E735-5B33-4104-B739-622727DD3A40'
+$vmName = 'HyperGpuSupport-Disposable-01'
+$parentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'
+$parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
+$childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
+$gpuPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
+$principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -and
+    -not $principal.IsInRole('Hyper-V Administrators')) { throw 'Hyper-V management token required' }
+$vm = Get-VM -Id $vmId
+if ($vm.Name -ne $vmName -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity mismatch' }
+if ($vm.State -notin @('Off','Running') -or $vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction SilentlyContinue).Count -ne 0) { throw 'enrolled VM state rejected' }
+$drives = @(Get-VMHardDiskDrive -VM $vm)
+if ($drives.Count -ne 1 -or $drives[0].Path -ine $childPath) { throw 'enrolled child attachment mismatch' }
+$child = Get-VHD -Path $childPath
+if ($child.ParentPath -ine $parentPath -or $child.VhdType -ne 'Differencing') { throw 'child chain mismatch' }
+$parent = Get-Item -LiteralPath $parentPath
+if (-not $parent.IsReadOnly -or ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'parent protection mismatch' }
+$hash = (Get-FileHash -LiteralPath $parentPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($hash -ne $parentHash) { throw 'parent hash mismatch' }
+$hostGpu = Get-VMHostPartitionableGpu -Name $gpuPath
+if ($hostGpu.Name -ine $gpuPath) { throw 'partitionable GPU identity mismatch' }
+$gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction SilentlyContinue)
+[Console]::Out.WriteLine('status' + "`t" + 'ok')
+[Console]::Out.WriteLine('vm_id' + "`t" + $vmId.ToString().ToLowerInvariant())
+[Console]::Out.WriteLine('state' + "`t" + [string]$vm.State)
+[Console]::Out.WriteLine('gpu_adapters' + "`t" + $gpuAdapters.Count)
+[Console]::Out.WriteLine('child' + "`t" + $child.Path)
+[Console]::Out.WriteLine('parent' + "`t" + $child.ParentPath)
+[Console]::Out.WriteLine('parent_sha256' + "`t" + $hash)
+[Console]::Out.WriteLine('gpu_interface' + "`t" + $hostGpu.Name)
+"#;
+
 #[cfg(test)]
 mod tests {
-    use super::{RESET_SCRIPT, json_escape};
+    use std::time::{Duration, Instant};
+
+    use super::{INSPECT_SCRIPT, RESET_SCRIPT, handle_request, json_escape, run_bounded};
     use hyper_gpu_support::runner::POLICY_V1;
 
     #[test]
@@ -264,6 +501,11 @@ mod tests {
         assert!(!RESET_SCRIPT.contains("param("));
         assert!(RESET_SCRIPT.contains("Remove-VMHardDiskDrive"));
         assert!(RESET_SCRIPT.contains("Get-FileHash"));
+        assert!(!INSPECT_SCRIPT.contains("Add-VM"));
+        assert!(!INSPECT_SCRIPT.contains("Set-VM"));
+        assert!(!INSPECT_SCRIPT.contains("Remove-VM"));
+        assert!(!INSPECT_SCRIPT.contains("Start-VM"));
+        assert!(!INSPECT_SCRIPT.contains("Stop-VM"));
     }
 
     #[test]
@@ -272,5 +514,34 @@ mod tests {
             json_escape("one\\two\r\n\"three"),
             "one\\\\two\\r\\n\\\"three"
         );
+    }
+
+    #[test]
+    fn malformed_pipe_request_returns_bounded_failure() {
+        let response = handle_request(b"not-a-request");
+        assert_eq!(response.status, "failed");
+        assert_eq!(response.diagnostic, "invalid-request");
+        assert!(response.operation_id.is_none());
+    }
+
+    #[test]
+    fn fixed_adapter_timeout_and_output_limit_cancel_process() {
+        let started = Instant::now();
+        assert_eq!(
+            run_bounded("Start-Sleep -Seconds 5", Duration::from_millis(100)).unwrap_err(),
+            "fixed Hyper-V adapter timed out"
+        );
+        assert!(started.elapsed() < Duration::from_secs(3));
+
+        let started = Instant::now();
+        assert_eq!(
+            run_bounded(
+                "[Console]::Out.Write('A' * 70000); Start-Sleep -Seconds 5",
+                Duration::from_secs(5)
+            )
+            .unwrap_err(),
+            "fixed adapter output exceeded limit"
+        );
+        assert!(started.elapsed() < Duration::from_secs(3));
     }
 }
