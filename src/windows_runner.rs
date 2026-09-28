@@ -1,12 +1,13 @@
 //! Authenticated, local-only Windows named-pipe transport for the fixed runner.
 //!
-//! Both endpoints compare the peer process's user SID with their own. This
-//! permits a highest-privilege scheduled task owned by the enrolled interactive
-//! user without trusting another user in the same session. The pipe also rejects
-//! remote clients and permits only one server instance.
+//! The server impersonates the connected client to verify its token SID. The
+//! client verifies the pipe object's enrolled owner SID without requiring access
+//! to the server process. The pipe also rejects remote clients and permits only
+//! one server instance.
 
 use std::fs::{File, OpenOptions};
 use std::io;
+use std::os::windows::fs::OpenOptionsExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -16,25 +17,30 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
-    ConvertStringSidToSidW, SDDL_REVISION_1,
+    ConvertStringSidToSidW, GetSecurityInfo, SDDL_REVISION_1, SE_KERNEL_OBJECT,
 };
 use windows::Win32::Security::{
-    EqualSid, GetLengthSid, GetTokenInformation, PSECURITY_DESCRIPTOR, PSID, SECURITY_ATTRIBUTES,
-    TOKEN_QUERY, TOKEN_USER, TokenUser,
+    EqualSid, GetLengthSid, GetTokenInformation, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
+    PSID, RevertToSelf, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER, TokenUser,
 };
-use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
+use windows::Win32::Storage::FileSystem::{
+    FILE_CREATE_PIPE_INSTANCE, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_GENERIC_READ, FILE_WRITE_DATA,
+    PIPE_ACCESS_DUPLEX, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
+};
 use windows::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, GetNamedPipeServerProcessId,
-    PIPE_REJECT_REMOTE_CLIENTS,
+    ConnectNamedPipe, CreateNamedPipeW, ImpersonateNamedPipeClient, PIPE_REJECT_REMOTE_CLIENTS,
 };
 use windows::Win32::System::Threading::{
-    GetCurrentProcess, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION,
+    GetCurrentProcess, GetCurrentThread, OpenProcessToken, OpenThreadToken,
 };
 use windows::core::{PCWSTR, PWSTR};
 
 use crate::runner::{FrameError, read_frame, write_frame};
 
 const PIPE_BUFFER: u32 = 64 * 1024;
+const CLIENT_PIPE_ACCESS: u32 = FILE_GENERIC_READ.0 | FILE_WRITE_DATA.0;
+const CLIENT_PIPE_SQOS: u32 = SECURITY_SQOS_PRESENT.0 | SECURITY_IDENTIFICATION.0;
+const _: () = assert!(CLIENT_PIPE_ACCESS & FILE_CREATE_PIPE_INSTANCE.0 == 0);
 
 /// Serve exactly one authenticated request and response, then close the pipe.
 ///
@@ -101,11 +107,8 @@ pub fn serve_one(
     // SAFETY: ownership of the valid connected pipe moves into exactly one File.
     let mut pipe = unsafe { File::from_raw_handle(handle.0) };
     (|| {
-        let mut client_pid = 0;
-        // SAFETY: connected pipe handle and valid writable PID pointer.
-        unsafe { GetNamedPipeClientProcessId(handle, &mut client_pid) }.map_err(windows_error)?;
-        verify_process_user(client_pid, expected_client_sid)?;
         let request = read_frame(&mut pipe).map_err(frame_error)?;
+        verify_pipe_client(handle, expected_client_sid)?;
         let response = handler(&request)?;
         write_frame(&mut pipe, &response).map_err(frame_error)
     })()
@@ -126,7 +129,11 @@ pub fn transact(
     let deadline = Instant::now() + timeout;
     let mut last_error;
     let mut pipe = loop {
-        match OpenOptions::new().read(true).write(true).open(pipe_name) {
+        match OpenOptions::new()
+            .access_mode(CLIENT_PIPE_ACCESS)
+            .security_qos_flags(CLIENT_PIPE_SQOS)
+            .open(pipe_name)
+        {
             Ok(pipe) => break pipe,
             Err(error) => {
                 last_error = error;
@@ -138,38 +145,84 @@ pub fn transact(
         }
     };
     let handle = HANDLE(pipe.as_raw_handle());
-    let mut server_pid = 0;
-    // SAFETY: open pipe handle and a valid writable PID pointer.
-    unsafe { GetNamedPipeServerProcessId(handle, &mut server_pid) }.map_err(windows_error)?;
-    verify_process_user(server_pid, expected_server_sid)?;
+    verify_pipe_owner(handle, expected_server_sid)?;
     write_frame(&mut pipe, request).map_err(frame_error)?;
     read_frame(&mut pipe).map_err(frame_error)
 }
 
 #[allow(unsafe_code)]
-fn verify_process_user(peer_pid: u32, expected_sid: &str) -> io::Result<()> {
-    // SAFETY: access is query-only and PID came from the kernel pipe endpoint.
-    let peer = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, peer_pid) }
-        .map_err(windows_error)?;
-    let peer_sid = process_user_sid(peer);
-    // SAFETY: `peer` is an owned real process handle.
-    let _ = unsafe { CloseHandle(peer) };
-    let peer_sid = peer_sid?;
+fn verify_pipe_client(pipe: HANDLE, expected_sid: &str) -> io::Result<()> {
+    // SAFETY: the connected pipe has received the bounded request whose client
+    // security context is selected for impersonation.
+    unsafe { ImpersonateNamedPipeClient(pipe) }.map_err(windows_error)?;
+    let verification = (|| {
+        let mut token = HANDLE::default();
+        // SAFETY: the current thread impersonates the connected client and the
+        // output receives an owned query-only token handle.
+        unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, true, &mut token) }
+            .map_err(windows_error)?;
+        let client_sid = token_user_sid(token);
+        // SAFETY: token ownership was returned by OpenThreadToken.
+        let _ = unsafe { CloseHandle(token) };
+        compare_sid(
+            &client_sid?,
+            expected_sid,
+            "runner pipe client user SID mismatch",
+        )
+    })();
+    // SAFETY: the thread successfully impersonated this pipe client above. The
+    // Windows contract requires process termination if the original token cannot
+    // be restored; continuing under an untrusted client identity is forbidden.
+    if unsafe { RevertToSelf() }.is_err() {
+        std::process::abort();
+    }
+    verification
+}
+
+#[allow(unsafe_code)]
+fn verify_pipe_owner(pipe: HANDLE, expected_sid: &str) -> io::Result<()> {
     let expected = string_sid(expected_sid)?;
-    // SAFETY: both slices hold complete SID byte strings for this call.
-    let equal = unsafe {
-        EqualSid(
-            PSID(peer_sid.as_ptr().cast_mut().cast()),
-            PSID(expected.as_ptr().cast_mut().cast()),
+    let mut owner = PSID::default();
+    let mut descriptor = PSECURITY_DESCRIPTOR::default();
+    // SAFETY: pipe is an open kernel handle and output pointers are writable.
+    let status = unsafe {
+        GetSecurityInfo(
+            pipe,
+            SE_KERNEL_OBJECT,
+            OWNER_SECURITY_INFORMATION,
+            Some(&raw mut owner),
+            None,
+            None,
+            None,
+            Some(&raw mut descriptor),
         )
     };
-    if equal.is_err() {
-        return Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "runner pipe peer user SID mismatch",
-        ));
+    if status.0 != 0 {
+        return Err(io::Error::from_raw_os_error(status.0 as i32));
     }
-    Ok(())
+    // SAFETY: owner points inside descriptor and expected is a complete SID.
+    let equal = unsafe { EqualSid(owner, PSID(expected.as_ptr().cast_mut().cast())) };
+    // SAFETY: descriptor was allocated by GetSecurityInfo.
+    let _ = unsafe { LocalFree(Some(HLOCAL(descriptor.0))) };
+    equal.map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "runner pipe owner SID mismatch",
+        )
+    })
+}
+
+#[allow(unsafe_code)]
+fn compare_sid(actual: &[u8], expected: &str, mismatch: &'static str) -> io::Result<()> {
+    let expected = string_sid(expected)?;
+    // SAFETY: both slices hold complete SID byte strings for this call.
+    unsafe {
+        EqualSid(
+            PSID(actual.as_ptr().cast_mut().cast()),
+            PSID(expected.as_ptr().cast_mut().cast()),
+        )
+    }
+    .map_err(|_| io::Error::new(io::ErrorKind::PermissionDenied, mismatch))
 }
 
 /// Return the current process user SID in canonical string form.
@@ -178,8 +231,14 @@ fn verify_process_user(peer_pid: u32, expected_sid: &str) -> io::Result<()> {
 /// Preserves Windows token and SID conversion failures.
 #[allow(unsafe_code)]
 pub fn current_user_sid_string() -> io::Result<String> {
-    // SAFETY: pseudo-handle is valid for the current process and must not close.
-    let bytes = process_user_sid(unsafe { GetCurrentProcess() })?;
+    let mut token = HANDLE::default();
+    // SAFETY: the current-process pseudo-handle is valid and token receives ownership.
+    unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) }
+        .map_err(windows_error)?;
+    let bytes = token_user_sid(token);
+    // SAFETY: token ownership was returned by OpenProcessToken.
+    let _ = unsafe { CloseHandle(token) };
+    let bytes = bytes?;
     let mut text = PWSTR::null();
     // SAFETY: `bytes` contains a validated token SID and text receives LocalAlloc memory.
     unsafe { ConvertSidToStringSidW(PSID(bytes.as_ptr().cast_mut().cast()), &mut text) }
@@ -208,11 +267,8 @@ fn string_sid(value: &str) -> io::Result<Vec<u8>> {
 }
 
 #[allow(unsafe_code)]
-fn process_user_sid(process: HANDLE) -> io::Result<Vec<u8>> {
-    let mut token = HANDLE::default();
-    // SAFETY: process is a queryable process handle; token receives ownership.
-    unsafe { OpenProcessToken(process, TOKEN_QUERY, &mut token) }.map_err(windows_error)?;
-    let result = (|| {
+fn token_user_sid(token: HANDLE) -> io::Result<Vec<u8>> {
+    (|| {
         let mut required = 0;
         // SAFETY: null first query obtains the exact required byte count.
         let first = unsafe { GetTokenInformation(token, TokenUser, None, 0, &mut required) };
@@ -242,10 +298,7 @@ fn process_user_sid(process: HANDLE) -> io::Result<Vec<u8>> {
         let length = unsafe { GetLengthSid(sid) } as usize;
         // SAFETY: SID is valid for `length` bytes while buffer remains alive.
         Ok(unsafe { std::slice::from_raw_parts(sid.0.cast::<u8>(), length) }.to_vec())
-    })();
-    // SAFETY: token is an owned handle created by OpenProcessToken.
-    let _ = unsafe { CloseHandle(token) };
-    result
+    })()
 }
 
 fn wide_null(value: &str) -> Vec<u16> {
@@ -268,6 +321,23 @@ mod tests {
     use std::time::Duration;
 
     use super::{current_user_sid_string, serve_one, transact};
+    use windows::Win32::Foundation::{CloseHandle, ERROR_NO_TOKEN, HANDLE};
+    use windows::Win32::Security::TOKEN_QUERY;
+    use windows::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
+
+    #[allow(unsafe_code)]
+    fn assert_not_impersonating() {
+        let mut token = HANDLE::default();
+        // SAFETY: the output pointer is writable and the pseudo-handle is valid.
+        match unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, true, &mut token) } {
+            Err(error) => assert_eq!(error.code(), ERROR_NO_TOKEN.to_hresult()),
+            Ok(()) => {
+                // SAFETY: an unexpected success returned an owned token handle.
+                let _ = unsafe { CloseHandle(token) };
+                panic!("handler still has an impersonation token");
+            }
+        }
+    }
 
     #[test]
     fn authenticated_local_pipe_round_trip() {
@@ -278,9 +348,10 @@ mod tests {
         let server_pipe = pipe.clone();
         let sid = current_user_sid_string().unwrap();
         let server_sid = sid.clone();
-        let sddl = format!("D:P(A;;GA;;;{sid})");
+        let sddl = format!("O:{sid}D:P(A;;0x0012008b;;;{sid})");
         let server = std::thread::spawn(move || {
             serve_one(&server_pipe, &server_sid, &sddl, |request| {
+                assert_not_impersonating();
                 assert_eq!(request, b"request");
                 Ok(b"response".to_vec())
             })
@@ -290,5 +361,51 @@ mod tests {
             b"response"
         );
         server.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn server_rejects_wrong_client_sid_before_handler() {
+        let pipe = format!(
+            r"\\.\pipe\HyperGpuSupport.Runner.client-test.{}",
+            std::process::id()
+        );
+        let server_pipe = pipe.clone();
+        let sid = current_user_sid_string().unwrap();
+        let server_sid = sid.clone();
+        let sddl = format!("O:{sid}D:P(A;;0x0012008b;;;{sid})");
+        let server = std::thread::spawn(move || {
+            serve_one(&server_pipe, "S-1-5-18", &sddl, |_| {
+                panic!("handler ran for wrong client SID")
+            })
+        });
+        assert!(transact(&pipe, &server_sid, b"request", Duration::from_secs(5)).is_err());
+        let error = server.join().unwrap().unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    }
+
+    #[test]
+    fn client_rejects_pipe_owned_by_another_sid() {
+        let pipe = format!(
+            r"\\.\pipe\HyperGpuSupport.Runner.owner-test.{}",
+            std::process::id()
+        );
+        let server_pipe = pipe.clone();
+        let sid = current_user_sid_string().unwrap();
+        let client_sid = sid.clone();
+        let sddl = format!("O:{sid}D:P(A;;0x0012008b;;;{sid})");
+        let server = std::thread::spawn(move || {
+            serve_one(&server_pipe, &client_sid, &sddl, |_| Ok(Vec::new()))
+        });
+        let error = transact(&pipe, "S-1-5-18", b"request", Duration::from_secs(5)).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+        assert!(server.join().unwrap().is_err());
+    }
+
+    #[test]
+    fn client_access_excludes_server_instance_creation() {
+        assert_eq!(
+            super::CLIENT_PIPE_ACCESS & super::FILE_CREATE_PIPE_INSTANCE.0,
+            0
+        );
     }
 }

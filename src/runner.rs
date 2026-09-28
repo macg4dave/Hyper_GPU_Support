@@ -46,8 +46,8 @@ impl Enrollment {
     #[must_use]
     pub fn pipe_sddl(&self) -> String {
         format!(
-            "D:P(A;;GA;;;{})(A;;GRGW;;;{})(A;;GA;;;SY)(A;;GA;;;BA)",
-            self.runner_sid, self.client_sid
+            "O:{}D:P(A;;GA;;;{})(A;;0x0012008b;;;{})(A;;GA;;;SY)(A;;GA;;;BA)",
+            self.runner_sid, self.runner_sid, self.client_sid
         )
     }
 }
@@ -697,8 +697,8 @@ mod tests {
         assert_eq!(
             enrollment.pipe_sddl(),
             concat!(
-                "D:P(A;;GA;;;S-1-5-21-1-2-3-1001)",
-                "(A;;GRGW;;;S-1-5-21-1-2-3-1000)(A;;GA;;;SY)(A;;GA;;;BA)"
+                "O:S-1-5-21-1-2-3-1001D:P(A;;GA;;;S-1-5-21-1-2-3-1001)",
+                "(A;;0x0012008b;;;S-1-5-21-1-2-3-1000)(A;;GA;;;SY)(A;;GA;;;BA)"
             )
         );
         for bad in [

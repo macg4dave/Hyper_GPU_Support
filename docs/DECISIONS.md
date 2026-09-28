@@ -429,6 +429,57 @@ identity checks, native error fidelity and cancellation, or if process terminati
 is shown not to bound an in-flight provider mutation; in the latter case reconcile
 native state and stop before retry.
 
+## DEC-017
+
+**Implemented for CORE-005 | 2026-09-28 | Exact-SID LSA account-right delta**
+
+Use a fixed administrator-only Rust helper over `LsaAddAccountRights`,
+`LsaRemoveAccountRights(AllRights=false)` and `LsaEnumerateAccountRights` to add
+or remove only `SeBatchLogonRight`, `SeDenyNetworkLogonRight`,
+`SeDenyInteractiveLogonRight`, `SeDenyRemoteInteractiveLogonRight` and
+`SeDenyServiceLogonRight` for the dedicated runner SID. Verify the complete
+before/after right set so every unrelated right remains unchanged. Persist that SID
+in the administrator-owned recovery directory immediately after account creation;
+recovery rejects a same-name/different-SID account and deletes only by the recorded
+SID.
+
+The first S4U installation trial registered the fixed limited task but Task
+Scheduler never launched it. Read-only local-policy inspection showed the runner
+SID lacked batch logon. A security-template update was rejected because replacing
+whole privilege membership lists could overwrite concurrent local or domain-policy
+changes. The exact LSA delta has the smallest target and a symmetric rollback.
+Applying it remains a separately approved host security-policy operation; repository
+implementation does not authorize execution.
+
+Revisit if Task Scheduler can use an equally restricted measured logon mode without
+an account-right change, or if domain policy prevents the fixed local SID rights.
+
+## DEC-018
+
+**Implemented for CORE-005 | 2026-09-28 | Cross-account named-pipe identity without process-token access**
+
+Authenticate the fixed local runner pipe without opening the peer process. The
+runner-owned pipe security descriptor records the enrolled runner SID as owner and
+grants the enrolled client only specific read/write-data, read-control and supporting
+read/synchronization rights (`0x0012008b`), explicitly excluding
+`FILE_CREATE_PIPE_INSTANCE`. The client requests identification-only SQOS, verifies
+the pipe owner SID through `GetSecurityInfo`, and only then writes its bounded frame.
+After reading that frame, the runner impersonates the connected client at
+identification level, queries `TokenUser`, reverts, and compares the exact enrolled
+SID before invoking any handler. If `RevertToSelf` fails, the one-shot runner aborts
+instead of continuing under an untrusted identity.
+
+The earlier peer-process-token design passed a same-user component test but failed
+with access denied when the dedicated S4U runner and interactive client used distinct
+accounts. Process DACL access is neither needed nor a stable authentication contract.
+Explicit pipe owner/client token checks preserve mutual identity without granting
+the limited runner `SeImpersonatePrivilege` or allowing the client to create pipe
+server instances. Remote clients, additional instances and pre-authentication
+effects remain rejected.
+
+Revisit if the transport moves to a service broker or an authenticated Windows RPC
+surface with an equally narrow fixed operation boundary.
+
 ## Decision template
 
 ```markdown

@@ -3,12 +3,15 @@
 //! The inventory boundary is read-only and keeps Windows process access behind a
 //! replaceable source so report logic can be tested without Hyper-V or a GPU.
 
+pub mod account_rights;
 pub mod cli;
 pub mod config;
 pub mod inventory;
 pub mod probe;
 pub mod runner;
 
+#[cfg(windows)]
+pub mod windows_account_rights;
 #[cfg(windows)]
 pub mod windows_inventory;
 #[cfg(windows)]

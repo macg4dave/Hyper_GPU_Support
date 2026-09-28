@@ -5,14 +5,17 @@ param()
 $ErrorActionPreference = 'Stop'
 $runnerSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release\hyper-gpu-runner.exe'
 $clientSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release\hyper-gpu-client.exe'
+$rightsSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release\hyper-gpu-rights.exe'
 $policySource = 'C:\Users\dave\github\Hyper_GPU_Support\config\runner-policy-v1.json'
-$runnerHash = '8D001F660529B6287D6D9F10769448FDE693E906ECE4FF48737AB2C6235FB2CA'
-$clientHash = '649ECCC2C937F5BAA3AD838DBBCC3C0E8966F6246E69AAE5B5BA278CDE2B4A92'
+$runnerHash = '1FCEFAF754C33FBE7E636F69475965D8A95FB26CC7E10CA74609F6C3960B3F95'
+$clientHash = 'A43D12F195DFEE5F136E2EB94FA2C4C27ED108DA48E55FAAE6DC9F7E941F28A3'
+$rightsHash = 'FF22FA9B0DC82B03C65F835E4857D826E7E4DB04ECFE807FCA93B4965918A41D'
 $policyHash = 'B4178D0A5B72520C3769CF371A0DA824D1434C909DF4C25B769B7A26E8F5916F'
 $installDirectory = 'C:\Program Files\HyperGpuSupport\Runner'
 $dataDirectory = 'C:\ProgramData\HyperGpuSupport\Runner'
 $runnerTarget = Join-Path $installDirectory 'hyper-gpu-runner.exe'
 $clientTarget = Join-Path $installDirectory 'hyper-gpu-client.exe'
+$rightsTarget = Join-Path $installDirectory 'hyper-gpu-rights.exe'
 $policyTarget = Join-Path $dataDirectory 'policy-v1.json'
 $enrollmentTarget = Join-Path $dataDirectory 'enrollment-v1.json'
 $accountName = 'HyperGpuRunner'
@@ -40,6 +43,7 @@ function Assert-Hash([string]$Path, [string]$Expected) {
 foreach ($item in @(
     @{ Path = $runnerSource; Hash = $runnerHash },
     @{ Path = $clientSource; Hash = $clientHash },
+    @{ Path = $rightsSource; Hash = $rightsHash },
     @{ Path = $policySource; Hash = $policyHash }
 )) { Assert-Hash $item.Path $item.Hash }
 
@@ -51,6 +55,9 @@ foreach ($path in $installDirectory,$dataDirectory,$stateDirectory,$resultDirect
 }
 foreach ($path in $runnerTarget,$policyTarget) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required installed preimage is missing: $path" }
+}
+foreach ($path in $clientTarget,$rightsTarget,$enrollmentTarget) {
+    if (Test-Path -LiteralPath $path) { throw "Refusing to overwrite unexpected candidate artifact: $path" }
 }
 if (Get-LocalUser -Name $accountName -ErrorAction SilentlyContinue) { throw "Refusing to reuse existing local account $accountName" }
 if (Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction SilentlyContinue) { throw "Refusing to replace existing task $taskPath$taskName" }
@@ -66,19 +73,26 @@ if (Test-Path -LiteralPath $stagingRoot) { throw "Install staging already exists
 
 $clientSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $qualifiedRunner = "$env:COMPUTERNAME\$accountName"
-$effect = "stage and hash artifacts under administrator-only ACLs; disable and replace only $taskPath$oldTaskName; create $qualifiedRunner in built-in Hyper-V Administrators; grant exact parent read/child modify access; register disabled, verify, then enable $taskPath$taskName; retain complete ACL/task/file recovery preimages"
+$effect = "stage and hash artifacts under administrator-only ACLs; disable and replace only $taskPath$oldTaskName; create $qualifiedRunner in built-in Hyper-V Administrators; add only SeBatchLogonRight plus deny network/interactive/remote-interactive/service logon to its exact SID through the fixed Rust LSA helper; grant exact parent read/child modify access; register disabled, verify, then enable $taskPath$taskName; retain complete ACL/task/file recovery preimages"
 if (-not $PSCmdlet.ShouldProcess('one enrolled GPU-PV runner slot', $effect)) { return }
 
-Remove-Item -LiteralPath $failureLog -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath $progressLog -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath $backupPreparing -Recurse -Force -ErrorAction SilentlyContinue
+foreach ($path in $failureLog,$progressLog) {
+    if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force -ErrorAction Stop }
+}
+if (Test-Path -LiteralPath $backupPreparing) {
+    Remove-Item -LiteralPath $backupPreparing -Recurse -Force -ErrorAction Stop
+    if (Test-Path -LiteralPath $backupPreparing) { throw 'Stale recovery preparation remains after removal' }
+}
 New-Item -ItemType Directory -Path $backupPreparing -Force | Out-Null
+& icacls.exe $backupPreparing /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Failed to secure runner recovery directory' }
 $recovery = [ordered]@{
     schema = 1
     client_sid = $clientSid
     account_name = $accountName
     runner_sha256 = (Get-FileHash -LiteralPath $runnerTarget -Algorithm SHA256).Hash
     policy_sha256 = (Get-FileHash -LiteralPath $policyTarget -Algorithm SHA256).Hash
+    rights_helper_sha256 = $rightsHash
     old_task_sddl = $oldTaskSddl
     old_task_enabled = [bool]$oldTask.Settings.Enabled
     acls = [ordered]@{}
@@ -89,6 +103,8 @@ foreach ($path in $installDirectory,$dataDirectory,$stateDirectory,$resultDirect
 [IO.File]::WriteAllText((Join-Path $backupPreparing 'recovery-v1.json'), ($recovery | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding($false)))
 Copy-Item -LiteralPath $runnerTarget -Destination (Join-Path $backupPreparing 'hyper-gpu-runner.exe')
 Copy-Item -LiteralPath $policyTarget -Destination (Join-Path $backupPreparing 'policy-v1.json')
+Copy-Item -LiteralPath $rightsSource -Destination (Join-Path $backupPreparing 'hyper-gpu-rights.exe')
+Assert-Hash (Join-Path $backupPreparing 'hyper-gpu-rights.exe') $rightsHash
 Export-ScheduledTask -TaskPath $taskPath -TaskName $oldTaskName | Set-Content -LiteralPath (Join-Path $backupPreparing 'ResetSlot-v1.xml') -Encoding Unicode
 Move-Item -LiteralPath $backupPreparing -Destination $backupRoot
 
@@ -98,12 +114,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Failed to secure runner staging directory' }
     $stagedRunner = Join-Path $stagingRoot 'hyper-gpu-runner.exe'
     $stagedClient = Join-Path $stagingRoot 'hyper-gpu-client.exe'
+    $stagedRights = Join-Path $stagingRoot 'hyper-gpu-rights.exe'
     $stagedPolicy = Join-Path $stagingRoot 'policy-v1.json'
     Copy-Item -LiteralPath $runnerSource -Destination $stagedRunner
     Copy-Item -LiteralPath $clientSource -Destination $stagedClient
+    Copy-Item -LiteralPath $rightsSource -Destination $stagedRights
     Copy-Item -LiteralPath $policySource -Destination $stagedPolicy
     Assert-Hash $stagedRunner $runnerHash
     Assert-Hash $stagedClient $clientHash
+    Assert-Hash $stagedRights $rightsHash
     Assert-Hash $stagedPolicy $policyHash
 
     $passwordBytes = New-Object byte[] 48
@@ -115,10 +134,21 @@ try {
     $runnerUser = New-LocalUser -Name $accountName -Password $password -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Description 'HyperGpuSupport fixed Hyper-V runner'
     [Array]::Clear($passwordBytes, 0, $passwordBytes.Length)
     $runnerSid = $runnerUser.SID.Value
+    $runnerSidRecord = Join-Path $backupRoot 'runner-sid-v1.txt'
+    [IO.File]::WriteAllText($runnerSidRecord, $runnerSid, (New-Object Text.UTF8Encoding($false)))
+    & icacls.exe $runnerSidRecord /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to secure authoritative runner SID record' }
     $enrollment = [ordered]@{ schema = 1; runner_sid = $runnerSid; client_sid = $clientSid }
     [IO.File]::WriteAllText($enrollmentTarget, ($enrollment | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
     $hyperVAdministrators = Get-LocalGroup -SID ([Security.Principal.SecurityIdentifier]::new('S-1-5-32-578'))
     Add-LocalGroupMember -Group $hyperVAdministrators -Member $runnerUser
+
+    Move-Item -LiteralPath $stagedRights -Destination $rightsTarget -Force
+    & icacls.exe $rightsTarget /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to secure account-right helper' }
+    Assert-Hash $rightsTarget $rightsHash
+    & $rightsTarget grant $runnerSid
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to apply exact runner account rights' }
 
     New-Item -ItemType Directory -Path (Join-Path $stateDirectory 'nonces') -Force | Out-Null
     & icacls.exe $installDirectory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "*$runnerSid`:(OI)(CI)RX" "*$clientSid`:(OI)(CI)RX" | Out-Null
@@ -149,6 +179,7 @@ try {
     }
     Assert-Hash $runnerTarget $runnerHash
     Assert-Hash $clientTarget $clientHash
+    Assert-Hash $rightsTarget $rightsHash
     Assert-Hash $policyTarget $policyHash
 
     $service = New-Object -ComObject 'Schedule.Service'
@@ -179,6 +210,7 @@ try {
     if ($registeredTask.Settings.Enabled) { throw 'New runner task must remain disabled during verification' }
     Assert-Hash $runnerTarget $runnerHash
     Assert-Hash $clientTarget $clientHash
+    Assert-Hash $rightsTarget $rightsHash
     Assert-Hash $policyTarget $policyHash
     Unregister-ScheduledTask -TaskPath $taskPath -TaskName $oldTaskName -Confirm:$false
     Remove-Item -LiteralPath $stagingRoot -Recurse -Force
@@ -194,4 +226,4 @@ try {
     throw "Runner installation stopped fail-closed. Do not trigger either task. Run scripts/setup/restore-runner-v1.ps1 from an approved administrator session to restore the captured preimage. Cause: $($cause.Exception.Message) Location: $($cause.InvocationInfo.PositionMessage) Stack: $($cause.ScriptStackTrace)"
 }
 
-[ordered]@{ schema = 1; runner_sha256 = $runnerHash; client_sha256 = $clientHash; policy_sha256 = $policyHash; runner_sid = $runnerSid; client_sid = $clientSid; task = "$taskPath$taskName"; backup = $backupRoot } | ConvertTo-Json
+[ordered]@{ schema = 1; runner_sha256 = $runnerHash; client_sha256 = $clientHash; rights_helper_sha256 = $rightsHash; policy_sha256 = $policyHash; runner_sid = $runnerSid; client_sid = $clientSid; task = "$taskPath$taskName"; backup = $backupRoot } | ConvertTo-Json

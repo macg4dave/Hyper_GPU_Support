@@ -5,18 +5,20 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-27, CORE-005 advanced to a reviewed least-privilege
-  runner/client installation candidate; no protected installation was performed.
-- Changed: added authenticated local transport and persistent replay wiring,
-  durable correlated audit, crash-recoverable locking, fail-closed native queries,
-  exact limited-principal/file ACLs, staged hash verification and complete
-  file/task/ACL recovery preimages. DEC-016 records the fixed cmdlet boundary.
-- Outstanding: explicit approval is required to replace the old reset-only task
-  and run the candidate's read-only cross-principal inspect. CORE-005 still lacks
+- Last session: 2026-09-28, CORE-005's second approved limited-principal install
+  proved batch logon and task launch, but the runner exited before accepting the
+  read-only request; recovery restored the old reset-only state.
+- Changed: added a fixed Rust exact-SID LSA helper, SID-authoritative rollback,
+  checked helper cleanup and cross-account pipe authentication using client
+  impersonation plus explicit pipe-owner verification. DEC-017 records the rights;
+  DEC-018 records the transport identity boundary.
+- Outstanding: the pre-request native failure needs another explicitly approved
+  installation to read the new bounded startup diagnostic. CORE-005 still lacks
   bounded pipe exchange, the full native failure matrix and lifecycle/GPU/staging/
   probe operations. AppSandbox transport remains blocked by BLK-003.
-- Next recommended: install and read-only validate the reviewed CORE-005 candidate
-  under exact approval, then close its remaining fixed operations before CORE-006.
+- Next recommended: obtain exact policy-change approval, install and read-only
+  validate the independently reviewed CORE-005 candidate, then close its remaining
+  fixed operations before CORE-006.
   GPU-004 remains blocked by BLK-003.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
@@ -666,6 +668,21 @@ for future work is not an invented current blocker.
   The installed host remains on the old reset-only task; no protected state changed.
   Candidate installation/read-only validation and the lifecycle, GPU, staging/probe
   operations still remain, so the task is not complete.
+  On 2026-09-28 the approved candidate installed but its S4U task never launched;
+  read-only policy inspection identified missing `SeBatchLogonRight`. Recovery
+  restored the old task/files/ACLs without a VM, GPU, guest or host-lifecycle
+  operation. The repository now uses a fixed Rust exact-SID LSA helper for the five
+  reviewed batch/deny rights and symmetric rollback. Applying that new host-policy
+  delta needs separate explicit approval before installation can be retried.
+  The approved corrected trial then proved task launch but failed before the
+  read-only request/audit with access denied and runner exit `1`. Recovery restored
+  the original state; one silently retained helper exposed an ACL/removal defect and
+  was removed within the approved rollback. The repository now checks helper removal
+  and records a bounded startup failure. Another protected install is required to
+  identify the exact pre-request native failure. Code-path review identified the
+  same-user-only process-token authentication assumption; the corrected transport
+  now uses server-side pipe-client impersonation and client-side pipe-owner SID
+  verification. A protected install is still required to validate it cross-account.
 
 ## CORE-006
 

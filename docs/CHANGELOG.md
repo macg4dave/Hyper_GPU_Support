@@ -4,6 +4,17 @@ Record meaningful completed changes in one short entry per change, with task
 IDs and evidence links. Task statuses remain in BACKLOG; partial session notes
 remain in its Resume block. Do not duplicate detailed test output here.
 
+## 2026-09-28
+
+- [CORE-005](BACKLOG.md#core-005): diagnosed the limited S4U runner's missing
+  batch-logon right, safely restored the prior installation, and replaced the
+  unsafe whole-template policy proposal with a fixed Rust exact-SID LSA delta and
+  symmetric SID-authoritative recovery. A second trial proved limited task launch,
+  exposed the cross-account process-token assumption and a helper cleanup defect,
+  and drove exact pipe-owner/client-token authentication plus checked recovery.
+  Protected reinstallation remains pending.
+  Evidence: [CORE-005](evidence/CORE-005.md).
+
 ## 2026-09-27
 
 - [CORE-020](BACKLOG.md#core-020): implemented the standalone hardware-only Rust

@@ -77,7 +77,10 @@ plan/report and error contracts. `src/inventory.rs` owns typed facts, validation
 reporting and the replaceable source contract; `src/windows_inventory.rs` owns
 the bounded query-process transport and Rust target/VM selection. `src/runner.rs`
 owns the fixed privileged protocol while `src/bin/hyper-gpu-runner.rs` currently
-implements only the installed reset slice. `src/probe.rs`, `src/windows_probe.rs`
+implements only the installed reset slice. `src/windows_runner.rs` authenticates
+the connected client through bounded-frame pipe impersonation and lets the client
+verify the pipe object's explicit enrolled owner SID, avoiding cross-account process
+token access. `src/probe.rs`, `src/windows_probe.rs`
 and the dedicated probe binaries own the standalone D3D/CUDA contracts, exact
 DXGI/D3DKMT selection and checked host workloads. `src/lib.rs` exposes the library
 boundary and `tests/cli.rs` exercises the built product executable.
@@ -144,7 +147,11 @@ native launcher after HV-003 proves the minimum Windows rights. Prefer a dedicat
 principal in Hyper-V Administrators when its measured operations succeed; use a
 broader administrator token only for an individually justified operation that the
 limited principal cannot perform. It is not a background GPU service or product
-control plane. [New-VHD differencing disks][ms-new-vhd]
+control plane. The installation helper changes account rights only through exact-
+SID LSA add/remove calls: batch logon is granted while network, interactive,
+remote-interactive and service logon are denied. Recovery uses the persisted SID,
+removes that same fixed delta without replacing any right's other memberships, and
+deletes the account by SID. [New-VHD differencing disks][ms-new-vhd]
 [Task Scheduler security contexts][ms-task-security]
 [Hyper-V Administrators][ms-hyperv-admins]
 

@@ -21,10 +21,13 @@ use hyper_gpu_support::windows_runner::serve_one;
 const INSTALL_ROOT: &str = r"C:\ProgramData\HyperGpuSupport\Runner";
 const POLICY_PATH: &str = r"C:\ProgramData\HyperGpuSupport\Runner\policy-v1.json";
 const ENROLLMENT_PATH: &str = r"C:\ProgramData\HyperGpuSupport\Runner\enrollment-v1.json";
+const STARTUP_FAILURE_PATH: &str =
+    r"C:\ProgramData\HyperGpuSupport\Runner\audit\runner-startup-failure-v1.txt";
 const TIMEOUT: Duration = Duration::from_secs(300);
 const OUTPUT_LIMIT: usize = 64 * 1024;
 
 fn main() -> ExitCode {
+    let _ = fs::remove_file(STARTUP_FAILURE_PATH);
     let mut arguments = std::env::args_os().skip(1);
     let mode = arguments.next();
     if arguments.next().is_some() {
@@ -38,10 +41,31 @@ fn main() -> ExitCode {
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
+            let _ = fs::write(
+                STARTUP_FAILURE_PATH,
+                startup_failure_message(error.as_ref()),
+            );
             eprintln!("runner error: {error}");
             ExitCode::FAILURE
         }
     }
+}
+
+fn startup_failure_message(error: &dyn std::fmt::Display) -> String {
+    let mut message = String::with_capacity(513);
+    for character in error.to_string().chars() {
+        let character = if character.is_control() {
+            ' '
+        } else {
+            character
+        };
+        if message.len() + character.len_utf8() > 512 {
+            break;
+        }
+        message.push(character);
+    }
+    message.push('\n');
+    message
 }
 
 fn prepare_install_state() -> Result<Enrollment, Box<dyn std::error::Error>> {
@@ -541,7 +565,7 @@ mod tests {
 
     use super::{
         INSPECT_SCRIPT, LockFile, RESET_SCRIPT, append_audit, handle_request, json_escape,
-        run_bounded,
+        run_bounded, startup_failure_message,
     };
     use hyper_gpu_support::runner::{Operation, POLICY_V1};
 
@@ -569,6 +593,16 @@ mod tests {
             json_escape("one\\two\r\n\"three"),
             "one\\\\two\\r\\n\\\"three"
         );
+    }
+
+    #[test]
+    fn startup_failure_record_is_single_line_and_bounded() {
+        let diagnostic = format!("first\r\n{}", "é".repeat(300));
+        let message = startup_failure_message(&diagnostic);
+        assert!(message.ends_with('\n'));
+        assert_eq!(message.matches('\n').count(), 1);
+        assert!(!message.contains('\r'));
+        assert!(message.len() <= 513);
     }
 
     #[test]
