@@ -44,7 +44,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         PIPE_NAME,
         enrollment.runner_sid(),
         request.encode().as_bytes(),
-        Duration::from_secs(15),
+        response_timeout(operation),
     )?;
     let text = std::str::from_utf8(&bytes).map_err(|_| "runner response was not UTF-8")?;
     let response = parse_response(text)?;
@@ -56,6 +56,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("runner rejected request: {}", response.diagnostic).into());
     }
     Ok(())
+}
+
+fn response_timeout(operation: Operation) -> Duration {
+    match operation {
+        Operation::Inspect | Operation::ResetSlot => Duration::from_secs(330),
+        Operation::StartSlot => Duration::from_secs(510),
+        Operation::ShutdownSlot => Duration::from_secs(450),
+        _ => Duration::from_secs(15),
+    }
 }
 
 fn build_request(operation: Operation) -> Result<Request, std::time::SystemTimeError> {
@@ -93,9 +102,11 @@ fn trigger_runner() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use hyper_gpu_support::runner::{Operation, parse_request, policy_fingerprint};
 
-    use super::{build_request, fresh_token};
+    use super::{build_request, fresh_token, response_timeout};
 
     #[test]
     fn generated_request_is_canonical_and_policy_bound() {
@@ -111,5 +122,32 @@ mod tests {
         assert_eq!(first.len(), 32);
         assert!(first.bytes().all(|byte| byte.is_ascii_hexdigit()));
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn response_deadlines_cover_fixed_adapter_bounds() {
+        assert_eq!(
+            response_timeout(Operation::Inspect),
+            Duration::from_secs(330)
+        );
+        assert_eq!(
+            response_timeout(Operation::StartSlot),
+            Duration::from_secs(510)
+        );
+        assert_eq!(
+            response_timeout(Operation::ShutdownSlot),
+            Duration::from_secs(450)
+        );
+        assert_eq!(
+            response_timeout(Operation::AssignGpu),
+            Duration::from_secs(15)
+        );
+        let installer = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/scripts/setup/install-runner-v1.ps1"
+        ));
+        assert!(installer.contains("ExecutionTimeLimit = 'PT10M'"));
+        assert!(response_timeout(Operation::StartSlot) < Duration::from_secs(600));
+        assert!(response_timeout(Operation::ShutdownSlot) < Duration::from_secs(600));
     }
 }

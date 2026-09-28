@@ -7,10 +7,10 @@ $runnerSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\re
 $clientSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release\hyper-gpu-client.exe'
 $rightsSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release\hyper-gpu-rights.exe'
 $policySource = 'C:\Users\dave\github\Hyper_GPU_Support\config\runner-policy-v1.json'
-$runnerHash = '1FCEFAF754C33FBE7E636F69475965D8A95FB26CC7E10CA74609F6C3960B3F95'
-$clientHash = 'A43D12F195DFEE5F136E2EB94FA2C4C27ED108DA48E55FAAE6DC9F7E941F28A3'
-$rightsHash = 'FF22FA9B0DC82B03C65F835E4857D826E7E4DB04ECFE807FCA93B4965918A41D'
-$policyHash = 'B4178D0A5B72520C3769CF371A0DA824D1434C909DF4C25B769B7A26E8F5916F'
+$runnerHash = 'EB8F724ADC94446867B9CA759024D464FB982CF07BC909F2F4399F9F52217080'
+$clientHash = 'BEF2E0D03FA5F4497635BFD59F628D686D3CF3ECBC88D9D5DEFE4EF91D9F6391'
+$rightsHash = 'D1340E514C42925E891AB951904C9F10284D3B232A5BB335D333AB8E47EF7A77'
+$policyHash = '2889996AB6F035AE21C4C76C54146007369A704EB77AA884D78E9CB6B37DFF91'
 $installDirectory = 'C:\Program Files\HyperGpuSupport\Runner'
 $dataDirectory = 'C:\ProgramData\HyperGpuSupport\Runner'
 $runnerTarget = Join-Path $installDirectory 'hyper-gpu-runner.exe'
@@ -191,7 +191,7 @@ try {
     $definition.Principal.LogonType = 2 # TASK_LOGON_S4U
     $definition.Principal.RunLevel = 0 # TASK_RUNLEVEL_LUA
     $definition.Settings.Enabled = $false
-    $definition.Settings.ExecutionTimeLimit = 'PT6M'
+    $definition.Settings.ExecutionTimeLimit = 'PT10M'
     $definition.Settings.MultipleInstances = 2 # TASK_INSTANCES_IGNORE_NEW
     $definition.Settings.DisallowStartIfOnBatteries = $false
     $definition.Settings.StopIfGoingOnBatteries = $false
@@ -208,6 +208,7 @@ try {
     $registered.SetSecurityDescriptor("D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;$clientSid)", 0)
     $registeredTask = Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction Stop
     if ($registeredTask.Settings.Enabled) { throw 'New runner task must remain disabled during verification' }
+    if ([string]$registeredTask.Settings.ExecutionTimeLimit -ne 'PT10M') { throw 'Runner task execution limit mismatch' }
     Assert-Hash $runnerTarget $runnerHash
     Assert-Hash $clientTarget $clientHash
     Assert-Hash $rightsTarget $rightsHash

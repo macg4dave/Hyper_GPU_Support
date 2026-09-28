@@ -13,8 +13,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use hyper_gpu_support::runner::{
     Enrollment, Operation, PIPE_NAME, Request, Response, authorize_request, consume_nonce,
-    parse_enrollment, parse_inspect_result, parse_request, parse_reset_result, policy_allows,
-    policy_fingerprint, verify_policy,
+    parse_enrollment, parse_inspect_result, parse_lifecycle_result, parse_request,
+    parse_reset_result, policy_allows, policy_fingerprint, verify_policy,
 };
 use hyper_gpu_support::windows_runner::serve_one;
 
@@ -23,7 +23,11 @@ const POLICY_PATH: &str = r"C:\ProgramData\HyperGpuSupport\Runner\policy-v1.json
 const ENROLLMENT_PATH: &str = r"C:\ProgramData\HyperGpuSupport\Runner\enrollment-v1.json";
 const STARTUP_FAILURE_PATH: &str =
     r"C:\ProgramData\HyperGpuSupport\Runner\audit\runner-startup-failure-v1.txt";
-const TIMEOUT: Duration = Duration::from_secs(300);
+const RECONCILIATION_MARKER: &str = "reconciliation-required-v1";
+const RESET_TIMEOUT: Duration = Duration::from_secs(300);
+const INSPECT_TIMEOUT: Duration = Duration::from_secs(300);
+const START_TIMEOUT: Duration = Duration::from_secs(180);
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(120);
 const OUTPUT_LIMIT: usize = 64 * 1024;
 
 fn main() -> ExitCode {
@@ -129,11 +133,21 @@ fn handle_request(input: &[u8]) -> Response {
                 diagnostic: "none".into(),
             }
         }
-        Err(diagnostic) => {
-            if append_protocol_audit(Some(&request), "failed", diagnostic).is_err() {
-                failed_response(Some(&request), "audit-finalization-failed")
+        Err(failure) => {
+            if append_protocol_audit(Some(&request), "failed", failure.diagnostic).is_err() {
+                Response {
+                    request_id: request.request_id.clone(),
+                    status: "failed".into(),
+                    operation_id: failure.operation_id,
+                    diagnostic: "audit-finalization-failed".into(),
+                }
             } else {
-                failed_response(Some(&request), diagnostic)
+                Response {
+                    request_id: request.request_id.clone(),
+                    status: "failed".into(),
+                    operation_id: failure.operation_id,
+                    diagnostic: failure.diagnostic.into(),
+                }
             }
         }
     }
@@ -178,10 +192,21 @@ fn failed_response(request: Option<&Request>, diagnostic: &str) -> Response {
     }
 }
 
-fn execute_request(request: &Request) -> Result<String, &'static str> {
+struct ExecutionFailure {
+    diagnostic: &'static str,
+    operation_id: Option<String>,
+}
+
+fn execute_request(request: &Request) -> Result<String, ExecutionFailure> {
+    let before_effect = |diagnostic| ExecutionFailure {
+        diagnostic,
+        operation_id: None,
+    };
     if !policy_allows(request.operation) {
-        return Err("operation-denied");
+        return Err(before_effect("operation-denied"));
     }
+    ensure_reconciled(&Path::new(INSTALL_ROOT).join("state"), request.operation)
+        .map_err(before_effect)?;
     let mut process_nonces = BTreeSet::new();
     authorize_request(
         request,
@@ -189,24 +214,77 @@ fn execute_request(request: &Request) -> Result<String, &'static str> {
         &policy_fingerprint(),
         &mut process_nonces,
     )
-    .map_err(|error| match error {
-        hyper_gpu_support::runner::RunnerError::StalePlan => "stale-plan",
-        _ => "authorization-failed",
+    .map_err(|error| {
+        before_effect(match error {
+            hyper_gpu_support::runner::RunnerError::StalePlan => "stale-plan",
+            _ => "authorization-failed",
+        })
     })?;
     consume_nonce(
         &Path::new(INSTALL_ROOT).join("state").join("nonces"),
         &request.nonce,
     )
-    .map_err(|error| match error {
-        hyper_gpu_support::runner::PersistentStateError::Protocol(
-            hyper_gpu_support::runner::RunnerError::Replay,
-        ) => "replay",
-        _ => "replay-state-failed",
+    .map_err(|error| {
+        before_effect(match error {
+            hyper_gpu_support::runner::PersistentStateError::Protocol(
+                hyper_gpu_support::runner::RunnerError::Replay,
+            ) => "replay",
+            _ => "replay-state-failed",
+        })
     })?;
     match request.operation {
-        Operation::Inspect => run_inspect(request).map_err(|_| "operation-failed"),
-        Operation::ResetSlot => run_reset(request).map_err(|_| "operation-failed"),
-        _ => Err("operation-denied"),
+        Operation::Inspect => run_inspect(request).map_err(|_| before_effect("operation-failed")),
+        Operation::ResetSlot => run_reset(request).map_err(|_| before_effect("operation-failed")),
+        Operation::StartSlot => {
+            execute_lifecycle_request(request, Operation::StartSlot, START_SCRIPT, START_TIMEOUT)
+        }
+        Operation::ShutdownSlot => execute_lifecycle_request(
+            request,
+            Operation::ShutdownSlot,
+            SHUTDOWN_SCRIPT,
+            SHUTDOWN_TIMEOUT,
+        ),
+        _ => Err(before_effect("operation-denied")),
+    }
+}
+
+fn ensure_reconciled(state_directory: &Path, operation: Operation) -> Result<(), &'static str> {
+    if operation == Operation::Inspect {
+        return Ok(());
+    }
+    match state_directory.join(RECONCILIATION_MARKER).try_exists() {
+        Ok(false) => Ok(()),
+        Ok(true) => Err("reconciliation-required"),
+        Err(_) => Err("reconciliation-state-unavailable"),
+    }
+}
+
+fn begin_reconciliation(
+    path: &Path,
+    operation: Operation,
+    operation_id: &str,
+) -> std::io::Result<()> {
+    let mut marker = OpenOptions::new().write(true).create_new(true).open(path)?;
+    writeln!(marker, "{} {}", operation.as_str(), operation_id)?;
+    marker.sync_all()
+}
+
+fn execute_lifecycle_request(
+    request: &Request,
+    operation: Operation,
+    script: &str,
+    timeout: Duration,
+) -> Result<String, ExecutionFailure> {
+    let operation_id = operation_id().map_err(|_| ExecutionFailure {
+        diagnostic: "operation-id-failed",
+        operation_id: None,
+    })?;
+    match run_lifecycle(request, operation, &operation_id, script, timeout) {
+        Ok(()) => Ok(operation_id),
+        Err(_) => Err(ExecutionFailure {
+            diagnostic: "operation-failed-reconciliation-required",
+            operation_id: Some(operation_id),
+        }),
     }
 }
 
@@ -217,6 +295,7 @@ fn run_reset(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
     let audit_directory = Path::new(INSTALL_ROOT).join("audit");
     let lock_path = state_directory.join("operation.lock");
     let _lock = LockFile::acquire(&lock_path)?;
+    ensure_reconciled(&state_directory, Operation::ResetSlot).map_err(std::io::Error::other)?;
 
     let operation_id = operation_id()?;
     append_audit(
@@ -227,7 +306,7 @@ fn run_reset(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
         "started",
         "",
     )?;
-    let output = match run_bounded(RESET_SCRIPT, TIMEOUT) {
+    let output = match run_bounded(RESET_SCRIPT, RESET_TIMEOUT) {
         Ok(output) => output,
         Err(error) => {
             append_audit(
@@ -284,7 +363,7 @@ fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> 
         "started",
         "",
     )?;
-    let output = match run_bounded(INSPECT_SCRIPT, Duration::from_secs(60)) {
+    let output = match run_bounded(INSPECT_SCRIPT, INSPECT_TIMEOUT) {
         Ok(output) => output,
         Err(error) => {
             append_audit(
@@ -328,6 +407,102 @@ fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> 
         "",
     )?;
     Ok(operation_id)
+}
+
+fn run_lifecycle(
+    request: &Request,
+    operation: Operation,
+    operation_id: &str,
+    script: &str,
+    timeout: Duration,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let _enrollment = prepare_install_state()?;
+    let state_directory = Path::new(INSTALL_ROOT).join("state");
+    let result_directory = Path::new(INSTALL_ROOT).join("results");
+    let audit_directory = Path::new(INSTALL_ROOT).join("audit");
+    let _lock = LockFile::acquire(&state_directory.join("operation.lock"))?;
+    append_audit(
+        &audit_directory,
+        operation_id,
+        &request.request_id,
+        operation,
+        "started",
+        "",
+    )?;
+    let reconciliation_path = state_directory.join(RECONCILIATION_MARKER);
+    begin_reconciliation(&reconciliation_path, operation, operation_id)?;
+
+    let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let inspection_output =
+            run_bounded(INSPECT_SCRIPT, INSPECT_TIMEOUT).map_err(std::io::Error::other)?;
+        let inspection = parse_inspect_result(&inspection_output)?;
+        let expected_state = match operation {
+            Operation::StartSlot => "Off",
+            Operation::ShutdownSlot => "Running",
+            _ => return Err("invalid lifecycle operation".into()),
+        };
+        if inspection.state != expected_state {
+            return Err("lifecycle preflight state mismatch".into());
+        }
+        let output = run_bounded(script, timeout).map_err(std::io::Error::other)?;
+        let result = parse_lifecycle_result(&output, operation)?;
+        let result_json = format!(
+            concat!(
+                "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n  \"operation_id\": \"{}\",\n",
+                "  \"operation\": \"{}\",\n  \"status\": \"succeeded\",\n",
+                "  \"vm_id\": \"{}\",\n  \"previous_state\": \"{}\",\n",
+                "  \"state\": \"{}\",\n  \"gpu_adapters\": {},\n",
+                "  \"child\": \"{}\",\n  \"parent\": \"{}\",\n",
+                "  \"parent_sha256\": \"{}\"\n}}\n"
+            ),
+            request.request_id,
+            operation_id,
+            operation.as_str(),
+            result.vm_id,
+            result.previous_state,
+            result.state,
+            result.gpu_adapters,
+            json_escape(&result.child),
+            json_escape(&result.parent),
+            result.parent_sha256
+        );
+        write_atomic(&result_directory, operation_id, &result_json)?;
+        Ok(())
+    })();
+    if let Err(error) = operation_result {
+        let _ = append_audit(
+            &audit_directory,
+            operation_id,
+            &request.request_id,
+            operation,
+            "failed-reconciliation-required",
+            &error.to_string(),
+        );
+        let failure_json = format!(
+            concat!(
+                "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n",
+                "  \"operation_id\": \"{}\",\n  \"operation\": \"{}\",\n",
+                "  \"status\": \"failed\",\n  \"reconciliation_required\": true,\n",
+                "  \"diagnostic\": \"{}\"\n}}\n"
+            ),
+            request.request_id,
+            operation_id,
+            operation.as_str(),
+            json_escape(&error.to_string())
+        );
+        let _ = write_atomic(&result_directory, operation_id, &failure_json);
+        return Err(error);
+    }
+    append_audit(
+        &audit_directory,
+        operation_id,
+        &request.request_id,
+        operation,
+        "succeeded",
+        "",
+    )?;
+    fs::remove_file(reconciliation_path)?;
+    Ok(())
 }
 
 struct LockFile {
@@ -558,13 +733,93 @@ $gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop)
 [Console]::Out.WriteLine('gpu_interface' + "`t" + $hostGpu.Name)
 "#;
 
+const START_SCRIPT: &str = r#"
+$ErrorActionPreference = 'Stop'
+$vmId = [guid]'2627E735-5B33-4104-B739-622727DD3A40'
+$vmName = 'HyperGpuSupport-Disposable-01'
+$parentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'
+$parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
+$childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
+$gpuPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
+$vm = Get-VM -Id $vmId -ErrorAction Stop
+if ($vm.Name -ne $vmName -or $vm.State -ne 'Off' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or start state mismatch' }
+if ($vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'checkpoint state rejected' }
+$drives = @(Get-VMHardDiskDrive -VM $vm -ErrorAction Stop)
+if ($drives.Count -ne 1 -or $drives[0].Path -ine $childPath) { throw 'enrolled child attachment mismatch' }
+$childItem = Get-Item -LiteralPath $childPath -ErrorAction Stop
+if ($childItem.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'child reparse point rejected' }
+$child = Get-VHD -Path $childPath -ErrorAction Stop
+if ($child.ParentPath -ine $parentPath -or $child.VhdType -ne 'Differencing') { throw 'child chain mismatch' }
+$parent = Get-Item -LiteralPath $parentPath -ErrorAction Stop
+if (-not $parent.IsReadOnly -or ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'parent protection mismatch' }
+$hash = $parentHash
+$gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop)
+if ($gpuAdapters.Count -gt 1 -or ($gpuAdapters.Count -eq 1 -and $gpuAdapters[0].InstancePath -ine $gpuPath)) { throw 'GPU adapter identity rejected' }
+$otherGpuAssignments = @(Get-VM -ErrorAction Stop | Where-Object { $_.Id -ne $vmId } | ForEach-Object { Get-VMGpuPartitionAdapter -VM $_ -ErrorAction Stop })
+if ($otherGpuAssignments.Count -ne 0) { throw 'another VM GPU assignment rejected' }
+$availableMemoryKiB = [uint64](Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).FreePhysicalMemory
+if ($availableMemoryKiB -lt 12582912) { throw 'host available memory below 12 GiB' }
+Start-VM -VM $vm -ErrorAction Stop | Out-Null
+$verifiedVm = Get-VM -Id $vmId -ErrorAction Stop
+$verifiedDrives = @(Get-VMHardDiskDrive -VM $verifiedVm -ErrorAction Stop)
+$verifiedAdapters = @(Get-VMGpuPartitionAdapter -VM $verifiedVm -ErrorAction Stop)
+if ($verifiedVm.Name -ne $vmName -or $verifiedVm.State -ne 'Running' -or $verifiedDrives.Count -ne 1 -or $verifiedDrives[0].Path -ine $childPath -or $verifiedAdapters.Count -ne $gpuAdapters.Count -or ($verifiedAdapters.Count -eq 1 -and $verifiedAdapters[0].InstancePath -ine $gpuPath)) { throw 'start verification failed' }
+[Console]::Out.WriteLine('status' + "`t" + 'ok')
+[Console]::Out.WriteLine('vm_id' + "`t" + $vmId.ToString().ToLowerInvariant())
+[Console]::Out.WriteLine('previous_state' + "`t" + 'Off')
+[Console]::Out.WriteLine('state' + "`t" + [string]$verifiedVm.State)
+[Console]::Out.WriteLine('gpu_adapters' + "`t" + $verifiedAdapters.Count)
+[Console]::Out.WriteLine('child' + "`t" + $child.Path)
+[Console]::Out.WriteLine('parent' + "`t" + $child.ParentPath)
+[Console]::Out.WriteLine('parent_sha256' + "`t" + $hash)
+"#;
+
+const SHUTDOWN_SCRIPT: &str = r#"
+$ErrorActionPreference = 'Stop'
+$vmId = [guid]'2627E735-5B33-4104-B739-622727DD3A40'
+$vmName = 'HyperGpuSupport-Disposable-01'
+$parentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'
+$parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
+$childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
+$gpuPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
+$vm = Get-VM -Id $vmId -ErrorAction Stop
+if ($vm.Name -ne $vmName -or $vm.State -ne 'Running' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or shutdown state mismatch' }
+if ($vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'checkpoint state rejected' }
+$drives = @(Get-VMHardDiskDrive -VM $vm -ErrorAction Stop)
+if ($drives.Count -ne 1 -or $drives[0].Path -ine $childPath) { throw 'enrolled child attachment mismatch' }
+$childItem = Get-Item -LiteralPath $childPath -ErrorAction Stop
+if ($childItem.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'child reparse point rejected' }
+$child = Get-VHD -Path $childPath -ErrorAction Stop
+if ($child.ParentPath -ine $parentPath -or $child.VhdType -ne 'Differencing') { throw 'child chain mismatch' }
+$parent = Get-Item -LiteralPath $parentPath -ErrorAction Stop
+if (-not $parent.IsReadOnly -or ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'parent protection mismatch' }
+$hash = $parentHash
+$gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop)
+if ($gpuAdapters.Count -gt 1 -or ($gpuAdapters.Count -eq 1 -and $gpuAdapters[0].InstancePath -ine $gpuPath)) { throw 'GPU adapter identity rejected' }
+Stop-VM -VM $vm -Confirm:$false -ErrorAction Stop
+$verifiedVm = Get-VM -Id $vmId -ErrorAction Stop
+$verifiedDrives = @(Get-VMHardDiskDrive -VM $verifiedVm -ErrorAction Stop)
+$verifiedAdapters = @(Get-VMGpuPartitionAdapter -VM $verifiedVm -ErrorAction Stop)
+if ($verifiedVm.Name -ne $vmName -or $verifiedVm.State -ne 'Off' -or $verifiedDrives.Count -ne 1 -or $verifiedDrives[0].Path -ine $childPath -or $verifiedAdapters.Count -ne $gpuAdapters.Count -or ($verifiedAdapters.Count -eq 1 -and $verifiedAdapters[0].InstancePath -ine $gpuPath)) { throw 'shutdown verification failed' }
+[Console]::Out.WriteLine('status' + "`t" + 'ok')
+[Console]::Out.WriteLine('vm_id' + "`t" + $vmId.ToString().ToLowerInvariant())
+[Console]::Out.WriteLine('previous_state' + "`t" + 'Running')
+[Console]::Out.WriteLine('state' + "`t" + [string]$verifiedVm.State)
+[Console]::Out.WriteLine('gpu_adapters' + "`t" + $verifiedAdapters.Count)
+[Console]::Out.WriteLine('child' + "`t" + $child.Path)
+[Console]::Out.WriteLine('parent' + "`t" + $child.ParentPath)
+[Console]::Out.WriteLine('parent_sha256' + "`t" + $hash)
+"#;
+
 #[cfg(test)]
 mod tests {
     use std::fs;
     use std::time::{Duration, Instant};
 
     use super::{
-        INSPECT_SCRIPT, LockFile, RESET_SCRIPT, append_audit, handle_request, json_escape,
+        INSPECT_SCRIPT, INSPECT_TIMEOUT, LockFile, RECONCILIATION_MARKER, RESET_SCRIPT,
+        RESET_TIMEOUT, SHUTDOWN_SCRIPT, SHUTDOWN_TIMEOUT, START_SCRIPT, START_TIMEOUT,
+        append_audit, begin_reconciliation, ensure_reconciled, handle_request, json_escape,
         run_bounded, startup_failure_message,
     };
     use hyper_gpu_support::runner::{Operation, POLICY_V1};
@@ -585,6 +840,42 @@ mod tests {
         assert!(!INSPECT_SCRIPT.contains("Start-VM"));
         assert!(!INSPECT_SCRIPT.contains("Stop-VM"));
         assert!(!INSPECT_SCRIPT.contains("SilentlyContinue"));
+        assert!(INSPECT_SCRIPT.contains("Get-FileHash"));
+        assert!(START_SCRIPT.contains("Start-VM -VM $vm"));
+        assert!(START_SCRIPT.contains("FreePhysicalMemory"));
+        assert!(START_SCRIPT.contains("-lt 12582912"));
+        assert!(START_SCRIPT.contains("another VM GPU assignment rejected"));
+        assert!(SHUTDOWN_SCRIPT.contains("Stop-VM -VM $vm"));
+        for script in [START_SCRIPT, SHUTDOWN_SCRIPT] {
+            assert!(script.contains("2627E735-5B33-4104-B739-622727DD3A40"));
+            assert!(script.contains("Get-VMSnapshot"));
+            assert!(script.contains("Get-VMGpuPartitionAdapter"));
+            assert!(script.contains("$gpuAdapters[0].InstancePath -ine $gpuPath"));
+            assert!(script.contains("$verifiedAdapters[0].InstancePath -ine $gpuPath"));
+            assert!(!script.contains("Remove-VM"));
+            assert!(!script.contains("Invoke-Expression"));
+            assert!(!script.contains("param("));
+            assert!(!script.contains("SilentlyContinue"));
+            assert!(!script.contains("Get-FileHash"));
+        }
+        assert!(!SHUTDOWN_SCRIPT.contains("-Force"));
+        assert!(!SHUTDOWN_SCRIPT.contains("-TurnOff"));
+        assert!(!SHUTDOWN_SCRIPT.contains("-Save"));
+    }
+
+    #[test]
+    fn lifecycle_deadlines_include_parent_inspection_and_transition_allowance() {
+        assert_eq!(RESET_TIMEOUT, Duration::from_secs(300));
+        assert_eq!(INSPECT_TIMEOUT, Duration::from_secs(300));
+        assert_eq!(START_TIMEOUT, Duration::from_secs(180));
+        assert_eq!(SHUTDOWN_TIMEOUT, Duration::from_secs(120));
+        let installer = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/scripts/setup/install-runner-v1.ps1"
+        ));
+        assert!(installer.contains("ExecutionTimeLimit = 'PT10M'"));
+        assert!(INSPECT_TIMEOUT + START_TIMEOUT < Duration::from_secs(600));
+        assert!(INSPECT_TIMEOUT + SHUTDOWN_TIMEOUT < Duration::from_secs(600));
     }
 
     #[test]
@@ -632,7 +923,7 @@ mod tests {
         assert!(audit.contains("\"request_id\":\"0123456789abcdef0123456789abcdef\""));
         assert!(audit.contains("\"operation\":\"inspect\""));
         assert!(!audit.contains("\"operation\":\"reset-slot\""));
-        fs::remove_dir_all(directory).unwrap();
+        fs::remove_dir_all(&directory).unwrap();
     }
 
     #[test]
@@ -655,6 +946,42 @@ mod tests {
         let second = LockFile::acquire(&path).unwrap();
         drop(second);
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn uncertain_lifecycle_marker_blocks_mutation_but_allows_inspection() {
+        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("local")
+            .join("test-work")
+            .join(format!(
+                "hyper-gpu-runner-reconcile-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+        fs::create_dir_all(&directory).unwrap();
+        let marker = directory.join(RECONCILIATION_MARKER);
+        begin_reconciliation(&marker, Operation::StartSlot, "1790391920-577596700").unwrap();
+        assert!(
+            begin_reconciliation(&marker, Operation::ShutdownSlot, "1790391921-577596700").is_err()
+        );
+        assert_eq!(
+            ensure_reconciled(&directory, Operation::ResetSlot),
+            Err("reconciliation-required")
+        );
+        assert_eq!(ensure_reconciled(&directory, Operation::Inspect), Ok(()));
+        assert_eq!(
+            fs::read_to_string(&marker).unwrap(),
+            "start-slot 1790391920-577596700\n"
+        );
+        fs::remove_dir_all(&directory).unwrap();
+
+        assert_eq!(
+            ensure_reconciled(std::path::Path::new("invalid\0state"), Operation::ResetSlot),
+            Err("reconciliation-state-unavailable")
+        );
     }
 
     #[test]
@@ -684,5 +1011,74 @@ mod tests {
             "fixed adapter output exceeded limit"
         );
         assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[test]
+    fn fixed_lifecycle_scripts_execute_against_typed_fakes() {
+        const FAKES: &str = r#"
+$script:state = 'Off'
+$script:adapterPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
+$script:otherAssignment = $false
+$script:denyGpuQuery = $false
+$script:freeMemory = [uint64]12582912
+function Get-VM { [CmdletBinding()] param([guid]$Id) $target = [pscustomobject]@{ Id = [guid]'2627E735-5B33-4104-B739-622727DD3A40'; Name = 'HyperGpuSupport-Disposable-01'; State = $script:state; Generation = 2; Version = '12.0'; AutomaticCheckpointsEnabled = $false }; if ($PSBoundParameters.ContainsKey('Id')) { $target } else { $target; if ($script:otherAssignment) { [pscustomobject]@{ Id = [guid]'00000000-0000-0000-0000-000000000001'; Name = 'Other' } } } }
+function Get-VMSnapshot { [CmdletBinding()] param($VM) }
+function Get-VMHardDiskDrive { [CmdletBinding()] param($VM) [pscustomobject]@{ Path = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx' } }
+function Get-Item { [CmdletBinding()] param([string]$LiteralPath) [pscustomobject]@{ IsReadOnly = $true; Attributes = [IO.FileAttributes]::Normal } }
+function Get-VHD { [CmdletBinding()] param([string]$Path) [pscustomobject]@{ Path = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'; ParentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'; VhdType = 'Differencing' } }
+function Get-FileHash { [CmdletBinding()] param([string]$LiteralPath, [string]$Algorithm) [pscustomobject]@{ Hash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07' } }
+function Get-VMGpuPartitionAdapter { [CmdletBinding()] param($VM) if ($script:denyGpuQuery) { throw 'gpu query denied' }; if ($VM.Id -eq [guid]'2627E735-5B33-4104-B739-622727DD3A40' -or $script:otherAssignment) { [pscustomobject]@{ InstancePath = $script:adapterPath } } }
+function Get-CimInstance { [CmdletBinding()] param([string]$ClassName) [pscustomobject]@{ FreePhysicalMemory = $script:freeMemory } }
+function Start-VM { [CmdletBinding()] param($VM) $script:state = 'Running' }
+function Stop-VM { [CmdletBinding(SupportsShouldProcess)] param($VM) $script:state = 'Off' }
+"#;
+        let start_output =
+            run_bounded(&format!("{FAKES}\n{START_SCRIPT}"), Duration::from_secs(5)).unwrap();
+        hyper_gpu_support::runner::parse_lifecycle_result(&start_output, Operation::StartSlot)
+            .unwrap();
+
+        let shutdown_output = run_bounded(
+            &format!("{FAKES}\n$script:state = 'Running'\n{SHUTDOWN_SCRIPT}"),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        hyper_gpu_support::runner::parse_lifecycle_result(
+            &shutdown_output,
+            Operation::ShutdownSlot,
+        )
+        .unwrap();
+
+        assert!(
+            run_bounded(
+                &format!("{FAKES}\n$script:adapterPath = 'wrong'\n{START_SCRIPT}"),
+                Duration::from_secs(5)
+            )
+            .unwrap_err()
+            .contains("GPU adapter identity rejected")
+        );
+        assert!(
+            run_bounded(
+                &format!("{FAKES}\n$script:otherAssignment = $true\n{START_SCRIPT}"),
+                Duration::from_secs(5)
+            )
+            .unwrap_err()
+            .contains("another VM GPU assignment rejected")
+        );
+        assert!(
+            run_bounded(
+                &format!("{FAKES}\n$script:freeMemory = 12582911\n{START_SCRIPT}"),
+                Duration::from_secs(5)
+            )
+            .unwrap_err()
+            .contains("host available memory below 12 GiB")
+        );
+        assert!(
+            run_bounded(
+                &format!("{FAKES}\n$script:denyGpuQuery = $true\n{START_SCRIPT}"),
+                Duration::from_secs(5)
+            )
+            .unwrap_err()
+            .contains("gpu query denied")
+        );
     }
 }

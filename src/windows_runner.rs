@@ -6,7 +6,7 @@
 //! one server instance.
 
 use std::fs::{File, OpenOptions};
-use std::io;
+use std::io::{self, Read};
 use std::os::windows::fs::OpenOptionsExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle};
 use std::thread;
@@ -29,13 +29,14 @@ use windows::Win32::Storage::FileSystem::{
 };
 use windows::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, ImpersonateNamedPipeClient, PIPE_REJECT_REMOTE_CLIENTS,
+    PeekNamedPipe,
 };
 use windows::Win32::System::Threading::{
     GetCurrentProcess, GetCurrentThread, OpenProcessToken, OpenThreadToken,
 };
 use windows::core::{PCWSTR, PWSTR};
 
-use crate::runner::{FrameError, read_frame, write_frame};
+use crate::runner::{FRAME_LIMIT, FrameError, read_frame, write_frame};
 
 const PIPE_BUFFER: u32 = 64 * 1024;
 const CLIENT_PIPE_ACCESS: u32 = FILE_GENERIC_READ.0 | FILE_WRITE_DATA.0;
@@ -147,7 +148,49 @@ pub fn transact(
     let handle = HANDLE(pipe.as_raw_handle());
     verify_pipe_owner(handle, expected_server_sid)?;
     write_frame(&mut pipe, request).map_err(frame_error)?;
-    read_frame(&mut pipe).map_err(frame_error)
+    wait_for_frame(&mut pipe, handle, deadline)
+}
+
+#[allow(unsafe_code)]
+fn wait_for_frame(pipe: &mut File, handle: HANDLE, deadline: Instant) -> io::Result<Vec<u8>> {
+    wait_for_available(handle, 4, deadline)?;
+    let mut header = [0_u8; 4];
+    pipe.read_exact(&mut header)?;
+    let frame_length = u32::from_le_bytes(header) as usize;
+    if frame_length > FRAME_LIMIT {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "runner protocol frame exceeds limit",
+        ));
+    }
+    wait_for_available(handle, frame_length, deadline)?;
+    let mut payload = vec![0_u8; frame_length];
+    pipe.read_exact(&mut payload)?;
+    Ok(payload)
+}
+
+#[allow(unsafe_code)]
+fn wait_for_available(handle: HANDLE, required: usize, deadline: Instant) -> io::Result<()> {
+    if required == 0 {
+        return Ok(());
+    }
+    loop {
+        let mut available = 0;
+        // SAFETY: `handle` remains owned by the caller and `available` is a valid
+        // writable counter for this non-consuming query.
+        unsafe { PeekNamedPipe(handle, None, 0, None, Some(&raw mut available), None) }
+            .map_err(windows_error)?;
+        if available as usize >= required {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "runner response deadline exceeded",
+            ));
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 #[allow(unsafe_code)]
@@ -318,11 +361,16 @@ fn frame_error(error: FrameError) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+    use std::io::Write;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle};
     use std::time::Duration;
 
-    use super::{current_user_sid_string, serve_one, transact};
+    use super::{PIPE_BUFFER, current_user_sid_string, serve_one, transact, wait_for_frame};
+    use crate::runner::{FRAME_LIMIT, write_frame};
     use windows::Win32::Foundation::{CloseHandle, ERROR_NO_TOKEN, HANDLE};
     use windows::Win32::Security::TOKEN_QUERY;
+    use windows::Win32::System::Pipes::CreatePipe;
     use windows::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 
     #[allow(unsafe_code)]
@@ -406,6 +454,112 @@ mod tests {
         assert_eq!(
             super::CLIENT_PIPE_ACCESS & super::FILE_CREATE_PIPE_INSTANCE.0,
             0
+        );
+    }
+
+    #[allow(unsafe_code)]
+    fn anonymous_pipe() -> (File, File) {
+        let mut read = HANDLE::default();
+        let mut write = HANDLE::default();
+        // SAFETY: output pointers are writable and successful handles move into
+        // exactly one owning File each.
+        unsafe { CreatePipe(&raw mut read, &raw mut write, None, PIPE_BUFFER) }.unwrap();
+        // SAFETY: CreatePipe returned two distinct owned handles.
+        unsafe {
+            (
+                File::from_raw_handle(read.0),
+                File::from_raw_handle(write.0),
+            )
+        }
+    }
+
+    #[test]
+    fn bounded_reader_deadline_is_enforced_on_ready_pipe() {
+        let (mut reader, _writer) = anonymous_pipe();
+        let handle = HANDLE(reader.as_raw_handle());
+        let started = std::time::Instant::now();
+        let error =
+            wait_for_frame(&mut reader, handle, started + Duration::from_millis(100)).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn bounded_reader_accepts_partial_header_and_payload() {
+        let (mut reader, mut writer) = anonymous_pipe();
+        let payload = b"partial-payload".to_vec();
+        let expected = payload.clone();
+        let writer = std::thread::spawn(move || {
+            let header = (payload.len() as u32).to_le_bytes();
+            writer.write_all(&header[..2]).unwrap();
+            std::thread::sleep(Duration::from_millis(20));
+            writer.write_all(&header[2..]).unwrap();
+            writer.write_all(&payload[..3]).unwrap();
+            std::thread::sleep(Duration::from_millis(20));
+            writer.write_all(&payload[3..]).unwrap();
+        });
+        let handle = HANDLE(reader.as_raw_handle());
+        assert_eq!(
+            wait_for_frame(
+                &mut reader,
+                handle,
+                std::time::Instant::now() + Duration::from_secs(1)
+            )
+            .unwrap(),
+            expected
+        );
+        writer.join().unwrap();
+    }
+
+    #[test]
+    fn bounded_reader_accepts_maximum_frame_without_backpressure_deadlock() {
+        let (mut reader, mut writer) = anonymous_pipe();
+        let expected = vec![0x5a; FRAME_LIMIT];
+        let payload = expected.clone();
+        let writer = std::thread::spawn(move || write_frame(&mut writer, &payload).unwrap());
+        let handle = HANDLE(reader.as_raw_handle());
+        assert_eq!(
+            wait_for_frame(
+                &mut reader,
+                handle,
+                std::time::Instant::now() + Duration::from_secs(2)
+            )
+            .unwrap(),
+            expected
+        );
+        writer.join().unwrap();
+    }
+
+    #[test]
+    fn bounded_reader_rejects_oversized_declaration() {
+        let (mut reader, mut writer) = anonymous_pipe();
+        writer
+            .write_all(&((FRAME_LIMIT as u32) + 1).to_le_bytes())
+            .unwrap();
+        let handle = HANDLE(reader.as_raw_handle());
+        let error = wait_for_frame(
+            &mut reader,
+            handle,
+            std::time::Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn bounded_reader_accepts_empty_frame_after_writer_closes() {
+        let (mut reader, mut writer) = anonymous_pipe();
+        write_frame(&mut writer, &[]).unwrap();
+        drop(writer);
+        let handle = HANDLE(reader.as_raw_handle());
+        assert!(
+            wait_for_frame(
+                &mut reader,
+                handle,
+                std::time::Instant::now() + Duration::from_secs(1)
+            )
+            .unwrap()
+            .is_empty()
         );
     }
 }

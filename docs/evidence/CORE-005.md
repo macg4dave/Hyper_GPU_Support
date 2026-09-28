@@ -176,3 +176,177 @@ diff whitespace and the four pinned hashes. Reviewer runtime model metadata was
 unavailable. Distinct-account S4U exchange and elevated recovery fault injection
 remain target evidence gaps; synchronous pipe connection/frame deadlines remain
 existing CORE-005 debt.
+
+## Repository-only lifecycle slice (2026-09-28)
+
+The candidate policy and runner now authorize fixed `start-slot` and
+`shutdown-slot` requests through the same authenticated local pipe, policy
+fingerprint, persistent nonce ledger, operation lock and audit/result path as
+inspection and reset. The adapters accept no target or command parameters. Each
+revalidates the enrolled GUID/name, Generation 2/version, exact child attachment
+and differencing parent, read-only parent hash, checkpoint absence and zero-or-one
+GPU adapter with the exact pinned instance path before the effect. Start requires `Off` and verifies `Running` within
+180 seconds, rejects any other VM GPU assignment and requires at least 12 GiB of
+reported available host RAM. Shutdown requires `Running`, invokes ordinary guest-integrated
+`Stop-VM`, and verifies `Off` within 120 seconds. It never selects `-Force`,
+`-TurnOff` or `-Save`; those remain outside the reviewed operation. The operation
+result records the exact before/after state and preserved pinned adapter count.
+
+Before either lifecycle effect the runner durably creates an administrator-owned
+`state\reconciliation-required-v1` marker containing the operation and operation
+ID. It removes the marker only after strict native-output parsing, atomic result
+publication and terminal operation audit all succeed. Any timeout, adapter failure,
+malformed result, full/unavailable result path or audit failure retains the marker,
+returns the operation ID where one was allocated, and blocks every later mutating
+request before nonce consumption; fixed read-only `inspect` remains available.
+Clearing the marker is deliberately not exposed to the unelevated protocol and
+requires a separately reviewed administrator reconciliation after native state is
+known. Fake-cmdlet tests execute the actual fixed scripts across success, wrong GPU,
+another-VM assignment, low-memory and denied-query cases; marker tests cover
+create-new persistence, mutation rejection and read-only inspection allowance.
+
+This follows the documented [`Start-VM`](https://learn.microsoft.com/powershell/module/hyper-v/start-vm)
+and [`Stop-VM`](https://learn.microsoft.com/powershell/module/hyper-v/stop-vm)
+object parameter sets. Repository validation passed formatting, strict locked
+Clippy, 46 library tests, all binary/integration/doc tests, locked build/rustdoc,
+documentation checks and a locked release build. The release hashes are runner
+`f90f172162bcf1367064a9db965796e0ec069c470a0655abbefc166d902d8d62`,
+client `eca369b52bd6a9bed68ec6c08799302f9130aea4483d479d9456e1b75e01f0c0`,
+rights helper `ac757f1598b31763616471bfe1ac439d1609963cb64decce2cdcd12128ecd84f`
+and policy `2889996ab6f035ae21c4c76c54146007369a704eb77aa884d78e9cb6b37dff91`.
+No installed file/task/account/policy/ACL, VM, GPU, guest or host state changed.
+Installation and any lifecycle run need a separately reviewed protected scope;
+target rights, state transitions and timeout reconciliation remain unproven.
+
+Independent final focused review drove the pinned-adapter, other-assignment,
+12 GiB admission, durable reconciliation, operation-ID/failure-result and
+fail-closed marker-lookup fixes. The reviewer found no remaining blocking code
+issue and independently verified `git diff --check` plus all four hashes above;
+it did not rerun the full suite. Reviewer runtime model metadata was unavailable.
+Cross-account installation, limited-principal lifecycle rights/transitions,
+real timeout reconciliation and injected publication/audit failures remain gaps;
+this repository-only slice establishes no hardware capability.
+
+## Third limited-principal installation trial and recovery (2026-09-28)
+
+The owner approved installation of the reviewed lifecycle candidate and only a
+read-only `inspect` invocation. The first installer attempt stopped before effects
+because its constants still pinned the prior binary hashes. After mechanically
+pinning the already reviewed artifacts, installation succeeded with runner SID
+`S-1-5-21-2102502009-691714006-1044501546-1012`; installed runner, client and policy
+hashes matched, `Runner-v1` was enabled with fixed `serve-once`, and no startup or
+reconciliation marker existed.
+
+The normal-token client request `4e97e5962423b74bea29e91aa3083e16`
+successfully crossed the distinct-account boundary. The runner authenticated it,
+recorded the exact policy fingerprint and started read-only operation
+`1790616106-754611000`. This proves the DEC-018 pipe-owner and impersonated-client
+SID design on the target. The inspect adapter then timed out after 60 seconds while
+hashing the 24,767,365,120-byte parent. It recorded bounded terminal failures and
+published no result; no VM lifecycle, GPU, disk or guest mutation ran. Both processes
+exited, but the client remained blocked beyond its nominal 15-second timeout until
+the runner responded, reproducing the synchronous response-deadline defect.
+
+Approved recovery completed successfully. `ResetSlot-v1` is enabled/ready with
+runner `e0d93aed5b595475a4918eb0f4013583b2e36ec2811b19f7bd58860150345c17`
+and policy `45b700f6d6ea31bda9d72cc000da3ca1788ba0c62961b2bd36178da5c1795ef6`;
+the candidate task/account/client/helper/enrollment/active backup and both processes
+are absent. Audit/results were retained.
+
+The corrected repository candidate gives parent-hash inspection a candidate
+300-second adapter limit pending a passing measurement, plus operation-specific client deadlines. The client now
+uses `PeekNamedPipe` to wait for and consume the header before waiting for the
+declared payload, avoiding maximum-frame buffer backpressure. Native pipe tests
+cover a 100 ms no-response deadline, split header/payload delivery, the legal
+65,536-byte maximum and an oversized declaration while preserving the authenticated
+owner check, including an empty frame after writer close. Full validation passed 51 library,
+9 runner, 3 client, all other binary/integration and doc tests, formatting, strict
+locked Clippy/build/rustdoc, documentation checks and a locked release build. New
+hashes are runner `555e8b017d62b6941347e7990c65c1161175e92883fa7d79607cea4e4b05f80d`,
+client `a977bfee9fd17457f2ceba07442064117afdb2b79665303fb78ee10f80fd4bc8`,
+rights helper `d1340e514c42925e891ab951904c9f10284d3b232a5bb335d333ab8e47ef7a77`
+and unchanged policy
+`2889996ab6f035ae21c4c76c54146007369a704eb77aa884d78e9cb6b37dff91`.
+Server-side connection/request deadlines remain debt. At this checkpoint no corrected
+candidate was installed; another protected installation/read-only run needed fresh approval.
+Independent focused review accepted the final header-first reader and its partial,
+maximum, oversized, deadline and closed-writer empty-frame tests with no findings,
+and independently verified all four hashes plus diff whitespace. Reviewer runtime
+model metadata was unavailable; the reviewer did not rerun the full suite.
+
+## Corrected read-only target validation (2026-09-28)
+
+The owner approved installation of the exact reviewed hashes above and one read-only
+`inspect`. Preflight verified those four source hashes, the enabled/ready legacy
+`ResetSlot-v1`, absence of `Runner-v1` and reconciliation marker, and the recovered
+legacy runner/policy hashes. The installer exited `0`; its elevated post-copy checks
+verified the hardened rights helper that is intentionally unreadable to the normal
+client account. Normal-account checks independently verified the installed runner,
+client and policy hashes, enabled/ready `Runner-v1`, removal of `ResetSlot-v1`, no
+startup/reconciliation marker, and consistent task/account/enrollment runner SID
+`S-1-5-21-2102502009-691714006-1044501546-1013`.
+
+The client launched request `abdd204e56936c6332bab98ee94d9e6e` and exited normally
+after about 222 seconds with empty stderr. Operation `1790617624-800511500` durably
+reported `succeeded`, proving that the 24,767,365,120-byte parent hash completes
+within the candidate 300-second adapter bound and that the polled operation-specific
+client deadline permits the complete response. The result pinned VM
+`2627e735-5b33-4104-b739-622727dd3a40` in `Off`, found zero assigned GPU adapters,
+verified parent SHA-256
+`0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07`, and found
+the configured NVIDIA `VEN_10DE&DEV_2D05` GPU-PV interface. Matching received,
+started and succeeded audit records carry policy fingerprint
+`2889996ab6f035ae21c4c76c54146007369a704eb77aa884d78e9cb6b37dff91`;
+no reconciliation marker exists and the runner returned to `Ready`.
+
+The corrected candidate remains installed. This was read-only validation: no VM,
+GPU, disk, guest or host-lifecycle mutation ran. Fixed start/graceful-shutdown and
+later GPU/staging/probe execution remain protected and unperformed.
+
+## First lifecycle target trial and fail-closed reconciliation (2026-09-28)
+
+The owner approved starting and then gracefully shutting down only pinned disposable
+VM `2627e735-5b33-4104-b739-622727dd3a40`, with no GPU attachment/removal, force-stop
+or host lifecycle action. Exact installed runner/client/policy hashes, absence of
+failure markers, ready runner task and an elevated read-only `Off` VM identity check
+passed before the request.
+
+Start request `89f7a47ab9bee9f2684bdb34ecf2005b`, operation
+`1790618530-782157600`, failed closed with `fixed Hyper-V adapter timed out` and
+durably published `operation-failed-reconciliation-required`. The marker contains
+`start-slot 1790618530-782157600`; received, started and failed audit records match
+the request, operation and policy fingerprint. Shutdown was not sent. Elevated
+read-only reconciliation found the exact VM still `Off`, `Operating normally`, with
+zero uptime and zero GPU adapters. Thus no VM transition or GPU mutation occurred.
+
+The cause is a composed-deadline defect: `START_SCRIPT` performs the complete parent
+hash before calling `Start-VM`, but the whole script had only the 180-second start
+allowance. The immediately preceding target inspection measured that same hash path
+at about 222 seconds. The repository correction therefore runs a separately bounded
+300-second inspection phase before a freshly revalidated 180-second start or
+120-second shutdown phase; client responses allow the corresponding aggregate plus
+30 seconds. Independent review found the installer's six-minute Task Scheduler cap
+was shorter than those composed paths. It is now ten minutes, verified after
+registration, and cross-layer tests bind that cap above runner and client deadlines
+without allowing a fast inspection to lend time to a transition. Focused runner/
+client tests and the full formatting, strict locked Clippy, locked workspace tests,
+locked build, warning-denied rustdoc, documentation and whitespace checks passed.
+The corrected release hashes are runner
+`eb8f724adc94446867b9ca759024d464fb982cf07bc909f2f4399f9f52217080`, client
+`bef2e0d03fa5f4497635bfd59f628d686d3cf3ecbc88d9d5defe4ef91d9f6391`, unchanged
+rights helper `d1340e514c42925e891ab951904c9f10284d3b232a5bb335d333ab8e47ef7a77`
+and unchanged policy
+`2889996ab6f035ae21c4c76c54146007369a704eb77aa884d78e9cb6b37dff91`.
+The installed prior candidate remains mutation-blocked by its reconciliation marker;
+clearing/recovering it, reinstalling these corrected hashes and retrying lifecycle
+are protected operations requiring independent review and explicit approval.
+
+Independent re-review found no remaining blocker after phase separation and the
+verified ten-minute task cap. It independently matched all four final hashes to the
+artifacts, installer and evidence and confirmed clean diff whitespace; the reviewer
+relied on the supplied full-suite results and runtime model metadata was unavailable.
+The reviewer considered recovery/reinstall/retry safe to present only with runner
+quiescence, exact-VM reconciliation, clearance of this specific marker, final hash/
+task-setting scope and fail-closed inspection on any uncertain result. Corrected
+lifecycle target execution remains unproven, and concurrent administrator changes
+to the protected parent remain outside the runner lock's guarantee.

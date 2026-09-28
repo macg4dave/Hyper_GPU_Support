@@ -5,20 +5,23 @@
 Overwrite this small note at handover; keep durable evidence on the task card.
 Treat it as a pointer, not another task-status or authorization store.
 
-- Last session: 2026-09-28, CORE-005's second approved limited-principal install
-  proved batch logon and task launch, but the runner exited before accepting the
-  read-only request; recovery restored the old reset-only state.
-- Changed: added a fixed Rust exact-SID LSA helper, SID-authoritative rollback,
-  checked helper cleanup and cross-account pipe authentication using client
-  impersonation plus explicit pipe-owner verification. DEC-017 records the rights;
-  DEC-018 records the transport identity boundary.
-- Outstanding: the pre-request native failure needs another explicitly approved
-  installation to read the new bounded startup diagnostic. CORE-005 still lacks
-  bounded pipe exchange, the full native failure matrix and lifecycle/GPU/staging/
-  probe operations. AppSandbox transport remains blocked by BLK-003.
-- Next recommended: obtain exact policy-change approval, install and read-only
-  validate the independently reviewed CORE-005 candidate, then close its remaining
-  fixed operations before CORE-006.
+- Last session: 2026-09-28, approved `start-slot` operation
+  `1790618530-782157600` failed closed after its 180-second whole-script timeout.
+  Elevated read-only reconciliation proved the pinned VM remained `Off`, operating
+  normally, with zero GPU adapters; shutdown was not issued.
+- Changed: the root cause is that lifecycle preflight repeats the measured
+  approximately 222-second parent hash before `Start-VM`. The repository candidate
+  now runs separately bounded 300-second inspection and 180/120-second start/
+  shutdown phases, with aligned aggregate client deadlines. Independent review
+  caught the installer's shorter six-minute task cap; it is now ten minutes and
+  verified after registration, with cross-layer deadline regression checks.
+- Outstanding: the installed prior candidate has the expected reconciliation marker
+  and is mutation-blocked. Corrected hashes need independent review, then host
+  recovery/reinstallation and another lifecycle trial require explicit approval.
+  Server-side connect/request deadlines, full native failure matrix and GPU/staging/
+  probe operations remain. AppSandbox transport remains blocked by BLK-003.
+- Next recommended: independently review the corrected timeout budgets and exact
+  release pins, then present bounded recovery/reinstall/retry scope to the owner.
   GPU-004 remains blocked by BLK-003.
 - Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
 - Blockers: see the register below; this note authorizes no protected operation.
@@ -60,7 +63,7 @@ contribute to their milestone's required exit.
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
 | [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
 | [CORE-004](#core-004) | M1 | P0 | completed | CORE-001, GPU-003 |
-| [CORE-005](#core-005) | M1 | P0 | in progress | CORE-001, HV-003, REF-001, GPU-003 |
+| [CORE-005](#core-005) | M1 | P0 | ready | CORE-001, HV-003, REF-001, GPU-003 |
 | [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
 | [CORE-007](#core-007) | M1 | P1 | planned | CORE-006 |
 | [CORE-008](#core-008) | M1 | P0 | planned | CORE-005, HV-002 |
@@ -647,8 +650,6 @@ for future work is not an invented current blocker.
 
 **Implement fixed native adapters and the minimal privileged runner**
 
-- Owner: `/root`, resumed 2026-09-27.
-
 - Context/scope: Implement Rust adapters and a stable privileged broker for only
   the measured Windows operations needed by the first vertical slice. Prefer native Rust/API access; justify any
   necessary command/script boundary through [the exception policy](ENGINEERING.md#rust-and-native-windows).
@@ -683,6 +684,52 @@ for future work is not an invented current blocker.
   same-user-only process-token authentication assumption; the corrected transport
   now uses server-side pipe-client impersonation and client-side pipe-owner SID
   verification. A protected install is still required to validate it cross-account.
+  The repository candidate now also implements fixed `start-slot` and graceful
+  `shutdown-slot` through the same authenticated, replay-protected and serialized
+  request path. Both operations pin the enrolled GUID/name/version, child/parent
+  chain and parent hash, reject checkpoints and more than one GPU adapter, require
+  exact source states and verify exact terminal states plus preserved pinned GPU
+  attachment, no other VM GPU assignment and at least 12 GiB available host RAM
+  before start. The 180/120-second bounds match GPU-003; shutdown contains no
+  force, turn-off or save fallback. A durable marker now blocks every later
+  mutation if a lifecycle result becomes uncertain while retaining its operation
+  ID and allowing read-only inspection. Hardware-free checks passed, but policy
+  installation and any VM lifecycle execution remain protected and unperformed.
+  Independent focused review found no remaining blocking code issue after the
+  identity, admission, reconciliation and fail-closed lookup fixes; runtime model
+  metadata was unavailable.
+  An approved installation then proved the corrected cross-account transport:
+  limited runner SID `S-1-5-21-2102502009-691714006-1044501546-1012` authenticated
+  the enrolled client, accepted request `4e97e5962423b74bea29e91aa3083e16`
+  and started read-only inspect operation `1790616106-754611000`. The fixed adapter
+  timed out at 60 seconds while hashing the 24.8 GB parent; no result, VM or GPU
+  mutation occurred. Recovery removed the candidate task/account/rights/client/
+  helper/enrollment and restored enabled `ResetSlot-v1` plus original runner/policy
+  hashes. The repository now uses a candidate 300-second inspect bound pending
+  measurement and real polled response deadlines; another installation requires
+  fresh approval. Independent focused review accepted the header-first reader,
+  maximum/partial/empty/oversized/deadline tests and final pins with no findings;
+  reviewer runtime model metadata was unavailable.
+  A fresh approved install of those exact pins succeeded with new limited runner
+  SID `S-1-5-21-2102502009-691714006-1044501546-1013`, matching task and enrollment.
+  Read-only request `abdd204e56936c6332bab98ee94d9e6e` completed in about 222
+  seconds as operation `1790617624-800511500`, proving the 300-second parent-hash
+  bound and polled client response path on the target. The durable result verified
+  the pinned off VM, unchanged parent hash, zero VM GPU adapters and configured
+  NVIDIA interface; stderr was empty and no reconciliation marker was created.
+  The reviewed candidate remains installed and ready. Lifecycle and later GPU,
+  staging/probe target execution still require separately scoped authorization.
+  The owner then approved one start followed by graceful shutdown. Start operation
+  `1790618530-782157600` timed out after 180 seconds before `Start-VM` because the
+  script's repeated parent hash alone takes about 222 seconds. It failed closed and
+  retained the reconciliation marker; read-only elevated inspection proved the VM
+  remained `Off`, operating normally, with zero GPU adapters, so shutdown was not
+  issued. The repository correction runs a separately bounded 300-second inspection
+  before a freshly revalidated 180/120-second transition and uses 510/450-second
+  client deadlines. A reviewed defect in the six-minute scheduler cap is corrected
+  to a verified ten minutes. Hardware-free checks pass; final corrected release
+  hashes passed independent review with no remaining findings. A new protected
+  recovery/reinstall/retry still requires explicit approval.
 
 ## CORE-006
 

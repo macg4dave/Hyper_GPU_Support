@@ -105,6 +105,25 @@ pub struct InspectResult {
     pub gpu_interface: String,
 }
 
+/// Checked state transition returned by a fixed VM lifecycle operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LifecycleResult {
+    /// Enrolled Hyper-V VM identifier.
+    pub vm_id: String,
+    /// State required immediately before the operation.
+    pub previous_state: String,
+    /// State observed after the operation completed.
+    pub state: String,
+    /// Count of attached GPU partition adapters preserved by the transition.
+    pub gpu_adapters: u32,
+    /// Exact attached child path.
+    pub child: String,
+    /// Exact differencing parent path.
+    pub parent: String,
+    /// Verified golden-parent SHA-256.
+    pub parent_sha256: String,
+}
+
 /// Fixed operation names in the version-one runner protocol.
 ///
 /// Availability is additionally restricted by the installed immutable policy;
@@ -171,7 +190,10 @@ impl Operation {
 /// This is intentionally explicit rather than inferred from protocol parsing.
 #[must_use]
 pub const fn policy_allows(operation: Operation) -> bool {
-    matches!(operation, Operation::Inspect | Operation::ResetSlot)
+    matches!(
+        operation,
+        Operation::Inspect | Operation::ResetSlot | Operation::StartSlot | Operation::ShutdownSlot
+    )
 }
 
 /// SHA-256 fingerprint bound to requests for the exact compiled policy bytes.
@@ -636,6 +658,51 @@ pub fn parse_inspect_result(output: &str) -> Result<InspectResult, RunnerError> 
     Ok(result)
 }
 
+/// Parse and identity-check a fixed start or graceful-shutdown result.
+///
+/// # Errors
+/// Returns [`RunnerError::InvalidProtocol`] for an inapplicable operation or
+/// missing, duplicate, unknown, malformed or target-mismatched fields.
+pub fn parse_lifecycle_result(
+    output: &str,
+    operation: Operation,
+) -> Result<LifecycleResult, RunnerError> {
+    let (expected_previous, expected_state) = match operation {
+        Operation::StartSlot => ("Off", "Running"),
+        Operation::ShutdownSlot => ("Running", "Off"),
+        _ => return Err(RunnerError::InvalidProtocol),
+    };
+    let mut fields = parse_fields(output)?;
+    if fields.len() != 8 || fields.remove("status") != Some("ok") {
+        return Err(RunnerError::InvalidProtocol);
+    }
+    let result = LifecycleResult {
+        vm_id: take_field(&mut fields, "vm_id")?.to_owned(),
+        previous_state: take_field(&mut fields, "previous_state")?.to_owned(),
+        state: take_field(&mut fields, "state")?.to_owned(),
+        gpu_adapters: take_field(&mut fields, "gpu_adapters")?
+            .parse()
+            .map_err(|_| RunnerError::InvalidProtocol)?,
+        child: take_field(&mut fields, "child")?.to_owned(),
+        parent: take_field(&mut fields, "parent")?.to_owned(),
+        parent_sha256: take_field(&mut fields, "parent_sha256")?.to_owned(),
+    };
+    if !fields.is_empty()
+        || result.vm_id != VM_ID
+        || result.previous_state != expected_previous
+        || result.state != expected_state
+        || result.gpu_adapters > 1
+        || result.child != r"Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx"
+        || result.parent
+            != r"Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx"
+        || result.parent_sha256
+            != "0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07"
+    {
+        return Err(RunnerError::InvalidProtocol);
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -644,10 +711,11 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        Enrollment, FRAME_LIMIT, InspectResult, Operation, POLICY_V1, PersistentStateError,
-        Request, ResetResult, Response, RunnerError, authorize_request, consume_nonce,
-        parse_enrollment, parse_inspect_result, parse_request, parse_reset_result, parse_response,
-        policy_allows, policy_fingerprint, read_frame, verify_policy, write_frame,
+        Enrollment, FRAME_LIMIT, InspectResult, LifecycleResult, Operation, POLICY_V1,
+        PersistentStateError, Request, ResetResult, Response, RunnerError, VM_ID,
+        authorize_request, consume_nonce, parse_enrollment, parse_inspect_result,
+        parse_lifecycle_result, parse_request, parse_reset_result, parse_response, policy_allows,
+        policy_fingerprint, read_frame, verify_policy, write_frame,
     };
 
     const REQUEST: &str = concat!(
@@ -671,6 +739,8 @@ mod tests {
         assert_eq!(policy_fingerprint().len(), 64);
         assert!(policy_allows(Operation::ResetSlot));
         assert!(policy_allows(Operation::Inspect));
+        assert!(policy_allows(Operation::StartSlot));
+        assert!(policy_allows(Operation::ShutdownSlot));
         assert!(!policy_allows(Operation::AssignGpu));
         assert_eq!(
             verify_policy(&POLICY_V1.replace("reset-slot", "arbitrary-command")),
@@ -858,6 +928,54 @@ mod tests {
         );
         assert_eq!(
             parse_inspect_result(&output.replace("state\tOff", "state\tSaved")),
+            Err(RunnerError::InvalidProtocol)
+        );
+    }
+
+    #[test]
+    fn parses_exact_lifecycle_transitions() {
+        let output = concat!(
+            "status\tok\n",
+            "vm_id\t2627e735-5b33-4104-b739-622727dd3a40\n",
+            "previous_state\tOff\n",
+            "state\tRunning\n",
+            "gpu_adapters\t1\n",
+            "child\tZ:\\HyperGpuSupport\\images\\disposable\\gpu-pv-slot-01\\child.vhdx\n",
+            "parent\tZ:\\HyperGpuSupport\\images\\golden\\win11-pro-25h2-26200.9457-x64-v1\\parent.vhdx\n",
+            "parent_sha256\t0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07\n",
+        );
+        assert_eq!(
+            parse_lifecycle_result(output, Operation::StartSlot),
+            Ok(LifecycleResult {
+                vm_id: VM_ID.into(),
+                previous_state: "Off".into(),
+                state: "Running".into(),
+                gpu_adapters: 1,
+                child: r"Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx".into(),
+                parent:
+                    r"Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx"
+                        .into(),
+                parent_sha256: "0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07"
+                    .into(),
+            })
+        );
+        let shutdown = output
+            .replace("state\tRunning", "state\tOff")
+            .replace("previous_state\tOff", "previous_state\tRunning");
+        assert!(parse_lifecycle_result(&shutdown, Operation::ShutdownSlot).is_ok());
+
+        for invalid in [
+            output.replace("state\tRunning", "state\tOff"),
+            output.replace("gpu_adapters\t1", "gpu_adapters\t2"),
+            output.replace(VM_ID, "00000000-0000-0000-0000-000000000000"),
+        ] {
+            assert_eq!(
+                parse_lifecycle_result(&invalid, Operation::StartSlot),
+                Err(RunnerError::InvalidProtocol)
+            );
+        }
+        assert_eq!(
+            parse_lifecycle_result(output, Operation::AssignGpu),
             Err(RunnerError::InvalidProtocol)
         );
     }

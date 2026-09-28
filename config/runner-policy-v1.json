@@ -7,5 +7,5 @@
   "parent_sha256": "0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07",
   "child": "Z:\\HyperGpuSupport\\images\\disposable\\gpu-pv-slot-01\\child.vhdx",
   "gpu_interface": "\\\\?\\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\\GPUPARAV",
-  "allowed_operations": ["inspect", "reset-slot"]
+  "allowed_operations": ["inspect", "reset-slot", "start-slot", "shutdown-slot"]
 }

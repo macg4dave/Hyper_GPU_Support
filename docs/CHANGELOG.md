@@ -6,6 +6,33 @@ remain in its Resume block. Do not duplicate detailed test output here.
 
 ## 2026-09-28
 
+- [CORE-005](BACKLOG.md#core-005): an authorized start trial failed closed before
+  `Start-VM` because the measured parent hash exceeded the whole-script deadline;
+  read-only reconciliation proved the VM remained off and unchanged. Lifecycle now
+  uses separate 300-second inspection and 180/120-second transition limits, aligned
+  client deadlines, and a verified ten-minute scheduler cap. Corrected reinstall
+  and retry remain protected. Evidence: [CORE-005](evidence/CORE-005.md).
+
+- [CORE-005](BACKLOG.md#core-005): installed the exact reviewed limited-principal
+  candidate and passed read-only target inspection, including the 24.8 GB parent
+  hash in about 222 seconds, durable audit/result publication, pinned VM/GPU checks
+  and the enforced response path. The candidate remains installed; lifecycle and
+  GPU mutation were not authorized or run. Evidence: [CORE-005](evidence/CORE-005.md).
+
+- [CORE-005](BACKLOG.md#core-005): an approved limited-principal install proved
+  cross-account authenticated request exchange; read-only inspection exposed the
+  parent-hash and ineffective client-deadline bounds, then recovery restored the
+  original reset-only state. The corrected candidate uses a measured hash bound
+  and an enforced bounded-frame response deadline. Evidence:
+  [CORE-005](evidence/CORE-005.md).
+
+- [CORE-005](BACKLOG.md#core-005): added the repository-only fixed `start-slot`
+  and graceful `shutdown-slot` runner slice with exact enrolled-state and disk-chain
+  checks, pinned/single-guest GPU and memory admission, replay/audit/result
+  integration, durable uncertain-state blocking, bounded execution and no
+  force-off/save fallback. Hardware-free checks passed; installation and VM execution remain
+  protected and unperformed. Evidence: [CORE-005](evidence/CORE-005.md).
+
 - [CORE-005](BACKLOG.md#core-005): diagnosed the limited S4U runner's missing
   batch-logon right, safely restored the prior installation, and replaced the
   unsafe whole-template policy proposal with a fixed Rust exact-SID LSA delta and
