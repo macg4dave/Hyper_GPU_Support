@@ -12,8 +12,8 @@ Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 - Prefer deterministic tests for parsing, policy, API, state transitions, and
   error paths. Choose unit, integration, regression, or documentation tests to
   verify behavior at the appropriate boundary; avoid implementation-mirroring tests.
-- Cover empty, malformed, missing, inconsistent, minimum, maximum, overflow,
-  alignment, unsupported-platform, and cleanup cases when relevant.
+- Cover the meaningful normal, boundary and failure cases for the changed behavior;
+  do not add a mechanical matrix of cases that cannot affect the implementation.
 - Separate hardware-independent tests from explicitly selected administrator,
   Hyper-V, and GPU tests; use simple controlled interfaces where needed.
 - Use condition-based synchronization and bounded waits instead of arbitrary

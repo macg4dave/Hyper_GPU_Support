@@ -1,8 +1,18 @@
 # Changelog
 
-Record meaningful completed changes in one short entry per change, with task
-IDs and evidence links. Task statuses remain in BACKLOG; partial session notes
-remain in its Resume block. Do not duplicate detailed test output here.
+Record meaningful completed changes in one short entry per change, with task IDs
+and evidence links when applicable. Task statuses remain in BACKLOG; partial
+handover notes remain in its Resume block. Do not duplicate detailed test output.
+
+## 2026-09-29
+
+- Simplified the project workflow around the first GPU-PV vertical slice. M1 now
+  gates only the fixed runner, guest transfer/staging, exact GPU attachment and
+  checked D3D11/D3D12/CUDA demonstration; planning, generalized audit/locking,
+  repeated lifecycle qualification, resource tuning and CLI probe integration move
+  to M2. Agent and prompt guidance now treats documentation as a record of product
+  work, not a prerequisite, while preserving protected-operation approval and
+  host/VM safety checks.
 
 ## 2026-09-28
 

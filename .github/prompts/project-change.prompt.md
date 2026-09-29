@@ -13,8 +13,9 @@ Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 [required checks](../../docs/ENGINEERING.md#required-checks-and-ci).
 
 - Identify the owning component and keep the Windows GPU-PV architecture minimal.
-- Inspect the affected implementation and immediate dependencies, establish the
-  relevant test baseline, and preserve behavior outside the task's acceptance.
+- Inspect the affected implementation and immediate technical dependencies. Reuse
+  recent test results unless a fresh baseline helps diagnose a regression or risky
+  boundary; preserve behavior outside the requested change.
 - Implement functionality in Rust wherever technically possible. Investigate
   Rust-native alternatives and document a technical necessity before adding a
   language exception; convenience or upstream language choice is insufficient.
@@ -23,5 +24,6 @@ Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 - Handle errors explicitly and isolate privileged host/guest side effects.
 - Add behavioral coverage for meaningful new or changed logic, including failure,
   boundary, cleanup, and bug regression cases as applicable.
-- Update affected documentation, support status, and backlog notes.
+- Update documentation or backlog state only when the implemented behavior,
+  dependency path or handover materially changed. Fix trivial note drift inline.
 - Run the required checks and report exact commands, results, and blockers.

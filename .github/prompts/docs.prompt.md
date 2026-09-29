@@ -17,10 +17,11 @@ Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
   or untested when appropriate.
 - Preserve attribution and source commit/path references for adapted material;
   distinguish AppSandbox reference behavior from this project's implementation.
-- Follow the document ownership map; update affected documentation, Rust doc
-  comments, and examples without duplicating authoritative rules or task status.
+- Follow the document ownership map and update only material affected behavior,
+  contracts, Rust docs or examples. Correct stale summaries/status inline; do not
+  create a task or broader audit unless a technical or safety decision depends on it.
 - Keep commands safe and reproducible; identify commands that mutate drivers,
   virtualization, networking, VM state, or guest disks.
-- Check links and consistency; validate code examples and applicable doctests,
-  or state precisely why they could not be run.
+- Check links touched by the change and validate changed code examples/doctests.
+  Do not audit unrelated documents merely to reconfirm earlier checks.
 - Avoid unrelated prose and formatting churn.

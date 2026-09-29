@@ -2,38 +2,29 @@
 
 ## Resume
 
-Overwrite this small note at handover; keep durable evidence on the task card.
-Treat it as a pointer, not another task-status or authorization store.
+Overwrite this note only for a real handover. It is a pointer, not a second status,
+evidence or authorization system; correct trivial drift in place.
 
-- Last session: 2026-09-28, approved `start-slot` operation
-  `1790618530-782157600` failed closed after its 180-second whole-script timeout.
-  Elevated read-only reconciliation proved the pinned VM remained `Off`, operating
-  normally, with zero GPU adapters; shutdown was not issued.
-- Changed: the root cause is that lifecycle preflight repeats the measured
-  approximately 222-second parent hash before `Start-VM`. The repository candidate
-  now runs separately bounded 300-second inspection and 180/120-second start/
-  shutdown phases, with aligned aggregate client deadlines. Independent review
-  caught the installer's shorter six-minute task cap; it is now ten minutes and
-  verified after registration, with cross-layer deadline regression checks.
-- Outstanding: the installed prior candidate has the expected reconciliation marker
-  and is mutation-blocked. Corrected hashes need independent review, then host
-  recovery/reinstallation and another lifecycle trial require explicit approval.
-  Server-side connect/request deadlines, full native failure matrix and GPU/staging/
-  probe operations remain. AppSandbox transport remains blocked by BLK-003.
-- Next recommended: independently review the corrected timeout budgets and exact
-  release pins, then present bounded recovery/reinstall/retry scope to the owner.
-  GPU-004 remains blocked by BLK-003.
-- Milestone: read the single current-milestone pointer in [ROADMAP.md](ROADMAP.md).
-- Blockers: see the register below; this note authorizes no protected operation.
+- Current outcome: M1 is the first Rust-driven D3D11/D3D12/CUDA GPU-PV
+  demonstration on the pinned disposable Windows 11 VM and RTX 5060.
+- Proven foundation: exact host/GPU/VM inventory, protected parent plus disposable
+  child, standalone probes, strict configuration types and a fixed Rust runner with
+  reset/read-only inspection are complete.
+- Immediate issue: the installed CORE-005 candidate is mutation-blocked after the
+  timed-out start attempt. The corrected timeout build is ready, but recovery,
+  reinstall and lifecycle retry are protected operations requiring explicit scope.
+- Next: finish CORE-005, then CORE-008/009 -> CORE-002 -> GPU-009 -> GPU-005 ->
+  GPU-006. AppSandbox transport blocker BLK-003 is diagnostic and does not block
+  the native path.
 
 ## Task register
 
 This table is the **only source** of task status, priority, milestone and
 dependencies. A task consists of its row plus its ID card below.
 Dependencies list required completed tasks; `-` means none.
-P0 precedes P1/P2; respect dependencies before priority. Milestone exits are
-additional readiness gates. GPU-007 and GPU-015 are optional lanes; other rows
-contribute to their milestone's required exit.
+P0 precedes P1/P2; respect genuine dependencies before priority. Milestone exits
+name their required cards explicitly. GPU-004 is a conditional diagnostic lane;
+GPU-007 and GPU-015 are optional research lanes.
 
 | ID | Milestone | Priority | Status | Depends on |
 |---|---|---|---|---|
@@ -55,24 +46,24 @@ contribute to their milestone's required exit.
 | [GPU-008](#gpu-008) | M0 | P0 | completed | HV-001, GPU-002 |
 | [GPU-003](#gpu-003) | M0 | P0 | completed | GPU-002, HV-003, REF-002, GPU-008 |
 | [HV-002](#hv-002) | M1 | P0 | completed | DOC-002, GPU-003 |
-| [GPU-004](#gpu-004) | M1 | P0 | blocked | CORE-020 |
-| [GPU-009](#gpu-009) | M1 | P0 | planned | HV-002, CORE-009 |
-| [GPU-005](#gpu-005) | M1 | P0 | planned | GPU-004, GPU-009, CORE-003 |
-| [GPU-010](#gpu-010) | M1 | P0 | planned | GPU-005 |
-| [GPU-011](#gpu-011) | M1 | P0 | planned | GPU-005 |
-| [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-010, GPU-011 |
+| [GPU-004](#gpu-004) | M1 | P1 | blocked | CORE-020 |
+| [GPU-009](#gpu-009) | M1 | P0 | planned | CORE-002 |
+| [GPU-005](#gpu-005) | M1 | P0 | planned | CORE-002, GPU-009, CORE-020 |
+| [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-005 |
+| [GPU-010](#gpu-010) | M2 | P1 | planned | GPU-006 |
+| [GPU-011](#gpu-011) | M2 | P1 | planned | CORE-010, CORE-011, GPU-006 |
 | [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
 | [CORE-004](#core-004) | M1 | P0 | completed | CORE-001, GPU-003 |
-| [CORE-005](#core-005) | M1 | P0 | ready | CORE-001, HV-003, REF-001, GPU-003 |
-| [CORE-006](#core-006) | M1 | P0 | planned | CORE-004, CORE-005 |
-| [CORE-007](#core-007) | M1 | P1 | planned | CORE-006 |
+| [CORE-005](#core-005) | M1 | P0 | ready | CORE-001, HV-002, HV-003, GPU-003 |
 | [CORE-008](#core-008) | M1 | P0 | planned | CORE-005, HV-002 |
-| [CORE-009](#core-009) | M1 | P0 | planned | CORE-007, CORE-008, GPU-002 |
-| [CORE-002](#core-002) | M1 | P0 | planned | CORE-006, CORE-009 |
-| [CORE-010](#core-010) | M2 | P1 | planned | CORE-002 |
-| [CORE-011](#core-011) | M2 | P1 | planned | CORE-002, CORE-010 |
-| [CORE-012](#core-012) | M2 | P1 | planned | CORE-002 |
-| [CORE-003](#core-003) | M1 | P0 | planned | CORE-002, CORE-020 |
+| [CORE-009](#core-009) | M1 | P0 | planned | CORE-008, GPU-002 |
+| [CORE-002](#core-002) | M1 | P0 | planned | CORE-005, CORE-009 |
+| [CORE-006](#core-006) | M2 | P1 | planned | GPU-006 |
+| [CORE-007](#core-007) | M2 | P1 | planned | CORE-006 |
+| [CORE-010](#core-010) | M2 | P1 | planned | CORE-006, CORE-007, GPU-006 |
+| [CORE-011](#core-011) | M2 | P1 | planned | CORE-005, GPU-006 |
+| [CORE-012](#core-012) | M2 | P1 | planned | GPU-006 |
+| [CORE-003](#core-003) | M2 | P1 | planned | CORE-002, CORE-020, GPU-006 |
 | [CORE-020](#core-020) | M1 | P0 | completed | GPU-008 |
 | [CORE-013](#core-013) | M2 | P1 | planned | CORE-001 |
 | [CORE-014](#core-014) | M3 | P1 | planned | CORE-003, CORE-013 |
@@ -100,33 +91,32 @@ contribute to their milestone's required exit.
   scope/acceptance known), `in progress` (claimed by named session/agent),
   `blocked` (specific impediment), `completed` (acceptance met with results).
   Owner appears only on an actively claimed card.
-- Normal flow: planned -> ready -> in progress -> completed. Incomplete
-  dependencies remain planned; actual impediments get linked permanent BLK IDs.
-  Verify milestone/context gates before marking a task ready.
+- Normal flow: planned -> ready -> in progress -> completed. Incomplete genuine
+  dependencies remain planned; actual technical or safety impediments get linked
+  permanent BLK IDs. Do not turn note/status discrepancies into tasks or blockers.
 - An experiment may complete with a failure report. This does not establish
   capability or satisfy a milestone that requires a passing workload.
-- Before claiming, read this register, dependency result pointers, the relevant
-  card and blockers. Release unfinished ownership to ready/blocked at handover.
+- Before claiming scheduled work, read its row/card and only relevant dependency
+  results or blockers. Release unfinished ownership at a real handover.
 - Task status tracks ownership; the assigned task authorizes routine repository
   implementation under the root permission boundary. It does not authorize a
   protected mutation. Request scoped approval for a new protected target/effect/
   recovery only when concrete steps are prepared; preserve prior authorization.
-- Proposed evidence/code/document paths in cards do not exist yet. Create them
-  only when actual procedures/results/work exist. Later code tasks locate modules
-  via dependency results and record exact paths before editing.
+- Create proposed evidence/code/document paths only when actual work needs them.
+  Documentation is not a prerequisite for a small coding step.
 - For every hardware run use the [validation contract](ARCHITECTURE.md#validation-contract).
-  Apply root security/provenance/protected-operation rules to every task without
-  copying them into each card. New essential defects receive bounded permanent
-  cards and must close before the affected gate; optional work cannot mask them.
+  Apply root security/provenance/protected-operation rules without copying them
+  into each card. Create a defect card only when the work needs scheduling or a
+  concrete issue blocks a technical gate; fix small local defects in place.
 - All authored code and tests follow [ENGINEERING.md](ENGINEERING.md); task cards
   add acceptance criteria, not exceptions to the Rust or quality standards.
 
 ## Blocker register
 
 The documented client/desktop vendor-support exclusion is a known project
-constraint, not proof that measured GPU-PV execution is impossible. M1 setup is
-currently held at the explicit host-stabilization blocker below; no protected
-action is authorized merely because it is registered here.
+constraint, not proof that measured GPU-PV execution is impossible. No protected
+action is authorized merely because it is registered here. BLK-003 affects the
+optional AppSandbox comparison, not the native M1 critical path.
 Anticipated risks/questions are owned by the
 [gap index](ARCHITECTURE.md#technical-gaps-and-research-gates); conditional product
 choices are in DEC-007/008. Promote an actual impediment here with evidence.
@@ -135,7 +125,7 @@ choices are in DEC-007/008. Promote an actual impediment here with evidence.
 |---|---|---|---|---|
 | BLK-001 | resolved 2026-09-25 | HV-001; CORE-001; GPU-002; HV-003 | The initial non-elevated inventory identified the host and RTX 5060 but Hyper-V denied partitionable-GPU, VM and supported-version queries; see [`docs/evidence/HV-001.md`](evidence/HV-001.md). | User approved the bounded administrator read-only rerun. It captured the GPU-P interface/ranges, supported versions and zero registered VMs without mutation. HV-001 completed; dependent cards became ready. |
 | BLK-002 | resolved 2026-09-26 | HV-002; GPU-004; CORE-005 | The owner authorized one normal reboot. Host Secure Boot was enabled, CBS/WU reboot state was clear and pinned identities were unchanged. The only persistent rename entry was a delete request for `gamingservicesproxy_13.dll.0`, whose active/old files were identical Microsoft Gaming Services `10.0.26100.9441`; see [HV-002](evidence/HV-002.md#inspected-baseline). | The plan was refreshed to treat only that exact reboot-persistent Gaming Services cleanup as unrelated noise. No System32/registry cleanup occurred. Any changed marker, servicing state or identity requires new review. |
-| BLK-003 | active 2026-09-26 | GPU-004; GPU-006 | The selected HCS-managed AppSandbox candidate is not a registered Hyper-V VM, so PowerShell Direct does not address it. Its persisted configuration has `SshEnabled` absent/false; no repeatable probe transfer, launch and result channel is established. | During the separately approved reference operation, use only AppSandbox's supported OpenSSH path: either verify an already installed/running guest OpenSSH service with owner-supplied ephemeral credentials, or obtain separate approval to create a recoverable reference branch/instance with AppSandbox `sshEnabled=true` and its deployed key. Pin the host-only endpoint/key, verify guest identity and binary hashes, and capture bounded commands/results. If neither route is approved or works, GPU-004 records the reference as blocked; do not use PowerShell Direct, manual config edits, clipboard injection or an arbitrary agent command. |
+| BLK-003 | active 2026-09-26 | GPU-004 | The selected HCS-managed AppSandbox candidate is not a registered Hyper-V VM, so PowerShell Direct does not address it. Its persisted configuration has `SshEnabled` absent/false; no repeatable probe transfer, launch and result channel is established. | When a native failure makes reference comparison useful, use only AppSandbox's supported OpenSSH path under separately approved scope. If that route is unavailable, leave GPU-004 blocked; do not use manual config edits, clipboard injection or an arbitrary agent command. This does not block GPU-006's native demonstration. |
 
 Use permanent BLK-NNN IDs; retain resolved entries and link the resolution.
 A failed essential experiment blocks GPU-006 or the relevant release gate even
@@ -529,70 +519,77 @@ for future work is not an invented current blocker.
 
 **Measure the AppSandbox reference baseline**
 
-- Context/scope: Run the reviewed reference GPU path and chosen host controls.
-- Read: GPU-003/008, CORE-020 and REF-002 results; BLK-003; [validation contract](ARCHITECTURE.md#validation-contract).
-- Acceptance: Establish the supported AppSandbox OpenSSH loopback/internal-NAT
-  transfer, launch and result path without manual configuration edits or a new
-  arbitrary guest-agent command; verify guest identity and transferred hashes.
-  If current OpenSSH is unavailable, obtain separate approval before creating a
-  recoverable branch/instance with AppSandbox's `sshEnabled`/deployed-key path,
-  otherwise record the reference blocked. Capture actual adapter, staged hashes,
-  enabled shims, process session, artifact and exact bounded commands. Run all
-  essential workloads and available optional probes; separate assignment, device
-  readiness, runtime load and checked execution results. Include raw output and
-  missing-dependency reasons. A failed run can complete measurement, but cannot
-  satisfy GPU-006 or M1; no 'copy done' or desktop-only GPU claim.
-- Files/output: `docs/evidence/GPU-004.md`: environment and per-workload result matrix.
+- Objective: capture a comparable AppSandbox run only when it helps diagnose an
+  observed native-path failure; it is not on the M1 critical path.
+- Dependencies: CORE-020 probes and a supported AppSandbox guest-access route.
+- Acceptance: verify guest/artifact identities and hashes, then run the same bounded
+  essential probes and separate assignment, device, runtime and workload outcomes.
+  Do not add an arbitrary guest command channel or treat desktop display as proof.
 - Result: pending.
 
 ## GPU-009
 
 **Prove native guest staging and disposable recovery**
 
-- Context/scope: Validate minimum unmodified runtime provisioning in the disposable native guest before compatibility hooks.
-- Read: GPU-002/003 manifests and [recovery contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Under scoped authorization, prove native transfer/execution, hash-verified staged driver/runtime/registry inputs and guest readiness. Test interrupted staging, mark uncertain state unusable, discard the child and recreate a clean child from the protected parent. Repeat staging successfully on the replacement. Use offline servicing only if proven necessary and separately approved. Any added shim dependency requires reproduced failure evidence and a bounded manifest delta.
-- Files/output: `docs/evidence/GPU-009.md`: staging/recreation recipe, transport choice and exact manifest.
+- Objective: validate the minimum unmodified NVIDIA provisioning in the disposable
+  guest and its existing discard/recreate recovery.
+- Dependencies: CORE-002 attachment (which follows CORE-009 staging).
+- Acceptance: under scoped authorization, verify transferred hashes, applied files/
+  settings and guest device/runtime readiness. Inject one interrupted staging case,
+  mark it unusable, recreate from the protected parent and stage successfully. Add
+  no offline servicing or shim without a demonstrated need and separate approval
+  where its effects require it.
 - Result: pending.
 
 ## GPU-005
 
-**Reproduce through native Hyper-V and isolate differences**
+**Demonstrate native GPU-PV and isolate only observed differences**
 
-- Context/scope: Compare explicit VMMS assignment with the reference using matched builds, files and workloads.
-- Read: GPU-004/009 results, HV-003 and [DEC-007](DECISIONS.md#dec-007).
-- Acceptance: Run essential probes and compare available optional probes. Verify actual adapter/effective resources and hardware renderer; isolate assignment, runtime, vendor extension and presentation failures. Introduce one justified shim dependency set at a time with before/after and clean-child recreation checks. Only a demonstrated gap permits a bounded HCS experiment; broader backend/scope changes use DEC-007. No silent default GPU or success after failed attachment.
-- Files/output: `docs/evidence/GPU-005.md`: native/reference comparison and minimum component candidates.
+- Objective: start the configured disposable guest and run the existing standalone
+  D3D11, D3D12 and CUDA probes through the explicitly attached RTX 5060.
+- Dependencies: CORE-002 attachment, GPU-009 staged guest and CORE-020 probes.
+- Acceptance: verify actual adapter identity/effective state, reject software
+  rendering, and pass checked D3D11/D3D12 render outputs plus CUDA allocation,
+  transfer, kernel and CPU comparison. Classify any failure by assignment, device,
+  runtime or workload layer. Use AppSandbox/HCS/shim comparison only for a concrete
+  failure; never silently fall back to a default GPU.
 - Result: pending.
 
 ## GPU-010
 
 **Measure one-guest allocation and host headroom**
 
-- Context/scope: Determine a conservative usable resource envelope on the 8 GB GPU before exposing presets.
-- Read: HV-003 values and GPU-005 result.
-- Acceptance: Record requested/reported effective VRAM/compute/encode/decode fields, partition counts and host/guest memory/load observations. Exercise small and increasing bounded allocation plus concurrent host rendering; define abort threshold before execution. Identify invalid-request behavior and whether any limit is actually enforced. Choose one measured safe preset or retain measured defaults; document unknown units/oversubscription and no hard-quota promise. No host-wide partition-count mutation without separate authorization.
-- Files/output: `docs/evidence/GPU-010.md`: workload, resource observations, headroom and proposed preset.
+- Objective: after the first demonstration, measure a conservative one-guest
+  resource envelope before exposing a preset.
+- Dependencies: GPU-006 demonstrated configuration.
+- Acceptance: compare requested/reported resource fields under bounded increasing
+  load, retain an abort threshold and determine whether limits are enforced. Choose
+  a measured preset or keep provider defaults. Do not change host partition count.
 - Result: pending.
 
 ## GPU-011
 
 **Verify lifecycle and disposable recreation**
 
-- Context/scope: Establish legal operation states and recovery without assuming checkpoint support.
-- Read: GPU-003 recovery plan, HV-003 state questions and GPU-009 preimages.
-- Acceptance: Under authorization run at least five clean shutdown/start cycles, one guest reboot, attach/remove/reapply and a controlled invalid assignment. Check essential probes after each stable state and adapter removal. Record failed boot/device-not-ready diagnosis, discard the affected child and prove recreation from the unchanged parent. Saved state/checkpoints/host sleep remain explicitly unvalidated unless separately tested; never force-stop by default.
-- Files/output: `docs/evidence/GPU-011.md`: state transitions, outcomes and verified recovery.
+- Objective: harden the demonstrated lifecycle and recovery path in M2.
+- Dependencies: GPU-006 proof plus CORE-010/011 CLI integration.
+- Acceptance: under authorization run repeated clean start/shutdown, guest reboot,
+  attach/remove/reapply and one invalid assignment; run essential probes at stable
+  states and prove disposable recreation after a controlled failure. Never force
+  stop by default; saved state/checkpoints/host sleep remain unvalidated unless run.
 - Result: pending.
 
 ## GPU-006
 
 **Verify reproducibility and choose the minimum path**
 
-- Context/scope: Close the first Rust GPU-PV demonstration and select its minimum proven path.
-- Read: GPU-004/005/009/010/011 results, [M1](ROADMAP.md#m1), DEC-002/006/007.
-- Acceptance: Essential D3D11/D3D12/CUDA workloads pass through the Rust-driven native/minimum path and reproduce the user's known-working reference behavior. Record backend/component decision, exact tested versions, manifest, resource envelope and disposable-child recreation. Optional comparisons keep individual limitations. A specific essential gap is diagnosed against AppSandbox/HCS evidence and repaired or presented to the user; failed experiments do not prove success.
-- Files/output: `docs/evidence/GPU-006.md`, new accepted backend decision and affected architecture sections.
+- Objective: close the first Rust-driven end-to-end GPU-PV demonstration and pin
+  the minimum working configuration.
+- Dependencies: GPU-005 passing native workload run.
+- Acceptance: record exact host/guest/driver/probe versions, configuration, staged
+  manifest, adapter identity and checked D3D11/D3D12/CUDA results. Confirm graceful
+  shutdown and a known recoverable disposable state. Update the backend/component
+  decision only if measured behavior changes it; optional comparisons do not gate.
 - Result: pending.
 
 ## CORE-001
@@ -648,157 +645,115 @@ for future work is not an invented current blocker.
 
 ## CORE-005
 
-**Implement fixed native adapters and the minimal privileged runner**
+**Finish the fixed runner operations needed by the vertical slice**
 
-- Context/scope: Implement Rust adapters and a stable privileged broker for only
-  the measured Windows operations needed by the first vertical slice. Prefer native Rust/API access; justify any
-  necessary command/script boundary through [the exception policy](ENGINEERING.md#rust-and-native-windows).
-- Read: HV-003, REF-001 and GPU-003; [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Build and test the minimal runner plus unelevated client adapter. Use fixed operations and typed parameters, structured results and explicit VM/GPU identifiers. Implement administrator-owned installed code/policy/enrollment, one pinned disposable slot/GPU/roots, runner-owned differencing-child reset for DEC-015's fixed VM shell, operation allowlist, request/result audit, replay protection and fail-closed validation. Never execute repository binaries or arbitrary commands elevated on the host. Preserve native error codes and handle missing rights and timeout/cancellation. Test invalid/stale identities, attempted agent enrollment/path selection, parent writes, query denial, policy tampering, partial reset and native failures using fakes; then run read-only target queries. Retain detailed native errors without secrets. Installation/execution on the target occurs only through HV-002's scoped authorization.
-- Files/output: Native adapter modules and `docs/evidence/CORE-005.md`.
-- Result: Partial. The first Rust slice implements and installs immutable-policy
-  `reset-slot` only. An unelevated trigger ran administrator-owned operation
-  `1790391920-577596700`, recreated the exact child after hash/state/path checks,
-  emitted audit/result records, and produced a bootable clean guest. Full lifecycle,
-  GPU, staging/probe, client and minimum-rights work remains. Evidence:
-  [`docs/evidence/CORE-005.md`](evidence/CORE-005.md).
-  On 2026-09-27 the repository candidate added typed fixed-operation requests,
-  target/field rejection, policy freshness, authenticated local named-pipe client
-  transport, persistent replay storage, recoverable exclusive locking and a
-  dedicated limited Hyper-V Administrators principal with exact parent/child ACLs.
-  The installed host remains on the old reset-only task; no protected state changed.
-  Candidate installation/read-only validation and the lifecycle, GPU, staging/probe
-  operations still remain, so the task is not complete.
-  On 2026-09-28 the approved candidate installed but its S4U task never launched;
-  read-only policy inspection identified missing `SeBatchLogonRight`. Recovery
-  restored the old task/files/ACLs without a VM, GPU, guest or host-lifecycle
-  operation. The repository now uses a fixed Rust exact-SID LSA helper for the five
-  reviewed batch/deny rights and symmetric rollback. Applying that new host-policy
-  delta needs separate explicit approval before installation can be retried.
-  The approved corrected trial then proved task launch but failed before the
-  read-only request/audit with access denied and runner exit `1`. Recovery restored
-  the original state; one silently retained helper exposed an ACL/removal defect and
-  was removed within the approved rollback. The repository now checks helper removal
-  and records a bounded startup failure. Another protected install is required to
-  identify the exact pre-request native failure. Code-path review identified the
-  same-user-only process-token authentication assumption; the corrected transport
-  now uses server-side pipe-client impersonation and client-side pipe-owner SID
-  verification. A protected install is still required to validate it cross-account.
-  The repository candidate now also implements fixed `start-slot` and graceful
-  `shutdown-slot` through the same authenticated, replay-protected and serialized
-  request path. Both operations pin the enrolled GUID/name/version, child/parent
-  chain and parent hash, reject checkpoints and more than one GPU adapter, require
-  exact source states and verify exact terminal states plus preserved pinned GPU
-  attachment, no other VM GPU assignment and at least 12 GiB available host RAM
-  before start. The 180/120-second bounds match GPU-003; shutdown contains no
-  force, turn-off or save fallback. A durable marker now blocks every later
-  mutation if a lifecycle result becomes uncertain while retaining its operation
-  ID and allowing read-only inspection. Hardware-free checks passed, but policy
-  installation and any VM lifecycle execution remain protected and unperformed.
-  Independent focused review found no remaining blocking code issue after the
-  identity, admission, reconciliation and fail-closed lookup fixes; runtime model
-  metadata was unavailable.
-  An approved installation then proved the corrected cross-account transport:
-  limited runner SID `S-1-5-21-2102502009-691714006-1044501546-1012` authenticated
-  the enrolled client, accepted request `4e97e5962423b74bea29e91aa3083e16`
-  and started read-only inspect operation `1790616106-754611000`. The fixed adapter
-  timed out at 60 seconds while hashing the 24.8 GB parent; no result, VM or GPU
-  mutation occurred. Recovery removed the candidate task/account/rights/client/
-  helper/enrollment and restored enabled `ResetSlot-v1` plus original runner/policy
-  hashes. The repository now uses a candidate 300-second inspect bound pending
-  measurement and real polled response deadlines; another installation requires
-  fresh approval. Independent focused review accepted the header-first reader,
-  maximum/partial/empty/oversized/deadline tests and final pins with no findings;
-  reviewer runtime model metadata was unavailable.
-  A fresh approved install of those exact pins succeeded with new limited runner
-  SID `S-1-5-21-2102502009-691714006-1044501546-1013`, matching task and enrollment.
-  Read-only request `abdd204e56936c6332bab98ee94d9e6e` completed in about 222
-  seconds as operation `1790617624-800511500`, proving the 300-second parent-hash
-  bound and polled client response path on the target. The durable result verified
-  the pinned off VM, unchanged parent hash, zero VM GPU adapters and configured
-  NVIDIA interface; stderr was empty and no reconciliation marker was created.
-  The reviewed candidate remains installed and ready. Lifecycle and later GPU,
-  staging/probe target execution still require separately scoped authorization.
-  The owner then approved one start followed by graceful shutdown. Start operation
-  `1790618530-782157600` timed out after 180 seconds before `Start-VM` because the
-  script's repeated parent hash alone takes about 222 seconds. It failed closed and
-  retained the reconciliation marker; read-only elevated inspection proved the VM
-  remained `Off`, operating normally, with zero GPU adapters, so shutdown was not
-  issued. The repository correction runs a separately bounded 300-second inspection
-  before a freshly revalidated 180/120-second transition and uses 510/450-second
-  client deadlines. A reviewed defect in the six-minute scheduler cap is corrected
-  to a verified ten minutes. Hardware-free checks pass; final corrected release
-  hashes passed independent review with no remaining findings. A new protected
-  recovery/reinstall/retry still requires explicit approval.
+- Objective: provide the narrow Rust privilege boundary for the pinned disposable
+  VM and RTX 5060: inspect, reset, start, graceful shutdown, attach and detach.
+- Dependencies: CORE-001 identities, HV-002 disposable VM, HV-003 installed
+  interfaces and GPU-003 operation bounds. Protected installation/execution
+  requires explicit scoped approval.
+- Acceptance: fixed typed operations accept no caller-selected VM/GPU/path or
+  arbitrary command; the installed policy pins the child, parent, GPU and roots.
+  Validate identities/state before effects, preserve native errors, publish bounded
+  results, block uncertain mutation and keep the parent unwritable. Cover wrong
+  identities, policy/path tampering, replay, timeout and partial failure with focused
+  tests. Prove inspect, start/shutdown and attach/detach on the authorized target.
+- Result: Partial. The installed fixed runner has already proved reset, exact
+  read-only inspection, authenticated cross-account transport, replay/audit and
+  fail-closed identity/policy checks. The first lifecycle trial timed out before
+  `Start-VM`; reconciliation proved the VM remained off and unchanged. The
+  corrected candidate separates the measured parent inspection from lifecycle
+  deadlines and raises the scheduler bound, but protected recovery/reinstall/retry
+  is not yet authorized. Attach/detach and target execution remain. Full history
+  and exact operation IDs are in [`docs/evidence/CORE-005.md`](evidence/CORE-005.md).
 
 ## CORE-006
 
-**Implement read-only preflight and change planning**
+**Add reviewable planning after the vertical slice works**
 
-- Context/scope: Convert desired configuration and observed state into a concrete diff before mutation.
-- Read: GPU-003 and [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Check edition/interfaces, rights, VM state/security, guest access prerequisites, driver/build fingerprints, resource ranges and backup capacity. Emit named targets, ordered changes, warnings, recovery and plan fingerprint. Reject wrong GPU, unsupported states and missing essential input; unchanged configuration yields empty plan. Test stale identities and malformed resource values; planning must not mutate a guest/host.
-- Files/output: Planner/preflight modules and `docs/evidence/CORE-006.md`.
+- Objective: convert the proven M1 configuration and observed state into a concise
+  no-side-effect diff for routine CLI use; this is M2 hardening, not an M1 gate.
+- Dependencies: GPU-006's demonstrated configuration.
+- Acceptance: emit exact targets and required changes, reject wrong identities or
+  unsupported state, fingerprint mutable assumptions and produce an empty plan when
+  already configured. Test stale identity/state and malformed resource inputs.
 - Result: pending.
 
 ## CORE-007
 
-**Implement operation audit and target locking**
+**Generalize operation audit and target locking**
 
-- Context/scope: Bounded coordination and audit for one disposable VM, not a general transaction engine.
-- Read: [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Persist restricted-access request ID, plan fingerprint, exact target, intent and verified step outcomes. Acquire VM and host/physical-GPU locks by stable identity in a fixed order; revalidate plan/state and assignments under lock. Refuse conflicting, duplicate, stale or out-of-policy operations. Test a wrong VM GUID, simultaneous requests, interrupted audit writes, replay and external state changes. Retain only host-setting preimages needed for safe detach; uncertain guest state produces an explicit discard/recreate result.
-- Files/output: Journal/state/lock modules and `docs/evidence/CORE-007.md`.
+- Objective: extend CORE-005's fixed runner audit/replay/serialization into the M2
+  CLI workflow; do not build a general transaction engine.
+- Dependencies: CORE-006 plan contract.
+- Acceptance: bind a plan fingerprint and exact identities to ordered effects,
+  reject conflicting/stale operations and preserve only recovery state needed for
+  detach or disposable recreation. Test concurrency, interrupted audit writes,
+  replay and external state changes.
 - Result: pending.
 
 ## CORE-008
 
-**Implement native guest sessions and verified file transfer**
+**Implement the minimal verified guest session and transfer path**
 
-- Context/scope: Implement the PowerShell Direct/native transport specified by GPU-003 and validate it here; no custom network agent/protocol.
-- Read: HV-002/GPU-003 and [configuration contract](ARCHITECTURE.md#configuration-and-recovery-contract).
-- Acceptance: Acquire guest credentials ephemerally and keep secrets out of CLI arguments/logs/configuration. Verify guest identity/readiness, restrict transfer paths, checksum contents and time out stalled operations. Test denied credentials, unavailable integration, interrupted transfer, path traversal/reparse points and retry cleanup; perform an authorized harmless transfer on the dedicated guest. No network/security configuration side effects.
-- Files/output: Guest session/transfer modules and `docs/evidence/CORE-008.md`.
+- Objective: use PowerShell Direct/native facilities to reach the pinned guest and
+  transfer the M1 manifest inputs; no custom network agent or protocol.
+- Dependencies: CORE-005 lifecycle and HV-002 guest identity.
+- Acceptance: acquire credentials ephemerally, verify guest identity/readiness,
+  restrict destination roots, verify hashes and bound stalled operations. Test
+  denied credentials, unavailable integration, unsafe paths and interrupted
+  transfer; prove one authorized transfer to the disposable guest. No host/guest
+  network or security reconfiguration.
 - Result: pending.
 
 ## CORE-009
 
-**Implement manifest-based runtime staging**
+**Stage the minimum NVIDIA guest components**
 
-- Context/scope: Encode the minimum driver/runtime manifest derived by GPU-002; add a conditional shim only after a reproduced failure.
-- Read: GPU-002/REF-002, [reference hazards](ARCHITECTURE.md#reference-implementation-hazards), DEC-004.
-- Acceptance: Validate origin/hash/version; apply audited steps in the disposable child and verify files/settings/permissions after each. Detect missing required payload, identical-size/different-content files and changed source driver. Repeat staging is a no-op; a controlled partial-write failure marks the child unusable and recreation proves recovery. If a shim is required, retain source commit/path, authorship, ABI/build dependency and version-range tests; adapt only the measured dependency closure.
-- Files/output: Manifest/staging modules, conditional attributed shim sources if proven necessary, and `docs/evidence/CORE-009.md`.
+- Objective: encode and apply GPU-002's pinned minimum driver/runtime manifest in
+  the disposable guest; add no compatibility shim without a reproduced failure.
+- Dependencies: CORE-008 transfer path and GPU-002 manifest.
+- Acceptance: validate source identity/hash/version, apply and verify each required
+  guest file/setting, make a matching reapply a no-op and mark partial/uncertain
+  staging for disposable recreation. Test missing, changed and partial inputs.
 - Result: pending.
 
 ## CORE-002
 
-**Encode validated GPU assignment and apply orchestration**
+**Attach and configure the RTX 5060 for the disposable VM**
 
-- Context/scope: Retained task ID; staging, audit/locking and disposable reset are split into dedicated cards.
-- Read: CORE-006/007/009, HV-003 and GPU-003 results.
-- Acceptance: Apply only a reviewed, current plan with exact selected adapter/resources; verify actual attachment and staged readiness separately. Journal all native settings changed. Refuse duplicate/foreign assignments or an unvalidated second-guest configuration by default. Test native assignment failure, wrong returned adapter, state drift and no-op reapply; run essential probes after authorized target apply. Failure must not be reported as success.
-- Files/output: Assignment/apply modules and `docs/evidence/CORE-002.md`.
+- Objective: drive CORE-005's fixed attach/detach operation from the strict existing
+  configuration and verify the resulting VM adapter. A generalized plan is not an
+  M1 prerequisite.
+- Dependencies: CORE-005 runner and CORE-009 staged guest.
+- Acceptance: use the exact VM/GPU identities and provider resource values, refuse
+  foreign/duplicate/second-guest assignments, verify returned attachment/state and
+  distinguish staging readiness. Test wrong adapter, native failure, state drift
+  and matching reapply; never report a failed attachment as success.
 - Result: pending.
 
 ## CORE-010
 
 **Complete detach/reset CLI integration and hardening**
 
-- Context/scope: Integrate and harden the CORE-005 runner's existing detach/reset operations in the completed CLI workflow; never touch the parent image.
-- Read: GPU-009/011 and CORE-007/009 preimage formats.
-- Acceptance: Plan and execute adapter removal in measured safe states, detect external changes/conflicting assignments and verify host state. For uncertain guest files/settings, stop and delete only the policy-pinned disposable VM/child after explicit operation authorization, then recreate it from the fingerprinted parent. Test remove twice, wrong identity, partial assignment, missing child and parent mismatch. Never delete or attach the master for writes.
-- Files/output: Detach/reset modules and `docs/evidence/CORE-010.md`.
+- Objective: integrate CORE-005 detach/reset into the post-demonstration CLI without
+  ever attaching or deleting the protected parent.
+- Dependencies: CORE-006/007 workflow and GPU-006 demonstrated state.
+- Acceptance: remove the adapter in measured safe states, detect conflicting state,
+  and recreate only the policy-pinned disposable child when guest state is uncertain.
+  Test repeated removal, wrong identity, partial assignment and parent mismatch.
 - Result: pending.
 
 ## CORE-011
 
 **Implement bounded VM lifecycle operations**
 
-- Context/scope: Delegate start, graceful shutdown and restart to native Windows for the configured existing VM.
-- Read: GPU-011 legal states and CORE-005/007 results.
-- Acceptance: Preflight security/configuration/driver drift before start; wait with bounded readiness/shutdown timeouts and report VM state separately from GPU health. Refuse unvalidated saved-state recovery and conflicting mutation; no forced stop or automatic host reboot. Test stopped/running/unresponsive guest states and guest reboot, then repeat essential probes after authorized lifecycle runs.
-- Files/output: Lifecycle module and `docs/evidence/CORE-011.md`.
+- Objective: expose CORE-005's bounded start/shutdown operations through the M2 CLI
+  and add restart/readiness reporting.
+- Dependencies: CORE-005 runner and GPU-006 demonstrated lifecycle.
+- Acceptance: report VM state separately from GPU health, reject conflicting/saved
+  state, and use bounded readiness/shutdown waits with no forced stop or host reboot.
+  Test stopped, running and unresponsive states plus guest restart.
 - Result: pending.
 
 ## CORE-012
@@ -815,10 +770,12 @@ for future work is not an invented current blocker.
 
 **Make the baseline probes repeatable through the core**
 
-- Context/scope: Invoke the existing pinned probe kit, not a new general benchmarking framework.
-- Read: CORE-020, CORE-002 and [validation contract](ARCHITECTURE.md#validation-contract).
-- Acceptance: Produce per-workload pass/fail/blocked/untested/unsupported-with-evidence outcomes with exact environment, hardware adapter, runtime/probe version, inputs, checked outputs and logs. Handle timeouts and software fallback correctly; an absent probe is never pass. Run the essential M1 baseline through the CLI on the target and compare outputs; preserve optional failures distinctly.
-- Files/output: Probe runner/report integration and `docs/evidence/CORE-003.md`.
+- Objective: integrate the already proven standalone probes into the M2 CLI; do not
+  build a general benchmark framework.
+- Dependencies: CORE-020 probes, CORE-002 assignment and GPU-006 demonstrated run.
+- Acceptance: produce per-workload pass/fail/blocked/untested outcomes with exact
+  adapter/runtime/probe identities and checked outputs. Bound timeouts, reject
+  software fallback and never treat an absent probe as pass.
 - Result: pending.
 
 ## CORE-020
@@ -1016,22 +973,23 @@ for future work is not an invented current blocker.
 
 ## Task and handover templates
 
-Add one register row and one card; never repeat row fields in the card.
+Add a register row/card only when work needs scheduling, coordination or handover;
+small direct changes and trivial documentation corrections do not need one. Keep
+the card concise and never repeat register fields in it.
 
 ```markdown
 ## <AREA-NNN>
 **<Action and outcome>**
-- Context/scope: <bounded deliverable>
-- Read: <dependency result pointers and relevant section/source links>
-- Acceptance: <observable criteria and validation>
-- Files/output: <existing files or clearly proposed outputs>
+- Objective: <bounded product or technical outcome>
+- Dependencies: <only prerequisites that genuinely block implementation>
+- Acceptance: <observable behavior and proportional validation>
 - Owner: <only while claimed>
-- Result: <pending, or exact checks/results and evidence links>
+- Result: <pending, or concise outcome/checks and a detailed evidence link if needed>
 ```
 
-For unfinished work record the exact next action and linked blocker if any,
-then refresh Resume with completed IDs, changed files and next recommended task.
-Do not append a transcript or duplicate the task-status register.
+For unfinished scheduled work record the exact next action and a real blocker if
+one exists. Refresh Resume only for a handover. Do not append a transcript or
+duplicate the task-status register.
 
 ## CORE-019
 

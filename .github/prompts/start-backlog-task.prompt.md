@@ -5,16 +5,13 @@ description: Complete a ready task with bounded context and a short handover
 
 Start the requested ID from [docs/BACKLOG.md](../../docs/BACKLOG.md).
 
-Follow the session workflow in [AGENTS.md](../../AGENTS.md) and load the relevant
-[engineering standards](../../docs/ENGINEERING.md), including
-[required checks](../../docs/ENGINEERING.md#required-checks-and-ci) for code changes.
-Load the register row, named card, dependencies' result pointers, and linked
-blockers before claiming it. Use the exact lowercase statuses defined in the
-backlog. Do not reread every document or the full source tree.
+Follow the session workflow in [AGENTS.md](../../AGENTS.md) and the relevant
+[engineering standards](../../docs/ENGINEERING.md). Load the requested row/card
+and only dependency results or blockers that affect implementation or safety. Do
+not reread the planning system to prove it agrees with itself.
 
-If the user's requested work has no ID, add one scoped card and register row
-with acceptance criteria before work. Keep IDs permanent. Inspect the affected
-code and immediate dependencies, establish the relevant test baseline, and choose
-the smallest implementation before editing. Finish with evidence, only affected
-documentation updates, and the compact Resume note. Keep each session to one task
-or a small group of closely related tasks; do not add speculative work.
+If the request has no ID, proceed directly when it is a small bounded change. Add
+a permanent card only for work that needs scheduling, coordination or handover.
+Inspect the affected code, implement the next useful product step, add focused
+tests and run proportional checks. Update affected documentation after the code.
+Correct trivial Resume/status drift in place; do not turn it into follow-up work.

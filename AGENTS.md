@@ -14,7 +14,7 @@ outside the initial scope.
 
 | File | Owns / read when |
 |---|---|
-| [docs/BACKLOG.md](docs/BACKLOG.md) | Resume note, compact task register, task cards and blockers; normal session entry |
+| [docs/BACKLOG.md](docs/BACKLOG.md) | Scheduled work, task selection, blockers and handover; read only relevant sections |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Current milestone and exit criteria; selecting work or checking a milestone gate |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current/proposed components, pinned upstream source map and validation contract; read linked sections |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Important choices, rationale and upstream review log; only relevant decision IDs |
@@ -22,52 +22,42 @@ outside the initial scope.
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Concise meaningful completed changes; append on completion, no routine history reread |
 | [scripts/README.md](scripts/README.md) | Maintained development/setup/diagnostic script layout; read before adding or running substantial shell procedures |
 
-Task status/dependencies have one source: the backlog register. Cards hold
-scope, acceptance and evidence. Blockers and the latest handover stay in that
-same file. There is no separate manifest, blocker document or session log.
+Task status/dependencies have one source: the backlog register. Cards stay
+concise: objective, genuine dependencies, acceptance and result. Blockers and
+the latest handover stay in that same file. There is no separate manifest,
+blocker document or session log. A stale summary or status is corrected in
+place; it is not a new task unless it conceals a technical or safety risk.
 Optional workflows in `.github/prompts/` add task-specific guidance; read them
 only when invoked or relevant, never the entire collection. Agent-specific
 instructions link here and to engineering standards instead of duplicating them.
 
 ## Session workflow
 
-1. Read this guide, then BACKLOG's Resume, task register and blocker register.
-   For a named ID, locate its heading with `rg -n "^## <ID>$" docs/BACKLOG.md`
-   and read only that card, dependencies' result pointers and linked sections.
-   If no ID is given, choose a ready task relevant to the user's scope; consult
-   ROADMAP's current milestone. Do not start unrelated tasks automatically.
-2. Check actual workspace state (Git status if metadata exists), dependencies,
-   milestone gate, blockers and another agent's ownership. Before work, set
-   the register status to `in progress` and add your session/agent to the card.
-   Track new requested work with a bounded permanent card when none fits.
-3. Focus on one task ID or a small related group. Inspect affected code and
-   immediate dependencies, establish the relevant test baseline, then choose the
-   smallest reasonable patch. Preserve unrelated changes and existing behavior
-   outside the task; avoid opportunistic refactors. Explain and track necessary
-   larger refactors separately where practical.
-4. Add/update meaningful tests alongside logic. Run the [required checks](docs/ENGINEERING.md#required-checks-and-ci),
-   correct introduced warnings/failures and verify acceptance. Documentation-only
-   changes use link/consistency checks; do not invent a Cargo project to test them.
-   For an implementation milestone, delegate a read-only independent review to
-   the project `architecture_reviewer` agent after the patch and checks are ready.
-   If the client cannot select named agents, spawn the reviewer explicitly with
-   `model = "gpt-6-astra"` and `reasoning_effort = "high"` (and a non-full
-   context fork when required by the tool), give it a no-edit review task, and
-   do not infer its model from the task name or claim enforced read-only access
-   without checking the actual permissions.
-   Give it the task IDs, applicable gate, diff and test evidence; wait for its
-   findings, fix blocking issues, rerun affected checks and request another review
-   when the fixes materially change the design. Record the reviewer model from
-   runtime metadata when available; a model name in a prompt is not proof.
-   Set `completed` only with concise
-   result evidence; otherwise record the exact next action or linked blocker.
-   Update only affected architecture/decisions and add a short changelog entry
-   for meaningful completed work. Update dependent readiness or the milestone
-   pointer only when their gates are met.
-5. Refresh the compact Resume note: completed IDs, changed files, outstanding
-   problem/blocker and next recommended ID. Release an unfinished task to
-   `ready` or `blocked` unless a named owner is still working. Durable results
-   stay on the card; do not append a long transcript.
+1. Start from the user's requested outcome. For a named ID, read its register row,
+   card and only the dependency results or linked technical sections needed to
+   implement it. Read the Resume, blocker register or milestone gate only when
+   selecting work, resolving an actual impediment or closing a milestone.
+2. Check Git state and overlapping ownership before editing. Claim a backlog card
+   when work is scheduled/shared or spans a handover. A small direct request, bug
+   fix or documentation correction may proceed without inventing a card.
+3. Inspect the affected implementation and choose the smallest useful product
+   step. Reuse established test results unless the change or a suspected regression
+   makes a fresh baseline useful. Preserve unrelated work and avoid speculative
+   refactors. Small implementation choices may be made during coding when they do
+   not change architecture, security boundaries or public contracts.
+4. Add focused tests for meaningful logic and run checks proportional to the
+   change. Protected host/VM operations still require the permission boundary and
+   technical preconditions below. Update documentation after behavior changes;
+   do not make prose, evidence files or cross-document reconciliation a prerequisite
+   for ordinary coding.
+5. Use independent `architecture_reviewer` review when closing an implementation
+   milestone or before deploying a materially changed privileged/security boundary,
+   not for every routine patch. Give the reviewer the applicable gate, diff and
+   actual test evidence. Fix blocking findings and rerun affected checks.
+6. On completion, record a short result on an existing card when one owns the work,
+   update only affected architecture/decisions, and add a changelog entry only for
+   a meaningful product or process change. Refresh Resume only for a real handover;
+   correct trivial tracking drift in place without creating follow-up work.
 
 ## Mandatory rules
 

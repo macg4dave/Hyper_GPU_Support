@@ -3,9 +3,11 @@
 This is the authoritative engineering policy for all AI-driven coding sessions.
 [AGENTS.md](../AGENTS.md) owns session workflow, scope, provenance and the
 three-category [permission boundary](../AGENTS.md#permission-boundary);
-[BACKLOG.md](BACKLOG.md) owns tasks and evidence. Read the sections
-relevant to the active change. Prompts add task-specific guidance, not competing
-rules. Changes to these standards require explicit task scope.
+[BACKLOG.md](BACKLOG.md) owns scheduled tasks and durable results. Read only the
+sections relevant to the active change. Prompts add task-specific guidance, not
+competing rules. Documentation records implemented behavior; it is not a preflight
+gate for a small change unless a safety, compatibility or public contract depends
+on it.
 
 CORE-019 establishes the Cargo project, tests and basic Windows PR checks.
 CORE-001 extends the foundation with inventory; CORE-013 extends test coverage.
@@ -139,10 +141,11 @@ per trivial accessor, implementation-mirroring assertion or arbitrary coverage
 percentage substitutes for this requirement. If testing a function is impractical,
 record why and the concrete alternative validation and remaining gap on its task.
 
-- Establish the affected test baseline before edits; record existing failures.
-  Add/update tests with implementation and include a regression test for each bug
-  fix wherever feasible, showing the old failure when practical. Avoid unrelated
-  refactoring or weakening assertions to obtain a pass.
+- Reuse recent relevant results and run a pre-edit baseline only when diagnosing a
+  regression, changing a risky boundary or needing to distinguish pre-existing
+  failures. Add/update tests with implementation and include a regression test for
+  each bug fix wherever feasible. Avoid unrelated refactoring or weakening
+  assertions to obtain a pass.
 - Use unit tests for isolated logic; integration tests for component contracts,
   configuration validation, error propagation and recovery. Test examples with
   Rust doc tests where useful; mark truly non-runnable examples honestly.
@@ -236,10 +239,11 @@ of invoking an invalid combination or silently reducing coverage.
 - Privileged/hardware suites stay explicitly selected on the authorized dedicated
   target. Never run untrusted PR code with elevated access or repository secrets.
   Hosted Windows CI results are not Hyper-V/GPU workload evidence.
-- Report commands actually run, outcome, pre-existing versus introduced failures,
-  missing prerequisites and remaining validation. Fix introduced problems before
-  completion; if blocked, record the exact next action. Do not install a tool or
-  mutate a protected target beyond existing authorization merely to run a check.
+- Report commands actually run, outcome, material failures, missing prerequisites
+  and remaining validation. Do not rerun an unchanged check merely to reproduce an
+  old evidence record. Fix introduced problems before completion; if technically
+  blocked, record the exact next action. Do not install a tool or mutate a protected
+  target beyond existing authorization merely to run a check.
 
 ## Documentation
 
@@ -253,5 +257,8 @@ they help callers understand correct use.
 Comments should explain why and what must remain true, not narrate obvious Rust.
 Update comments, examples and affected contracts with behavior changes. Keep
 architecture descriptions separate from evidence of implemented/tested behavior.
-Follow AGENTS for the concise task result, changelog and handover; do not rewrite
-the roadmap or duplicate these standards for a small code change.
+Documentation follows the implementation in the same change or at milestone
+closure; it should not delay an ordinary coding iteration that leaves no public or
+safety contract stale. Follow AGENTS for concise results and handovers; do not
+rewrite the roadmap, audit unrelated notes or duplicate these standards for a small
+code change.

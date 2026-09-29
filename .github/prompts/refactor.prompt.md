@@ -10,9 +10,10 @@ Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 [testing](../../docs/ENGINEERING.md#testing), and
 [required checks](../../docs/ENGINEERING.md#required-checks-and-ci).
 
-- Establish current observable behavior from code, tests, and documentation.
-- Establish the relevant test baseline. Keep the patch narrow and avoid unrelated
-  formatting churn; split a necessary larger refactor into tracked steps.
+- Establish current observable behavior from code and relevant tests. Use a fresh
+  pre-edit baseline only when it helps distinguish a regression. Keep the patch
+  narrow and avoid unrelated formatting churn; track a larger refactor only when
+  it cannot be completed coherently in the current change.
 - Preserve public APIs, errors, data formats, and host/guest behavior; change
   component boundaries only when required by the task.
 - Justify any necessary dependency or boundary change; avoid new global state,

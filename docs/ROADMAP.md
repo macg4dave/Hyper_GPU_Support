@@ -57,38 +57,40 @@ requires the user, not a task-status edit.
 
 ## M1
 
-**Objective:** produce the first Rust-driven GPU-PV demonstration on a disposable VM.
+**Objective:** produce the first Rust-driven GPU-PV demonstration on the pinned
+disposable VM as quickly as the safety boundary permits.
 
-- Dependency: M0. Execute only specifically authorized guest/host changes.
-- Work: immutable clean parent plus disposable child; AppSandbox reference capture;
-  minimal configuration, native adapters and controlled privileged runner; guest
-  transfer/runtime staging; explicit assignment; D3D11/D3D12/CUDA probes; native/HCS
-  comparison only where behavior differs; resource headroom and child recreation.
-- Risks: runner policy is too broad or agent-writable; parent image is accidentally
-  targeted; upstream needs disallowed signing changes; native VMMS lacks a specific
-  HCS capability; CUDA or D3D fails; resource fields do not enforce requested limits.
-  Record actual impediments as blockers.
-- Validation: same essential probes, files and builds for reference/native runs;
-  distinguish management, staging, runtime, renderer/session and workload failures.
-  Verify fixed privileged policy/identity checks, at least five clean stop/start
-  cycles, guest reboot, deliberate child discard and recreation from unchanged parent.
-- Exit: GPU-006 records essential workload passes through the Rust-driven path,
-  reproducible preparation, conservative single-guest settings, tested disposable
-  recreation and one justified backend/component choice. All required M1 cards
-  complete. Optional API results may fail or remain untested with reasons.
-- If the reference cannot run or an essential reference capability cannot be
-  reproduced, stop and present evidence and options to the user. Do not silently
-  switch to an untested backend or lower the essential gate; see DEC-007.
+- Dependency: M0. Execute protected host/VM changes only under their exact scoped
+  authorization; ordinary repository implementation proceeds without another gate.
+- Critical path: finish the fixed runner operations (CORE-005), establish the
+  minimal guest session and manifest staging path (CORE-008/009), attach the exact
+  RTX 5060 with the Rust tooling (CORE-002), validate staging/recovery (GPU-009),
+  run the standalone D3D11/D3D12/CUDA probes (GPU-005), and record the demonstrated
+  configuration (GPU-006).
+- Validation: verify the pinned parent/child/GPU identities immediately before a
+  mutation, verify attachment and guest device/runtime readiness, reject software
+  rendering, check probe outputs, and leave the VM in a known recoverable state.
+  One complete attach/start/probe/graceful-shutdown path is enough for this gate.
+- Exit: GPU-006 records passing D3D11, D3D12 and CUDA workloads through the
+  Rust-driven path with exact versions, manifest, configuration and checked output.
+  Only the critical-path cards above gate M1.
+- Diagnostic/reference work: GPU-004 is useful when a native failure needs comparison
+  with AppSandbox, but its current guest-access blocker does not hold up the native
+  vertical slice. Do not introduce HCS or shim work without an observed native gap.
+- Deferred hardening: generalized planning, broader audit/locking, probe integration,
+  repeated lifecycle cycles, resource tuning and extended diagnostics belong in M2.
 
 ## M2
 
-**Objective:** complete the proof into a usable, GUI-independent CLI/core.
+**Objective:** turn the proven path into a usable, repeatable GUI-independent
+CLI/core and harden the boundaries exercised by M1.
 
 - Dependency: M1, including the measured vertical slice and backend decision.
-- Work: finish detach/disposable reset, lifecycle, diagnostics, CI coverage and
-  operator-quality reporting around the M1 configuration, adapters, staging,
-  assignment and probe path. CORE-013 extends the Windows checks established by
-  CORE-019/001.
+- Work: add reviewable planning/preflight (CORE-006), generalized audit/locking
+  (CORE-007), CLI probe integration (CORE-003), repeated lifecycle/resource
+  qualification (GPU-010/011), detach/reset, diagnostics, CI coverage and
+  operator-quality reporting around the proven M1 path. CORE-013 extends the
+  Windows checks established by CORE-019/001.
 - Risks: credential handling, external state drift, privileged-runner version/policy
   drift, parent/child identity mistakes and conflicting operations.
 - Validation: Windows CI for pure logic and fake adapters; native integration and
@@ -152,16 +154,24 @@ requires the user, not a task-status edit.
 
 ## Execution guidance
 
-The critical sequence is inventory/reference map -> golden image and controlled
-runner -> thin Rust inventory/config/native adapter -> stage/assign/probe on a
-disposable child -> isolate any VMMS/HCS difference -> harden -> candidate rehearsal
--> release audit. REF-001 can run alongside HV-001; CORE-001 starts as soon as
-HV-001 supplies exact identities instead of waiting for the full hardware milestone.
-Use task dependencies, not numeric ID order, to select the next session.
+The completed preparation has already identified the RTX 5060, pinned the disposable
+VM/parent, built the probes and established the Rust configuration/runner foundation.
+From the current state, use this sequence:
 
-Every required card in a milestone contributes to its exit; GPU-007 and GPU-015 are
-explicit optional lanes and never dependencies of a release gate. Split newly found
-defects into permanent cards with a workload and acceptance criteria. Avoid calendar
-estimates until M1 establishes whether the essential path is feasible. If an early
-research gate fails, repair the evidence-backed cause or obtain a scope decision
-before spending effort on dependent architecture.
+1. CORE-005: recover/reinstall the corrected fixed runner under explicit approval,
+   prove start/shutdown, then add only the fixed GPU attach/detach operations needed
+   by the slice.
+2. CORE-008 and CORE-009: connect to the known guest, transfer the pinned manifest
+   inputs and stage the minimum NVIDIA runtime with hash verification.
+3. CORE-002: apply the exact VM/GPU/resource configuration and verify the adapter.
+4. GPU-009: prove guest readiness and that a failed staging attempt can be recovered
+   by recreating the disposable child.
+5. GPU-005: start the guest and run the existing D3D11, D3D12 and CUDA probes through
+   the RTX 5060; use AppSandbox/HCS comparison only if an observed failure requires it.
+6. GPU-006: record the passing vertical slice and exact reproducible configuration.
+
+After that proof, complete M2 hardening and then the release milestones. Do not split
+minor fixes, documentation drift or implementation choices into new cards. Create a
+task or blocker only for schedulable product work or a concrete technical/safety
+impediment. Use task dependencies, not numeric ID order, and keep checks proportional
+to the operation's risk.

@@ -394,9 +394,10 @@ lifecycle work. [HCS management model][ms-hcs-overview]
 
 ## Validation contract
 
-All capabilities below remain **untested on the target**. Record results per API
-and workload using `pass`, `fail`, `blocked`, `untested`, or `unsupported with
-evidence`; missing tests are not unsupported features.
+All guest GPU-PV capabilities below remain **untested on the target**; the host
+probe controls do not establish guest support. Record results per API and workload
+using `pass`, `fail`, `blocked`, `untested`, or `unsupported with evidence`;
+missing tests are not unsupported features.
 
 | Capability | Minimum useful evidence |
 |---|---|
@@ -433,7 +434,7 @@ determinism and isolation; this table maps project evidence to tasks.
 |---|---|---|
 | Hardware-free Windows CI | Configuration/identity validation, planner diffs, structured adapter failures, audit/locking and disposable-recreation decisions, path/secret handling and report contracts using fixtures/fakes. Never claims GPU execution. | CORE-019 establishes the baseline; CORE-001/013 extend it; each implementation card adds relevant cases. |
 | Native management integration | Installed interfaces, rights, explicit VM/GPU selection, effective settings, guest transfer and legal lifecycle states on an authorized dedicated VM. | HV-003, GPU-009/011, CORE-005/008/002/010/011. |
-| Physical target workloads | D3D11/D3D12 checked frames and CUDA checked kernels; per-API optional results; identical host control and guest inputs, explicit hardware renderer and session. | GPU-008 defines probes; GPU-004/005/006 and CORE-003 execute them. |
+| Physical target workloads | D3D11/D3D12 checked frames and CUDA checked kernels; per-API optional results; identical host control and guest inputs, explicit hardware renderer and session. | GPU-008/CORE-020 define and build probes; GPU-005/006 own the native demonstration. GPU-004 is conditional reference diagnosis and CORE-003 is later CLI integration. |
 | Failure and maintenance | Interrupted/denied/full-disk/stale-plan operations, identity conflicts, driver/build drift, device-not-ready diagnostics, disposable recreation and a controlled driver transition. | CORE-014/015 and GPU-013. |
 | Endurance and release | Repeated starts, authorized host reboots, sustained/pressure load and fresh-guest reproduction from candidate artifacts/instructions. | GPU-012/014 and DOC-005. |
 
