@@ -93,7 +93,7 @@ repository permission boundary when explicitly needed for protected facts.
 | `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml` | One package/workspace and pinned build inputs |
 | `src/main.rs` | Process arguments, output and exit codes |
 | `src/lib.rs`, `src/cli.rs` | Library boundary, CLI parser and unit tests |
-| `src/config.rs`, `examples/gpu-pv-v1.conf` | Strict version-one configuration/plan/report contracts and example |
+| `src/config.rs`, `config/project.toml` | Typed project/environment configuration plus plan/report contracts |
 | `src/inventory.rs` | Typed fact/report model, validated adapter protocol and tests |
 | `src/windows_inventory.rs` | Fixed read-only Windows/Hyper-V process adapter |
 | `tests/cli.rs` | Executable behavior tests |
@@ -105,22 +105,29 @@ The [architecture source map](docs/ARCHITECTURE.md#foundation-source-layout)
 identifies where future modules belong. Logging and additional Windows adapters
 are deferred until meaningful behavior requires them.
 
-The version-one configuration is a strict, dependency-free `key=value` document.
-It requires one canonical VM GUID, one explicit GPU-P interface and an immutable
-manifest identity/hash; unknown or duplicate fields (including credential/path
-fields) are rejected. Each resource is either `provider-default` or an exact
-`minimum,maximum,optimal` triple in opaque provider-defined units. The checked-in
-example's all-zero manifest hash is intentionally a placeholder and must be
-replaced by CORE-009's immutable manifest hash before apply validation.
+The authoritative non-secret environment is [`config/project.toml`](config/project.toml).
+Rust deserializes and validates it into typed structures; maintained scripts use the
+shared configuration reader. It owns mutable VM/GPU/image/runner/tool/test identities,
+paths, input hashes and deadlines. Generated `config/runner-policy-v1.json` and
+`config/artifact-pins.toml` retain the exact privileged policy and release hashes
+without becoming hand-edited settings. See the
+[configuration ownership and audit](docs/CONFIGURATION.md), including the pin refresh
+command and the boundary between mutable settings and implementation constants.
 
-The first privileged-runner slice is now implemented in `src/runner.rs` and
-`src/bin/hyper-gpu-runner.rs`. Its installed, administrator-owned scheduled task
-accepts only the compiled `reset-slot` operation for the exact disposable VM and
-parent/child identities; it is not a general CLI or shell boundary. Installation
-identity, test evidence and remaining CORE-005 work are recorded in
+The desired-state subset still requires one canonical VM GUID, explicit GPU-P
+interface and immutable manifest identity/hash. Each resource is either
+`provider-default` or an exact `minimum,maximum,optimal` triple in opaque
+provider-defined units. The all-zero manifest hash is intentionally a placeholder
+and must be replaced in `driver_manifest.sha256` before apply validation.
+
+The fixed privileged runner is implemented in `src/runner.rs` and
+`src/bin/hyper-gpu-runner.rs`. Its administrator-owned scheduled task accepts only
+compiled, policy-listed operations for the exact disposable VM, GPU and parent/
+child identities; it is not a general CLI or shell boundary. Installation
+identity, test evidence and remaining protected CORE-005 validation are recorded in
 [CORE-005 evidence](docs/evidence/CORE-005.md).
 
-Keep small machine-local settings in ignored `local/`, build output in `target/`,
+Keep secrets and uncommitted overrides in ignored `local/`, build output in `target/`,
 and OS/VM/driver/test artifacts in the reproducible ignored
 [`data/` layout](data/README.md). The relative tree is the default; hardware work
 records an explicit external data root when large artifacts live elsewhere. Never

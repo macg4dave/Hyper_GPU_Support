@@ -402,13 +402,15 @@ membership is introduced, or supported multi-machine image deployment is needed.
 
 Retain the installed Hyper-V and Virtual Machine PowerShell modules only as a
 fixed, parameter-free adapter inside the administrator-owned Rust runner for the
-initial `inspect` and `reset-slot` operations. The scripts contain literal enrolled
-VM, GPU and parent/child identities; accept no caller values, paths or commands;
-propagate provider failures; and run in a killed/reaped child process with fixed
-deadlines and output limits. Rust owns authenticated request parsing, exact policy
+initial `inspect` and `reset-slot` operations. The scripts contain literal reviewed
+operation bodies and receive VM, GPU and parent/child identities only from the
+validated exact-byte policy compiled into the administrator-installed executable.
+Values are single-quoted with embedded quotes escaped before the fixed preamble is
+formed; callers supply no values, paths or commands. Provider failures propagate and
+the adapter runs in a killed/reaped child process with configured bounded deadlines
+and fixed output limits. Rust owns authenticated request parsing, exact policy
 verification, replay rejection, locking, audit/result publication and operation
-selection. The interactive user cannot replace the installed script because it is
-compiled into the administrator-installed executable.
+selection. The interactive user cannot replace either the body or installed policy.
 
 The Rust-native alternatives were investigated after HV-003 fixed the available
 surface. Direct `windows` bindings expose HCS and low-level virtualization WMI,
@@ -420,10 +422,11 @@ synchronous calls still do not provide the runner's required bounded cancellatio
 The installed cmdlets are the measured native Windows management contract and can
 be isolated by terminating and reaping their process on timeout.
 
-This exception does not permit generated scripts, interpolation, arbitrary process
+This exception permits only the reviewed fixed body plus the validated policy
+preamble; it does not permit caller-controlled interpolation, arbitrary process
 execution, HCS fallback or application decisions in PowerShell. Each added fixed
-operation requires its own literal adapter review, malformed/denied/native-failure
-tests, exact policy change and protected installation approval. Revisit when a
+operation requires its own adapter review, malformed/denied/native-failure tests,
+exact policy change and protected installation approval. Revisit when a
 maintained Rust/Win32 interface covers the measured operation set with equivalent
 identity checks, native error fidelity and cancellation, or if process termination
 is shown not to bound an in-flight provider mutation; in the latter case reconcile
@@ -479,6 +482,31 @@ effects remain rejected.
 
 Revisit if the transport moves to a service broker or an authenticated Windows RPC
 surface with an equally narrow fixed operation boundary.
+
+## DEC-019
+
+**Implemented | 2026-09-30 | One typed non-secret project configuration**
+
+Use `config/project.toml` as the sole hand-edited source for mutable machine, slot,
+image, driver/tool input and test-harness values. Deserialize and validate it into
+typed Rust structures at the boundary. Maintained PowerShell consumes the same flat
+scalar/table document through one shared reader; script parameters may select a
+different configuration file but do not establish competing defaults. Keep protocol,
+Windows API, enum and fixed safety constants in implementation code.
+
+The administrator-installed `runner-policy-v1.json` remains a separate exact-byte
+security artifact, but it is generated from the policy subset of `project.toml` and
+checked for drift. Release executable and policy hashes live in generated
+`artifact-pins.toml` so no executable embeds its own expected hash; both artifacts
+are updated/verified by the same maintained command after a reviewed build. The schema has no secret fields,
+rejects unknown keys, and local/secret overlays remain ignored.
+
+Reason: mutable literals had spread across Rust, setup/build/test scripts and prose,
+causing inconsistent updates and unnecessary repository-wide searches. One source
+keeps environment change local without weakening policy or artifact integrity checks.
+
+Revisit only if a consumer cannot safely read the shared TOML subset or a second
+configuration domain has a demonstrably different trust/ownership boundary.
 
 ## Decision template
 

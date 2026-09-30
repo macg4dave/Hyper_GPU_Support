@@ -1,22 +1,28 @@
 [CmdletBinding()]
-param()
+param(
+    [string] $ProjectConfigurationPath = (Join-Path $PSScriptRoot '..\..\config\project.toml')
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$stagingRoot = Join-Path $repositoryRoot 'data\staging'
-$toolkitRoot = Join-Path $stagingRoot 'cuda-13.4.1\toolkit'
+. (Join-Path $repositoryRoot 'scripts\common\project-config.ps1')
+$projectConfiguration = Import-ProjectConfiguration -Path $ProjectConfigurationPath
+$stagingRoot = Join-Path $repositoryRoot ([string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.staging_directory'))
+$cudaRelease = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_release')
+$cmakeRelease = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cmake_release')
+$toolkitRoot = Join-Path $stagingRoot "cuda-$cudaRelease\toolkit"
 $samplesRoot = Join-Path $stagingRoot 'cuda-samples'
 $sourceRoot = Join-Path $samplesRoot 'cpp\0_Introduction\vectorAddDrv'
 $buildRoot = Join-Path $stagingRoot 'cuda-vector-add-build'
 $outputRoot = Join-Path $repositoryRoot 'probes\cuda\compiled'
 $upstreamRoot = Join-Path $repositoryRoot 'probes\cuda\upstream'
-$cmake = Join-Path $stagingRoot 'cmake-4.4.3\cmake-4.4.3-windows-x86_64\bin\cmake.exe'
+$cmake = Join-Path $stagingRoot "cmake-$cmakeRelease\cmake-$cmakeRelease-windows-x86_64\bin\cmake.exe"
 $nvcc = Join-Path $toolkitRoot 'bin\nvcc.exe'
 $cuobjdump = Join-Path $toolkitRoot 'bin\cuobjdump.exe'
-$samplesCommit = '5443602d89ed99aede2e4b7bf329daddeadb320e'
-$samplesTree = '532bbdd145b2a9dc49638b18eb2ab696b73ae57c'
+$samplesCommit = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_samples_commit')
+$samplesTree = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_samples_tree')
 
 function Invoke-Native {
     param(

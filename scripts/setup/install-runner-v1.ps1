@@ -1,29 +1,38 @@
 #Requires -RunAsAdministrator
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
-param()
+param(
+    [string] $ProjectConfigurationPath = (Join-Path $PSScriptRoot '..\..\config\project.toml'),
+    [string] $ArtifactPinsPath = (Join-Path $PSScriptRoot '..\..\config\artifact-pins.toml')
+)
 
 $ErrorActionPreference = 'Stop'
-$runnerSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release\hyper-gpu-runner.exe'
-$clientSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release\hyper-gpu-client.exe'
-$rightsSource = 'C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release\hyper-gpu-rights.exe'
-$policySource = 'C:\Users\dave\github\Hyper_GPU_Support\config\runner-policy-v1.json'
-$runnerHash = 'EB8F724ADC94446867B9CA759024D464FB982CF07BC909F2F4399F9F52217080'
-$clientHash = 'BEF2E0D03FA5F4497635BFD59F628D686D3CF3ECBC88D9D5DEFE4EF91D9F6391'
-$rightsHash = 'D1340E514C42925E891AB951904C9F10284D3B232A5BB335D333AB8E47EF7A77'
-$policyHash = '2889996AB6F035AE21C4C76C54146007369A704EB77AA884D78E9CB6B37DFF91'
-$installDirectory = 'C:\Program Files\HyperGpuSupport\Runner'
-$dataDirectory = 'C:\ProgramData\HyperGpuSupport\Runner'
+$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $repositoryRoot 'scripts\common\project-config.ps1')
+$projectConfiguration = Import-ProjectConfiguration -Path $ProjectConfigurationPath
+$artifactPins = Import-ProjectConfiguration -Path $ArtifactPinsPath
+$artifactDirectory = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.artifacts.directory')
+$runnerSource = Join-Path $artifactDirectory 'hyper-gpu-runner.exe'
+$clientSource = Join-Path $artifactDirectory 'hyper-gpu-client.exe'
+$rightsSource = Join-Path $artifactDirectory 'hyper-gpu-rights.exe'
+$policySource = Join-Path $repositoryRoot 'config\runner-policy-v1.json'
+$runnerHash = [string](Get-ProjectConfigurationValue $artifactPins 'runner.runner_sha256')
+$clientHash = [string](Get-ProjectConfigurationValue $artifactPins 'runner.client_sha256')
+$rightsHash = [string](Get-ProjectConfigurationValue $artifactPins 'runner.rights_sha256')
+$policyHash = [string](Get-ProjectConfigurationValue $artifactPins 'runner.policy_sha256')
+$installDirectory = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.install_directory')
+$dataDirectory = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.data_directory')
 $runnerTarget = Join-Path $installDirectory 'hyper-gpu-runner.exe'
 $clientTarget = Join-Path $installDirectory 'hyper-gpu-client.exe'
 $rightsTarget = Join-Path $installDirectory 'hyper-gpu-rights.exe'
 $policyTarget = Join-Path $dataDirectory 'policy-v1.json'
 $enrollmentTarget = Join-Path $dataDirectory 'enrollment-v1.json'
-$accountName = 'HyperGpuRunner'
-$taskPath = '\HyperGpuSupport\'
-$taskName = 'Runner-v1'
-$oldTaskName = 'ResetSlot-v1'
-$parentDirectory = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1'
-$childDirectory = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01'
+$accountName = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.account_name')
+$taskPath = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.task_path')
+$taskName = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.task_name')
+$oldTaskName = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.legacy_task_name')
+$parentDirectory = Split-Path -Parent ([string](Get-ProjectConfigurationValue $projectConfiguration 'slot.parent_path'))
+$childDirectory = Split-Path -Parent ([string](Get-ProjectConfigurationValue $projectConfiguration 'slot.child_path'))
+$taskExecutionTimeLimit = 'PT{0}S' -f [uint64](Get-ProjectConfigurationValue $projectConfiguration 'runner.task_execution_timeout_seconds')
 $backupRoot = Join-Path $dataDirectory 'install-backup-v1'
 $backupPreparing = Join-Path $dataDirectory 'install-backup-v1.preparing'
 $stagingRoot = Join-Path $dataDirectory 'install-staging-v1'
@@ -191,7 +200,7 @@ try {
     $definition.Principal.LogonType = 2 # TASK_LOGON_S4U
     $definition.Principal.RunLevel = 0 # TASK_RUNLEVEL_LUA
     $definition.Settings.Enabled = $false
-    $definition.Settings.ExecutionTimeLimit = 'PT10M'
+    $definition.Settings.ExecutionTimeLimit = $taskExecutionTimeLimit
     $definition.Settings.MultipleInstances = 2 # TASK_INSTANCES_IGNORE_NEW
     $definition.Settings.DisallowStartIfOnBatteries = $false
     $definition.Settings.StopIfGoingOnBatteries = $false
@@ -208,7 +217,7 @@ try {
     $registered.SetSecurityDescriptor("D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;$clientSid)", 0)
     $registeredTask = Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction Stop
     if ($registeredTask.Settings.Enabled) { throw 'New runner task must remain disabled during verification' }
-    if ([string]$registeredTask.Settings.ExecutionTimeLimit -ne 'PT10M') { throw 'Runner task execution limit mismatch' }
+    if ([string]$registeredTask.Settings.ExecutionTimeLimit -ne $taskExecutionTimeLimit) { throw 'Runner task execution limit mismatch' }
     Assert-Hash $runnerTarget $runnerHash
     Assert-Hash $clientTarget $clientHash
     Assert-Hash $rightsTarget $rightsHash

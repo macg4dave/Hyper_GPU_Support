@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string] $OutputPath = 'local\evidence\CORE-020-host-controls.json',
+    [string] $OutputPath,
+    [string] $ProjectConfigurationPath = (Join-Path $PSScriptRoot '..\..\config\project.toml'),
     [switch] $SelfTest
 )
 
@@ -8,8 +9,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $repositoryRoot 'scripts\common\project-config.ps1')
+$projectConfiguration = Import-ProjectConfiguration -Path $ProjectConfigurationPath
+if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+    $OutputPath = [string](Get-ProjectConfigurationValue $projectConfiguration 'tests.host_probes.output_path')
+}
 if ($SelfTest) {
-    $OutputPath = 'local\evidence\CORE-020-host-controls-self-test.json'
+    $OutputPath = [string](Get-ProjectConfigurationValue $projectConfiguration 'tests.host_probes.self_test_output_path')
 }
 $localRoot = Join-Path $repositoryRoot 'local'
 $resolvedOutput = [IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputPath))
@@ -20,7 +26,10 @@ $outputDirectory = Split-Path -Parent $resolvedOutput
 $cudaDirectory = Join-Path $repositoryRoot 'probes\cuda\compiled'
 $expectedHash = '00f88da6c22b46ab45bfc5fbc6659e601ebcefe324d52a3302e614d4a7fb3de4'
 $outputLimit = 1MB
-$suiteTimeout = [TimeSpan]::FromSeconds(90)
+$processTimeoutSeconds = [int](Get-ProjectConfigurationValue $projectConfiguration 'tests.host_probes.process_timeout_seconds')
+$cudaTimeoutSeconds = [int](Get-ProjectConfigurationValue $projectConfiguration 'tests.host_probes.cuda_timeout_seconds')
+$suiteTimeout = [TimeSpan]::FromSeconds([uint64](Get-ProjectConfigurationValue $projectConfiguration 'tests.host_probes.suite_timeout_seconds'))
+$repetitions = [int](Get-ProjectConfigurationValue $projectConfiguration 'tests.host_probes.repetitions')
 $suiteStopwatch = [Diagnostics.Stopwatch]::new()
 $results = [Collections.Generic.List[object]]::new()
 
@@ -386,19 +395,20 @@ foreach ($path in @($d3d11, $d3d12, $cudaIdentity, $vectorAdd, (Join-Path $cudaD
 }
 
 $suiteStopwatch.Restart()
-foreach ($phase in @('warm-up', 'measured-1', 'measured-2', 'measured-3')) {
+$phases = @('warm-up') + @(1..$repetitions | ForEach-Object { "measured-$_" })
+foreach ($phase in $phases) {
     $d3d11Result = Invoke-BoundedProcess -Name 'd3d11-offscreen' -Executable $d3d11 `
-        -WorkingDirectory $repositoryRoot -TimeoutSeconds 15 -Phase $phase
+        -WorkingDirectory $repositoryRoot -TimeoutSeconds $processTimeoutSeconds -Phase $phase
     $results.Add($d3d11Result)
     $d3d11Report = Assert-D3DResult -Result $d3d11Result -ExpectedProbe 'd3d11-offscreen'
 
     $d3d12Result = Invoke-BoundedProcess -Name 'd3d12-offscreen' -Executable $d3d12 `
-        -WorkingDirectory $repositoryRoot -TimeoutSeconds 15 -Phase $phase
+        -WorkingDirectory $repositoryRoot -TimeoutSeconds $processTimeoutSeconds -Phase $phase
     $results.Add($d3d12Result)
     $d3d12Report = Assert-D3DResult -Result $d3d12Result -ExpectedProbe 'd3d12-offscreen'
 
     $cudaIdentityResult = Invoke-BoundedProcess -Name 'cuda-identity' -Executable $cudaIdentity `
-        -WorkingDirectory $repositoryRoot -TimeoutSeconds 15 -Phase $phase
+        -WorkingDirectory $repositoryRoot -TimeoutSeconds $processTimeoutSeconds -Phase $phase
     $results.Add($cudaIdentityResult)
     $cudaReport = Assert-CudaIdentity -Result $cudaIdentityResult
 
@@ -408,7 +418,7 @@ foreach ($phase in @('warm-up', 'measured-1', 'measured-2', 'measured-3')) {
     }
 
     $cudaResult = Invoke-BoundedProcess -Name 'cuda-vectorAddDrv' -Executable $vectorAdd `
-        -Arguments @('--device=0') -WorkingDirectory $cudaDirectory -TimeoutSeconds 30 -Phase $phase
+        -Arguments @('--device=0') -WorkingDirectory $cudaDirectory -TimeoutSeconds $cudaTimeoutSeconds -Phase $phase
     $results.Add($cudaResult)
     if ($cudaResult.Stdout -notmatch '(?m)^Result = PASS\s*$') {
         throw "CUDA vectorAddDrv did not report PASS during ${phase}."
@@ -443,5 +453,5 @@ $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedOutput -E
 if ($null -ne $caught) {
     throw $caught.Exception
 }
-Write-Host "Host controls passed: one warm-up plus three measured repetitions for D3D11, D3D12 and CUDA."
+Write-Host "Host controls passed: one warm-up plus $repetitions measured repetitions for D3D11, D3D12 and CUDA."
 Write-Host "Evidence: $resolvedOutput"

@@ -11,6 +11,7 @@ use windows::Win32::Graphics::Dxgi::{
     IDXGIFactory1,
 };
 
+use crate::config::ProjectConfiguration;
 use crate::probe::AdapterIdentity;
 
 /// One unambiguous hardware adapter selected by exact PCI identity.
@@ -34,7 +35,7 @@ impl SelectedAdapter {
     }
 }
 
-/// Failure to obtain exactly one RTX 5060 hardware adapter.
+/// Failure to obtain exactly one configured hardware adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdapterSelectionError {
     /// DXGI factory/enumeration failed unexpectedly.
@@ -54,21 +55,24 @@ impl fmt::Display for AdapterSelectionError {
             Self::Native(status) => {
                 write!(formatter, "D3DKMT adapter query failed: {status:#010x}")
             }
-            Self::Missing => formatter.write_str("RTX 5060 hardware adapter unavailable"),
-            Self::Ambiguous => formatter.write_str("RTX 5060 adapter selection is ambiguous"),
+            Self::Missing => formatter.write_str("configured hardware adapter unavailable"),
+            Self::Ambiguous => formatter.write_str("configured adapter selection is ambiguous"),
         }
     }
 }
 
 impl std::error::Error for AdapterSelectionError {}
 
-/// Select exactly one non-software RTX 5060 adapter without fallback.
+/// Select exactly one non-software adapter matching `config/project.toml`.
 ///
 /// # Errors
 /// Returns an explicit missing/ambiguous/runtime classification. Enumeration order
 /// is never used as a fallback.
 #[allow(unsafe_code)]
-pub fn select_rtx_5060() -> Result<SelectedAdapter, AdapterSelectionError> {
+pub fn select_configured_gpu() -> Result<SelectedAdapter, AdapterSelectionError> {
+    let project = ProjectConfiguration::embedded().map_err(|_| AdapterSelectionError::Runtime)?;
+    let vendor_id = project.slot.gpu_vendor_id;
+    let device_id = project.slot.gpu_device_id;
     // SAFETY: `CreateDXGIFactory1` initializes and returns an owned COM interface;
     // the windows crate manages its reference count.
     let factory: IDXGIFactory1 =
@@ -89,7 +93,7 @@ pub fn select_rtx_5060() -> Result<SelectedAdapter, AdapterSelectionError> {
         let description =
             unsafe { adapter.GetDesc1() }.map_err(|_| AdapterSelectionError::Runtime)?;
         let software = description.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0;
-        if description.VendorId != 0x10de || description.DeviceId != 0x2d05 || software {
+        if description.VendorId != vendor_id || description.DeviceId != device_id || software {
             continue;
         }
         let adapter_type = query_adapter_type(description.AdapterLuid)?;

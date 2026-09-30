@@ -1,53 +1,37 @@
 [CmdletBinding()]
-param()
+param(
+    [string] $ProjectConfigurationPath = (Join-Path $PSScriptRoot '..\..\config\project.toml')
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$stagingRoot = Join-Path $repositoryRoot 'data\staging'
-$cudaRoot = Join-Path $stagingRoot 'cuda-13.4.1'
+. (Join-Path $repositoryRoot 'scripts\common\project-config.ps1')
+$projectConfiguration = Import-ProjectConfiguration -Path $ProjectConfigurationPath
+$stagingRelative = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.staging_directory')
+$cudaRelease = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_release')
+$cmakeRelease = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cmake_release')
+$samplesRepository = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_samples_repository')
+$stagingRoot = Join-Path $repositoryRoot $stagingRelative
+$cudaRoot = Join-Path $stagingRoot "cuda-$cudaRelease"
 $packageRoot = Join-Path $cudaRoot 'packages'
 $extractRoot = Join-Path $cudaRoot 'extract'
 $toolkitRoot = Join-Path $cudaRoot 'toolkit'
-$cmakeArchive = Join-Path $stagingRoot 'cmake-4.4.3-windows-x86_64.zip'
-$cmakeRoot = Join-Path $stagingRoot 'cmake-4.4.3'
+$cmakeArchive = Join-Path $stagingRoot "cmake-$cmakeRelease-windows-x86_64.zip"
+$cmakeRoot = Join-Path $stagingRoot "cmake-$cmakeRelease"
 $samplesRoot = Join-Path $stagingRoot 'cuda-samples'
-$samplesCommit = '5443602d89ed99aede2e4b7bf329daddeadb320e'
-$samplesTree = '532bbdd145b2a9dc49638b18eb2ab696b73ae57c'
+$samplesCommit = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_samples_commit')
+$samplesTree = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_samples_tree')
 
-$packages = @(
+$packageNames = @('cccl', 'cuda_crt', 'cuda_cudart', 'cuda_cuobjdump', 'cuda_nvcc', 'libnvvm')
+$packages = @($packageNames | ForEach-Object {
     @{
-        Name = 'cccl'
-        Uri = 'https://developer.download.nvidia.com/compute/cuda/redist/cccl/windows-x86_64/cccl-windows-x86_64-13.3.4.2.1-archive.zip'
-        Sha256 = 'ea3ebdd98d4d98819cc26b66bc5a0931004ed35ff18eea8b93e0bd2c8bfa5d7c'
-    },
-    @{
-        Name = 'cuda_crt'
-        Uri = 'https://developer.download.nvidia.com/compute/cuda/redist/cuda_crt/windows-x86_64/cuda_crt-windows-x86_64-13.4.59-archive.zip'
-        Sha256 = 'f969a0e3b086a48f940563cd1b965cb5197fd9540c79cc952b1abfa479f9ede7'
-    },
-    @{
-        Name = 'cuda_cudart'
-        Uri = 'https://developer.download.nvidia.com/compute/cuda/redist/cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-13.4.49-archive.zip'
-        Sha256 = 'e6663f3d3e8949eedc2d5ab92c7c5b9fa3f2a222086d91c42bfc5a38bf2b0225'
-    },
-    @{
-        Name = 'cuda_cuobjdump'
-        Uri = 'https://developer.download.nvidia.com/compute/cuda/redist/cuda_cuobjdump/windows-x86_64/cuda_cuobjdump-windows-x86_64-13.4.49-archive.zip'
-        Sha256 = '9d1aeb5a25ea4be1abb9ae34985ce9734332d686c314ce597b45d79967286a42'
-    },
-    @{
-        Name = 'cuda_nvcc'
-        Uri = 'https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvcc/windows-x86_64/cuda_nvcc-windows-x86_64-13.4.59-archive.zip'
-        Sha256 = '06a4fe6ec543030c5e5a7b85493cda90612015d9fff2a54ed0227162c937ea46'
-    },
-    @{
-        Name = 'libnvvm'
-        Uri = 'https://developer.download.nvidia.com/compute/cuda/redist/libnvvm/windows-x86_64/libnvvm-windows-x86_64-13.4.59-archive.zip'
-        Sha256 = 'a7a07bcc21cc05bce83eedebcbcd9b9f5418c58316b0fa28a57cb2c548b29841'
+        Name = $_
+        Uri = [string](Get-ProjectConfigurationValue $projectConfiguration "tooling.cuda_packages.$_.uri")
+        Sha256 = [string](Get-ProjectConfigurationValue $projectConfiguration "tooling.cuda_packages.$_.sha256")
     }
-)
+})
 
 function Invoke-Native {
     param(
@@ -106,8 +90,8 @@ foreach ($package in $packages) {
     Get-VerifiedDownload -Uri $package.Uri -Path $archive -Sha256 $package.Sha256
 }
 
-$cmakeUri = 'https://github.com/Kitware/CMake/releases/download/v4.4.3/cmake-4.4.3-windows-x86_64.zip'
-$cmakeSha256 = '4d52ebab7193a698651639ed80d8d04fd903358843572cf44c7fd234cb7c26ab'
+$cmakeUri = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cmake_uri')
+$cmakeSha256 = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cmake_sha256')
 Get-VerifiedDownload -Uri $cmakeUri -Path $cmakeArchive -Sha256 $cmakeSha256
 
 foreach ($path in @($extractRoot, $toolkitRoot, $cmakeRoot)) {
@@ -138,11 +122,11 @@ Invoke-Native -Executable 'tar.exe' -Arguments @('-xf', $cmakeArchive, '-C', $cm
 if (-not (Test-Path -LiteralPath (Join-Path $samplesRoot '.git'))) {
     Invoke-Native -Executable 'git.exe' -Arguments @(
         'clone', '--filter=blob:none', '--no-checkout',
-        'https://github.com/NVIDIA/cuda-samples.git', $samplesRoot
+        $samplesRepository, $samplesRoot
     )
 } else {
     $remote = (& git.exe -C $samplesRoot remote get-url origin).Trim()
-    if ($LASTEXITCODE -ne 0 -or $remote -ne 'https://github.com/NVIDIA/cuda-samples.git') {
+    if ($LASTEXITCODE -ne 0 -or $remote -ne $samplesRepository) {
         throw "Existing CUDA samples staging tree has an unexpected origin: $remote"
     }
 }
@@ -163,9 +147,9 @@ if ($actualCommit -ne $samplesCommit -or $actualTree -ne $samplesTree -or $sourc
 if ($LASTEXITCODE -ne 0) {
     throw 'Pinned nvcc failed its version query.'
 }
-& (Join-Path $cmakeRoot 'cmake-4.4.3-windows-x86_64\bin\cmake.exe') --version
+& (Join-Path $cmakeRoot "cmake-$cmakeRelease-windows-x86_64\bin\cmake.exe") --version
 if ($LASTEXITCODE -ne 0) {
     throw 'Pinned CMake failed its version query.'
 }
 
-Write-Host "Prepared CUDA Toolkit 13.4.1 redistributables and CUDA Samples $samplesCommit under $stagingRoot."
+Write-Host "Prepared CUDA Toolkit $cudaRelease redistributables and CUDA Samples $samplesCommit under $stagingRoot."

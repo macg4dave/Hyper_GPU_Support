@@ -16,6 +16,8 @@ Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
   it cannot be completed coherently in the current change.
 - Preserve public APIs, errors, data formats, and host/guest behavior; change
   component boundaries only when required by the task.
+- Remove duplicated mutable environment values in favor of `config/project.toml`;
+  do not move protocol/API constants or fixed safety bounds into configuration.
 - Justify any necessary dependency or boundary change; avoid new global state,
   unsafe lifetime/ownership assumptions, and unrelated modernization.
 - Keep core logic separate from privileged Windows/Hyper-V operations and

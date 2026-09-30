@@ -10,10 +10,10 @@ evidence or authorization system; correct trivial drift in place.
 - Proven foundation: exact host/GPU/VM inventory, protected parent plus disposable
   child, standalone probes, strict configuration types and a fixed Rust runner with
   reset/read-only inspection are complete.
-- Immediate issue: the installed CORE-005 candidate is mutation-blocked after the
-  timed-out start attempt. The corrected timeout build is ready, but recovery,
-  reinstall and lifecycle retry are protected operations requiring explicit scope.
-- Next: finish CORE-005, then CORE-008/009 -> CORE-002 -> GPU-009 -> GPU-005 ->
+- Immediate issue: corrected CORE-005 start/graceful-shutdown passed on the pinned
+  target. The repository candidate now adds fixed GPU attach/detach, but installing
+  and proving those operations remains a protected change requiring explicit scope.
+- Next: prove CORE-005 attach/detach, then CORE-008/009 -> CORE-002 -> GPU-009 -> GPU-005 ->
   GPU-006. AppSandbox transport blocker BLK-003 is diagnostic and does not block
   the native path.
 
@@ -658,13 +658,12 @@ for future work is not an invented current blocker.
   results, block uncertain mutation and keep the parent unwritable. Cover wrong
   identities, policy/path tampering, replay, timeout and partial failure with focused
   tests. Prove inspect, start/shutdown and attach/detach on the authorized target.
-- Result: Partial. The installed fixed runner has already proved reset, exact
-  read-only inspection, authenticated cross-account transport, replay/audit and
-  fail-closed identity/policy checks. The first lifecycle trial timed out before
-  `Start-VM`; reconciliation proved the VM remained off and unchanged. The
-  corrected candidate separates the measured parent inspection from lifecycle
-  deadlines and raises the scheduler bound, but protected recovery/reinstall/retry
-  is not yet authorized. Attach/detach and target execution remain. Full history
+- Result: Partial. The installed fixed runner has proved reset, exact read-only
+  inspection, authenticated cross-account transport, replay/audit, fail-closed
+  identity/policy checks and corrected start/graceful-shutdown on the pinned VM.
+  The repository candidate now adds fixed attach/detach with the same locked
+  inspection, durable reconciliation and bounded result path. Installing that
+  broadened candidate and proving attach/detach remain protected. Full history
   and exact operation IDs are in [`docs/evidence/CORE-005.md`](evidence/CORE-005.md).
 
 ## CORE-006

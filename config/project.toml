@@ -1,0 +1,99 @@
+schema = 1
+
+# This is the authoritative, non-secret configuration for the current development
+# and disposable-test environment. Change mutable machine/test values here; do not
+# copy them into Rust, scripts, prompts, or ordinary documentation.
+
+[slot]
+name = "gpu-pv-slot-01"
+vm_id = "2627e735-5b33-4104-b739-622727dd3a40"
+vm_name = "HyperGpuSupport-Disposable-01"
+gpu_interface = '''\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'''
+gpu_name = "NVIDIA GeForce RTX 5060"
+gpu_vendor_id = 4318
+gpu_device_id = 11525
+gpu_subsystem_id = 2316636227
+gpu_revision = 161
+cuda_compute_capability_major = 12
+cuda_compute_capability_minor = 0
+parent_path = '''Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'''
+parent_sha256 = "0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07"
+child_path = '''Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'''
+
+[driver_manifest]
+id = "nvidia-616.92-baseline-v1"
+sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[resources]
+vram = "provider-default"
+encode = "provider-default"
+decode = "provider-default"
+compute = "provider-default"
+
+[paths]
+data_root = '''Z:\HyperGpuSupport'''
+test_output = '''local\evidence'''
+
+[inventory]
+timeout_seconds = 15
+
+[runner]
+install_directory = '''C:\Program Files\HyperGpuSupport\Runner'''
+data_directory = '''C:\ProgramData\HyperGpuSupport\Runner'''
+account_name = "HyperGpuRunner"
+task_path = '''\HyperGpuSupport\'''
+task_name = "Runner-v1"
+legacy_task_name = "ResetSlot-v1"
+reset_timeout_seconds = 300
+inspect_timeout_seconds = 300
+start_timeout_seconds = 180
+shutdown_timeout_seconds = 120
+gpu_assignment_timeout_seconds = 60
+task_execution_timeout_seconds = 600
+
+[runner.artifacts]
+directory = '''C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release'''
+
+[tooling]
+staging_directory = '''data\staging'''
+cuda_release = "13.4.1"
+cmake_release = "4.4.3"
+windows_sdk_version = "10.0.26100.0"
+dxc_directory = '''data\staging\dxc-v1.9.2607\extracted'''
+cuda_samples_repository = "https://github.com/NVIDIA/cuda-samples.git"
+cuda_samples_commit = "5443602d89ed99aede2e4b7bf329daddeadb320e"
+cuda_samples_tree = "532bbdd145b2a9dc49638b18eb2ab696b73ae57c"
+cmake_uri = "https://github.com/Kitware/CMake/releases/download/v4.4.3/cmake-4.4.3-windows-x86_64.zip"
+cmake_sha256 = "4d52ebab7193a698651639ed80d8d04fd903358843572cf44c7fd234cb7c26ab"
+
+[tooling.cuda_packages.cccl]
+uri = "https://developer.download.nvidia.com/compute/cuda/redist/cccl/windows-x86_64/cccl-windows-x86_64-13.3.4.2.1-archive.zip"
+sha256 = "ea3ebdd98d4d98819cc26b66bc5a0931004ed35ff18eea8b93e0bd2c8bfa5d7c"
+
+[tooling.cuda_packages.cuda_crt]
+uri = "https://developer.download.nvidia.com/compute/cuda/redist/cuda_crt/windows-x86_64/cuda_crt-windows-x86_64-13.4.59-archive.zip"
+sha256 = "f969a0e3b086a48f940563cd1b965cb5197fd9540c79cc952b1abfa479f9ede7"
+
+[tooling.cuda_packages.cuda_cudart]
+uri = "https://developer.download.nvidia.com/compute/cuda/redist/cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-13.4.49-archive.zip"
+sha256 = "e6663f3d3e8949eedc2d5ab92c7c5b9fa3f2a222086d91c42bfc5a38bf2b0225"
+
+[tooling.cuda_packages.cuda_cuobjdump]
+uri = "https://developer.download.nvidia.com/compute/cuda/redist/cuda_cuobjdump/windows-x86_64/cuda_cuobjdump-windows-x86_64-13.4.49-archive.zip"
+sha256 = "9d1aeb5a25ea4be1abb9ae34985ce9734332d686c314ce597b45d79967286a42"
+
+[tooling.cuda_packages.cuda_nvcc]
+uri = "https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvcc/windows-x86_64/cuda_nvcc-windows-x86_64-13.4.59-archive.zip"
+sha256 = "06a4fe6ec543030c5e5a7b85493cda90612015d9fff2a54ed0227162c937ea46"
+
+[tooling.cuda_packages.libnvvm]
+uri = "https://developer.download.nvidia.com/compute/cuda/redist/libnvvm/windows-x86_64/libnvvm-windows-x86_64-13.4.59-archive.zip"
+sha256 = "a7a07bcc21cc05bce83eedebcbcd9b9f5418c58316b0fa28a57cb2c548b29841"
+
+[tests.host_probes]
+output_path = '''local\evidence\CORE-020-host-controls.json'''
+self_test_output_path = '''local\evidence\CORE-020-host-controls-self-test.json'''
+process_timeout_seconds = 15
+cuda_timeout_seconds = 30
+suite_timeout_seconds = 90
+repetitions = 3

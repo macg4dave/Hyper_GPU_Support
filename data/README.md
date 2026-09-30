@@ -16,10 +16,9 @@ else below `data/` is ignored; still inspect staged files before every commit.
 | `logs/` | Machine-local diagnostic output. |
 | `test-results/` | Hardware reports, manifests and workload evidence before redacted results are promoted to `docs/evidence/`. |
 
-The repository-relative default root is `data/`. Large installations should put
-the entire tree on suitable external storage and provide its absolute root in the
-future versioned project configuration; individual leaf paths should derive from
-that one root. Do not use a junction or symlink as an implicit relocation because
+The repository-relative default root is `data/`. Large hardware artifacts use the
+absolute `paths.data_root` in `config/project.toml`; configured parent/child leaves
+must remain under that root. Do not use a junction or symlink as an implicit relocation because
 the privileged runner must validate one canonical parent/child/result root and
 reject reparse-point escapes. Until the configuration/runner work exists, each
 hardware task records the actual absolute roots it used.

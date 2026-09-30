@@ -72,12 +72,12 @@ use fixed operations, typed parameters and structured data, never arbitrary scri
 ## Foundation source layout
 
 `src/main.rs` owns process I/O and exit codes; `src/cli.rs` owns argument parsing
-and usage errors; `src/config.rs` owns the strict version-one desired-state,
-plan/report and error contracts. `src/inventory.rs` owns typed facts, validation,
+and usage errors; `src/config.rs` owns the validated typed project/environment
+configuration, desired-state subset, plan/report and error contracts. `src/inventory.rs` owns typed facts, validation,
 reporting and the replaceable source contract; `src/windows_inventory.rs` owns
 the bounded query-process transport and Rust target/VM selection. `src/runner.rs`
-owns the fixed privileged protocol while `src/bin/hyper-gpu-runner.rs` currently
-implements only the installed reset slice. `src/windows_runner.rs` authenticates
+owns the fixed privileged protocol while `src/bin/hyper-gpu-runner.rs` implements
+reset, inspection, lifecycle and fixed GPU attach/detach slices. `src/windows_runner.rs` authenticates
 the connected client through bounded-frame pipe impersonation and lets the client
 verify the pipe object's explicit enrolled owner SID, avoiding cross-account process
 token access. `src/probe.rs`, `src/windows_probe.rs`
@@ -85,9 +85,9 @@ and the dedicated probe binaries own the standalone D3D/CUDA contracts, exact
 DXGI/D3DKMT selection and checked host workloads. `src/lib.rs` exposes the library
 boundary and `tests/cli.rs` exercises the built product executable.
 
-Add the remaining privileged `windows`/`hyperv` adapters in CORE-005 and `gpupv`
-for assignment in CORE-002. Revisit CORE-001's bounded query transport after
-HV-003 fixes the native interface/rights matrix.
+CORE-002 integrates the fixed assignment operation after CORE-005 target proof;
+later guest staging/probe adapters remain separately gated. Revisit CORE-001's
+bounded query transport only when observed behavior requires it.
 Diagnostics/logging belong in `diagnostics` when inventory introduces operations
 to report. Introduce shared `error`/`types` modules when multiple callers need
 them; utilities stay with their owning responsibility until reuse is demonstrated.
@@ -95,12 +95,13 @@ These are navigation intentions, not empty files or fixed backend interfaces.
 
 ## Configuration and recovery contract
 
-These boundaries are implemented incrementally. CORE-004 established the strict
-version-one `key=value` configuration, plan/report types, operation inventory and
-stable error exits; only inventory currently executes. Configuration identifies
-VM GUID, explicit GPU identity, measured resource settings and driver
-manifest; it contains no guest password, arbitrary shell script or default-GPU
-fallback. Unknown schema versions/fields and ambiguous identity fail validation.
+These boundaries are implemented incrementally. CORE-004 established the initial
+desired-state and plan/report contracts; `config/project.toml` now supplies their
+typed desired-state subset plus non-secret machine, runner, tooling and test settings.
+Configuration identifies VM GUID/name, explicit GPU identity, parent/child images,
+measured resource settings and driver manifest; it contains no guest password,
+arbitrary shell script or default-GPU fallback. Unknown schema versions/fields,
+unsafe paths and ambiguous identities fail validation at the boundary.
 Keep intended, observed and last-validated state separate; PnP paths can change
 after driver servicing and must be reconciled against identity, never guessed.
 
@@ -206,9 +207,9 @@ workload failure proves that neither normal post-install configuration nor scope
 child-disk servicing can supply a required pre-boot change.
 
 The local artifact layout is documented in [`data/README.md`](../data/README.md).
-The repository-relative `data/` tree is the small-machine default; future versioned
-configuration supplies one canonical absolute data root for external storage and
-derives all leaves from it. The privileged runner pins the resolved parent, child
+The repository-relative `data/` tree remains suitable for small local artifacts;
+`paths.data_root` supplies the canonical absolute external root and configured leaves
+must remain beneath it. The privileged runner pins the resolved parent, child
 and result roots and rejects reparse-point escapes.
 
 The golden workflow is deliberately native and shallow:

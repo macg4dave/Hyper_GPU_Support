@@ -6,13 +6,12 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::config::ProjectConfiguration;
 use crate::inventory::{
     Fact, FactStatus, InventoryError, InventoryReport, InventorySource, parse_protocol,
 };
 
-const TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_OUTPUT: usize = 64 * 1024;
-const TARGET_PCI_PREFIX: &str = "VEN_10DE&DEV_2D05";
 
 /// Executes a fixed set of non-mutating Windows and Hyper-V queries.
 #[derive(Debug, Default, Clone, Copy)]
@@ -20,6 +19,8 @@ pub struct WindowsInventory;
 
 impl InventorySource for WindowsInventory {
     fn collect(&self) -> Result<InventoryReport, InventoryError> {
+        let project =
+            ProjectConfiguration::embedded().map_err(|_| InventoryError::InvalidProtocol)?;
         let raw = run_bounded(
             "powershell.exe",
             &[
@@ -29,7 +30,7 @@ impl InventorySource for WindowsInventory {
                 "-Command",
                 SCRIPT,
             ],
-            TIMEOUT,
+            project.inventory.timeout,
             MAX_OUTPUT,
         )?;
         normalize(parse_protocol(&raw)?)
@@ -148,6 +149,11 @@ fn sanitize_diagnostic(bytes: &[u8]) -> String {
 }
 
 fn normalize(raw: InventoryReport) -> Result<InventoryReport, InventoryError> {
+    let project = ProjectConfiguration::embedded().map_err(|_| InventoryError::InvalidProtocol)?;
+    let target_pci_prefix = format!(
+        "VEN_{:04X}&DEV_{:04X}",
+        project.slot.gpu_vendor_id, project.slot.gpu_device_id
+    );
     let facts = raw
         .facts()
         .iter()
@@ -163,7 +169,7 @@ fn normalize(raw: InventoryReport) -> Result<InventoryReport, InventoryError> {
         })
         .cloned()
         .collect::<Vec<_>>();
-    select_gpu(&facts, &mut output)?;
+    select_gpu(&facts, &mut output, &target_pci_prefix)?;
     select_gpup(&facts, &mut output)?;
     select_vm(&facts, &mut output)?;
     InventoryReport::new(output)
@@ -172,6 +178,7 @@ fn normalize(raw: InventoryReport) -> Result<InventoryReport, InventoryError> {
 fn select_gpu(
     facts: &BTreeMap<String, Fact>,
     output: &mut Vec<Fact>,
+    target_pci_prefix: &str,
 ) -> Result<(), InventoryError> {
     let query = required(facts, "gpu.query")?;
     if query.status() != FactStatus::Known {
@@ -191,7 +198,7 @@ fn select_gpu(
             facts[&format!("gpu.candidate.{index}.pciid")]
                 .value()
                 .to_ascii_uppercase()
-                .starts_with(TARGET_PCI_PREFIX)
+                .starts_with(target_pci_prefix)
         })
         .collect::<Vec<_>>();
     if matches.len() != 1 {
@@ -406,6 +413,7 @@ if ($null -eq (Get-Command Get-VM -ErrorAction SilentlyContinue)) {
 #[cfg(test)]
 mod tests {
     use super::{SCRIPT, normalize, run_bounded};
+    use crate::config::ProjectConfiguration;
     use crate::inventory::{FactStatus, InventoryError, parse_protocol};
     use std::time::Duration;
 
@@ -421,12 +429,28 @@ mod tests {
         format!("{key}\t{status}\t{}\n", hex(value))
     }
 
+    fn configured_gpu() -> (String, String, String) {
+        let slot = ProjectConfiguration::embedded().unwrap().slot;
+        let pci_id = slot
+            .gpu_interface
+            .strip_prefix(r"\\?\PCI#")
+            .and_then(|value| value.split('#').next())
+            .unwrap()
+            .to_owned();
+        let pci_prefix = format!(
+            "VEN_{:04X}&DEV_{:04X}",
+            slot.gpu_vendor_id, slot.gpu_device_id
+        );
+        (slot.gpu_name, pci_id, pci_prefix)
+    }
+
     #[test]
     fn correlates_target_interface_when_unrelated_interface_is_first() {
+        let (gpu_name, pci_id, pci_prefix) = configured_gpu();
         let mut protocol = line("gpu.query", "known", "");
         for (key, value) in [
-            ("model", "NVIDIA GeForce RTX 5060"),
-            ("pciid", "VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1"),
+            ("model", gpu_name.as_str()),
+            ("pciid", pci_id.as_str()),
             ("driverversion", "32.0.16.1692"),
             ("driverinf", "oem59.inf"),
         ] {
@@ -441,7 +465,7 @@ mod tests {
         protocol.push_str(&line(
             "gpup.candidate.1.interface",
             "known",
-            r"\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#B#{GUID}\GPUPARAV",
+            &format!(r"\\?\PCI#{pci_id}#B#{{GUID}}\GPUPARAV"),
         ));
         protocol.push_str(&line("vm.query", "known", ""));
         protocol.push_str(&line("host.build", "known", "26200.9457"));
@@ -452,7 +476,7 @@ mod tests {
             .find(|fact| fact.key() == "gpup.interface")
             .unwrap();
         assert_eq!(interface.status(), FactStatus::Known);
-        assert!(interface.value().contains("VEN_10DE&DEV_2D05"));
+        assert!(interface.value().contains(&pci_prefix));
         assert_eq!(
             report
                 .facts()
@@ -508,6 +532,7 @@ mod tests {
 
     #[test]
     fn propagates_provider_failure_and_duplicate_target_ambiguity() {
+        let (_, pci_id, _) = configured_gpu();
         let mut unavailable = line("gpu.query", "unavailable", "wmi.provider.failed");
         unavailable.push_str(&line("gpup.query", "missing", "cmdlet not installed"));
         unavailable.push_str(&line("vm.query", "denied", "access.denied"));
@@ -545,7 +570,7 @@ mod tests {
             duplicate.push_str(&line(
                 &format!("gpu.candidate.{index}.pciid"),
                 "known",
-                "VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1",
+                &pci_id,
             ));
         }
         duplicate.push_str(&line("gpup.query", "known", ""));
@@ -564,10 +589,11 @@ mod tests {
 
     #[test]
     fn selects_one_vm_and_reports_no_matching_target_interface() {
+        let (gpu_name, pci_id, _) = configured_gpu();
         let mut protocol = line("gpu.query", "known", "");
         for (key, value) in [
-            ("model", "NVIDIA GeForce RTX 5060"),
-            ("pciid", "VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1"),
+            ("model", gpu_name.as_str()),
+            ("pciid", pci_id.as_str()),
             ("driverversion", "32.0.16.1692"),
             ("driverinf", "oem59.inf"),
         ] {
@@ -620,12 +646,9 @@ mod tests {
 
     #[test]
     fn rejects_noncanonical_candidate_indices_without_panicking() {
+        let (_, _, pci_prefix) = configured_gpu();
         let mut protocol = line("gpu.query", "known", "");
-        protocol.push_str(&line(
-            "gpu.candidate.00.pciid",
-            "known",
-            "VEN_10DE&DEV_2D05",
-        ));
+        protocol.push_str(&line("gpu.candidate.00.pciid", "known", &pci_prefix));
         protocol.push_str(&line("gpup.query", "known", ""));
         protocol.push_str(&line("vm.query", "known", ""));
         assert_eq!(

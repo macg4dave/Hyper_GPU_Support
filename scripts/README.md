@@ -5,6 +5,7 @@ Windows test-environment operations. Use the smallest applicable category:
 
 | Directory | Purpose |
 |---|---|
+| `common/` | Shared, side-effect-free project-configuration reader |
 | `setup/` | Repeatable development or test-environment setup |
 | `diagnostics/` | Read-only environment and failure investigation |
 | `hyperv/` | Explicitly scoped Hyper-V guest/test operations |
@@ -24,6 +25,11 @@ facilities; application behavior remains implemented in Rust.
 
 Current maintained entry points:
 
+- `common/project-config.ps1` reads the supported scalar subset of the authoritative
+  `config/project.toml`; maintained scripts use it instead of copying mutable values.
+- `setup/update-project-pins.ps1` regenerates the installed runner-policy artifact
+  and updates or verifies hash-pinned release binaries after a reviewed build.
+
 - `setup/install-runner-v1.ps1` installs the hash-pinned, least-privilege
   one-shot runner only after capturing recovery preimages, staging under
   administrator-only ACLs and quiescing the old reset task. Its fixed Rust LSA
@@ -36,12 +42,12 @@ Current maintained entry points:
   frontmatter and diff whitespace.
 - `testing/build-probe-shaders.ps1` deterministically rebuilds the pinned D3D11
   DXBC and D3D12 DXIL offscreen shaders from the reviewed HLSL source.
-- `setup/prepare-cuda-probe.ps1` downloads and hash-verifies only the pinned,
-  repository-local CUDA 13.4.1 compiler redistributables, CMake 4.4.3 and CUDA
-  Samples commit; it does not install software or change host environment state.
+- `setup/prepare-cuda-probe.ps1` downloads and hash-verifies only the versions,
+  archives and CUDA Samples revision pinned under `tooling` in project configuration;
+  it does not install software or change host environment state.
 - `testing/build-cuda-probe.ps1` builds the unchanged pinned `vectorAddDrv`
   sample for `sm_120`, verifies the FATBIN and retains its source/license/artifacts.
-- `testing/run-host-probe-controls.ps1` performs the bounded host warm-up and
-  three measured correctness repetitions for D3D11, D3D12 and CUDA, enforcing
+- `testing/run-host-probe-controls.ps1` performs the configured bounded host warm-up
+  and measured correctness repetitions for D3D11, D3D12 and CUDA, enforcing
   output caps, timeouts, exact output oracles and cross-API LUID identity. Run
   it with `-SelfTest` to exercise timeout, overflow, cleanup and failure capture.

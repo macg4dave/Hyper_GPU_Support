@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string] $DxcRoot = 'data\staging\dxc-v1.9.2607\extracted'
+    [string] $DxcRoot,
+    [string] $ProjectConfigurationPath = (Join-Path $PSScriptRoot '..\..\config\project.toml')
 )
 
 Set-StrictMode -Version Latest
@@ -23,9 +24,15 @@ function Invoke-Compiler {
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $repositoryRoot 'scripts\common\project-config.ps1')
+$projectConfiguration = Import-ProjectConfiguration -Path $ProjectConfigurationPath
+if ([string]::IsNullOrWhiteSpace($DxcRoot)) {
+    $DxcRoot = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.dxc_directory')
+}
+$windowsSdkVersion = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.windows_sdk_version')
 $source = Join-Path $repositoryRoot 'probes\shaders\offscreen.hlsl'
 $output = Join-Path $repositoryRoot 'probes\shaders\compiled'
-$fxc = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\10.0.26100.0\x64\fxc.exe'
+$fxc = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin\$windowsSdkVersion\x64\fxc.exe"
 $resolvedDxcRoot = (Resolve-Path (Join-Path $repositoryRoot $DxcRoot)).Path
 $dxc = Join-Path $resolvedDxcRoot 'bin\x64\dxc.exe'
 

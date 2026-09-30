@@ -4,34 +4,31 @@ use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::windows::fs::OpenOptionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use hyper_gpu_support::config::{ConfigError, ProjectConfiguration};
 use hyper_gpu_support::runner::{
     Enrollment, Operation, PIPE_NAME, Request, Response, authorize_request, consume_nonce,
-    parse_enrollment, parse_inspect_result, parse_lifecycle_result, parse_request,
-    parse_reset_result, policy_allows, policy_fingerprint, verify_policy,
+    embedded_policy, parse_enrollment, parse_gpu_assignment_result, parse_inspect_result,
+    parse_lifecycle_result, parse_request, parse_reset_result, policy_allows, policy_fingerprint,
+    verify_policy,
 };
 use hyper_gpu_support::windows_runner::serve_one;
 
-const INSTALL_ROOT: &str = r"C:\ProgramData\HyperGpuSupport\Runner";
-const POLICY_PATH: &str = r"C:\ProgramData\HyperGpuSupport\Runner\policy-v1.json";
-const ENROLLMENT_PATH: &str = r"C:\ProgramData\HyperGpuSupport\Runner\enrollment-v1.json";
-const STARTUP_FAILURE_PATH: &str =
-    r"C:\ProgramData\HyperGpuSupport\Runner\audit\runner-startup-failure-v1.txt";
 const RECONCILIATION_MARKER: &str = "reconciliation-required-v1";
-const RESET_TIMEOUT: Duration = Duration::from_secs(300);
-const INSPECT_TIMEOUT: Duration = Duration::from_secs(300);
-const START_TIMEOUT: Duration = Duration::from_secs(180);
-const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(120);
 const OUTPUT_LIMIT: usize = 64 * 1024;
 
 fn main() -> ExitCode {
-    let _ = fs::remove_file(STARTUP_FAILURE_PATH);
+    let startup_failure_path =
+        data_directory().map(|path| path.join("audit").join("runner-startup-failure-v1.txt"));
+    if let Ok(path) = &startup_failure_path {
+        let _ = fs::remove_file(path);
+    }
     let mut arguments = std::env::args_os().skip(1);
     let mode = arguments.next();
     if arguments.next().is_some() {
@@ -45,14 +42,21 @@ fn main() -> ExitCode {
     match outcome {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            let _ = fs::write(
-                STARTUP_FAILURE_PATH,
-                startup_failure_message(error.as_ref()),
-            );
+            if let Ok(path) = startup_failure_path {
+                let _ = fs::write(path, startup_failure_message(error.as_ref()));
+            }
             eprintln!("runner error: {error}");
             ExitCode::FAILURE
         }
     }
+}
+
+fn project_configuration() -> Result<ProjectConfiguration, ConfigError> {
+    ProjectConfiguration::embedded()
+}
+
+fn data_directory() -> Result<PathBuf, ConfigError> {
+    Ok(project_configuration()?.runner.data_directory)
 }
 
 fn startup_failure_message(error: &dyn std::fmt::Display) -> String {
@@ -73,13 +77,16 @@ fn startup_failure_message(error: &dyn std::fmt::Display) -> String {
 }
 
 fn prepare_install_state() -> Result<Enrollment, Box<dyn std::error::Error>> {
-    let installed_policy = fs::read_to_string(POLICY_PATH)?;
+    let data_directory = data_directory()?;
+    let installed_policy = fs::read_to_string(data_directory.join("policy-v1.json"))?;
     verify_policy(&installed_policy)?;
-    let enrollment = parse_enrollment(&fs::read_to_string(ENROLLMENT_PATH)?)?;
+    let enrollment = parse_enrollment(&fs::read_to_string(
+        data_directory.join("enrollment-v1.json"),
+    )?)?;
 
-    let state_directory = Path::new(INSTALL_ROOT).join("state");
-    let result_directory = Path::new(INSTALL_ROOT).join("results");
-    let audit_directory = Path::new(INSTALL_ROOT).join("audit");
+    let state_directory = data_directory.join("state");
+    let result_directory = data_directory.join("results");
+    let audit_directory = data_directory.join("audit");
     fs::create_dir_all(&state_directory)?;
     fs::create_dir_all(&result_directory)?;
     fs::create_dir_all(&audit_directory)?;
@@ -158,7 +165,11 @@ fn append_protocol_audit(
     status: &str,
     diagnostic: &str,
 ) -> Result<(), std::io::Error> {
-    let path = Path::new(INSTALL_ROOT).join("audit").join("events.jsonl");
+    let policy = embedded_policy().map_err(std::io::Error::other)?;
+    let path = data_directory()
+        .map_err(std::io::Error::other)?
+        .join("audit")
+        .join("events.jsonl");
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
     let request_id = request.map_or_else(|| "0".repeat(32), |value| value.request_id.clone());
     let operation = request.map_or("none", |value| value.operation.as_str());
@@ -168,13 +179,14 @@ fn append_protocol_audit(
         file,
         concat!(
             "{{\"schema\":1,\"request_id\":\"{}\",\"operation\":\"{}\",",
-            "\"slot\":\"gpu-pv-slot-01\",",
-            "\"vm_id\":\"2627e735-5b33-4104-b739-622727dd3a40\",",
+            "\"slot\":\"{}\",\"vm_id\":\"{}\",",
             "\"nonce\":\"{}\",\"plan_fingerprint\":\"{}\",",
             "\"status\":\"{}\",\"diagnostic\":\"{}\"}}"
         ),
         request_id,
         operation,
+        json_escape(policy.slot()),
+        json_escape(policy.vm_id()),
         nonce,
         plan,
         status,
@@ -205,8 +217,12 @@ fn execute_request(request: &Request) -> Result<String, ExecutionFailure> {
     if !policy_allows(request.operation) {
         return Err(before_effect("operation-denied"));
     }
-    ensure_reconciled(&Path::new(INSTALL_ROOT).join("state"), request.operation)
-        .map_err(before_effect)?;
+    let project = project_configuration().map_err(|_| before_effect("configuration-invalid"))?;
+    ensure_reconciled(
+        &project.runner.data_directory.join("state"),
+        request.operation,
+    )
+    .map_err(before_effect)?;
     let mut process_nonces = BTreeSet::new();
     authorize_request(
         request,
@@ -221,7 +237,7 @@ fn execute_request(request: &Request) -> Result<String, ExecutionFailure> {
         })
     })?;
     consume_nonce(
-        &Path::new(INSTALL_ROOT).join("state").join("nonces"),
+        &project.runner.data_directory.join("state").join("nonces"),
         &request.nonce,
     )
     .map_err(|error| {
@@ -235,15 +251,24 @@ fn execute_request(request: &Request) -> Result<String, ExecutionFailure> {
     match request.operation {
         Operation::Inspect => run_inspect(request).map_err(|_| before_effect("operation-failed")),
         Operation::ResetSlot => run_reset(request).map_err(|_| before_effect("operation-failed")),
-        Operation::StartSlot => {
-            execute_lifecycle_request(request, Operation::StartSlot, START_SCRIPT, START_TIMEOUT)
-        }
+        Operation::StartSlot => execute_lifecycle_request(
+            request,
+            Operation::StartSlot,
+            START_SCRIPT,
+            project.runner.start_timeout,
+        ),
         Operation::ShutdownSlot => execute_lifecycle_request(
             request,
             Operation::ShutdownSlot,
             SHUTDOWN_SCRIPT,
-            SHUTDOWN_TIMEOUT,
+            project.runner.shutdown_timeout,
         ),
+        Operation::AssignGpu => {
+            execute_gpu_assignment_request(request, Operation::AssignGpu, ASSIGN_GPU_SCRIPT)
+        }
+        Operation::RemoveGpu => {
+            execute_gpu_assignment_request(request, Operation::RemoveGpu, REMOVE_GPU_SCRIPT)
+        }
         _ => Err(before_effect("operation-denied")),
     }
 }
@@ -288,11 +313,30 @@ fn execute_lifecycle_request(
     }
 }
 
+fn execute_gpu_assignment_request(
+    request: &Request,
+    operation: Operation,
+    script: &str,
+) -> Result<String, ExecutionFailure> {
+    let operation_id = operation_id().map_err(|_| ExecutionFailure {
+        diagnostic: "operation-id-failed",
+        operation_id: None,
+    })?;
+    match run_gpu_assignment(request, operation, &operation_id, script) {
+        Ok(()) => Ok(operation_id),
+        Err(_) => Err(ExecutionFailure {
+            diagnostic: "operation-failed-reconciliation-required",
+            operation_id: Some(operation_id),
+        }),
+    }
+}
+
 fn run_reset(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
-    let state_directory = Path::new(INSTALL_ROOT).join("state");
-    let result_directory = Path::new(INSTALL_ROOT).join("results");
-    let audit_directory = Path::new(INSTALL_ROOT).join("audit");
+    let project = project_configuration()?;
+    let state_directory = project.runner.data_directory.join("state");
+    let result_directory = project.runner.data_directory.join("results");
+    let audit_directory = project.runner.data_directory.join("audit");
     let lock_path = state_directory.join("operation.lock");
     let _lock = LockFile::acquire(&lock_path)?;
     ensure_reconciled(&state_directory, Operation::ResetSlot).map_err(std::io::Error::other)?;
@@ -306,7 +350,8 @@ fn run_reset(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
         "started",
         "",
     )?;
-    let output = match run_bounded(RESET_SCRIPT, RESET_TIMEOUT) {
+    let script = fixed_script(RESET_SCRIPT)?;
+    let output = match run_bounded(&script, project.runner.reset_timeout) {
         Ok(output) => output,
         Err(error) => {
             append_audit(
@@ -349,9 +394,10 @@ fn run_reset(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
 
 fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
-    let state_directory = Path::new(INSTALL_ROOT).join("state");
-    let result_directory = Path::new(INSTALL_ROOT).join("results");
-    let audit_directory = Path::new(INSTALL_ROOT).join("audit");
+    let project = project_configuration()?;
+    let state_directory = project.runner.data_directory.join("state");
+    let result_directory = project.runner.data_directory.join("results");
+    let audit_directory = project.runner.data_directory.join("audit");
     let lock_path = state_directory.join("operation.lock");
     let _lock = LockFile::acquire(&lock_path)?;
     let operation_id = operation_id()?;
@@ -363,7 +409,8 @@ fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> 
         "started",
         "",
     )?;
-    let output = match run_bounded(INSPECT_SCRIPT, INSPECT_TIMEOUT) {
+    let script = fixed_script(INSPECT_SCRIPT)?;
+    let output = match run_bounded(&script, project.runner.inspect_timeout) {
         Ok(output) => output,
         Err(error) => {
             append_audit(
@@ -417,9 +464,10 @@ fn run_lifecycle(
     timeout: Duration,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
-    let state_directory = Path::new(INSTALL_ROOT).join("state");
-    let result_directory = Path::new(INSTALL_ROOT).join("results");
-    let audit_directory = Path::new(INSTALL_ROOT).join("audit");
+    let project = project_configuration()?;
+    let state_directory = project.runner.data_directory.join("state");
+    let result_directory = project.runner.data_directory.join("results");
+    let audit_directory = project.runner.data_directory.join("audit");
     let _lock = LockFile::acquire(&state_directory.join("operation.lock"))?;
     append_audit(
         &audit_directory,
@@ -433,8 +481,9 @@ fn run_lifecycle(
     begin_reconciliation(&reconciliation_path, operation, operation_id)?;
 
     let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
-        let inspection_output =
-            run_bounded(INSPECT_SCRIPT, INSPECT_TIMEOUT).map_err(std::io::Error::other)?;
+        let inspection_script = fixed_script(INSPECT_SCRIPT)?;
+        let inspection_output = run_bounded(&inspection_script, project.runner.inspect_timeout)
+            .map_err(std::io::Error::other)?;
         let inspection = parse_inspect_result(&inspection_output)?;
         let expected_state = match operation {
             Operation::StartSlot => "Off",
@@ -444,7 +493,8 @@ fn run_lifecycle(
         if inspection.state != expected_state {
             return Err("lifecycle preflight state mismatch".into());
         }
-        let output = run_bounded(script, timeout).map_err(std::io::Error::other)?;
+        let operation_script = fixed_script(script)?;
+        let output = run_bounded(&operation_script, timeout).map_err(std::io::Error::other)?;
         let result = parse_lifecycle_result(&output, operation)?;
         let result_json = format!(
             concat!(
@@ -465,6 +515,107 @@ fn run_lifecycle(
             json_escape(&result.child),
             json_escape(&result.parent),
             result.parent_sha256
+        );
+        write_atomic(&result_directory, operation_id, &result_json)?;
+        Ok(())
+    })();
+    if let Err(error) = operation_result {
+        let _ = append_audit(
+            &audit_directory,
+            operation_id,
+            &request.request_id,
+            operation,
+            "failed-reconciliation-required",
+            &error.to_string(),
+        );
+        let failure_json = format!(
+            concat!(
+                "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n",
+                "  \"operation_id\": \"{}\",\n  \"operation\": \"{}\",\n",
+                "  \"status\": \"failed\",\n  \"reconciliation_required\": true,\n",
+                "  \"diagnostic\": \"{}\"\n}}\n"
+            ),
+            request.request_id,
+            operation_id,
+            operation.as_str(),
+            json_escape(&error.to_string())
+        );
+        let _ = write_atomic(&result_directory, operation_id, &failure_json);
+        return Err(error);
+    }
+    append_audit(
+        &audit_directory,
+        operation_id,
+        &request.request_id,
+        operation,
+        "succeeded",
+        "",
+    )?;
+    fs::remove_file(reconciliation_path)?;
+    Ok(())
+}
+
+fn run_gpu_assignment(
+    request: &Request,
+    operation: Operation,
+    operation_id: &str,
+    script: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let _enrollment = prepare_install_state()?;
+    let project = project_configuration()?;
+    let state_directory = project.runner.data_directory.join("state");
+    let result_directory = project.runner.data_directory.join("results");
+    let audit_directory = project.runner.data_directory.join("audit");
+    let _lock = LockFile::acquire(&state_directory.join("operation.lock"))?;
+    append_audit(
+        &audit_directory,
+        operation_id,
+        &request.request_id,
+        operation,
+        "started",
+        "",
+    )?;
+    let reconciliation_path = state_directory.join(RECONCILIATION_MARKER);
+    begin_reconciliation(&reconciliation_path, operation, operation_id)?;
+
+    let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let inspection_script = fixed_script(INSPECT_SCRIPT)?;
+        let inspection_output = run_bounded(&inspection_script, project.runner.inspect_timeout)
+            .map_err(std::io::Error::other)?;
+        let inspection = parse_inspect_result(&inspection_output)?;
+        let expected_count = match operation {
+            Operation::AssignGpu => 0,
+            Operation::RemoveGpu => 1,
+            _ => return Err("invalid GPU assignment operation".into()),
+        };
+        if inspection.state != "Off" || inspection.gpu_adapters != expected_count {
+            return Err("GPU assignment preflight state mismatch".into());
+        }
+        let operation_script = fixed_script(script)?;
+        let output = run_bounded(&operation_script, project.runner.gpu_assignment_timeout)
+            .map_err(std::io::Error::other)?;
+        let result = parse_gpu_assignment_result(&output, operation)?;
+        let result_json = format!(
+            concat!(
+                "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n",
+                "  \"operation_id\": \"{}\",\n  \"operation\": \"{}\",\n",
+                "  \"status\": \"succeeded\",\n  \"vm_id\": \"{}\",\n",
+                "  \"state\": \"{}\",\n  \"previous_gpu_adapters\": {},\n",
+                "  \"gpu_adapters\": {},\n  \"child\": \"{}\",\n",
+                "  \"parent\": \"{}\",\n  \"parent_sha256\": \"{}\",\n",
+                "  \"gpu_interface\": \"{}\"\n}}\n"
+            ),
+            request.request_id,
+            operation_id,
+            operation.as_str(),
+            result.vm_id,
+            result.state,
+            result.previous_gpu_adapters,
+            result.gpu_adapters,
+            json_escape(&result.child),
+            json_escape(&result.parent),
+            result.parent_sha256,
+            json_escape(&result.gpu_interface)
         );
         write_atomic(&result_directory, operation_id, &result_json)?;
         Ok(())
@@ -574,6 +725,29 @@ fn json_escape(value: &str) -> String {
         .replace('\n', "\\n")
 }
 
+fn powershell_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn fixed_script(body: &str) -> Result<String, hyper_gpu_support::runner::RunnerError> {
+    let policy = embedded_policy()?;
+    Ok(format!(
+        concat!(
+            "$ErrorActionPreference = 'Stop'\n",
+            "$vmId = [guid]{}\n$vmName = {}\n",
+            "$parentPath = {}\n$parentHash = {}\n",
+            "$childPath = {}\n$gpuPath = {}\n{}"
+        ),
+        powershell_literal(policy.vm_id()),
+        powershell_literal(policy.vm_name()),
+        powershell_literal(policy.parent()),
+        powershell_literal(policy.parent_sha256()),
+        powershell_literal(policy.child()),
+        powershell_literal(policy.gpu_interface()),
+        body
+    ))
+}
+
 fn run_bounded(script: &str, timeout: Duration) -> Result<String, String> {
     let mut child = Command::new("powershell.exe")
         .args([
@@ -655,12 +829,6 @@ fn read_bounded(mut reader: impl Read, overflow: &AtomicBool) -> std::io::Result
 }
 
 const RESET_SCRIPT: &str = r#"
-$ErrorActionPreference = 'Stop'
-$vmId = [guid]'2627E735-5B33-4104-B739-622727DD3A40'
-$vmName = 'HyperGpuSupport-Disposable-01'
-$parentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'
-$parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
-$childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 $hyperVAdministrators = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-578')
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -and
@@ -698,13 +866,6 @@ if ($verifiedDrive.Path -ine $childPath -or $verifiedChild.ParentPath -ine $pare
 "#;
 
 const INSPECT_SCRIPT: &str = r#"
-$ErrorActionPreference = 'Stop'
-$vmId = [guid]'2627E735-5B33-4104-B739-622727DD3A40'
-$vmName = 'HyperGpuSupport-Disposable-01'
-$parentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'
-$parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
-$childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
-$gpuPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 $hyperVAdministrators = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-578')
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -and
@@ -734,13 +895,6 @@ $gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop)
 "#;
 
 const START_SCRIPT: &str = r#"
-$ErrorActionPreference = 'Stop'
-$vmId = [guid]'2627E735-5B33-4104-B739-622727DD3A40'
-$vmName = 'HyperGpuSupport-Disposable-01'
-$parentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'
-$parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
-$childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
-$gpuPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
 $vm = Get-VM -Id $vmId -ErrorAction Stop
 if ($vm.Name -ne $vmName -or $vm.State -ne 'Off' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or start state mismatch' }
 if ($vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'checkpoint state rejected' }
@@ -775,13 +929,6 @@ if ($verifiedVm.Name -ne $vmName -or $verifiedVm.State -ne 'Running' -or $verifi
 "#;
 
 const SHUTDOWN_SCRIPT: &str = r#"
-$ErrorActionPreference = 'Stop'
-$vmId = [guid]'2627E735-5B33-4104-B739-622727DD3A40'
-$vmName = 'HyperGpuSupport-Disposable-01'
-$parentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'
-$parentHash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07'
-$childPath = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'
-$gpuPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
 $vm = Get-VM -Id $vmId -ErrorAction Stop
 if ($vm.Name -ne $vmName -or $vm.State -ne 'Running' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or shutdown state mismatch' }
 if ($vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'checkpoint state rejected' }
@@ -811,21 +958,88 @@ if ($verifiedVm.Name -ne $vmName -or $verifiedVm.State -ne 'Off' -or $verifiedDr
 [Console]::Out.WriteLine('parent_sha256' + "`t" + $hash)
 "#;
 
+const ASSIGN_GPU_SCRIPT: &str = r#"
+$vm = Get-VM -Id $vmId -ErrorAction Stop
+if ($vm.Name -ne $vmName -or $vm.State -ne 'Off' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or GPU assignment state mismatch' }
+if ($vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'checkpoint state rejected' }
+$drives = @(Get-VMHardDiskDrive -VM $vm -ErrorAction Stop)
+if ($drives.Count -ne 1 -or $drives[0].Path -ine $childPath) { throw 'enrolled child attachment mismatch' }
+$childItem = Get-Item -LiteralPath $childPath -ErrorAction Stop
+if ($childItem.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'child reparse point rejected' }
+$child = Get-VHD -Path $childPath -ErrorAction Stop
+if ($child.ParentPath -ine $parentPath -or $child.VhdType -ne 'Differencing') { throw 'child chain mismatch' }
+$parent = Get-Item -LiteralPath $parentPath -ErrorAction Stop
+if (-not $parent.IsReadOnly -or ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'parent protection mismatch' }
+$hostGpu = Get-VMHostPartitionableGpu -Name $gpuPath -ErrorAction Stop
+if ($hostGpu.Name -ine $gpuPath) { throw 'partitionable GPU identity mismatch' }
+$gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop)
+if ($gpuAdapters.Count -ne 0) { throw 'GPU adapter already assigned' }
+$otherGpuAssignments = @(Get-VM -ErrorAction Stop | Where-Object { $_.Id -ne $vmId } | ForEach-Object { Get-VMGpuPartitionAdapter -VM $_ -ErrorAction Stop })
+if ($otherGpuAssignments.Count -ne 0) { throw 'another VM GPU assignment rejected' }
+Add-VMGpuPartitionAdapter -VM $vm -InstancePath $gpuPath -ErrorAction Stop | Out-Null
+$verifiedVm = Get-VM -Id $vmId -ErrorAction Stop
+$verifiedAdapters = @(Get-VMGpuPartitionAdapter -VM $verifiedVm -ErrorAction Stop)
+if ($verifiedVm.State -ne 'Off' -or $verifiedAdapters.Count -ne 1 -or $verifiedAdapters[0].InstancePath -ine $gpuPath) { throw 'GPU assignment verification failed' }
+[Console]::Out.WriteLine('status' + "`t" + 'ok')
+[Console]::Out.WriteLine('vm_id' + "`t" + $vmId.ToString().ToLowerInvariant())
+[Console]::Out.WriteLine('state' + "`t" + [string]$verifiedVm.State)
+[Console]::Out.WriteLine('previous_gpu_adapters' + "`t" + '0')
+[Console]::Out.WriteLine('gpu_adapters' + "`t" + $verifiedAdapters.Count)
+[Console]::Out.WriteLine('child' + "`t" + $child.Path)
+[Console]::Out.WriteLine('parent' + "`t" + $child.ParentPath)
+[Console]::Out.WriteLine('parent_sha256' + "`t" + $parentHash)
+[Console]::Out.WriteLine('gpu_interface' + "`t" + $verifiedAdapters[0].InstancePath)
+"#;
+
+const REMOVE_GPU_SCRIPT: &str = r#"
+$vm = Get-VM -Id $vmId -ErrorAction Stop
+if ($vm.Name -ne $vmName -or $vm.State -ne 'Off' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or GPU removal state mismatch' }
+if ($vm.AutomaticCheckpointsEnabled -or @(Get-VMSnapshot -VM $vm -ErrorAction Stop).Count -ne 0) { throw 'checkpoint state rejected' }
+$drives = @(Get-VMHardDiskDrive -VM $vm -ErrorAction Stop)
+if ($drives.Count -ne 1 -or $drives[0].Path -ine $childPath) { throw 'enrolled child attachment mismatch' }
+$childItem = Get-Item -LiteralPath $childPath -ErrorAction Stop
+if ($childItem.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'child reparse point rejected' }
+$child = Get-VHD -Path $childPath -ErrorAction Stop
+if ($child.ParentPath -ine $parentPath -or $child.VhdType -ne 'Differencing') { throw 'child chain mismatch' }
+$parent = Get-Item -LiteralPath $parentPath -ErrorAction Stop
+if (-not $parent.IsReadOnly -or ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'parent protection mismatch' }
+$gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop)
+if ($gpuAdapters.Count -ne 1 -or $gpuAdapters[0].InstancePath -ine $gpuPath) { throw 'GPU adapter identity rejected' }
+Remove-VMGpuPartitionAdapter -VMGpuPartitionAdapter $gpuAdapters[0] -ErrorAction Stop
+$verifiedVm = Get-VM -Id $vmId -ErrorAction Stop
+$verifiedAdapters = @(Get-VMGpuPartitionAdapter -VM $verifiedVm -ErrorAction Stop)
+if ($verifiedVm.State -ne 'Off' -or $verifiedAdapters.Count -ne 0) { throw 'GPU removal verification failed' }
+[Console]::Out.WriteLine('status' + "`t" + 'ok')
+[Console]::Out.WriteLine('vm_id' + "`t" + $vmId.ToString().ToLowerInvariant())
+[Console]::Out.WriteLine('state' + "`t" + [string]$verifiedVm.State)
+[Console]::Out.WriteLine('previous_gpu_adapters' + "`t" + '1')
+[Console]::Out.WriteLine('gpu_adapters' + "`t" + $verifiedAdapters.Count)
+[Console]::Out.WriteLine('child' + "`t" + $child.Path)
+[Console]::Out.WriteLine('parent' + "`t" + $child.ParentPath)
+[Console]::Out.WriteLine('parent_sha256' + "`t" + $parentHash)
+[Console]::Out.WriteLine('gpu_interface' + "`t" + $gpuPath)
+"#;
+
 #[cfg(test)]
 mod tests {
     use std::fs;
     use std::time::{Duration, Instant};
 
     use super::{
-        INSPECT_SCRIPT, INSPECT_TIMEOUT, LockFile, RECONCILIATION_MARKER, RESET_SCRIPT,
-        RESET_TIMEOUT, SHUTDOWN_SCRIPT, SHUTDOWN_TIMEOUT, START_SCRIPT, START_TIMEOUT,
-        append_audit, begin_reconciliation, ensure_reconciled, handle_request, json_escape,
+        ASSIGN_GPU_SCRIPT, INSPECT_SCRIPT, LockFile, RECONCILIATION_MARKER, REMOVE_GPU_SCRIPT,
+        RESET_SCRIPT, SHUTDOWN_SCRIPT, START_SCRIPT, append_audit, begin_reconciliation,
+        ensure_reconciled, fixed_script, handle_request, json_escape, project_configuration,
         run_bounded, startup_failure_message,
     };
     use hyper_gpu_support::runner::{Operation, POLICY_V1};
 
     #[test]
     fn fixed_script_has_no_external_input_or_broad_vm_deletion() {
+        let policy = hyper_gpu_support::runner::embedded_policy().unwrap();
+        let start_script = fixed_script(START_SCRIPT).unwrap();
+        let shutdown_script = fixed_script(SHUTDOWN_SCRIPT).unwrap();
+        let assign_script = fixed_script(ASSIGN_GPU_SCRIPT).unwrap();
+        let remove_script = fixed_script(REMOVE_GPU_SCRIPT).unwrap();
         assert!(POLICY_V1.contains("reset-slot"));
         assert!(!RESET_SCRIPT.contains("Remove-VM "));
         assert!(!RESET_SCRIPT.contains("Invoke-Expression"));
@@ -846,8 +1060,8 @@ mod tests {
         assert!(START_SCRIPT.contains("-lt 12582912"));
         assert!(START_SCRIPT.contains("another VM GPU assignment rejected"));
         assert!(SHUTDOWN_SCRIPT.contains("Stop-VM -VM $vm"));
-        for script in [START_SCRIPT, SHUTDOWN_SCRIPT] {
-            assert!(script.contains("2627E735-5B33-4104-B739-622727DD3A40"));
+        for script in [&start_script, &shutdown_script] {
+            assert!(script.contains(policy.vm_id()));
             assert!(script.contains("Get-VMSnapshot"));
             assert!(script.contains("Get-VMGpuPartitionAdapter"));
             assert!(script.contains("$gpuAdapters[0].InstancePath -ine $gpuPath"));
@@ -861,21 +1075,46 @@ mod tests {
         assert!(!SHUTDOWN_SCRIPT.contains("-Force"));
         assert!(!SHUTDOWN_SCRIPT.contains("-TurnOff"));
         assert!(!SHUTDOWN_SCRIPT.contains("-Save"));
+        assert!(
+            ASSIGN_GPU_SCRIPT.contains("Add-VMGpuPartitionAdapter -VM $vm -InstancePath $gpuPath")
+        );
+        assert!(
+            REMOVE_GPU_SCRIPT
+                .contains("Remove-VMGpuPartitionAdapter -VMGpuPartitionAdapter $gpuAdapters[0]")
+        );
+        for script in [&assign_script, &remove_script] {
+            assert!(script.contains(policy.vm_id()));
+            assert!(script.contains("$vm.State -ne 'Off'"));
+            assert!(script.contains("Get-VMSnapshot"));
+            assert!(script.contains("Get-VMGpuPartitionAdapter"));
+            assert!(!script.contains("Start-VM"));
+            assert!(!script.contains("Stop-VM"));
+            assert!(!script.contains("Invoke-Expression"));
+            assert!(!script.contains("param("));
+            assert!(!script.contains("SilentlyContinue"));
+            assert!(!script.contains("Get-FileHash"));
+        }
     }
 
     #[test]
     fn lifecycle_deadlines_include_parent_inspection_and_transition_allowance() {
-        assert_eq!(RESET_TIMEOUT, Duration::from_secs(300));
-        assert_eq!(INSPECT_TIMEOUT, Duration::from_secs(300));
-        assert_eq!(START_TIMEOUT, Duration::from_secs(180));
-        assert_eq!(SHUTDOWN_TIMEOUT, Duration::from_secs(120));
+        let project = project_configuration().unwrap();
+        let runner = project.runner;
+        assert!(!runner.reset_timeout.is_zero());
+        assert!(!runner.inspect_timeout.is_zero());
+        assert!(!runner.start_timeout.is_zero());
+        assert!(!runner.shutdown_timeout.is_zero());
+        assert!(!runner.gpu_assignment_timeout.is_zero());
         let installer = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/scripts/setup/install-runner-v1.ps1"
         ));
-        assert!(installer.contains("ExecutionTimeLimit = 'PT10M'"));
-        assert!(INSPECT_TIMEOUT + START_TIMEOUT < Duration::from_secs(600));
-        assert!(INSPECT_TIMEOUT + SHUTDOWN_TIMEOUT < Duration::from_secs(600));
+        assert!(installer.contains("runner.task_execution_timeout_seconds"));
+        assert!(runner.inspect_timeout + runner.start_timeout < runner.task_execution_timeout);
+        assert!(runner.inspect_timeout + runner.shutdown_timeout < runner.task_execution_timeout);
+        assert!(
+            runner.inspect_timeout + runner.gpu_assignment_timeout < runner.task_execution_timeout
+        );
     }
 
     #[test]
@@ -1017,28 +1256,44 @@ mod tests {
     fn fixed_lifecycle_scripts_execute_against_typed_fakes() {
         const FAKES: &str = r#"
 $script:state = 'Off'
-$script:adapterPath = '\\?\PCI#VEN_10DE&DEV_2D05&SUBSYS_8A151043&REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
+$script:adapterPath = '__GPU_INTERFACE__'
+$script:adapterCount = 0
 $script:otherAssignment = $false
 $script:denyGpuQuery = $false
 $script:freeMemory = [uint64]12582912
-function Get-VM { [CmdletBinding()] param([guid]$Id) $target = [pscustomobject]@{ Id = [guid]'2627E735-5B33-4104-B739-622727DD3A40'; Name = 'HyperGpuSupport-Disposable-01'; State = $script:state; Generation = 2; Version = '12.0'; AutomaticCheckpointsEnabled = $false }; if ($PSBoundParameters.ContainsKey('Id')) { $target } else { $target; if ($script:otherAssignment) { [pscustomobject]@{ Id = [guid]'00000000-0000-0000-0000-000000000001'; Name = 'Other' } } } }
+function Get-VM { [CmdletBinding()] param([guid]$Id) $target = [pscustomobject]@{ Id = [guid]'__VM_ID__'; Name = '__VM_NAME__'; State = $script:state; Generation = 2; Version = '12.0'; AutomaticCheckpointsEnabled = $false }; if ($PSBoundParameters.ContainsKey('Id')) { $target } else { $target; if ($script:otherAssignment) { [pscustomobject]@{ Id = [guid]'00000000-0000-0000-0000-000000000001'; Name = 'Other' } } } }
 function Get-VMSnapshot { [CmdletBinding()] param($VM) }
-function Get-VMHardDiskDrive { [CmdletBinding()] param($VM) [pscustomobject]@{ Path = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx' } }
+function Get-VMHardDiskDrive { [CmdletBinding()] param($VM) [pscustomobject]@{ Path = '__CHILD__' } }
 function Get-Item { [CmdletBinding()] param([string]$LiteralPath) [pscustomobject]@{ IsReadOnly = $true; Attributes = [IO.FileAttributes]::Normal } }
-function Get-VHD { [CmdletBinding()] param([string]$Path) [pscustomobject]@{ Path = 'Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'; ParentPath = 'Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx'; VhdType = 'Differencing' } }
-function Get-FileHash { [CmdletBinding()] param([string]$LiteralPath, [string]$Algorithm) [pscustomobject]@{ Hash = '0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07' } }
-function Get-VMGpuPartitionAdapter { [CmdletBinding()] param($VM) if ($script:denyGpuQuery) { throw 'gpu query denied' }; if ($VM.Id -eq [guid]'2627E735-5B33-4104-B739-622727DD3A40' -or $script:otherAssignment) { [pscustomobject]@{ InstancePath = $script:adapterPath } } }
+function Get-VHD { [CmdletBinding()] param([string]$Path) [pscustomobject]@{ Path = '__CHILD__'; ParentPath = '__PARENT__'; VhdType = 'Differencing' } }
+function Get-FileHash { [CmdletBinding()] param([string]$LiteralPath, [string]$Algorithm) [pscustomobject]@{ Hash = '__PARENT_HASH__' } }
+function Get-VMHostPartitionableGpu { [CmdletBinding()] param([string]$Name) [pscustomobject]@{ Name = $script:adapterPath } }
+function Get-VMGpuPartitionAdapter { [CmdletBinding()] param($VM) if ($script:denyGpuQuery) { throw 'gpu query denied' }; if (($VM.Id -eq [guid]'__VM_ID__' -and $script:adapterCount -eq 1) -or ($VM.Id -ne [guid]'__VM_ID__' -and $script:otherAssignment)) { [pscustomobject]@{ InstancePath = $script:adapterPath } } }
 function Get-CimInstance { [CmdletBinding()] param([string]$ClassName) [pscustomobject]@{ FreePhysicalMemory = $script:freeMemory } }
 function Start-VM { [CmdletBinding()] param($VM) $script:state = 'Running' }
 function Stop-VM { [CmdletBinding(SupportsShouldProcess)] param($VM) $script:state = 'Off' }
+function Add-VMGpuPartitionAdapter { [CmdletBinding()] param($VM,[string]$InstancePath) $script:adapterCount = 1 }
+function Remove-VMGpuPartitionAdapter { [CmdletBinding()] param($VMGpuPartitionAdapter) $script:adapterCount = 0 }
 "#;
+        let policy = hyper_gpu_support::runner::embedded_policy().unwrap();
+        let fakes = FAKES
+            .replace("__GPU_INTERFACE__", policy.gpu_interface())
+            .replace("__VM_ID__", policy.vm_id())
+            .replace("__VM_NAME__", policy.vm_name())
+            .replace("__CHILD__", policy.child())
+            .replace("__PARENT__", policy.parent())
+            .replace("__PARENT_HASH__", policy.parent_sha256());
+        let start_script = fixed_script(START_SCRIPT).unwrap();
+        let shutdown_script = fixed_script(SHUTDOWN_SCRIPT).unwrap();
+        let assign_script = fixed_script(ASSIGN_GPU_SCRIPT).unwrap();
+        let remove_script = fixed_script(REMOVE_GPU_SCRIPT).unwrap();
         let start_output =
-            run_bounded(&format!("{FAKES}\n{START_SCRIPT}"), Duration::from_secs(5)).unwrap();
+            run_bounded(&format!("{fakes}\n{start_script}"), Duration::from_secs(5)).unwrap();
         hyper_gpu_support::runner::parse_lifecycle_result(&start_output, Operation::StartSlot)
             .unwrap();
 
         let shutdown_output = run_bounded(
-            &format!("{FAKES}\n$script:state = 'Running'\n{SHUTDOWN_SCRIPT}"),
+            &format!("{fakes}\n$script:state = 'Running'\n{shutdown_script}"),
             Duration::from_secs(5),
         )
         .unwrap();
@@ -1050,7 +1305,7 @@ function Stop-VM { [CmdletBinding(SupportsShouldProcess)] param($VM) $script:sta
 
         assert!(
             run_bounded(
-                &format!("{FAKES}\n$script:adapterPath = 'wrong'\n{START_SCRIPT}"),
+                &format!("{fakes}\n$script:adapterCount = 1\n$script:adapterPath = 'wrong'\n{start_script}"),
                 Duration::from_secs(5)
             )
             .unwrap_err()
@@ -1058,7 +1313,7 @@ function Stop-VM { [CmdletBinding(SupportsShouldProcess)] param($VM) $script:sta
         );
         assert!(
             run_bounded(
-                &format!("{FAKES}\n$script:otherAssignment = $true\n{START_SCRIPT}"),
+                &format!("{fakes}\n$script:otherAssignment = $true\n{start_script}"),
                 Duration::from_secs(5)
             )
             .unwrap_err()
@@ -1066,7 +1321,7 @@ function Stop-VM { [CmdletBinding(SupportsShouldProcess)] param($VM) $script:sta
         );
         assert!(
             run_bounded(
-                &format!("{FAKES}\n$script:freeMemory = 12582911\n{START_SCRIPT}"),
+                &format!("{fakes}\n$script:freeMemory = 12582911\n{start_script}"),
                 Duration::from_secs(5)
             )
             .unwrap_err()
@@ -1074,11 +1329,58 @@ function Stop-VM { [CmdletBinding(SupportsShouldProcess)] param($VM) $script:sta
         );
         assert!(
             run_bounded(
-                &format!("{FAKES}\n$script:denyGpuQuery = $true\n{START_SCRIPT}"),
+                &format!("{fakes}\n$script:denyGpuQuery = $true\n{start_script}"),
                 Duration::from_secs(5)
             )
             .unwrap_err()
             .contains("gpu query denied")
+        );
+
+        let assign_output =
+            run_bounded(&format!("{fakes}\n{assign_script}"), Duration::from_secs(5)).unwrap();
+        hyper_gpu_support::runner::parse_gpu_assignment_result(
+            &assign_output,
+            Operation::AssignGpu,
+        )
+        .unwrap();
+        let remove_output = run_bounded(
+            &format!("{fakes}\n$script:adapterCount = 1\n{remove_script}"),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        hyper_gpu_support::runner::parse_gpu_assignment_result(
+            &remove_output,
+            Operation::RemoveGpu,
+        )
+        .unwrap();
+        assert!(
+            run_bounded(
+                &format!("{fakes}\n$script:adapterCount = 1\n{assign_script}"),
+                Duration::from_secs(5),
+            )
+            .unwrap_err()
+            .contains("GPU adapter already assigned")
+        );
+        assert!(
+            run_bounded(
+                &format!("{fakes}\n$script:otherAssignment = $true\n{assign_script}"),
+                Duration::from_secs(5),
+            )
+            .unwrap_err()
+            .contains("another VM GPU assignment rejected")
+        );
+        assert!(
+            run_bounded(
+                &format!("{fakes}\n$script:denyGpuQuery = $true\n{assign_script}"),
+                Duration::from_secs(5),
+            )
+            .unwrap_err()
+            .contains("gpu query denied")
+        );
+        assert!(
+            run_bounded(&format!("{fakes}\n{remove_script}"), Duration::from_secs(5),)
+                .unwrap_err()
+                .contains("GPU adapter identity rejected")
         );
     }
 }

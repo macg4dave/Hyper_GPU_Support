@@ -46,6 +46,30 @@ become a parallel implementation of application logic, CLI behavior, validation,
 diagnostics or GPU/Hyper-V management assigned to Rust. Embedded application-side
 shell remains subject to the non-Rust exception process below.
 
+## Configuration and mutable values
+
+Use [`config/project.toml`](../config/project.toml) as the single checked-in source
+for non-secret values expected to change with a machine, disposable VM, GPU/driver,
+image, tool input or test run. This includes target identities, artifact paths and
+hashes, external roots, tunable deadlines/retries and experiment switches. Before
+adding a literal to Rust, PowerShell, a prompt or ordinary documentation, decide
+whether it describes software behavior or the current environment. Keep true
+protocol values, Windows API constants, enums and fixed safety bounds in code.
+
+Rust deserializes at a boundary into strongly typed structures, validates the full
+document once and passes values through normal interfaces; application logic must
+not repeatedly read TOML or environment variables. Maintained scripts use the
+shared project-configuration reader and may expose clear parameters as explicit
+overrides. Do not introduce another hand-maintained settings format. Generated
+security policies/manifests are permitted when their source and regeneration/check
+command are explicit and stale output fails validation.
+
+Do not duplicate current machine values in documentation unless recording immutable
+evidence from a completed run; refer to configuration keys instead. Repository
+configuration must never contain credentials, keys or passwords. Use ignored local
+files, environment variables, Windows credential facilities or runtime prompting as
+appropriate. See the [configuration ownership and audit](CONFIGURATION.md).
+
 ## Rust and native Windows
 
 - Implement application logic, CLI tools, configuration, GPU discovery/management,

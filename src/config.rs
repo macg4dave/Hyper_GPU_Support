@@ -5,6 +5,11 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::path::{Component, Path, PathBuf};
+use std::sync::OnceLock;
+use std::time::Duration;
+
+use serde::Deserialize;
 
 /// Current configuration schema.
 pub const SCHEMA_VERSION: u32 = 1;
@@ -22,6 +27,312 @@ pub struct Configuration {
     pub manifest_sha256: String,
     /// Requested provider-defined GPU resource settings.
     pub resources: ResourceConfiguration,
+}
+
+/// Validated project, development-environment and disposable-test configuration.
+///
+/// This is the typed boundary for `config/project.toml`. Consumers receive this
+/// structure after parsing and validation and do not need to know TOML syntax.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectConfiguration {
+    /// Exact disposable slot and its pinned storage/GPU identities.
+    pub slot: SlotConfiguration,
+    /// Desired driver/runtime manifest.
+    pub driver_manifest: DriverManifestConfiguration,
+    /// Requested provider-defined GPU resource settings.
+    pub resources: ResourceConfiguration,
+    /// Shared data and test-output locations.
+    pub paths: ProjectPaths,
+    /// Read-only inventory adapter settings.
+    pub inventory: InventoryConfiguration,
+    /// Least-privilege runner installation and timeout settings.
+    pub runner: RunnerConfiguration,
+    /// Pinned development tool inputs.
+    pub tooling: ToolingConfiguration,
+    /// Hardware-probe harness settings.
+    pub tests: TestConfiguration,
+}
+
+/// Bounded read-only inventory adapter settings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InventoryConfiguration {
+    /// Maximum duration of the native inventory query adapter.
+    pub timeout: Duration,
+}
+
+/// Validated identity and disk chain for the one disposable slot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SlotConfiguration {
+    /// Logical slot name used by the runner protocol.
+    pub name: String,
+    /// Canonical lowercase Hyper-V VM GUID.
+    pub vm_id: String,
+    /// Exact Hyper-V VM display name used as a second identity check.
+    pub vm_name: String,
+    /// Exact GPU-P partition interface.
+    pub gpu_interface: String,
+    /// Exact adapter name expected from CUDA.
+    pub gpu_name: String,
+    /// PCI vendor identifier used for hardware adapter selection.
+    pub gpu_vendor_id: u32,
+    /// PCI device identifier used for hardware adapter selection.
+    pub gpu_device_id: u32,
+    /// PCI subsystem identifier required by exact probe validation.
+    pub gpu_subsystem_id: u32,
+    /// PCI revision required by exact probe validation.
+    pub gpu_revision: u32,
+    /// Expected CUDA compute-capability major version.
+    pub cuda_compute_capability_major: i32,
+    /// Expected CUDA compute-capability minor version.
+    pub cuda_compute_capability_minor: i32,
+    /// Immutable parent VHDX.
+    pub parent_path: PathBuf,
+    /// Expected immutable parent SHA-256.
+    pub parent_sha256: String,
+    /// Disposable differencing child VHDX.
+    pub child_path: PathBuf,
+}
+
+/// Immutable driver/runtime manifest identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DriverManifestConfiguration {
+    /// Human-auditable manifest identifier.
+    pub id: String,
+    /// Canonical lowercase manifest SHA-256.
+    pub sha256: String,
+}
+
+/// Shared project data locations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectPaths {
+    /// Canonical absolute root for external machine-local data.
+    pub data_root: PathBuf,
+    /// Repository-relative directory for non-promoted test evidence.
+    pub test_output: PathBuf,
+}
+
+/// Fixed runner installation identifiers and bounded operation deadlines.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunnerConfiguration {
+    /// Administrator-owned executable directory.
+    pub install_directory: PathBuf,
+    /// Administrator-owned policy, state, result and audit directory.
+    pub data_directory: PathBuf,
+    /// Dedicated local service account name.
+    pub account_name: String,
+    /// Scheduled Task folder, including leading and trailing separators.
+    pub task_path: String,
+    /// Current runner task name.
+    pub task_name: String,
+    /// Previous task name retained only for the reviewed migration/recovery path.
+    pub legacy_task_name: String,
+    /// Maximum reset operation duration.
+    pub reset_timeout: Duration,
+    /// Maximum inspection duration.
+    pub inspect_timeout: Duration,
+    /// Maximum VM-start duration.
+    pub start_timeout: Duration,
+    /// Maximum graceful-shutdown duration.
+    pub shutdown_timeout: Duration,
+    /// Maximum GPU attach/detach duration.
+    pub gpu_assignment_timeout: Duration,
+    /// Scheduled Task execution ceiling covering preflight plus one operation.
+    pub task_execution_timeout: Duration,
+    /// Reviewed build artifacts and their expected hashes.
+    pub artifacts: RunnerArtifactConfiguration,
+}
+
+/// Hash-pinned binaries installed at the privilege boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunnerArtifactConfiguration {
+    /// Directory containing release runner/client/rights binaries.
+    pub directory: PathBuf,
+}
+
+/// Pinned local build-tool and upstream-source settings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolingConfiguration {
+    /// Repository-relative staging directory.
+    pub staging_directory: PathBuf,
+    /// CUDA toolkit release label used in derived directories.
+    pub cuda_release: String,
+    /// CMake release label used in derived directories.
+    pub cmake_release: String,
+    /// Windows SDK version containing the required shader compiler.
+    pub windows_sdk_version: String,
+    /// Repository-relative extracted DXC directory.
+    pub dxc_directory: PathBuf,
+    /// Exact CUDA Samples upstream URL.
+    pub cuda_samples_repository: String,
+    /// Pinned CUDA Samples commit.
+    pub cuda_samples_commit: String,
+    /// Pinned CUDA Samples tree.
+    pub cuda_samples_tree: String,
+    /// Pinned CMake archive URL.
+    pub cmake_uri: String,
+    /// Pinned CMake archive SHA-256.
+    pub cmake_sha256: String,
+    /// Named CUDA redistributable archives and hashes.
+    pub cuda_packages: BTreeMap<String, DownloadConfiguration>,
+}
+
+/// One pinned download input.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DownloadConfiguration {
+    /// HTTPS source URL.
+    pub uri: String,
+    /// Canonical lowercase archive SHA-256.
+    pub sha256: String,
+}
+
+/// Settings for test harnesses that legitimately vary by environment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestConfiguration {
+    /// Standalone host probe settings.
+    pub host_probes: HostProbeConfiguration,
+}
+
+/// Bounded host-probe harness settings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostProbeConfiguration {
+    /// Repository-local evidence output.
+    pub output_path: PathBuf,
+    /// Repository-local self-test evidence output.
+    pub self_test_output_path: PathBuf,
+    /// D3D/CUDA identity process timeout.
+    pub process_timeout: Duration,
+    /// CUDA workload process timeout.
+    pub cuda_timeout: Duration,
+    /// Whole-suite timeout.
+    pub suite_timeout: Duration,
+    /// Measured repetitions after the warm-up.
+    pub repetitions: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawProjectConfiguration {
+    schema: u32,
+    slot: RawSlotConfiguration,
+    driver_manifest: RawDriverManifestConfiguration,
+    resources: RawResourceConfiguration,
+    paths: RawProjectPaths,
+    inventory: RawInventoryConfiguration,
+    runner: RawRunnerConfiguration,
+    tooling: RawToolingConfiguration,
+    tests: RawTestConfiguration,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSlotConfiguration {
+    name: String,
+    vm_id: String,
+    vm_name: String,
+    gpu_interface: String,
+    gpu_name: String,
+    gpu_vendor_id: u32,
+    gpu_device_id: u32,
+    gpu_subsystem_id: u32,
+    gpu_revision: u32,
+    cuda_compute_capability_major: i32,
+    cuda_compute_capability_minor: i32,
+    parent_path: PathBuf,
+    parent_sha256: String,
+    child_path: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawDriverManifestConfiguration {
+    id: String,
+    sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawResourceConfiguration {
+    vram: String,
+    encode: String,
+    decode: String,
+    compute: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawProjectPaths {
+    data_root: PathBuf,
+    test_output: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawInventoryConfiguration {
+    timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawRunnerConfiguration {
+    install_directory: PathBuf,
+    data_directory: PathBuf,
+    account_name: String,
+    task_path: String,
+    task_name: String,
+    legacy_task_name: String,
+    reset_timeout_seconds: u64,
+    inspect_timeout_seconds: u64,
+    start_timeout_seconds: u64,
+    shutdown_timeout_seconds: u64,
+    gpu_assignment_timeout_seconds: u64,
+    task_execution_timeout_seconds: u64,
+    artifacts: RawRunnerArtifactConfiguration,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawRunnerArtifactConfiguration {
+    directory: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawToolingConfiguration {
+    staging_directory: PathBuf,
+    cuda_release: String,
+    cmake_release: String,
+    windows_sdk_version: String,
+    dxc_directory: PathBuf,
+    cuda_samples_repository: String,
+    cuda_samples_commit: String,
+    cuda_samples_tree: String,
+    cmake_uri: String,
+    cmake_sha256: String,
+    cuda_packages: BTreeMap<String, RawDownloadConfiguration>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawDownloadConfiguration {
+    uri: String,
+    sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawTestConfiguration {
+    host_probes: RawHostProbeConfiguration,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawHostProbeConfiguration {
+    output_path: PathBuf,
+    self_test_output_path: PathBuf,
+    process_timeout_seconds: u64,
+    cuda_timeout_seconds: u64,
+    suite_timeout_seconds: u64,
+    repetitions: u32,
 }
 
 /// Provider-defined resource requests. Values are opaque units, not percentages.
@@ -253,6 +564,12 @@ pub enum ConfigError {
     InvalidFingerprint,
     /// A resource request is malformed or has an invalid range.
     InvalidResource,
+    /// A project path is not absolute/relative as required or escapes its root.
+    InvalidPath,
+    /// A bounded operation or suite timeout is zero or internally inconsistent.
+    InvalidTimeout,
+    /// A project/tool identity, URL, revision or pinned hash is malformed.
+    InvalidProjectSetting,
 }
 
 impl fmt::Display for ConfigError {
@@ -267,11 +584,273 @@ impl fmt::Display for ConfigError {
             Self::InvalidManifest => "invalid manifest identity",
             Self::InvalidFingerprint => "invalid plan fingerprint",
             Self::InvalidResource => "invalid GPU resource range",
+            Self::InvalidPath => "invalid project configuration path",
+            Self::InvalidTimeout => "invalid project configuration timeout",
+            Self::InvalidProjectSetting => "invalid project configuration setting",
         })
     }
 }
 
 impl std::error::Error for ConfigError {}
+
+impl ProjectConfiguration {
+    /// Parse and validate the authoritative project TOML document.
+    ///
+    /// # Errors
+    /// Returns a non-secret-bearing category for malformed TOML, unknown fields,
+    /// invalid identities, unsafe paths, unbounded timing or invalid pins.
+    pub fn parse(input: &str) -> Result<Self, ConfigError> {
+        if input.len() > 64 * 1024 {
+            return Err(ConfigError::InvalidSyntax);
+        }
+        let raw: RawProjectConfiguration =
+            toml::from_str(input).map_err(|_| ConfigError::InvalidSyntax)?;
+        if raw.schema != SCHEMA_VERSION {
+            return Err(ConfigError::UnsupportedSchema);
+        }
+        validate_identifier(&raw.slot.name)?;
+        if !is_canonical_guid(&raw.slot.vm_id) {
+            return Err(ConfigError::InvalidVmId);
+        }
+        validate_identifier(&raw.slot.vm_name)?;
+        if !is_gpu_interface(&raw.slot.gpu_interface) {
+            return Err(ConfigError::InvalidGpuIdentity);
+        }
+        if raw.slot.gpu_name.is_empty()
+            || raw.slot.gpu_name.len() > 128
+            || raw.slot.gpu_name.chars().any(char::is_control)
+            || raw.slot.gpu_vendor_id == 0
+            || raw.slot.gpu_device_id == 0
+            || raw.slot.gpu_subsystem_id == 0
+            || raw.slot.gpu_vendor_id > u16::MAX.into()
+            || raw.slot.gpu_device_id > u16::MAX.into()
+            || raw.slot.gpu_revision > u8::MAX.into()
+            || raw.slot.cuda_compute_capability_major <= 0
+            || raw.slot.cuda_compute_capability_minor < 0
+        {
+            return Err(ConfigError::InvalidGpuIdentity);
+        }
+        validate_absolute_windows_path(&raw.slot.parent_path)?;
+        validate_absolute_windows_path(&raw.slot.child_path)?;
+        if raw.slot.parent_path == raw.slot.child_path || !is_lower_hex(&raw.slot.parent_sha256, 64)
+        {
+            return Err(ConfigError::InvalidPath);
+        }
+        if !is_manifest_id(&raw.driver_manifest.id)
+            || !is_lower_hex(&raw.driver_manifest.sha256, 64)
+        {
+            return Err(ConfigError::InvalidManifest);
+        }
+        validate_absolute_windows_path(&raw.paths.data_root)?;
+        validate_relative_path(&raw.paths.test_output)?;
+        if !path_is_within(&raw.slot.parent_path, &raw.paths.data_root)
+            || !path_is_within(&raw.slot.child_path, &raw.paths.data_root)
+        {
+            return Err(ConfigError::InvalidPath);
+        }
+        if raw.inventory.timeout_seconds == 0 || raw.inventory.timeout_seconds > 300 {
+            return Err(ConfigError::InvalidTimeout);
+        }
+
+        validate_absolute_windows_path(&raw.runner.install_directory)?;
+        validate_absolute_windows_path(&raw.runner.data_directory)?;
+        validate_absolute_windows_path(&raw.runner.artifacts.directory)?;
+        for value in [
+            &raw.runner.account_name,
+            &raw.runner.task_name,
+            &raw.runner.legacy_task_name,
+        ] {
+            validate_identifier(value)?;
+        }
+        if raw.runner.task_path.len() < 3
+            || !raw.runner.task_path.starts_with('\\')
+            || !raw.runner.task_path.ends_with('\\')
+            || raw.runner.task_path.contains("..")
+            || raw.runner.task_path.chars().any(char::is_control)
+        {
+            return Err(ConfigError::InvalidProjectSetting);
+        }
+        let runner_timeouts = [
+            raw.runner.reset_timeout_seconds,
+            raw.runner.inspect_timeout_seconds,
+            raw.runner.start_timeout_seconds,
+            raw.runner.shutdown_timeout_seconds,
+            raw.runner.gpu_assignment_timeout_seconds,
+            raw.runner.task_execution_timeout_seconds,
+        ];
+        if runner_timeouts.contains(&0)
+            || raw.runner.inspect_timeout_seconds + raw.runner.start_timeout_seconds
+                >= raw.runner.task_execution_timeout_seconds
+            || raw.runner.inspect_timeout_seconds + raw.runner.shutdown_timeout_seconds
+                >= raw.runner.task_execution_timeout_seconds
+            || raw.runner.inspect_timeout_seconds + raw.runner.gpu_assignment_timeout_seconds
+                >= raw.runner.task_execution_timeout_seconds
+        {
+            return Err(ConfigError::InvalidTimeout);
+        }
+
+        validate_relative_path(&raw.tooling.staging_directory)?;
+        validate_relative_path(&raw.tooling.dxc_directory)?;
+        for value in [
+            &raw.tooling.cuda_release,
+            &raw.tooling.cmake_release,
+            &raw.tooling.windows_sdk_version,
+        ] {
+            validate_version_label(value)?;
+        }
+        validate_https(&raw.tooling.cuda_samples_repository)?;
+        validate_https(&raw.tooling.cmake_uri)?;
+        if !is_lower_hex(&raw.tooling.cuda_samples_commit, 40)
+            || !is_lower_hex(&raw.tooling.cuda_samples_tree, 40)
+            || !is_lower_hex(&raw.tooling.cmake_sha256, 64)
+            || raw.tooling.cuda_packages.is_empty()
+        {
+            return Err(ConfigError::InvalidProjectSetting);
+        }
+        let cuda_packages = raw
+            .tooling
+            .cuda_packages
+            .into_iter()
+            .map(|(name, package)| {
+                validate_identifier(&name)?;
+                validate_https(&package.uri)?;
+                if !is_lower_hex(&package.sha256, 64) {
+                    return Err(ConfigError::InvalidProjectSetting);
+                }
+                Ok((
+                    name,
+                    DownloadConfiguration {
+                        uri: package.uri,
+                        sha256: package.sha256,
+                    },
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, ConfigError>>()?;
+
+        validate_relative_path(&raw.tests.host_probes.output_path)?;
+        validate_relative_path(&raw.tests.host_probes.self_test_output_path)?;
+        let test_timeouts = [
+            raw.tests.host_probes.process_timeout_seconds,
+            raw.tests.host_probes.cuda_timeout_seconds,
+            raw.tests.host_probes.suite_timeout_seconds,
+        ];
+        if test_timeouts.contains(&0)
+            || raw.tests.host_probes.repetitions == 0
+            || raw.tests.host_probes.process_timeout_seconds
+                > raw.tests.host_probes.suite_timeout_seconds
+            || raw.tests.host_probes.cuda_timeout_seconds
+                > raw.tests.host_probes.suite_timeout_seconds
+        {
+            return Err(ConfigError::InvalidTimeout);
+        }
+
+        let resources = ResourceConfiguration {
+            vram: parse_resource(Some(&raw.resources.vram))?,
+            encode: parse_resource(Some(&raw.resources.encode))?,
+            decode: parse_resource(Some(&raw.resources.decode))?,
+            compute: parse_resource(Some(&raw.resources.compute))?,
+        };
+        Ok(Self {
+            slot: SlotConfiguration {
+                name: raw.slot.name,
+                vm_id: raw.slot.vm_id,
+                vm_name: raw.slot.vm_name,
+                gpu_interface: raw.slot.gpu_interface,
+                gpu_name: raw.slot.gpu_name,
+                gpu_vendor_id: raw.slot.gpu_vendor_id,
+                gpu_device_id: raw.slot.gpu_device_id,
+                gpu_subsystem_id: raw.slot.gpu_subsystem_id,
+                gpu_revision: raw.slot.gpu_revision,
+                cuda_compute_capability_major: raw.slot.cuda_compute_capability_major,
+                cuda_compute_capability_minor: raw.slot.cuda_compute_capability_minor,
+                parent_path: raw.slot.parent_path,
+                parent_sha256: raw.slot.parent_sha256,
+                child_path: raw.slot.child_path,
+            },
+            driver_manifest: DriverManifestConfiguration {
+                id: raw.driver_manifest.id,
+                sha256: raw.driver_manifest.sha256,
+            },
+            resources,
+            paths: ProjectPaths {
+                data_root: raw.paths.data_root,
+                test_output: raw.paths.test_output,
+            },
+            inventory: InventoryConfiguration {
+                timeout: Duration::from_secs(raw.inventory.timeout_seconds),
+            },
+            runner: RunnerConfiguration {
+                install_directory: raw.runner.install_directory,
+                data_directory: raw.runner.data_directory,
+                account_name: raw.runner.account_name,
+                task_path: raw.runner.task_path,
+                task_name: raw.runner.task_name,
+                legacy_task_name: raw.runner.legacy_task_name,
+                reset_timeout: Duration::from_secs(raw.runner.reset_timeout_seconds),
+                inspect_timeout: Duration::from_secs(raw.runner.inspect_timeout_seconds),
+                start_timeout: Duration::from_secs(raw.runner.start_timeout_seconds),
+                shutdown_timeout: Duration::from_secs(raw.runner.shutdown_timeout_seconds),
+                gpu_assignment_timeout: Duration::from_secs(
+                    raw.runner.gpu_assignment_timeout_seconds,
+                ),
+                task_execution_timeout: Duration::from_secs(
+                    raw.runner.task_execution_timeout_seconds,
+                ),
+                artifacts: RunnerArtifactConfiguration {
+                    directory: raw.runner.artifacts.directory,
+                },
+            },
+            tooling: ToolingConfiguration {
+                staging_directory: raw.tooling.staging_directory,
+                cuda_release: raw.tooling.cuda_release,
+                cmake_release: raw.tooling.cmake_release,
+                windows_sdk_version: raw.tooling.windows_sdk_version,
+                dxc_directory: raw.tooling.dxc_directory,
+                cuda_samples_repository: raw.tooling.cuda_samples_repository,
+                cuda_samples_commit: raw.tooling.cuda_samples_commit,
+                cuda_samples_tree: raw.tooling.cuda_samples_tree,
+                cmake_uri: raw.tooling.cmake_uri,
+                cmake_sha256: raw.tooling.cmake_sha256,
+                cuda_packages,
+            },
+            tests: TestConfiguration {
+                host_probes: HostProbeConfiguration {
+                    output_path: raw.tests.host_probes.output_path,
+                    self_test_output_path: raw.tests.host_probes.self_test_output_path,
+                    process_timeout: Duration::from_secs(
+                        raw.tests.host_probes.process_timeout_seconds,
+                    ),
+                    cuda_timeout: Duration::from_secs(raw.tests.host_probes.cuda_timeout_seconds),
+                    suite_timeout: Duration::from_secs(raw.tests.host_probes.suite_timeout_seconds),
+                    repetitions: raw.tests.host_probes.repetitions,
+                },
+            },
+        })
+    }
+
+    /// Parse the checked-in authoritative project configuration.
+    ///
+    /// # Errors
+    /// Returns the same validation categories as [`Self::parse`].
+    pub fn embedded() -> Result<Self, ConfigError> {
+        static CONFIGURATION: OnceLock<Result<ProjectConfiguration, ConfigError>> = OnceLock::new();
+        CONFIGURATION
+            .get_or_init(|| Self::parse(include_str!("../config/project.toml")))
+            .clone()
+    }
+
+    /// Return the desired-state subset consumed by product planning/apply code.
+    #[must_use]
+    pub fn desired_state(&self) -> Configuration {
+        Configuration {
+            vm_id: self.slot.vm_id.clone(),
+            gpu_interface: self.slot.gpu_interface.clone(),
+            manifest_id: self.driver_manifest.id.clone(),
+            manifest_sha256: self.driver_manifest.sha256.clone(),
+            resources: self.resources.clone(),
+        }
+    }
+}
 
 impl Configuration {
     /// Parse and validate a strict version-one configuration.
@@ -416,6 +995,68 @@ fn render_resource(value: ResourceRequest) -> String {
     }
 }
 
+fn validate_identifier(value: &str) -> Result<(), ConfigError> {
+    if value.is_empty()
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+    {
+        return Err(ConfigError::InvalidProjectSetting);
+    }
+    Ok(())
+}
+
+fn validate_version_label(value: &str) -> Result<(), ConfigError> {
+    if value.is_empty()
+        || value.len() > 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+    {
+        return Err(ConfigError::InvalidProjectSetting);
+    }
+    Ok(())
+}
+
+fn validate_https(value: &str) -> Result<(), ConfigError> {
+    if value.len() > 2048 || !value.starts_with("https://") || value.chars().any(char::is_control) {
+        return Err(ConfigError::InvalidProjectSetting);
+    }
+    Ok(())
+}
+
+fn validate_absolute_windows_path(value: &Path) -> Result<(), ConfigError> {
+    if !value.is_absolute()
+        || value.as_os_str().is_empty()
+        || value
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(ConfigError::InvalidPath);
+    }
+    Ok(())
+}
+
+fn validate_relative_path(value: &Path) -> Result<(), ConfigError> {
+    if value.as_os_str().is_empty()
+        || value.is_absolute()
+        || value.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(ConfigError::InvalidPath);
+    }
+    Ok(())
+}
+
+fn path_is_within(path: &Path, root: &Path) -> bool {
+    path.starts_with(root) && path != root
+}
+
 fn is_canonical_guid(value: &str) -> bool {
     value.len() == 36
         && value.bytes().enumerate().all(|(index, byte)| {
@@ -487,7 +1128,7 @@ fn is_lower_hex(value: &str, length: usize) -> bool {
 mod tests {
     use super::{
         CliOperation, ConfigError, Configuration, ErrorCategory, OperationReport, Outcome, Plan,
-        ResourceRequest,
+        ProjectConfiguration, ResourceRequest,
     };
 
     const MINIMAL: &str = concat!(
@@ -521,6 +1162,52 @@ mod tests {
             }
         );
         assert_eq!(Configuration::parse(&config.render()), Ok(config));
+    }
+
+    #[test]
+    fn project_toml_deserializes_validates_and_exposes_desired_state() {
+        let config = ProjectConfiguration::embedded().unwrap();
+        assert!(!config.slot.name.is_empty());
+        assert!(!config.runner.reset_timeout.is_zero());
+        assert!(config.tests.host_probes.repetitions > 0);
+        assert!(!config.tooling.cuda_packages.is_empty());
+        let desired = config.desired_state();
+        assert_eq!(desired.vm_id, config.slot.vm_id);
+        assert_eq!(desired.gpu_interface, config.slot.gpu_interface);
+        assert_eq!(desired.manifest_id, config.driver_manifest.id);
+    }
+
+    #[test]
+    fn project_toml_rejects_secrets_unsafe_paths_bad_pins_and_deadlines() {
+        let valid = include_str!("../config/project.toml");
+        let project = ProjectConfiguration::embedded().unwrap();
+        for invalid in [
+            valid.replace("schema = 1", "schema = 2"),
+            valid.replace(
+                &format!("vm_name = \"{}\"", project.slot.vm_name),
+                &format!(
+                    "vm_name = \"{}\"\npassword = \"secret\"",
+                    project.slot.vm_name
+                ),
+            ),
+            valid.replace(
+                &format!("parent_path = '''{}'''", project.slot.parent_path.display()),
+                "parent_path = '''..\\outside.vhdx'''",
+            ),
+            valid.replace(
+                &format!("cmake_sha256 = \"{}\"", project.tooling.cmake_sha256),
+                "cmake_sha256 = \"not-a-hash\"",
+            ),
+            valid.replace(
+                &format!(
+                    "task_execution_timeout_seconds = {}",
+                    project.runner.task_execution_timeout.as_secs()
+                ),
+                "task_execution_timeout_seconds = 300",
+            ),
+        ] {
+            assert!(ProjectConfiguration::parse(&invalid).is_err());
+        }
     }
 
     #[test]

@@ -1,10 +1,15 @@
 #Requires -RunAsAdministrator
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
-param()
+param(
+    [string] $ProjectConfigurationPath = (Join-Path $PSScriptRoot '..\..\config\project.toml')
+)
 
 $ErrorActionPreference = 'Stop'
-$installDirectory = 'C:\Program Files\HyperGpuSupport\Runner'
-$dataDirectory = 'C:\ProgramData\HyperGpuSupport\Runner'
+$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $repositoryRoot 'scripts\common\project-config.ps1')
+$projectConfiguration = Import-ProjectConfiguration -Path $ProjectConfigurationPath
+$installDirectory = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.install_directory')
+$dataDirectory = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.data_directory')
 $runnerTarget = Join-Path $installDirectory 'hyper-gpu-runner.exe'
 $clientTarget = Join-Path $installDirectory 'hyper-gpu-client.exe'
 $rightsTarget = Join-Path $installDirectory 'hyper-gpu-rights.exe'
@@ -12,10 +17,10 @@ $policyTarget = Join-Path $dataDirectory 'policy-v1.json'
 $enrollmentTarget = Join-Path $dataDirectory 'enrollment-v1.json'
 $backupRoot = Join-Path $dataDirectory 'install-backup-v1'
 $stagingRoot = Join-Path $dataDirectory 'install-staging-v1'
-$taskPath = '\HyperGpuSupport\'
-$taskName = 'Runner-v1'
-$oldTaskName = 'ResetSlot-v1'
-$accountName = 'HyperGpuRunner'
+$taskPath = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.task_path')
+$taskName = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.task_name')
+$oldTaskName = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.legacy_task_name')
+$accountName = [string](Get-ProjectConfigurationValue $projectConfiguration 'runner.account_name')
 $recoveryPath = Join-Path $backupRoot 'recovery-v1.json'
 $oldRunner = Join-Path $backupRoot 'hyper-gpu-runner.exe'
 $oldPolicy = Join-Path $backupRoot 'policy-v1.json'

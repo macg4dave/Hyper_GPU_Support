@@ -4,7 +4,23 @@ Record meaningful completed changes in one short entry per change, with task IDs
 and evidence links when applicable. Task statuses remain in BACKLOG; partial
 handover notes remain in its Resume block. Do not duplicate detailed test output.
 
+## 2026-09-30
+
+- Centralized mutable machine, disposable-slot, image, runner, tool and test values
+  in validated `config/project.toml`. Rust and maintained scripts now consume the
+  shared settings, the exact privileged policy is generated and drift-checked, and
+  a maintained command refreshes release binary/policy hashes without weakening
+  integrity checks. Engineering and agent guidance now enforces the configuration
+  versus implementation-constant boundary.
+
 ## 2026-09-29
+
+- [CORE-005](BACKLOG.md#core-005): reconciled retained target evidence showing the
+  corrected limited-principal runner passed fixed start and graceful shutdown, then
+  added repository-only fixed RTX 5060 attach/detach operations with exact off-state,
+  VM/disk/GPU identity and single-assignment checks, durable uncertain-state blocking,
+  bounded output/deadlines and typed fake coverage. Installing and exercising the
+  broadened runner remains protected. Evidence: [CORE-005](evidence/CORE-005.md).
 
 - Simplified the project workflow around the first GPU-PV vertical slice. M1 now
   gates only the fixed runner, guest transfer/staging, exact GPU attachment and

@@ -13,6 +13,8 @@ Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 [required checks](../../docs/ENGINEERING.md#required-checks-and-ci).
 
 - Identify the owning component and keep the Windows GPU-PV architecture minimal.
+- Put mutable machine/test/VM/image/driver/tool values in `config/project.toml` and
+  consume its validated typed form; keep genuine implementation constants in code.
 - Inspect the affected implementation and immediate technical dependencies. Reuse
   recent test results unless a fresh baseline helps diagnose a regression or risky
   boundary; preserve behavior outside the requested change.

@@ -350,3 +350,39 @@ quiescence, exact-VM reconciliation, clearance of this specific marker, final ha
 task-setting scope and fail-closed inspection on any uncertain result. Corrected
 lifecycle target execution remains unproven, and concurrent administrator changes
 to the protected parent remain outside the runner lock's guarantee.
+
+## Corrected lifecycle proof and repository-only GPU assignment slice (2026-09-29)
+
+Retained installed-runner evidence showed that the corrected candidate had already
+been recovered, installed and exercised after the preceding handover. Start request
+`960d33f579508e7e7564583347563704`, operation
+`1790619724-408164600`, succeeded from `Off` to `Running`; graceful-shutdown request
+`46807c8a0462b9b3a79e3c8ff6affe0`, operation
+`1790620213-020445200`, succeeded from `Running` to `Off`. Both results pin VM
+`2627e735-5b33-4104-b739-622727dd3a40`, the exact child/parent chain and parent
+SHA-256, and preserved zero GPU adapters. A fresh read-only inspect operation
+`1790701914-505693000` then passed on 2026-09-29 with the VM `Off`, zero GPU
+adapters, the exact RTX 5060 GPU-PV interface and no reconciliation marker. The
+installed runner/client/policy hashes were respectively the corrected
+`eb8f724adc94446867b9ca759024d464fb982cf07bc909f2f4399f9f52217080`,
+`bef2e0d03fa5f4497635bfd59f628d686d3cf3ecbc88d9d5defe4ef91d9f6391` and
+`2889996ab6f035ae21c4c76c54146007369a704eb77aa884d78e9cb6b37dff91`.
+
+The repository candidate now policy-enables only `assign-gpu` and `remove-gpu` in
+addition to the already proved operations. Both accept no target/resource input,
+run a locked full inspection first, require the enrolled VM to be `Off`, validate
+the exact child/parent/GPU identities and checkpoint state immediately before the
+effect, and publish the verified zero-to-one or one-to-zero adapter transition.
+Attach rejects any existing target adapter or adapter assigned to another VM and
+uses provider-default resource values; detach removes only the exact enrolled
+adapter. Both retain the durable reconciliation marker on any uncertain outcome.
+Hardware-free validation passed 52 library tests, 10 runner tests, all other
+binary/integration/doc tests, formatting and strict locked Clippy. The release
+candidate hashes are runner
+`691c45e9eb4bb234323dd8247f1c88e5505d2f9fa499377d81d5f865fd6aed2`, client
+`31c38a75d3cdf1a82dce26fdf4441feddab0811ca77ea350097db17e9ebf53af`, rights
+helper `f8ee9570cfbf25a6889b7111f3bd76004edaaebf4cdd67ffc06cc0a6be308563`
+and policy `63430c1d9b059a0d750ebf6fab214ad6d7d66654510a85a217021a7fc74707e5`.
+No installed file/task/account/policy/ACL, VM, GPU, disk, guest or host state was
+changed by this repository slice. Installation and target attach/detach require a
+new exact approval and independent review.

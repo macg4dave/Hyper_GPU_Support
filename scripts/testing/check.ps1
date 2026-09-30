@@ -34,6 +34,10 @@ try {
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('test', '--locked', '--workspace', '--all-features')
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('build', '--locked', '--workspace', '--all-features')
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('doc', '--locked', '--workspace', '--all-features', '--no-deps')
+    & (Join-Path $repositoryRoot 'scripts\testing\check-project-config.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        throw "Project configuration check failed with exit code $LASTEXITCODE."
+    }
 }
 catch {
     Write-Error $_ -ErrorAction Continue

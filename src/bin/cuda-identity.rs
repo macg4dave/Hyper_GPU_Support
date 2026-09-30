@@ -3,8 +3,9 @@
 use std::ffi::{CStr, c_char};
 use std::process::ExitCode;
 
+use hyper_gpu_support::config::ProjectConfiguration;
 use hyper_gpu_support::probe::ExitClass;
-use hyper_gpu_support::windows_probe::select_rtx_5060;
+use hyper_gpu_support::windows_probe::select_configured_gpu;
 use serde::Serialize;
 use windows::Win32::Foundation::{FARPROC, FreeLibrary, HMODULE};
 use windows::Win32::System::LibraryLoader::{
@@ -25,7 +26,6 @@ type CuDeviceGetUuid = unsafe extern "system" fn(*mut CuUuid, CuDevice) -> CuRes
 type CuDriverGetVersion = unsafe extern "system" fn(*mut i32) -> CuResult;
 
 const CUDA_SUCCESS: CuResult = 0;
-const EXPECTED_NAME: &str = "NVIDIA GeForce RTX 5060";
 
 #[repr(C)]
 struct CuUuid {
@@ -105,6 +105,12 @@ fn main() -> ExitCode {
 
 #[allow(unsafe_code)]
 fn run() -> Result<IdentityReport, Failure> {
+    let project = ProjectConfiguration::embedded().map_err(|error| {
+        Failure::new(
+            ExitClass::Adapter,
+            format!("project GPU configuration is invalid: {error}"),
+        )
+    })?;
     let api = CudaApi::load()?;
     cuda_call(unsafe { (api.init)(0) }, "cuInit")?;
 
@@ -169,15 +175,19 @@ fn run() -> Result<IdentityReport, Failure> {
         "cuDriverGetVersion",
     )?;
 
-    let selected = select_rtx_5060().map_err(|error| {
+    let selected = select_configured_gpu().map_err(|error| {
         Failure::new(
             ExitClass::Adapter,
             format!("physical DXGI adapter validation failed: {error}"),
         )
     })?;
     let adapter = selected.identity();
-    if name != EXPECTED_NAME
-        || (major, minor) != (12, 0)
+    if name != project.slot.gpu_name
+        || (major, minor)
+            != (
+                project.slot.cuda_compute_capability_major,
+                project.slot.cuda_compute_capability_minor,
+            )
         || luid == "00000000:00000000"
         || luid != adapter.luid
     {

@@ -5,6 +5,8 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::config::ProjectConfiguration;
+
 /// Canonical SHA-256 for the 256x256 opaque-magenta RGBA output.
 pub const EXPECTED_IMAGE_SHA256: &str =
     "00f88da6c22b46ab45bfc5fbc6659e601ebcefe324d52a3302e614d4a7fb3de4";
@@ -68,19 +70,21 @@ pub struct AdapterIdentity {
 }
 
 impl AdapterIdentity {
-    /// Validate the exact RTX 5060 hardware selection contract.
+    /// Validate the exact configured hardware selection contract.
     ///
     /// # Errors
     /// Returns [`ProbeContractError::Adapter`] for software, default, ambiguous or
     /// otherwise mismatched identity data.
     pub fn validate(&self) -> Result<(), ProbeContractError> {
+        let project = ProjectConfiguration::embedded().map_err(|_| ProbeContractError::Adapter)?;
+        let target = project.slot;
         if self.software
-            || self.vendor_id != 0x10de
-            || self.device_id != 0x2d05
-            || self.subsystem_id != 0x8a15_1043
-            || self.revision != 0xa1
+            || self.vendor_id != target.gpu_vendor_id
+            || self.device_id != target.gpu_device_id
+            || self.subsystem_id != target.gpu_subsystem_id
+            || self.revision != target.gpu_revision
             || self.dedicated_video_memory == 0
-            || self.description != "NVIDIA GeForce RTX 5060"
+            || self.description != target.gpu_name
             || self.indirect_display
             || !is_luid(&self.luid)
             || self.luid == "00000000:00000000"
@@ -195,16 +199,19 @@ mod tests {
     };
 
     fn report() -> ProbeReport {
+        let target = crate::config::ProjectConfiguration::embedded()
+            .unwrap()
+            .slot;
         ProbeReport {
             schema: 1,
             probe: "d3d11-offscreen".into(),
             status: "pass".into(),
             adapter: AdapterIdentity {
-                description: "NVIDIA GeForce RTX 5060".into(),
-                vendor_id: 0x10de,
-                device_id: 0x2d05,
-                subsystem_id: 0x8a15_1043,
-                revision: 0xa1,
+                description: target.gpu_name,
+                vendor_id: target.gpu_vendor_id,
+                device_id: target.gpu_device_id,
+                subsystem_id: target.gpu_subsystem_id,
+                revision: target.gpu_revision,
                 dedicated_video_memory: 8_000_000_000,
                 luid: "01234567:89abcdef".into(),
                 software: false,
