@@ -4,6 +4,22 @@ Record meaningful completed changes in one short entry per change, with task IDs
 and evidence links when applicable. Task statuses remain in BACKLOG; partial
 handover notes remain in its Resume block. Do not duplicate detailed test output.
 
+## 2026-10-01
+
+- [CORE-005](BACKLOG.md#core-005): made disposable-child reset fail closed with
+  the same durable operation ID and reconciliation boundary used by lifecycle and
+  GPU assignment, including timeout, result-publication and final-audit failures;
+  exact inspection now also rejects a mismatched attached GPU. Fixed installer
+  verification to compare canonicalized Task Scheduler durations, installed the
+  pinned runner, and proved exact GPU attach/detach on the disposable VM. Evidence:
+  [CORE-005](evidence/CORE-005.md).
+
+- Consolidated development authorization in `AGENTS.md`: normal runner, Hyper-V,
+  GPU-PV and designated-disposable-VM work proceeds autonomously, while every
+  physical-host restart, shutdown, logout or session termination still requires
+  explicit permission immediately beforehand. Removed conflicting approval gates
+  from engineering, prompt and active execution guidance.
+
 ## 2026-09-30
 
 - Centralized mutable machine, disposable-slot, image, runner, tool and test values

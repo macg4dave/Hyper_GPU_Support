@@ -10,10 +10,10 @@ evidence or authorization system; correct trivial drift in place.
 - Proven foundation: exact host/GPU/VM inventory, protected parent plus disposable
   child, standalone probes, strict configuration types and a fixed Rust runner with
   reset/read-only inspection are complete.
-- Immediate issue: corrected CORE-005 start/graceful-shutdown passed on the pinned
-  target. The repository candidate now adds fixed GPU attach/detach, but installing
-  and proving those operations remains a protected change requiring explicit scope.
-- Next: prove CORE-005 attach/detach, then CORE-008/009 -> CORE-002 -> GPU-009 -> GPU-005 ->
+- Immediate issue: CORE-005 is complete after installing the fixed runner and
+  proving reset, inspection, start/shutdown and exact GPU attach/detach on the
+  pinned disposable target.
+- Next: CORE-008/009 -> CORE-002 -> GPU-009 -> GPU-005 ->
   GPU-006. AppSandbox transport blocker BLK-003 is diagnostic and does not block
   the native path.
 
@@ -54,8 +54,8 @@ GPU-007 and GPU-015 are optional research lanes.
 | [GPU-011](#gpu-011) | M2 | P1 | planned | CORE-010, CORE-011, GPU-006 |
 | [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
 | [CORE-004](#core-004) | M1 | P0 | completed | CORE-001, GPU-003 |
-| [CORE-005](#core-005) | M1 | P0 | ready | CORE-001, HV-002, HV-003, GPU-003 |
-| [CORE-008](#core-008) | M1 | P0 | planned | CORE-005, HV-002 |
+| [CORE-005](#core-005) | M1 | P0 | completed | CORE-001, HV-002, HV-003, GPU-003 |
+| [CORE-008](#core-008) | M1 | P0 | ready | CORE-005, HV-002 |
 | [CORE-009](#core-009) | M1 | P0 | planned | CORE-008, GPU-002 |
 | [CORE-002](#core-002) | M1 | P0 | planned | CORE-005, CORE-009 |
 | [CORE-006](#core-006) | M2 | P1 | planned | GPU-006 |
@@ -98,14 +98,13 @@ GPU-007 and GPU-015 are optional research lanes.
   capability or satisfy a milestone that requires a passing workload.
 - Before claiming scheduled work, read its row/card and only relevant dependency
   results or blockers. Release unfinished ownership at a real handover.
-- Task status tracks ownership; the assigned task authorizes routine repository
-  implementation under the root permission boundary. It does not authorize a
-  protected mutation. Request scoped approval for a new protected target/effect/
-  recovery only when concrete steps are prepared; preserve prior authorization.
+- Task status tracks ownership. Normal implementation and testing against the
+  designated disposable VM follow the autonomous authorization in `AGENTS.md`;
+  only physical-host lifecycle needs permission immediately before it occurs.
 - Create proposed evidence/code/document paths only when actual work needs them.
   Documentation is not a prerequisite for a small coding step.
 - For every hardware run use the [validation contract](ARCHITECTURE.md#validation-contract).
-  Apply root security/provenance/protected-operation rules without copying them
+  Apply root security/provenance/designated-target rules without copying them
   into each card. Create a defect card only when the work needs scheduling or a
   concrete issue blocks a technical gate; fix small local defects in place.
 - All authored code and tests follow [ENGINEERING.md](ENGINEERING.md); task cards
@@ -479,7 +478,7 @@ for future work is not an invented current blocker.
 
 - Context/scope: Turn real inventory, artifact and probe specifications into an executable comparison and recovery plan.
 - Read: Dependency results and root protected-operation rules.
-- Acceptance: Specify exact parent/child roots, logical disposable slot and initial enrolled VM identity, host/guest versions, artifact inputs, settings, guest access, probe order and host control. Define immutable-parent checks, runner-owned GUID enrollment, differencing-child creation/recreation, stop/start/staging/assignment operations and abort thresholds. Define the privileged runner's fixed operation allowlist, log/result path, installation approval and revocation. Explain reference/native and presentation-session differences. Prepare exact target/effect/recovery scopes before requesting any protected action; no generic approval request or setup execution.
+- Acceptance: Specify exact parent/child roots, logical disposable slot and initial enrolled VM identity, host/guest versions, artifact inputs, settings, guest access, probe order and host control. Define immutable-parent checks, runner-owned GUID enrollment, differencing-child creation/recreation, stop/start/staging/assignment operations and abort thresholds. Define the privileged runner's fixed operation allowlist, log/result path, installation and revocation. Explain reference/native and presentation-session differences. Prepare exact target/effect/recovery scopes for autonomous designated-target testing and retain the separate physical-host lifecycle boundary.
 - Files/output: `docs/evidence/GPU-003.md`: reviewable ordered procedure and authorization scopes.
 - Result: Completed 2026-09-25. Bound the M1 workflow to the planned canonical
   `Z:\HyperGpuSupport` root, one vacant `gpu-pv-slot-01`, exact parent/child/
@@ -650,20 +649,23 @@ for future work is not an invented current blocker.
 - Objective: provide the narrow Rust privilege boundary for the pinned disposable
   VM and RTX 5060: inspect, reset, start, graceful shutdown, attach and detach.
 - Dependencies: CORE-001 identities, HV-002 disposable VM, HV-003 installed
-  interfaces and GPU-003 operation bounds. Protected installation/execution
-  requires explicit scoped approval.
+  interfaces and GPU-003 operation bounds.
 - Acceptance: fixed typed operations accept no caller-selected VM/GPU/path or
   arbitrary command; the installed policy pins the child, parent, GPU and roots.
   Validate identities/state before effects, preserve native errors, publish bounded
   results, block uncertain mutation and keep the parent unwritable. Cover wrong
   identities, policy/path tampering, replay, timeout and partial failure with focused
-  tests. Prove inspect, start/shutdown and attach/detach on the authorized target.
-- Result: Partial. The installed fixed runner has proved reset, exact read-only
+  tests. Prove inspect, start/shutdown and attach/detach on the designated target.
+- Result: Complete. The installed fixed runner has proved reset, exact read-only
   inspection, authenticated cross-account transport, replay/audit, fail-closed
   identity/policy checks and corrected start/graceful-shutdown on the pinned VM.
   The repository candidate now adds fixed attach/detach with the same locked
-  inspection, durable reconciliation and bounded result path. Installing that
-  broadened candidate and proving attach/detach remain protected. Full history
+  inspection, durable reconciliation and bounded result path. Reset now retains
+  that same reconciliation boundary across timeout, publication and audit failure,
+  and inspection rejects a mismatched attached adapter. The broadened candidate
+  was installed and proved an exact zero-to-one GPU attach followed by one-to-zero
+  detach on the pinned off VM, with successful results/audit and no reconciliation
+  marker. Full history
   and exact operation IDs are in [`docs/evidence/CORE-005.md`](evidence/CORE-005.md).
 
 ## CORE-006
@@ -701,7 +703,7 @@ for future work is not an invented current blocker.
 - Acceptance: acquire credentials ephemerally, verify guest identity/readiness,
   restrict destination roots, verify hashes and bound stalled operations. Test
   denied credentials, unavailable integration, unsafe paths and interrupted
-  transfer; prove one authorized transfer to the disposable guest. No host/guest
+  transfer; prove one transfer to the designated disposable guest. No host/guest
   network or security reconfiguration.
 - Result: pending.
 
@@ -816,7 +818,7 @@ for future work is not an invented current blocker.
 - Context/scope: Extend CORE-001's initial PR checks for supported feature sets and
   reliable failure/artifact handling without the physical GPU/Hyper-V guest.
 - Read: CORE-001 actual commands and [test lanes](ARCHITECTURE.md#test-lanes).
-- Acceptance: Pin dependency lockfile/toolchain and CI actions; run formatting/lints/build and focused logic/adapter-fake tests on Windows x64. Keep privileged/GPU suites explicit manual/self-hosted jobs requiring the authorized target, never default on untrusted PRs. Verify failed assertions/nonzero adapters fail CI and artifacts contain no secrets/driver binaries. Later tasks add meaningful tests to this lane.
+- Acceptance: Pin dependency lockfile/toolchain and CI actions; run formatting/lints/build and focused logic/adapter-fake tests on Windows x64. Keep privileged/GPU suites explicit manual/self-hosted jobs requiring the designated target, never default on untrusted PRs. Verify failed assertions/nonzero adapters fail CI and artifacts contain no secrets/driver binaries. Later tasks add meaningful tests to this lane.
 - Files/output: Proposed CI workflow and `docs/evidence/CORE-013.md`.
 - Result: pending.
 

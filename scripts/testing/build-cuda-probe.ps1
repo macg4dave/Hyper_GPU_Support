@@ -23,6 +23,11 @@ $nvcc = Join-Path $toolkitRoot 'bin\nvcc.exe'
 $cuobjdump = Join-Path $toolkitRoot 'bin\cuobjdump.exe'
 $samplesCommit = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_samples_commit')
 $samplesTree = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.cuda_samples_tree')
+$developerShell = [string](Get-ProjectConfigurationValue $projectConfiguration 'tooling.visual_studio_developer_shell')
+$cudaArchitecture = '{0}{1}' -f @(
+    Get-ProjectConfigurationValue $projectConfiguration 'slot.cuda_compute_capability_major'
+    Get-ProjectConfigurationValue $projectConfiguration 'slot.cuda_compute_capability_minor'
+)
 
 function Invoke-Native {
     param(
@@ -40,7 +45,7 @@ function Invoke-Native {
     }
 }
 
-foreach ($path in @($cmake, $nvcc, $cuobjdump, (Join-Path $sourceRoot 'CMakeLists.txt'))) {
+foreach ($path in @($cmake, $nvcc, $cuobjdump, $developerShell, (Join-Path $sourceRoot 'CMakeLists.txt'))) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Required prepared input is missing: $path. Run scripts/setup/prepare-cuda-probe.ps1."
     }
@@ -61,10 +66,10 @@ if (Test-Path -LiteralPath $buildRoot) {
     Remove-Item -LiteralPath $resolvedBuild -Recurse -Force
 }
 
-& 'C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\Launch-VsDevShell.ps1' `
+& $developerShell `
     -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 if ($LASTEXITCODE -ne 0) {
-    throw 'Visual Studio 2026 developer environment initialization failed.'
+    throw 'Visual Studio developer environment initialization failed.'
 }
 
 Invoke-Native -Executable $cmake -Arguments @(
@@ -72,7 +77,7 @@ Invoke-Native -Executable $cmake -Arguments @(
     '-B', $buildRoot,
     '-G', 'NMake Makefiles',
     '-DCMAKE_BUILD_TYPE=Release',
-    '-DCMAKE_CUDA_ARCHITECTURES=120',
+    "-DCMAKE_CUDA_ARCHITECTURES=$cudaArchitecture",
     "-DCUDAToolkit_ROOT=$toolkitRoot",
     "-DCMAKE_CUDA_COMPILER=$nvcc"
 )
@@ -83,8 +88,8 @@ Invoke-Native -Executable $cmake -Arguments @(
 $executable = Join-Path $buildRoot 'vectorAddDrv.exe'
 $fatbin = Join-Path $buildRoot 'vectorAdd_kernel64.fatbin'
 $elf = @(& $cuobjdump --dump-elf $fatbin 2>&1)
-if ($LASTEXITCODE -ne 0 -or ($elf -join "`n") -notmatch '(?m)^arch = sm_120\s*$') {
-    throw 'cuobjdump did not confirm an sm_120 image in the generated FATBIN.'
+if ($LASTEXITCODE -ne 0 -or ($elf -join "`n") -notmatch "(?m)^arch = sm_$cudaArchitecture\s*$") {
+    throw "cuobjdump did not confirm an sm_$cudaArchitecture image in the generated FATBIN."
 }
 
 New-Item -ItemType Directory -Force -Path $outputRoot, $upstreamRoot | Out-Null

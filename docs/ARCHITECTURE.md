@@ -129,8 +129,8 @@ the child. Reject path traversal, unexpected reparse points, changed source hash
 and writes outside the configured child/guest scope. The runner must never accept
 the parent path or another VM as a mutation target.
 
-Ordinary commands use the caller's unelevated Windows token. A separately approved
-privileged test runner may execute only fixed, typed operations needed by the GPU-PV
+Ordinary commands use the caller's unelevated Windows token. The controlled
+privileged test runner executes only fixed, typed operations needed by the GPU-PV
 experiment. Its installed executable and policy are administrator-owned outside the
 repository; the agent can submit a bounded request and read a result but cannot
 replace the executable, edit its policy or supply a command line/script. Policy pins
@@ -139,9 +139,8 @@ and timeouts. For this fixed-identity target, `reset` validates the administrato
 enrolled VM GUID and removes/recreates only its child disk; it never removes or
 recreates the VM shell. Caller input supplies neither a VM GUID nor a path. Every
 request/result is logged and invalid, ambiguous or stale identity fails closed.
-Installing, updating or broadening this boundary needs new approval;
-tool sandbox approval is not Windows elevation. Do not run the editor or arbitrary
-repository binaries with a general elevated token merely for convenience.
+Installing, updating or exercising this boundary on the designated disposable
+target is normal project testing. Tool sandbox approval is not Windows elevation.
 
 The runner may be hosted by an on-demand Scheduled Task or an equivalent small
 native launcher after HV-003 proves the minimum Windows rights. Prefer a dedicated
@@ -434,18 +433,18 @@ determinism and isolation; this table maps project evidence to tasks.
 | Lane | Verifies | Evidence owner |
 |---|---|---|
 | Hardware-free Windows CI | Configuration/identity validation, planner diffs, structured adapter failures, audit/locking and disposable-recreation decisions, path/secret handling and report contracts using fixtures/fakes. Never claims GPU execution. | CORE-019 establishes the baseline; CORE-001/013 extend it; each implementation card adds relevant cases. |
-| Native management integration | Installed interfaces, rights, explicit VM/GPU selection, effective settings, guest transfer and legal lifecycle states on an authorized dedicated VM. | HV-003, GPU-009/011, CORE-005/008/002/010/011. |
+| Native management integration | Installed interfaces, rights, explicit VM/GPU selection, effective settings, guest transfer and legal lifecycle states on the designated dedicated VM. | HV-003, GPU-009/011, CORE-005/008/002/010/011. |
 | Physical target workloads | D3D11/D3D12 checked frames and CUDA checked kernels; per-API optional results; identical host control and guest inputs, explicit hardware renderer and session. | GPU-008/CORE-020 define and build probes; GPU-005/006 own the native demonstration. GPU-004 is conditional reference diagnosis and CORE-003 is later CLI integration. |
 | Failure and maintenance | Interrupted/denied/full-disk/stale-plan operations, identity conflicts, driver/build drift, device-not-ready diagnostics, disposable recreation and a controlled driver transition. | CORE-014/015 and GPU-013. |
-| Endurance and release | Repeated starts, authorized host reboots, sustained/pressure load and fresh-guest reproduction from candidate artifacts/instructions. | GPU-012/014 and DOC-005. |
+| Endurance and release | Repeated starts, explicitly permitted physical-host reboots, sustained/pressure load and fresh-guest reproduction from candidate artifacts/instructions. | GPU-012/014 and DOC-005. |
 
 Keep benchmark inputs/tolerances and timeout/abort limits in the probe/resource
 evidence before execution. A timeout or missing runtime is not a skipped pass.
 Every essential release probe needs correctness and NVIDIA hardware identity;
 performance numbers alone are insufficient. Driver/build changes invalidate the
-affected compatibility record until revalidated. Hardware runs require explicit
-authorization for their protected setup/lifecycle changes; CI must not mutate a
-developer's machine merely because tests were invoked.
+affected compatibility record until revalidated. Hardware runs explicitly select
+and verify the designated target; CI must not mutate a developer's machine merely
+because default tests were invoked.
 
 Initial lifecycle support is graceful shutdown/start/restart, adapter detach and
 verified disposable-child recreation. Host sleep/hibernate, live save/restore,

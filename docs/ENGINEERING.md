@@ -2,7 +2,7 @@
 
 This is the authoritative engineering policy for all AI-driven coding sessions.
 [AGENTS.md](../AGENTS.md) owns session workflow, scope, provenance and the
-three-category [permission boundary](../AGENTS.md#permission-boundary);
+[development/test authorization](../AGENTS.md#development-and-test-authorization);
 [BACKLOG.md](BACKLOG.md) owns scheduled tasks and durable results. Read only the
 sections relevant to the active change. Prompts add task-specific guidance, not
 competing rules. Documentation records implemented behavior; it is not a preflight
@@ -34,11 +34,11 @@ practical. Run and report the script path plus parameters so a failure can be
 reproduced. Reviewable scripts that remain useful should stay in the repository.
 
 Temporary scripts belong under ignored `local/scripts/` or another clearly marked,
-task-scoped temporary location, not in the maintained `scripts/` tree. Creating or
-editing any script is routine repository work; executing it follows the
-[permission boundary](../AGENTS.md#permission-boundary) for its actual effects.
-In particular, a script must not restart, shut down or end a host session without
-the user's explicit permission immediately before that lifecycle operation.
+task-scoped temporary location, not in the maintained `scripts/` tree. Creating,
+editing and executing project scripts against the designated disposable VM are
+normal development work. A script must not restart, shut down or end the physical
+host session without the user's explicit permission immediately before that
+lifecycle operation.
 
 PowerShell is permitted for repository development, diagnostics, Windows
 environment setup and invoking existing Hyper-V/Windows facilities. It must not
@@ -192,12 +192,12 @@ in [architecture test lanes](ARCHITECTURE.md#test-lanes)):
 |---|---|
 | Hardware-independent Windows tests | Unit, component integration, configuration, regression and doc tests with no administrator, Hyper-V, GPU or network prerequisite. Run routinely and on PRs. |
 | Native Windows integration | Test actual API/adapter contracts and OS failure behavior. Run safe unprivileged cases in Windows CI where available; explicitly invoke environment/privilege-dependent cases only on a prepared target. |
-| Hyper-V and GPU workloads | Opt-in runs with exact environment, permissions, inputs and checked output. Require prior scoped authorization for protected changes. Enumeration, loading a DLL or compiling does not prove GPU support. |
+| Hyper-V and GPU workloads | Explicitly selected runs on the designated disposable target with exact environment, inputs and checked output. These runs may install/update the runner and mutate/recreate the guest without another approval. Enumeration, loading a DLL or compiling does not prove GPU support. |
 
-Default tests and `--all-features` must never implicitly opt into protected
-operations. Use explicit ignored/dedicated suites with runtime prerequisite and
-authorization checks for those runs; a feature flag or `--ignored` alone is not
-authorization. Report skipped, blocked and untested cases distinctly from passes.
+Default tests and `--all-features` must never implicitly opt into environment-
+mutating operations. Use explicit ignored/dedicated suites with runtime prerequisite
+and designated-target identity checks for those runs. Report skipped, blocked and
+untested cases distinctly from passes.
 
 ## Toolchain, dependencies and features
 
@@ -260,14 +260,14 @@ of invoking an invalid combination or silently reducing coverage.
   strict Clippy, locked build/tests and applicable doc tests. CORE-013 extends
   feature coverage and failure/artifact checks. Every PR runs the applicable gates;
   docs-only work checks links/consistency without requiring hardware or a new crate.
-- Privileged/hardware suites stay explicitly selected on the authorized dedicated
+- Privileged/hardware suites stay explicitly selected on the designated dedicated
   target. Never run untrusted PR code with elevated access or repository secrets.
   Hosted Windows CI results are not Hyper-V/GPU workload evidence.
 - Report commands actually run, outcome, material failures, missing prerequisites
   and remaining validation. Do not rerun an unchanged check merely to reproduce an
   old evidence record. Fix introduced problems before completion; if technically
-  blocked, record the exact next action. Do not install a tool or mutate a protected
-  target beyond existing authorization merely to run a check.
+  blocked, record the exact next action. Installing tools and mutating the designated
+  disposable target are part of normal project validation.
 
 ## Documentation
 

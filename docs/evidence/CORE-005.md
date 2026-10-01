@@ -386,3 +386,57 @@ and policy `63430c1d9b059a0d750ebf6fab214ad6d7d66654510a85a217021a7fc74707e5`.
 No installed file/task/account/policy/ACL, VM, GPU, disk, guest or host state was
 changed by this repository slice. Installation and target attach/detach require a
 new exact approval and independent review.
+
+## Pre-deployment reconciliation correction (2026-10-01)
+
+Independent privileged-boundary review found that `reset-slot`, unlike lifecycle
+and GPU assignment, did not retain a reconciliation marker or operation ID when a
+timeout, result-publication failure or final-audit failure followed a possible child
+disk mutation. Deployment was held. The corrected dispatcher allocates the ID
+before reset, creates the durable marker before launching the destructive phase,
+returns that ID on failure, and clears the marker only after result publication and
+the terminal operation audit succeed. Inspection now also rejects a single attached
+adapter whose instance path is not the configured RTX 5060 interface.
+
+Focused tests inject reset timeout, publication and terminal-audit failures and
+verify that the exact marker remains; the success path verifies result/audit output
+and marker clearance. Typed PowerShell fakes verify mismatched-adapter inspection.
+After correction, `scripts/testing/check.ps1` passed formatting, strict locked
+Clippy, 79 unit/integration tests, the doc test, locked build, warning-denied rustdoc
+and the generated configuration check; `scripts/testing/check-docs.ps1` passed all
+36 Markdown files. A locked release build and pin refresh produced runner
+`e37400cf4d4ced13c28702bdcdfdd355694458c6fce694fc917673bb97a43275`, client
+`221dd0972fa917e8d5274b3655c36d69a4796cd428fcaec37556cd40546bf380`, rights
+helper `47eb09dc0a4e6f14360327763010f85478bab26dcd61983f842d801689e2579f`
+and policy `12a532f188356fa72e04376329986d8dc68579449b0288406dd61c93c8889b5c`.
+The generated pin check passed. Independent re-review found no remaining blocker
+to exact restore/reinstall and the attach/detach target trial.
+
+At that point native attach/detach and failure recovery remained unproved; the next
+step was to install the candidate and run that trial on the designated disposable VM.
+
+## Installed attach/detach proof (2026-10-01)
+
+The reviewed candidate was restored over the prior lifecycle build and installed
+with runner `e37400cf4d4ced13c28702bdcdfdd355694458c6fce694fc917673bb97a43275`,
+client `221dd0972fa917e8d5274b3655c36d69a4796cd428fcaec37556cd40546bf380`,
+rights helper `47eb09dc0a4e6f14360327763010f85478bab26dcd61983f842d801689e2579f`
+and policy `12a532f188356fa72e04376329986d8dc68579449b0288406dd61c93c8889b5c`.
+The first install attempt failed closed with both tasks disabled because Task
+Scheduler returned the requested `PT600S` execution limit in equivalent canonical
+form `PT10M`. After restoring the captured preimage, the installer was corrected to
+compare parsed XML durations and installation succeeded with runner SID
+`S-1-5-21-2102502009-691714006-1044501546-1016` and an enabled `Runner-v1`.
+
+Inspection operation `1790860264-920153800` succeeded. Attach operation
+`1790860476-127613900` then verified the off VM, exact child/parent chain, parent
+hash and RTX 5060 interface and changed the adapter count from zero to one. Detach
+operation `1790860695-250930400` changed that same adapter count from one to zero.
+Both results pin VM `2627e735-5b33-4104-b739-622727dd3a40`, child
+`Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx` and the immutable
+parent hash. The runner task is enabled with canonical limit `PT10M`, and no
+reconciliation marker remains. These results complete CORE-005's native target
+acceptance. After the installer correction, `scripts/testing/check.ps1` passed
+formatting, strict locked Clippy, 80 unit/integration/doc tests, locked build,
+warning-denied rustdoc and generated configuration checks; documentation checks
+passed all 36 Markdown files.

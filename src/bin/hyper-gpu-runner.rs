@@ -250,7 +250,7 @@ fn execute_request(request: &Request) -> Result<String, ExecutionFailure> {
     })?;
     match request.operation {
         Operation::Inspect => run_inspect(request).map_err(|_| before_effect("operation-failed")),
-        Operation::ResetSlot => run_reset(request).map_err(|_| before_effect("operation-failed")),
+        Operation::ResetSlot => execute_reset_request(request),
         Operation::StartSlot => execute_lifecycle_request(
             request,
             Operation::StartSlot,
@@ -313,6 +313,20 @@ fn execute_lifecycle_request(
     }
 }
 
+fn execute_reset_request(request: &Request) -> Result<String, ExecutionFailure> {
+    let operation_id = operation_id().map_err(|_| ExecutionFailure {
+        diagnostic: "operation-id-failed",
+        operation_id: None,
+    })?;
+    match run_reset(request, &operation_id) {
+        Ok(()) => Ok(operation_id),
+        Err(_) => Err(ExecutionFailure {
+            diagnostic: "operation-failed-reconciliation-required",
+            operation_id: Some(operation_id),
+        }),
+    }
+}
+
 fn execute_gpu_assignment_request(
     request: &Request,
     operation: Operation,
@@ -331,7 +345,7 @@ fn execute_gpu_assignment_request(
     }
 }
 
-fn run_reset(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
+fn run_reset(request: &Request, operation_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
     let project = project_configuration()?;
     let state_directory = project.runner.data_directory.join("state");
@@ -340,56 +354,94 @@ fn run_reset(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
     let lock_path = state_directory.join("operation.lock");
     let _lock = LockFile::acquire(&lock_path)?;
     ensure_reconciled(&state_directory, Operation::ResetSlot).map_err(std::io::Error::other)?;
-
-    let operation_id = operation_id()?;
-    append_audit(
+    run_reconciled_operation(
+        &state_directory,
+        &result_directory,
         &audit_directory,
-        &operation_id,
-        &request.request_id,
+        request,
         Operation::ResetSlot,
+        operation_id,
+        || {
+            let script = fixed_script(RESET_SCRIPT)?;
+            let output = run_bounded(&script, project.runner.reset_timeout)
+                .map_err(std::io::Error::other)?;
+            let result = parse_reset_result(&output)?;
+            Ok(format!(
+                concat!(
+                    "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n  \"operation_id\": \"{}\",\n",
+                    "  \"operation\": \"reset-slot\",\n  \"status\": \"succeeded\",\n",
+                    "  \"vm_id\": \"{}\",\n  \"child\": \"{}\",\n",
+                    "  \"parent\": \"{}\",\n  \"parent_sha256\": \"{}\"\n}}\n"
+                ),
+                request.request_id,
+                operation_id,
+                result.vm_id,
+                json_escape(&result.child),
+                json_escape(&result.parent),
+                result.parent_sha256
+            ))
+        },
+    )
+}
+
+fn run_reconciled_operation(
+    state_directory: &Path,
+    result_directory: &Path,
+    audit_directory: &Path,
+    request: &Request,
+    operation: Operation,
+    operation_id: &str,
+    action: impl FnOnce() -> Result<String, Box<dyn std::error::Error>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    append_audit(
+        audit_directory,
+        operation_id,
+        &request.request_id,
+        operation,
         "started",
         "",
     )?;
-    let script = fixed_script(RESET_SCRIPT)?;
-    let output = match run_bounded(&script, project.runner.reset_timeout) {
-        Ok(output) => output,
-        Err(error) => {
-            append_audit(
-                &audit_directory,
-                &operation_id,
-                &request.request_id,
-                Operation::ResetSlot,
-                "failed",
-                &error,
-            )?;
-            return Err(error.into());
-        }
-    };
-    let result = parse_reset_result(&output)?;
-    let result_json = format!(
-        concat!(
-            "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n  \"operation_id\": \"{}\",\n",
-            "  \"operation\": \"reset-slot\",\n  \"status\": \"succeeded\",\n",
-            "  \"vm_id\": \"{}\",\n  \"child\": \"{}\",\n",
-            "  \"parent\": \"{}\",\n  \"parent_sha256\": \"{}\"\n}}\n"
-        ),
-        request.request_id,
-        operation_id,
-        result.vm_id,
-        json_escape(&result.child),
-        json_escape(&result.parent),
-        result.parent_sha256
-    );
-    write_atomic(&result_directory, &operation_id, &result_json)?;
+    let reconciliation_path = state_directory.join(RECONCILIATION_MARKER);
+    begin_reconciliation(&reconciliation_path, operation, operation_id)?;
+
+    let operation_result = action().and_then(|result_json| {
+        write_atomic(result_directory, operation_id, &result_json)
+            .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)
+    });
+    if let Err(error) = operation_result {
+        let _ = append_audit(
+            audit_directory,
+            operation_id,
+            &request.request_id,
+            operation,
+            "failed-reconciliation-required",
+            &error.to_string(),
+        );
+        let failure_json = format!(
+            concat!(
+                "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n",
+                "  \"operation_id\": \"{}\",\n  \"operation\": \"{}\",\n",
+                "  \"status\": \"failed\",\n  \"reconciliation_required\": true,\n",
+                "  \"diagnostic\": \"{}\"\n}}\n"
+            ),
+            request.request_id,
+            operation_id,
+            operation.as_str(),
+            json_escape(&error.to_string())
+        );
+        let _ = write_atomic(result_directory, operation_id, &failure_json);
+        return Err(error);
+    }
     append_audit(
-        &audit_directory,
-        &operation_id,
+        audit_directory,
+        operation_id,
         &request.request_id,
-        Operation::ResetSlot,
+        operation,
         "succeeded",
         "",
     )?;
-    Ok(operation_id)
+    fs::remove_file(reconciliation_path)?;
+    Ok(())
 }
 
 fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
@@ -884,6 +936,7 @@ if ($hash -ne $parentHash) { throw 'parent hash mismatch' }
 $hostGpu = Get-VMHostPartitionableGpu -Name $gpuPath
 if ($hostGpu.Name -ine $gpuPath) { throw 'partitionable GPU identity mismatch' }
 $gpuAdapters = @(Get-VMGpuPartitionAdapter -VM $vm -ErrorAction Stop)
+if ($gpuAdapters.Count -gt 1 -or ($gpuAdapters.Count -eq 1 -and $gpuAdapters[0].InstancePath -ine $gpuPath)) { throw 'GPU adapter identity rejected' }
 [Console]::Out.WriteLine('status' + "`t" + 'ok')
 [Console]::Out.WriteLine('vm_id' + "`t" + $vmId.ToString().ToLowerInvariant())
 [Console]::Out.WriteLine('state' + "`t" + [string]$vm.State)
@@ -1029,9 +1082,9 @@ mod tests {
         ASSIGN_GPU_SCRIPT, INSPECT_SCRIPT, LockFile, RECONCILIATION_MARKER, REMOVE_GPU_SCRIPT,
         RESET_SCRIPT, SHUTDOWN_SCRIPT, START_SCRIPT, append_audit, begin_reconciliation,
         ensure_reconciled, fixed_script, handle_request, json_escape, project_configuration,
-        run_bounded, startup_failure_message,
+        run_bounded, run_reconciled_operation, startup_failure_message,
     };
-    use hyper_gpu_support::runner::{Operation, POLICY_V1};
+    use hyper_gpu_support::runner::{Operation, POLICY_V1, Request};
 
     #[test]
     fn fixed_script_has_no_external_input_or_broad_vm_deletion() {
@@ -1224,6 +1277,94 @@ mod tests {
     }
 
     #[test]
+    fn reset_failure_paths_retain_reconciliation_marker() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("local")
+            .join("test-work")
+            .join(format!(
+                "hyper-gpu-runner-reset-reconcile-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+        let request = Request {
+            request_id: "0123456789abcdef0123456789abcdef".into(),
+            operation: Operation::ResetSlot,
+            nonce: "fedcba9876543210fedcba9876543210".into(),
+            plan_fingerprint: "0".repeat(64),
+        };
+
+        for scenario in ["timeout", "publication", "audit"] {
+            let directory = root.join(scenario);
+            let state = directory.join("state");
+            let results = directory.join("results");
+            let audit = directory.join("audit");
+            fs::create_dir_all(&state).unwrap();
+            fs::create_dir_all(&results).unwrap();
+            fs::create_dir_all(&audit).unwrap();
+            let operation_id = format!("1790391920-00000000{}", scenario.len());
+
+            if scenario == "publication" {
+                fs::write(results.join(format!("{operation_id}.tmp")), "occupied").unwrap();
+            }
+            let result = run_reconciled_operation(
+                &state,
+                &results,
+                &audit,
+                &request,
+                Operation::ResetSlot,
+                &operation_id,
+                || {
+                    if scenario == "timeout" {
+                        return Err(std::io::Error::other("fixed Hyper-V adapter timed out").into());
+                    }
+                    if scenario == "audit" {
+                        fs::remove_file(audit.join("events.jsonl"))?;
+                        fs::remove_dir(&audit)?;
+                        fs::write(&audit, "not a directory")?;
+                    }
+                    Ok("{\"status\":\"succeeded\"}\n".into())
+                },
+            );
+
+            assert!(result.is_err(), "{scenario} unexpectedly succeeded");
+            assert_eq!(
+                fs::read_to_string(state.join(RECONCILIATION_MARKER)).unwrap(),
+                format!("reset-slot {operation_id}\n")
+            );
+        }
+
+        let directory = root.join("success");
+        let state = directory.join("state");
+        let results = directory.join("results");
+        let audit = directory.join("audit");
+        fs::create_dir_all(&state).unwrap();
+        fs::create_dir_all(&results).unwrap();
+        fs::create_dir_all(&audit).unwrap();
+        let operation_id = "1790391920-000000099";
+        run_reconciled_operation(
+            &state,
+            &results,
+            &audit,
+            &request,
+            Operation::ResetSlot,
+            operation_id,
+            || Ok("{\"status\":\"succeeded\"}\n".into()),
+        )
+        .unwrap();
+        assert!(!state.join(RECONCILIATION_MARKER).exists());
+        assert!(results.join(format!("{operation_id}.json")).exists());
+        assert!(
+            fs::read_to_string(audit.join("events.jsonl"))
+                .unwrap()
+                .contains("\"status\":\"succeeded\"")
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn malformed_pipe_request_returns_bounded_failure() {
         let response = handle_request(b"not-a-request");
         assert_eq!(response.status, "failed");
@@ -1257,6 +1398,7 @@ mod tests {
         const FAKES: &str = r#"
 $script:state = 'Off'
 $script:adapterPath = '__GPU_INTERFACE__'
+$script:hostGpuPath = '__GPU_INTERFACE__'
 $script:adapterCount = 0
 $script:otherAssignment = $false
 $script:denyGpuQuery = $false
@@ -1267,7 +1409,7 @@ function Get-VMHardDiskDrive { [CmdletBinding()] param($VM) [pscustomobject]@{ P
 function Get-Item { [CmdletBinding()] param([string]$LiteralPath) [pscustomobject]@{ IsReadOnly = $true; Attributes = [IO.FileAttributes]::Normal } }
 function Get-VHD { [CmdletBinding()] param([string]$Path) [pscustomobject]@{ Path = '__CHILD__'; ParentPath = '__PARENT__'; VhdType = 'Differencing' } }
 function Get-FileHash { [CmdletBinding()] param([string]$LiteralPath, [string]$Algorithm) [pscustomobject]@{ Hash = '__PARENT_HASH__' } }
-function Get-VMHostPartitionableGpu { [CmdletBinding()] param([string]$Name) [pscustomobject]@{ Name = $script:adapterPath } }
+function Get-VMHostPartitionableGpu { [CmdletBinding()] param([string]$Name) [pscustomobject]@{ Name = $script:hostGpuPath } }
 function Get-VMGpuPartitionAdapter { [CmdletBinding()] param($VM) if ($script:denyGpuQuery) { throw 'gpu query denied' }; if (($VM.Id -eq [guid]'__VM_ID__' -and $script:adapterCount -eq 1) -or ($VM.Id -ne [guid]'__VM_ID__' -and $script:otherAssignment)) { [pscustomobject]@{ InstancePath = $script:adapterPath } } }
 function Get-CimInstance { [CmdletBinding()] param([string]$ClassName) [pscustomobject]@{ FreePhysicalMemory = $script:freeMemory } }
 function Start-VM { [CmdletBinding()] param($VM) $script:state = 'Running' }
@@ -1287,6 +1429,8 @@ function Remove-VMGpuPartitionAdapter { [CmdletBinding()] param($VMGpuPartitionA
         let shutdown_script = fixed_script(SHUTDOWN_SCRIPT).unwrap();
         let assign_script = fixed_script(ASSIGN_GPU_SCRIPT).unwrap();
         let remove_script = fixed_script(REMOVE_GPU_SCRIPT).unwrap();
+        let (_, inspect_after_token_check) = INSPECT_SCRIPT.split_once("$vm =").unwrap();
+        let inspect_script = fixed_script(&format!("$vm ={inspect_after_token_check}")).unwrap();
         let start_output =
             run_bounded(&format!("{fakes}\n{start_script}"), Duration::from_secs(5)).unwrap();
         hyper_gpu_support::runner::parse_lifecycle_result(&start_output, Operation::StartSlot)
@@ -1310,6 +1454,17 @@ function Remove-VMGpuPartitionAdapter { [CmdletBinding()] param($VMGpuPartitionA
             )
             .unwrap_err()
             .contains("GPU adapter identity rejected")
+        );
+        let inspect_error = run_bounded(
+            &format!(
+                "{fakes}\n$script:adapterCount = 1\n$script:adapterPath = 'wrong'\n{inspect_script}"
+            ),
+            Duration::from_secs(5),
+        )
+        .unwrap_err();
+        assert!(
+            inspect_error.contains("GPU adapter identity rejected"),
+            "unexpected inspect error: {inspect_error}"
         );
         assert!(
             run_bounded(

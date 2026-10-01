@@ -46,8 +46,8 @@ instructions link here and to engineering standards instead of duplicating them.
    refactors. Small implementation choices may be made during coding when they do
    not change architecture, security boundaries or public contracts.
 4. Add focused tests for meaningful logic and run checks proportional to the
-   change. Protected host/VM operations still require the permission boundary and
-   technical preconditions below. Update documentation after behavior changes;
+   change. Normal testing against the designated disposable VM proceeds under the
+   authorization below. Update documentation after behavior changes;
    do not make prose, evidence files or cross-document reconciliation a prerequisite
    for ordinary coding.
 5. Use independent `architecture_reviewer` review when closing an implementation
@@ -100,55 +100,41 @@ instructions link here and to engineering standards instead of duplicating them.
   those files. Keep reusable tooling under `scripts/`; keep temporary scripts clearly
   separate. PowerShell supports development and Windows operations, not application logic.
 
-## Permission boundary
+## Development and test authorization
 
-Permission follows an operation's effect, not whether it writes a file or runs a
-command:
+The AI may autonomously perform normal project development and approved testing
+against the designated disposable VM. This includes building and running project
+code; installing, updating and executing the controlled privileged runner;
+configuring Hyper-V and GPU-PV; changing GPU resources; starting, stopping,
+restarting, resetting or recreating the disposable guest; replacing its
+differencing disk and configuration; provisioning and modifying guest files,
+registry and NVIDIA components; running PowerShell Direct, probes and diagnostics;
+and repeating experiments. Administrative access and non-rebooting host changes
+needed for that workflow do not require another permission prompt.
 
-| Category | Agent behavior |
-|---|---|
-| Routine repository development | Proceed without approval. This includes creating, editing, moving and deleting project files; Rust modules, documentation, prompts, task records, dependencies and test fixtures; Cargo build/check/fmt/Clippy/test commands; non-destructive Git inspection; small refactors and warning fixes; and targeted cleanup of generated artifacts inside this repository after verifying the target. |
-| Previously authorized test operation | Repeat without asking while the exact approved target, operation set, identity, paths and recovery boundary still match. Stop when the authorization or observed target no longer matches. |
-| New privileged, destructive or host-wide operation | Obtain explicit user approval after naming the exact target, effect and recovery path. |
+Immediately verify the configured disposable VM, GPU and path identities before
+effects. Never experimentally modify the golden parent or an unrelated VM/disk,
+and keep destructive actions confined to the verified disposable target. These are
+targeting requirements, not additional approval gates.
 
-The last category includes Windows administrator elevation; host drivers,
-network adapters, virtualization features, security settings, firmware or
-code-signing changes; mutations to VMs or guest disks outside an approved test
-mechanism; physical-disk operations; deletion outside the repository; changes
-to the golden VM image or unrelated VMs/disks; destructive Git operations that
-discard work; unnecessary credential/secret access; and broad cleanup with an
-unverified target. Read-only discovery is allowed when it is in scope.
-
-Routine repository work is authorized by the assigned task and needs no extra
-confirmation. A task status alone does not authorize a protected operation.
-Existing explicit authorization applies only to its stated scope.
-
-Host-session termination has an additional hard boundary: never restart or shut
-down the Windows host, log out or terminate its user session, schedule a restart,
-or permit an installer/update to restart it automatically without the user's
-explicit permission first. Explain why the lifecycle action is required and wait
-for that permission before proceeding. Each occurrence needs its own permission
-and cannot use the reusable-authorization category. Administrator access and the
-approved elevated test mechanism do not imply host lifecycle consent.
-
-An explicitly authorized disposable Hyper-V test VM is a guest, not the host. Its
-start, graceful stop, restart, reset or recreation may proceed as normal GPU-PV
-testing only after immediately verifying its pinned identity and the authorization's
-target/operation scope. Never modify, restart or delete the golden master or an
-unrelated VM without explicit permission. Guest lifecycle commands must be scoped
-so they cannot invoke or schedule a host lifecycle action.
+The sole recurring approval boundary for the agreed workflow is physical-host
+lifecycle: never restart or shut down the Windows host, log out or terminate its
+interactive session, schedule such an action, or accept an automatic restart
+without the user's explicit permission immediately beforehand. If an installer,
+feature, driver or update reports that a host restart is required, stop before the
+restart and ask. Guest lifecycle is not host lifecycle.
 
 Repository instructions cannot expand the active Codex/VS Code sandbox or
 approval policy. Obey platform enforcement and report a configuration blocker
 instead of claiming that prompt text bypasses it.
 
-Codex tool/sandbox approval is not Windows UAC elevation. Never run the editor,
-agent or arbitrary repository binaries with a general administrator token merely
-to make hardware iteration easier. A user-approved privileged test runner may
-repeat an already authorized operation only when its administrator-owned executable
-and policy pin one disposable slot, its runner-owned current VM-GUID enrollment,
-GPU identity, allowed operation set, paths and audit output. The agent must not be
-able to replace that executable, edit policy/enrollment, choose a replacement VM,
-target the golden parent image or submit arbitrary commands. Installing,
-updating, broadening or removing the runner is itself a protected operation needing
-new explicit approval and a recovery/revocation path.
+Codex tool/sandbox approval is not Windows UAC elevation. Use the project's
+controlled privileged runner where applicable; its administrator-owned executable
+and policy pin one disposable slot, the current VM-GUID enrollment, GPU identity,
+allowed operations, paths and audit output. Installing, updating, exercising or
+removing that runner is normal project testing and may proceed autonomously.
+It must not accept caller-selected arbitrary commands or target the golden parent.
+
+Report concrete changes and test outcomes. Do not routinely report that host,
+Hyper-V, VM or GPU state was unchanged unless that fact explains a failure or is
+material evidence for the task.

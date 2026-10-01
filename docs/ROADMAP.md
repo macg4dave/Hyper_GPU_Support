@@ -58,10 +58,10 @@ requires the user, not a task-status edit.
 ## M1
 
 **Objective:** produce the first Rust-driven GPU-PV demonstration on the pinned
-disposable VM as quickly as the safety boundary permits.
+disposable VM through autonomous implementation and target testing.
 
-- Dependency: M0. Execute protected host/VM changes only under their exact scoped
-  authorization; ordinary repository implementation proceeds without another gate.
+- Dependency: M0. Normal runner, Hyper-V, GPU-PV and guest changes on the designated
+  disposable VM proceed without another permission gate.
 - Critical path: finish the fixed runner operations (CORE-005), establish the
   minimal guest session and manifest staging path (CORE-008/009), attach the exact
   RTX 5060 with the Rust tooling (CORE-002), validate staging/recovery (GPU-009),
@@ -94,7 +94,7 @@ CLI/core and harden the boundaries exercised by M1.
 - Risks: credential handling, external state drift, privileged-runner version/policy
   drift, parent/child identity mistakes and conflicting operations.
 - Validation: Windows CI for pure logic and fake adapters; native integration and
-  the M1 probes on the authorized target. No hosted-CI claim of GPU coverage.
+  the M1 probes on the designated target. No hosted-CI claim of GPU coverage.
 - Exit: all M2 cards completed; CLI follows a reviewed configuration through plan,
   apply, inspect, validate, detach and disposable reset. Reapplying the same state
   is a no-op; wrong VM/GPU/parent, stale plan or failed assignment cannot report
@@ -158,8 +158,8 @@ The completed preparation has already identified the RTX 5060, pinned the dispos
 VM/parent, built the probes and established the Rust configuration/runner foundation.
 From the current state, use this sequence:
 
-1. CORE-005: recover/reinstall the corrected fixed runner under explicit approval,
-   prove start/shutdown, then add only the fixed GPU attach/detach operations needed
+1. CORE-005: recover/reinstall the corrected fixed runner, prove start/shutdown,
+   then add only the fixed GPU attach/detach operations needed
    by the slice.
 2. CORE-008 and CORE-009: connect to the known guest, transfer the pinned manifest
    inputs and stage the minimum NVIDIA runtime with hash verification.

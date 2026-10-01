@@ -1,9 +1,9 @@
 # Copilot repository instructions
 
 Follow [AGENTS.md](../AGENTS.md), including its bounded context-loading workflow
-and [permission boundary](../AGENTS.md#permission-boundary). Routine repository
-development proceeds automatically; protected effects and the per-occurrence
-host-session lifecycle rule follow that boundary.
+and [development/test authorization](../AGENTS.md#development-and-test-authorization).
+Normal development and designated-disposable-VM testing proceed automatically;
+physical-host lifecycle always requires permission immediately beforehand.
 
 Use [docs/ENGINEERING.md](../docs/ENGINEERING.md) as the authoritative Rust,
 testing, quality and [shell-script standard](../docs/ENGINEERING.md#shell-commands-and-development-scripts);

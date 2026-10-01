@@ -217,7 +217,9 @@ try {
     $registered.SetSecurityDescriptor("D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;$clientSid)", 0)
     $registeredTask = Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction Stop
     if ($registeredTask.Settings.Enabled) { throw 'New runner task must remain disabled during verification' }
-    if ([string]$registeredTask.Settings.ExecutionTimeLimit -ne $taskExecutionTimeLimit) { throw 'Runner task execution limit mismatch' }
+    $registeredExecutionLimit = [Xml.XmlConvert]::ToTimeSpan([string]$registeredTask.Settings.ExecutionTimeLimit)
+    $expectedExecutionLimit = [Xml.XmlConvert]::ToTimeSpan($taskExecutionTimeLimit)
+    if ($registeredExecutionLimit -ne $expectedExecutionLimit) { throw 'Runner task execution limit mismatch' }
     Assert-Hash $runnerTarget $runnerHash
     Assert-Hash $clientTarget $clientHash
     Assert-Hash $rightsTarget $rightsHash
@@ -233,7 +235,7 @@ try {
             Disable-ScheduledTask -TaskPath $taskPath -TaskName $candidate -ErrorAction SilentlyContinue | Out-Null
         }
     }
-    throw "Runner installation stopped fail-closed. Do not trigger either task. Run scripts/setup/restore-runner-v1.ps1 from an approved administrator session to restore the captured preimage. Cause: $($cause.Exception.Message) Location: $($cause.InvocationInfo.PositionMessage) Stack: $($cause.ScriptStackTrace)"
+    throw "Runner installation stopped fail-closed. Do not trigger either task. Run scripts/setup/restore-runner-v1.ps1 from an administrator session to restore the captured preimage. Cause: $($cause.Exception.Message) Location: $($cause.InvocationInfo.PositionMessage) Stack: $($cause.ScriptStackTrace)"
 }
 
 [ordered]@{ schema = 1; runner_sha256 = $runnerHash; client_sha256 = $clientHash; rights_helper_sha256 = $rightsHash; policy_sha256 = $policyHash; runner_sid = $runnerSid; client_sid = $clientSid; task = "$taskPath$taskName"; backup = $backupRoot } | ConvertTo-Json

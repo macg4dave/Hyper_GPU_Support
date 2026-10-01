@@ -160,6 +160,8 @@ pub struct ToolingConfiguration {
     pub cmake_release: String,
     /// Windows SDK version containing the required shader compiler.
     pub windows_sdk_version: String,
+    /// Absolute path to the Visual Studio developer-shell initializer.
+    pub visual_studio_developer_shell: PathBuf,
     /// Repository-relative extracted DXC directory.
     pub dxc_directory: PathBuf,
     /// Exact CUDA Samples upstream URL.
@@ -302,6 +304,7 @@ struct RawToolingConfiguration {
     cuda_release: String,
     cmake_release: String,
     windows_sdk_version: String,
+    visual_studio_developer_shell: PathBuf,
     dxc_directory: PathBuf,
     cuda_samples_repository: String,
     cuda_samples_commit: String,
@@ -691,6 +694,7 @@ impl ProjectConfiguration {
 
         validate_relative_path(&raw.tooling.staging_directory)?;
         validate_relative_path(&raw.tooling.dxc_directory)?;
+        validate_absolute_windows_path(&raw.tooling.visual_studio_developer_shell)?;
         for value in [
             &raw.tooling.cuda_release,
             &raw.tooling.cmake_release,
@@ -805,6 +809,7 @@ impl ProjectConfiguration {
                 cuda_release: raw.tooling.cuda_release,
                 cmake_release: raw.tooling.cmake_release,
                 windows_sdk_version: raw.tooling.windows_sdk_version,
+                visual_studio_developer_shell: raw.tooling.visual_studio_developer_shell,
                 dxc_directory: raw.tooling.dxc_directory,
                 cuda_samples_repository: raw.tooling.cuda_samples_repository,
                 cuda_samples_commit: raw.tooling.cuda_samples_commit,

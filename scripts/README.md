@@ -15,8 +15,9 @@ Run short commands directly. Put substantial PowerShell, multi-step procedures,
 complex pipelines, conditional logic and meaningful failure handling in a named
 script here, then run that file. Follow the authoritative
 [engineering script standard](../docs/ENGINEERING.md#shell-commands-and-development-scripts)
-and [permission boundary](../AGENTS.md#permission-boundary). A script's presence
-does not authorize its effects.
+and [development/test authorization](../AGENTS.md#development-and-test-authorization).
+Normal project effects on the designated disposable VM are authorized; physical-
+host lifecycle is the explicit permission boundary.
 
 Keep temporary, task-local scripts in ignored `local/scripts/`, not here. This
 tree is for useful tooling that should be reviewed, debugged, modified and reused.

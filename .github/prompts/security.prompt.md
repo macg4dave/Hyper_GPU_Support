@@ -24,6 +24,7 @@ Check for:
 
 Keep fixes minimal and add a regression test for each fixed issue where feasible;
 document alternative validation when a test is impractical. Preserve compatibility
-where possible and update affected security/contract docs. Do not perform live
-exploitation without explicit scope and approval; protected mutations follow the
-repository approval rules. Report exact checks and remaining risks.
+where possible and update affected security/contract docs. Keep live exploitation
+within the designated disposable target and agreed task; normal runner, Hyper-V,
+GPU-PV and guest mutations follow the autonomous testing rule in `AGENTS.md`.
+Report exact checks and remaining risks.

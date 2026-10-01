@@ -18,6 +18,7 @@ foreach ($key in @(
     'slot.child_path',
     'runner.data_directory',
     'tooling.cuda_samples_commit',
+    'tooling.visual_studio_developer_shell',
     'tests.host_probes.output_path'
 )) {
     $value = Get-ProjectConfigurationValue -Configuration $configuration -Key $key

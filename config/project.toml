@@ -59,6 +59,7 @@ staging_directory = '''data\staging'''
 cuda_release = "13.4.1"
 cmake_release = "4.4.3"
 windows_sdk_version = "10.0.26100.0"
+visual_studio_developer_shell = '''C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\Launch-VsDevShell.ps1'''
 dxc_directory = '''data\staging\dxc-v1.9.2607\extracted'''
 cuda_samples_repository = "https://github.com/NVIDIA/cuda-samples.git"
 cuda_samples_commit = "5443602d89ed99aede2e4b7bf329daddeadb320e"

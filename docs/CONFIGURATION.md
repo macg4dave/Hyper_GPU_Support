@@ -15,8 +15,8 @@ The centralized settings cover:
 - disposable slot, VM, GPU, parent/child image and driver-manifest identities;
 - external data/test-output roots;
 - runner installation directories, account/task identifiers and deadlines;
-- CUDA/CMake/DXC/Windows SDK versions, upstream revisions, download URLs and
-  expected archive hashes; and
+- CUDA/CMake/DXC/Windows SDK versions, the Visual Studio developer-shell path,
+  upstream revisions, download URLs and expected archive hashes; and
 - inventory and host-probe timeouts, repetitions and output locations.
 
 `config/runner-policy-v1.json` and `config/artifact-pins.toml` are generated

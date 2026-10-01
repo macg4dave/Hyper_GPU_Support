@@ -20,5 +20,6 @@ Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
   delays. Isolate temporary files and resources and verify cleanup on failure.
 - Do not weaken assertions or hide failures. Document coverage gaps and the
   alternative validation for logic that cannot reasonably be automated.
-- Follow the repository's hardware evidence and protected-operation rules when
-  validating GPU-PV; report exact checks and untested matrix entries.
+- Follow the repository's hardware evidence and designated-target rules when
+  validating GPU-PV; run required disposable-VM operations autonomously and report
+  exact checks and untested matrix entries.
