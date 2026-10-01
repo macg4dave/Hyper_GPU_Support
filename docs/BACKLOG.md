@@ -55,7 +55,7 @@ GPU-007 and GPU-015 are optional research lanes.
 | [CORE-001](#core-001) | M0 | P0 | completed | HV-001, CORE-019 |
 | [CORE-004](#core-004) | M1 | P0 | completed | CORE-001, GPU-003 |
 | [CORE-005](#core-005) | M1 | P0 | completed | CORE-001, HV-002, HV-003, GPU-003 |
-| [CORE-008](#core-008) | M1 | P0 | ready | CORE-005, HV-002 |
+| [CORE-008](#core-008) | M1 | P0 | active | CORE-005, HV-002 |
 | [CORE-009](#core-009) | M1 | P0 | planned | CORE-008, GPU-002 |
 | [CORE-002](#core-002) | M1 | P0 | planned | CORE-005, CORE-009 |
 | [CORE-006](#core-006) | M2 | P1 | planned | GPU-006 |

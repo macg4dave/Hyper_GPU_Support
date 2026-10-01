@@ -508,6 +508,41 @@ keeps environment change local without weakening policy or artifact integrity ch
 Revisit only if a consumer cannot safely read the shared TOML subset or a second
 configuration domain has a demonstrably different trust/ownership boundary.
 
+## DEC-020
+
+**Implemented for CORE-008 | 2026-10-01 | Fixed PowerShell Direct transfer adapter**
+
+Use a Rust-owned transfer contract and process supervisor around one fixed Windows
+PowerShell 5.1 adapter for the initial guest session and file-copy boundary. Microsoft
+exposes [PowerShell Direct](https://learn.microsoft.com/windows-server/virtualization/hyper-v/powershell-direct)
+persistent VM sessions and `Copy-Item -ToSession` through
+[`New-PSSession`](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/new-pssession)
+`-VMId -Credential`; no maintained typed Rust or Win32 API exposes that
+contract for a registered Hyper-V VM. Reimplementing PowerShell remoting/VM-session
+internals would be a larger unsupported security surface.
+
+Rust validates the configured VM and guest identities, source metadata/hash, relative
+destination and returned byte/hash evidence. The fixed adapter repeats identity and
+hash checks in the session, permits creation only below the configured guest staging
+root, rejects reparse traversal and existing/partial targets, and uses a temporary
+file plus same-directory rename. It accepts a bounded JSON request over anonymous
+stdin; the password is never an argument, configuration value, report field or error,
+and Rust zeroes its password buffers. `rpassword` 7.5.4 supplies Windows console echo
+suppression without adding project-owned unsafe code; `zeroize` 1.9.0 provides the
+non-optimizable buffer clearing. Both are Apache-2.0-compatible dependencies with a
+Rust 1.85 minimum below the pinned toolchain.
+
+Killing and reaping the host adapter bounds the caller but cannot prove an in-flight
+guest copy stopped. A timeout or adapter loss therefore reports uncertain guest state;
+the `.partial-*` marker blocks reuse and the disposable child is recreated instead of
+silently retrying. This exception permits no caller-provided script, network setup,
+remote management change, general guest command execution or destination outside the
+configured staging root.
+
+Revisit if Windows exposes an equally bounded supported native API, if PowerShell
+Direct cancellation can be reconciled more precisely, or when CORE-009 replaces the
+single-file harness with its reviewed manifest-level staging operation.
+
 ## Decision template
 
 ```markdown

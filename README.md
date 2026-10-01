@@ -94,6 +94,7 @@ repository permission boundary when explicitly needed for protected facts.
 | `src/main.rs` | Process arguments, output and exit codes |
 | `src/lib.rs`, `src/cli.rs` | Library boundary, CLI parser and unit tests |
 | `src/config.rs`, `config/project.toml` | Typed project/environment configuration plus plan/report contracts |
+| `src/guest.rs`, `src/windows_guest.rs` | Verified guest-transfer contract and fixed PowerShell Direct adapter |
 | `src/inventory.rs` | Typed fact/report model, validated adapter protocol and tests |
 | `src/windows_inventory.rs` | Fixed read-only Windows/Hyper-V process adapter |
 | `tests/cli.rs` | Executable behavior tests |
@@ -126,6 +127,19 @@ compiled, policy-listed operations for the exact disposable VM, GPU and parent/
 child identities; it is not a general CLI or shell boundary. Installation
 identity, test evidence and remaining protected CORE-005 validation are recorded in
 [CORE-005 evidence](docs/evidence/CORE-005.md).
+
+CORE-008's development harness copies one hash-pinned file to a relative path below
+the configured guest staging root. It prompts on the console so the password never
+appears in the command line or repository:
+
+```powershell
+cargo run --locked --bin hyper-gpu-guest-copy -- `
+  <guest-user> <absolute-source> <relative-destination> <lowercase-sha256>
+```
+
+The VM must be running locally and the caller must have Hyper-V access. Any timeout
+or interrupted copy makes guest staging state uncertain; recreate the disposable
+child rather than retrying it in place.
 
 Keep secrets and uncommitted overrides in ignored `local/`, build output in `target/`,
 and OS/VM/driver/test artifacts in the reproducible ignored

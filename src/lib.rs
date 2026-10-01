@@ -6,12 +6,15 @@
 pub mod account_rights;
 pub mod cli;
 pub mod config;
+pub mod guest;
 pub mod inventory;
 pub mod probe;
 pub mod runner;
 
 #[cfg(windows)]
 pub mod windows_account_rights;
+#[cfg(windows)]
+pub mod windows_guest;
 #[cfg(windows)]
 pub mod windows_inventory;
 #[cfg(windows)]

@@ -45,6 +45,8 @@ pub struct ProjectConfiguration {
     pub paths: ProjectPaths,
     /// Read-only inventory adapter settings.
     pub inventory: InventoryConfiguration,
+    /// PowerShell Direct guest identity, staging root and deadlines.
+    pub guest: GuestConfiguration,
     /// Least-privilege runner installation and timeout settings.
     pub runner: RunnerConfiguration,
     /// Pinned development tool inputs.
@@ -58,6 +60,23 @@ pub struct ProjectConfiguration {
 pub struct InventoryConfiguration {
     /// Maximum duration of the native inventory query adapter.
     pub timeout: Duration,
+}
+
+/// Pinned guest identity and bounded staging settings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuestConfiguration {
+    /// Exact trusted Windows PowerShell executable used before receiving credentials.
+    pub powershell_path: PathBuf,
+    /// Computer name reported inside the disposable guest.
+    pub computer_name: String,
+    /// MachineGuid retained by the fixed disposable VM shell.
+    pub machine_guid: String,
+    /// Only root under which CORE-008 may create transferred files.
+    pub staging_root: PathBuf,
+    /// Maximum time to establish and validate a PowerShell Direct session.
+    pub session_timeout: Duration,
+    /// Maximum time for one verified file transfer.
+    pub transfer_timeout: Duration,
 }
 
 /// Validated identity and disk chain for the one disposable slot.
@@ -220,6 +239,7 @@ struct RawProjectConfiguration {
     resources: RawResourceConfiguration,
     paths: RawProjectPaths,
     inventory: RawInventoryConfiguration,
+    guest: RawGuestConfiguration,
     runner: RawRunnerConfiguration,
     tooling: RawToolingConfiguration,
     tests: RawTestConfiguration,
@@ -271,6 +291,17 @@ struct RawProjectPaths {
 #[serde(deny_unknown_fields)]
 struct RawInventoryConfiguration {
     timeout_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawGuestConfiguration {
+    powershell_path: PathBuf,
+    computer_name: String,
+    machine_guid: String,
+    staging_root: PathBuf,
+    session_timeout_seconds: u64,
+    transfer_timeout_seconds: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -654,6 +685,19 @@ impl ProjectConfiguration {
         if raw.inventory.timeout_seconds == 0 || raw.inventory.timeout_seconds > 300 {
             return Err(ConfigError::InvalidTimeout);
         }
+        validate_identifier(&raw.guest.computer_name)?;
+        if !is_canonical_guid(&raw.guest.machine_guid) {
+            return Err(ConfigError::InvalidProjectSetting);
+        }
+        validate_absolute_windows_path(&raw.guest.staging_root)?;
+        validate_absolute_windows_path(&raw.guest.powershell_path)?;
+        if raw.guest.session_timeout_seconds == 0
+            || raw.guest.transfer_timeout_seconds == 0
+            || raw.guest.session_timeout_seconds > 300
+            || raw.guest.transfer_timeout_seconds > 3600
+        {
+            return Err(ConfigError::InvalidTimeout);
+        }
 
         validate_absolute_windows_path(&raw.runner.install_directory)?;
         validate_absolute_windows_path(&raw.runner.data_directory)?;
@@ -782,6 +826,14 @@ impl ProjectConfiguration {
             },
             inventory: InventoryConfiguration {
                 timeout: Duration::from_secs(raw.inventory.timeout_seconds),
+            },
+            guest: GuestConfiguration {
+                powershell_path: raw.guest.powershell_path,
+                computer_name: raw.guest.computer_name,
+                machine_guid: raw.guest.machine_guid,
+                staging_root: raw.guest.staging_root,
+                session_timeout: Duration::from_secs(raw.guest.session_timeout_seconds),
+                transfer_timeout: Duration::from_secs(raw.guest.transfer_timeout_seconds),
             },
             runner: RunnerConfiguration {
                 install_directory: raw.runner.install_directory,
@@ -1174,6 +1226,8 @@ mod tests {
         let config = ProjectConfiguration::embedded().unwrap();
         assert!(!config.slot.name.is_empty());
         assert!(!config.runner.reset_timeout.is_zero());
+        assert!(!config.guest.session_timeout.is_zero());
+        assert!(config.guest.staging_root.is_absolute());
         assert!(config.tests.host_probes.repetitions > 0);
         assert!(!config.tooling.cuda_packages.is_empty());
         let desired = config.desired_state();
@@ -1202,6 +1256,24 @@ mod tests {
             valid.replace(
                 &format!("cmake_sha256 = \"{}\"", project.tooling.cmake_sha256),
                 "cmake_sha256 = \"not-a-hash\"",
+            ),
+            valid.replace(
+                &format!("machine_guid = \"{}\"", project.guest.machine_guid),
+                "machine_guid = \"not-a-guid\"",
+            ),
+            valid.replace(
+                &format!(
+                    "staging_root = '''{}'''",
+                    project.guest.staging_root.display()
+                ),
+                "staging_root = '''..\\outside'''",
+            ),
+            valid.replace(
+                &format!(
+                    "session_timeout_seconds = {}",
+                    project.guest.session_timeout.as_secs()
+                ),
+                "session_timeout_seconds = 0",
             ),
             valid.replace(
                 &format!(
