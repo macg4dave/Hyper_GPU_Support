@@ -11,7 +11,7 @@ Push-Location $repositoryRoot
 try {
     $markdownFiles = @(& git ls-files --cached --others --exclude-standard -- '*.md')
     if ($LASTEXITCODE -ne 0) {
-        throw "Unable to enumerate tracked Markdown files (git exit $LASTEXITCODE)."
+        throw "Unable to enumerate repository Markdown files (git exit $LASTEXITCODE)."
     }
 
     $inlineLinkPattern = [regex]'\[[^\]]+\]\((?<target>[^)]+)\)'

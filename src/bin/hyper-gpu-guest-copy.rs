@@ -12,6 +12,11 @@ use hyper_gpu_support::guest::{GuestCredential, TransferRequest, transfer_verifi
 use hyper_gpu_support::windows_guest::WindowsGuestTransfer;
 
 fn main() -> ExitCode {
+    #[cfg(windows)]
+    if std::env::args_os().skip(1).count() != 4 {
+        eprintln!("guest copy error: {}", usage());
+        return ExitCode::from(2);
+    }
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

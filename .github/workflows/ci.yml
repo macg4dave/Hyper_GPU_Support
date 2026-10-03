@@ -26,3 +26,5 @@ jobs:
       - run: cargo build --locked --workspace --all-features
       - run: cargo doc --locked --workspace --all-features --no-deps
       - run: cargo run --locked -- --version
+      - run: .\scripts\testing\check-project-config.ps1
+      - run: .\scripts\testing\check-docs.ps1

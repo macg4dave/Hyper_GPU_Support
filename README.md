@@ -26,7 +26,8 @@ cargo run --locked -- inventory
 
 `rust-toolchain.toml` selects Rust 1.94.0, rustfmt, Clippy and the Windows x64
 MSVC target; rustup downloads them on first use. The package's minimum Rust
-version is the same pin. There are no third-party crates or optional features.
+version is the same pin. Third-party Rust dependencies are locked in `Cargo.lock`;
+the package currently defines no optional Cargo features.
 `.cargo/config.toml` defaults builds to that target and repository-local `target/`.
 If your shell sets `CARGO_TARGET_DIR`, it overrides that location; for local
 verification set `$env:CARGO_TARGET_DIR = Join-Path (Get-Location) 'target'`.

@@ -16,6 +16,11 @@ foreach ($key in @(
     'slot.parent_path',
     'slot.parent_sha256',
     'slot.child_path',
+    'driver_manifest.id',
+    'driver_manifest.source_path',
+    'driver_manifest.inf_name',
+    'driver_manifest.inf_version',
+    'driver_manifest.catalog_name',
     'runner.data_directory',
     'tooling.cuda_samples_commit',
     'tooling.visual_studio_developer_shell',
@@ -24,6 +29,17 @@ foreach ($key in @(
     $value = Get-ProjectConfigurationValue -Configuration $configuration -Key $key
     if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string] $value)) {
         throw "Project configuration key '$key' is empty."
+    }
+}
+
+foreach ($key in @(
+    'driver_manifest.sha256',
+    'driver_manifest.package_tree_sha256',
+    'driver_manifest.catalog_sha256'
+)) {
+    $value = [string](Get-ProjectConfigurationValue -Configuration $configuration -Key $key)
+    if ($value -notmatch '^[0-9a-f]{64}$' -or $value -eq ('0' * 64)) {
+        throw "Project configuration pin '$key' is not a nonzero canonical SHA-256 value."
     }
 }
 

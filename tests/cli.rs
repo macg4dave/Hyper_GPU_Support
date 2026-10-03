@@ -84,3 +84,33 @@ fn declared_operations_have_stable_not_implemented_exit() {
         );
     }
 }
+
+#[test]
+fn staging_inspector_rejects_arguments_before_reading_machine_state() {
+    let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-stage"))
+        .arg("unexpected")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().trim(),
+        "staging manifest error: usage: hyper-gpu-stage"
+    );
+}
+
+#[test]
+fn guest_copy_rejects_argument_count_before_reading_credentials_or_machine_state() {
+    let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-guest-copy"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().trim(),
+        concat!(
+            "guest copy error: usage: hyper-gpu-guest-copy USER SOURCE DESTINATION_FILENAME SHA256\n",
+            "       hyper-gpu-guest-copy --interactive SOURCE DESTINATION_FILENAME SHA256"
+        )
+    );
+}

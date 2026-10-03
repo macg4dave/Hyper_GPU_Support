@@ -38,8 +38,9 @@ Current maintained entry points:
 - `setup/restore-runner-v1.ps1` disables/quiesces the runner tasks and restores
   the captured executable, policy, task security and ACL preimages, removes only
   those rights from the persisted exact SID, and retains audit/results.
-- `testing/check.ps1` runs the normal Rust quality gates.
-- `testing/check-docs.ps1` validates tracked local Markdown link targets, prompt
+- `testing/check.ps1` runs the normal Rust quality gates and generated
+  configuration/policy drift check.
+- `testing/check-docs.ps1` validates repository-local Markdown link targets, prompt
   frontmatter and diff whitespace.
 - `testing/build-probe-shaders.ps1` deterministically rebuilds the pinned D3D11
   DXBC and D3D12 DXIL offscreen shaders from the reviewed HLSL source.

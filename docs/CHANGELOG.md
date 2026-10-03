@@ -6,6 +6,12 @@ handover notes remain in its Resume block. Do not duplicate detailed test output
 
 ## 2026-10-03
 
+- Extended Windows CI with the existing generated configuration/policy drift and
+  documentation consistency checks; corrected stale dependency guidance and added
+  hardware-independent staging/guest-copy usage coverage and manifest-hash
+  coverage that prevents success-shaped output before the configured digest is
+  verified.
+
 - [CORE-009](BACKLOG.md#core-009): started the minimum NVIDIA staging path with a
   deterministic Rust package-manifest inspector, strict source pins and focused
   missing/changed/partial input tests; the installed 217-file package validates

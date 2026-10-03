@@ -10,11 +10,12 @@ evidence or authorization system; correct trivial drift in place.
 - Proven foundation: exact host/GPU/VM inventory, protected parent plus disposable
   child, standalone probes, strict configuration types and a fixed Rust runner with
   reset/read-only inspection are complete.
-- Immediate issue: CORE-008 is complete after proving the fixed, verified
-  PowerShell Direct transfer path on the pinned disposable target.
-- Next: CORE-009 -> CORE-002 -> GPU-009 -> GPU-005 ->
-  GPU-006. AppSandbox transport blocker BLK-003 is diagnostic and does not block
-  the native path.
+- Immediate issue: CORE-009 is in progress. Its read-only Rust manifest inspector
+  validates the pinned 217-file NVIDIA package and encoded manifest; guest apply,
+  Authenticode verification, matching-reapply and uncertain-state recovery remain.
+- Next: finish CORE-009's bounded manifest-level guest staging, then CORE-002 ->
+  GPU-009 -> GPU-005 -> GPU-006. AppSandbox transport blocker BLK-003 is
+  diagnostic and does not block the native path.
 
 ## Task register
 
