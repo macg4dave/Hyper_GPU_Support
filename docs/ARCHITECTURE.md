@@ -87,8 +87,10 @@ boundary and `tests/cli.rs` exercises the built product executable.
 
 CORE-008 adds `src/guest.rs` for source/path/hash/receipt validation and
 `src/windows_guest.rs` for the fixed PowerShell Direct process boundary. Its
-single-file executable is an M1 development harness, not a general guest shell;
-CORE-009 consumes the library contract for manifest staging.
+single-file executable is an M1 development harness, not a general guest shell.
+CORE-009 adds the complete manifest contract in `src/staging.rs` and a separate
+fixed adapter mode that permits only the pinned `HostDriverStore` package, CUDA
+loader alias and applied receipt on the enrolled disposable guest.
 
 CORE-002 integrates the fixed assignment operation after CORE-005 target proof;
 later guest staging/probe adapters remain separately gated. Revisit CORE-001's

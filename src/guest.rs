@@ -300,6 +300,7 @@ mod tests {
             staging_root: PathBuf::from(r"C:\Program Files\HyperGpuSupport\Staging"),
             session_timeout: std::time::Duration::from_secs(60),
             transfer_timeout: std::time::Duration::from_secs(900),
+            staging_timeout: std::time::Duration::from_secs(3600),
         }
     }
 

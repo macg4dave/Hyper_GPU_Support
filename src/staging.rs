@@ -8,12 +8,14 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, Read};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::config::DriverManifestConfiguration;
+use crate::config::GuestConfiguration;
+use crate::guest::GuestCredential;
 
 /// Version of the deterministic driver-package manifest contract.
 pub const DRIVER_MANIFEST_SCHEMA: u32 = 1;
@@ -48,6 +50,95 @@ pub struct DriverPackageFile {
     pub bytes: u64,
     /// Lowercase SHA-256 of the file contents.
     pub sha256: String,
+}
+
+/// Result category for one complete manifest-level guest staging operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StageStatus {
+    /// The package and CUDA alias were created by this operation.
+    Applied,
+    /// The exact package, alias and receipt already existed and were reverified.
+    AlreadyApplied,
+}
+
+/// Guest-observed evidence for a complete or matching no-op staging operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StageReceipt {
+    /// Whether this invocation applied state or verified an existing match.
+    pub status: StageStatus,
+    /// Enrolled Hyper-V VM identifier.
+    pub vm_id: String,
+    /// Guest computer name observed in-session.
+    pub computer_name: String,
+    /// Guest MachineGuid observed in-session.
+    pub machine_guid: String,
+    /// Exact manifest identifier recorded in the guest receipt.
+    pub manifest_id: String,
+    /// Exact canonical manifest SHA-256 recorded in the guest receipt.
+    pub manifest_sha256: String,
+    /// Final guest package directory.
+    pub package_destination: PathBuf,
+    /// Final guest CUDA loader alias.
+    pub cuda_alias: PathBuf,
+    /// `hardlink` or `copy`, as verified in the guest.
+    pub alias_method: String,
+    /// Number of package files rehashed in the guest.
+    pub files: u32,
+    /// Aggregate byte count rehashed in the guest.
+    pub bytes: u64,
+}
+
+/// Narrow adapter for the fixed PowerShell Direct manifest-level operation.
+pub trait GuestPackageStager {
+    /// Apply or reverify one already-inspected immutable package manifest.
+    fn stage(
+        &self,
+        credential: &GuestCredential,
+        configuration: &DriverManifestConfiguration,
+        manifest: &DriverPackageManifest,
+        manifest_sha256: &str,
+    ) -> Result<StageReceipt, StagingError>;
+}
+
+/// Reinspect immutable inputs, invoke the guest adapter, and bind its receipt to
+/// the configured VM, guest and complete manifest identities.
+///
+/// # Errors
+/// Rejects changed host inputs, invalid required signature entries, adapter
+/// failures, or any success receipt that does not exactly match the request.
+pub fn stage_driver_package(
+    configuration: &DriverManifestConfiguration,
+    guest: &GuestConfiguration,
+    vm_id: &str,
+    credential: &GuestCredential,
+    adapter: &impl GuestPackageStager,
+) -> Result<StageReceipt, StagingError> {
+    let manifest = inspect_driver_package(configuration)?;
+    let manifest_sha256 = manifest.sha256()?;
+    if manifest_sha256 != configuration.sha256
+        || find_file(&manifest.files, "nvcuda_loader64.dll").is_none()
+        || configuration
+            .signature_files
+            .iter()
+            .any(|name| find_file(&manifest.files, name).is_none())
+    {
+        return Err(StagingError::ChangedSource);
+    }
+    let receipt = adapter.stage(credential, configuration, &manifest, &manifest_sha256)?;
+    if receipt.vm_id != vm_id
+        || !receipt
+            .computer_name
+            .eq_ignore_ascii_case(&guest.computer_name)
+        || receipt.machine_guid != guest.machine_guid
+        || receipt.manifest_id != manifest.id
+        || receipt.manifest_sha256 != manifest_sha256
+        || receipt.files != manifest.files.len() as u32
+        || receipt.bytes != manifest.byte_count
+        || !matches!(receipt.alias_method.as_str(), "hardlink" | "copy")
+    {
+        return Err(StagingError::GuestStateUncertain);
+    }
+    Ok(receipt)
 }
 
 impl DriverPackageManifest {
@@ -320,6 +411,16 @@ pub enum StagingError {
     },
     /// Deterministic manifest encoding failed.
     Encoding,
+    /// Required Authenticode validation failed or returned an unexpected signer.
+    InvalidSignature,
+    /// A bounded guest operation was interrupted after mutation may have begun.
+    GuestStateUncertain,
+    /// Guest staging was denied or unavailable before mutation.
+    GuestUnavailable,
+    /// Guest success evidence did not match the configured identities or manifest.
+    VerificationFailed,
+    /// Guest adapter output was malformed or exceeded its fixed bound.
+    InvalidProtocol,
 }
 
 impl fmt::Display for StagingError {
@@ -341,6 +442,13 @@ impl fmt::Display for StagingError {
                 );
             }
             Self::Encoding => "cannot encode the driver package manifest",
+            Self::InvalidSignature => "required driver package signature is invalid",
+            Self::GuestStateUncertain => {
+                "guest staging state is uncertain; recreate the disposable child"
+            }
+            Self::GuestUnavailable => "guest staging session is unavailable",
+            Self::VerificationFailed => "guest staging verification failed",
+            Self::InvalidProtocol => "invalid guest staging adapter response",
         })
     }
 }
@@ -373,6 +481,7 @@ mod tests {
             )
             .unwrap();
             fs::write(root.join("CAT.CAT"), b"catalog").unwrap();
+            fs::write(root.join("nvcuda_loader64.dll"), b"loader").unwrap();
             fs::write(root.join("sub").join("runtime.dll"), b"runtime").unwrap();
 
             let mut files = Vec::new();
@@ -388,11 +497,19 @@ mod tests {
                     source_path: root.clone(),
                     inf_name: "driver.inf".into(),
                     inf_version: "01/02/2026, 1.2.3.4".into(),
+                    driver_version: "1.2.3.4".into(),
+                    host_build: "26200.9457".into(),
                     catalog_name: "CAT.CAT".into(),
                     file_count: files.len() as u32,
                     byte_count,
                     package_tree_sha256,
                     catalog_sha256,
+                    signer_thumbprint: "1".repeat(40),
+                    signature_files: vec![
+                        "CAT.CAT".into(),
+                        "driver.inf".into(),
+                        "nvcuda_loader64.dll".into(),
+                    ],
                 },
                 root,
             }
@@ -411,8 +528,8 @@ mod tests {
         let first = inspect_driver_package(&fixture.configuration).unwrap();
         let second = inspect_driver_package(&fixture.configuration).unwrap();
         assert_eq!(first, second);
-        assert_eq!(first.files.len(), 3);
-        assert_eq!(first.files[2].relative_path, r"sub\runtime.dll");
+        assert_eq!(first.files.len(), 4);
+        assert_eq!(first.files[3].relative_path, r"sub\runtime.dll");
         assert_eq!(
             first.canonical_json().unwrap(),
             second.canonical_json().unwrap()
@@ -468,6 +585,102 @@ mod tests {
         assert_eq!(
             inspect_driver_package(&fixture.configuration),
             Err(StagingError::UnsafeSource)
+        );
+    }
+
+    struct FakeStager {
+        receipt: StageReceipt,
+    }
+
+    impl GuestPackageStager for FakeStager {
+        fn stage(
+            &self,
+            _credential: &GuestCredential,
+            _configuration: &DriverManifestConfiguration,
+            _manifest: &DriverPackageManifest,
+            _manifest_sha256: &str,
+        ) -> Result<StageReceipt, StagingError> {
+            Ok(self.receipt.clone())
+        }
+    }
+
+    fn guest_configuration() -> GuestConfiguration {
+        GuestConfiguration {
+            powershell_path: PathBuf::from(
+                r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+            ),
+            computer_name: "TESTVM".into(),
+            machine_guid: "046edc35-4c8f-4910-9c53-574681e623af".into(),
+            staging_root: PathBuf::from(r"C:\Program Files\HyperGpuSupport\Staging"),
+            session_timeout: std::time::Duration::from_secs(60),
+            transfer_timeout: std::time::Duration::from_secs(900),
+            staging_timeout: std::time::Duration::from_secs(3600),
+        }
+    }
+
+    #[test]
+    fn binds_complete_stage_receipt_to_manifest_and_guest() {
+        let mut fixture = Fixture::new();
+        let manifest = inspect_driver_package(&fixture.configuration).unwrap();
+        fixture.configuration.sha256 = manifest.sha256().unwrap();
+        let receipt = StageReceipt {
+            status: StageStatus::Applied,
+            vm_id: "2627e735-5b33-4104-b739-622727dd3a40".into(),
+            computer_name: "testvm".into(),
+            machine_guid: guest_configuration().machine_guid,
+            manifest_id: manifest.id,
+            manifest_sha256: fixture.configuration.sha256.clone(),
+            package_destination: PathBuf::from(
+                r"C:\Windows\System32\HostDriverStore\FileRepository\test",
+            ),
+            cuda_alias: PathBuf::from(r"C:\Windows\System32\nvcuda.dll"),
+            alias_method: "hardlink".into(),
+            files: manifest.files.len() as u32,
+            bytes: manifest.byte_count,
+        };
+        let credential = GuestCredential::new("user".into(), "secret".into()).unwrap();
+        let result = stage_driver_package(
+            &fixture.configuration,
+            &guest_configuration(),
+            "2627e735-5b33-4104-b739-622727dd3a40",
+            &credential,
+            &FakeStager {
+                receipt: receipt.clone(),
+            },
+        );
+        assert_eq!(result, Ok(receipt));
+    }
+
+    #[test]
+    fn rejects_success_shaped_stage_receipt_with_wrong_identity() {
+        let mut fixture = Fixture::new();
+        let manifest = inspect_driver_package(&fixture.configuration).unwrap();
+        fixture.configuration.sha256 = manifest.sha256().unwrap();
+        let receipt = StageReceipt {
+            status: StageStatus::AlreadyApplied,
+            vm_id: "00000000-0000-0000-0000-000000000000".into(),
+            computer_name: "TESTVM".into(),
+            machine_guid: guest_configuration().machine_guid,
+            manifest_id: manifest.id,
+            manifest_sha256: fixture.configuration.sha256.clone(),
+            package_destination: PathBuf::from(
+                r"C:\Windows\System32\HostDriverStore\FileRepository\test",
+            ),
+            cuda_alias: PathBuf::from(r"C:\Windows\System32\nvcuda.dll"),
+            alias_method: "copy".into(),
+            files: manifest.files.len() as u32,
+            bytes: manifest.byte_count,
+        };
+        let credential = GuestCredential::new("user".into(), "secret".into()).unwrap();
+        assert_eq!(
+            stage_driver_package(
+                &fixture.configuration,
+                &guest_configuration(),
+                "2627e735-5b33-4104-b739-622727dd3a40",
+                &credential,
+                &FakeStager { receipt },
+            ),
+            Err(StagingError::GuestStateUncertain)
         );
     }
 }

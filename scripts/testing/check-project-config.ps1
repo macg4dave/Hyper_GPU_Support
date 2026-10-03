@@ -20,7 +20,11 @@ foreach ($key in @(
     'driver_manifest.source_path',
     'driver_manifest.inf_name',
     'driver_manifest.inf_version',
+    'driver_manifest.driver_version',
+    'driver_manifest.host_build',
     'driver_manifest.catalog_name',
+    'driver_manifest.signer_thumbprint',
+    'guest.staging_timeout_seconds',
     'runner.data_directory',
     'tooling.cuda_samples_commit',
     'tooling.visual_studio_developer_shell',
@@ -41,6 +45,15 @@ foreach ($key in @(
     if ($value -notmatch '^[0-9a-f]{64}$' -or $value -eq ('0' * 64)) {
         throw "Project configuration pin '$key' is not a nonzero canonical SHA-256 value."
     }
+}
+
+$signerThumbprint = [string](Get-ProjectConfigurationValue -Configuration $configuration -Key 'driver_manifest.signer_thumbprint')
+if ($signerThumbprint -notmatch '^[0-9a-f]{40}$') {
+    throw "Project configuration signer thumbprint is not canonical SHA-1 certificate identity."
+}
+$signatureFiles = @(Get-ProjectConfigurationValue -Configuration $configuration -Key 'driver_manifest.signature_files')
+if ($signatureFiles.Count -eq 0 -or @($signatureFiles | Where-Object { [string]::IsNullOrWhiteSpace([string]$_) }).Count -ne 0) {
+    throw 'Project configuration signature file list is empty or malformed.'
 }
 
 foreach ($key in @(

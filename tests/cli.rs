@@ -95,7 +95,11 @@ fn staging_inspector_rejects_arguments_before_reading_machine_state() {
     assert!(output.stdout.is_empty());
     assert_eq!(
         String::from_utf8(output.stderr).unwrap().trim(),
-        "staging manifest error: usage: hyper-gpu-stage"
+        concat!(
+            "staging manifest error: usage: hyper-gpu-stage [inspect]\n",
+            "       hyper-gpu-stage apply USER\n",
+            "       hyper-gpu-stage apply --interactive"
+        )
     );
 }
 

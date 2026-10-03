@@ -35,6 +35,12 @@ function Import-ProjectConfiguration {
             } catch {
                 throw "Invalid quoted project TOML value at ${resolvedPath}:${lineNumber}."
             }
+        } elseif ($encodedValue -match '^\[(?:\s*"(?:[^"\\]|\\.)*"\s*,?)*\]$') {
+            try {
+                $value = @($encodedValue | ConvertFrom-Json -ErrorAction Stop)
+            } catch {
+                throw "Invalid string-array project TOML value at ${resolvedPath}:${lineNumber}."
+            }
         } elseif ($encodedValue -match '^\d+$') {
             $value = [uint64]::Parse($encodedValue, [Globalization.CultureInfo]::InvariantCulture)
         } elseif ($encodedValue -eq 'true' -or $encodedValue -eq 'false') {

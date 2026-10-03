@@ -26,7 +26,11 @@ sha256 = "31cf877d2415ad686f34f6498ae4a08893cebdc699244be1649e5379e9516ea3"
 source_path = '''C:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_b20cc8aeaed64fc2'''
 inf_name = "nv_dispi.inf"
 inf_version = "09/04/2026, 32.0.16.1692"
+driver_version = "32.0.16.1692"
+host_build = "26200.9457"
 catalog_name = "NV_DISP.CAT"
+signer_thumbprint = "32b4e7ce92a59c722b8bdf7ae3e66520cfb9de21"
+signature_files = ["NV_DISP.CAT", "nv_dispi.inf", "nvcuda64.dll", "nvwgf2umx.dll"]
 file_count = 217
 byte_count = 2850973044
 package_tree_sha256 = "3662d618d9fb95d02a354077337d58dbc4c3ccf9db14714b1c5fbc4a675cf950"
@@ -52,6 +56,7 @@ machine_guid = "046edc35-4c8f-4910-9c53-574681e623af"
 staging_root = '''C:\Program Files\HyperGpuSupport\Staging'''
 session_timeout_seconds = 60
 transfer_timeout_seconds = 900
+staging_timeout_seconds = 3600
 
 [runner]
 install_directory = '''C:\Program Files\HyperGpuSupport\Runner'''

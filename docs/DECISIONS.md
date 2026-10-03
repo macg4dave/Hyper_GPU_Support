@@ -548,6 +548,41 @@ Revisit if Windows exposes an equally bounded supported native API, if PowerShel
 Direct cancellation can be reconciled more precisely, or when CORE-009 replaces the
 single-file harness with its reviewed manifest-level staging operation.
 
+## DEC-021
+
+**Implemented for CORE-009 | 2026-10-03 | Atomic manifest-level guest staging**
+
+Extend the Rust-owned CORE-008 boundary with a distinct, fixed manifest operation;
+do not authorize nested destinations through the general single-file harness. Rust
+reinspects and hashes the complete GPU-correlated package, refuses host Windows,
+active-driver or reboot/servicing drift, binds the returned receipt
+to the configured VM/guest/manifest identities, and supplies only the deterministic
+217-file manifest to the adapter. The fixed PowerShell Direct glue revalidates the
+pinned Authenticode files and signer, host source hash/length immediately before each
+copy, and guest hash/length after copying.
+
+The adapter creates one `.partial-*` package below the guest's system
+`HostDriverStore` mirror, copies through one authenticated session, verifies the
+complete tree, atomically renames it, then creates a byte-identical `nvcuda.dll`
+hard link (or recorded copy fallback) and an atomic applied receipt under the
+protected staging root. An exact reapply rehashes every package file and alias and
+returns `already-applied`; any partial marker, unexpected destination, mismatch,
+timeout or lost adapter makes the disposable child uncertain and non-retryable.
+Recovery is child recreation, never deletion or takeover of unknown guest state.
+
+PowerShell remains the smallest supported bridge because PowerShell Direct and
+`Copy-Item -ToSession` have no maintained native Rust/Win32 interface. Credentials
+remain zeroized, stdin-only and absent from configuration, command lines and output.
+The fixed adapter installs one in-memory ACL validator definition into the persistent
+guest session instead of duplicating that source in every remote block. Rust rejects
+any expanded fixed script above a conservative 30,000 UTF-16-unit bound before
+launch, keeping the reviewed script inside the Windows process command-line limit;
+the credential payload remains on anonymous stdin rather than in that command line.
+No INF installation, registry/ACL/owner broadening, shim, network change or arbitrary
+guest command is introduced. Revisit only if a native bounded VM-session file API
+becomes available or measured staging throughput requires a different reviewed
+transport without weakening these receipt and recovery rules.
+
 ## Decision template
 
 ```markdown

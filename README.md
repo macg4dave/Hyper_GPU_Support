@@ -95,7 +95,7 @@ repository permission boundary when explicitly needed for protected facts.
 | `src/main.rs` | Process arguments, output and exit codes |
 | `src/lib.rs`, `src/cli.rs` | Library boundary, CLI parser and unit tests |
 | `src/config.rs`, `config/project.toml` | Typed project/environment configuration plus plan/report contracts |
-| `src/guest.rs`, `src/windows_guest.rs` | Verified guest-transfer contract and fixed PowerShell Direct adapter |
+| `src/guest.rs`, `src/staging.rs`, `src/windows_guest.rs` | Verified guest-transfer/manifest contracts and fixed PowerShell Direct adapters |
 | `src/inventory.rs` | Typed fact/report model, validated adapter protocol and tests |
 | `src/windows_inventory.rs` | Fixed read-only Windows/Hyper-V process adapter |
 | `tests/cli.rs` | Executable behavior tests |
@@ -122,7 +122,7 @@ interface and immutable manifest identity/hash. Each resource is either
 provider-defined units. `driver_manifest.sha256` pins the deterministic encoded
 file manifest and must match the package inspector before apply validation.
 
-CORE-009's read-only inspector validates the configured DriverStore source,
+CORE-009's inspector validates the configured DriverStore source,
 complete file/byte extent, INF version, catalog hash, every file hash and the
 canonical tree/encoded-manifest digests without copying proprietary files:
 
@@ -130,8 +130,18 @@ canonical tree/encoded-manifest digests without copying proprietary files:
 cargo run --locked --bin hyper-gpu-stage
 ```
 
-The inspector does not stage the guest; the card remains in progress until the
-manifest-level apply/verify and idempotent reapply path is implemented and tested.
+The bounded apply mode prompts for the guest password, revalidates the required
+Authenticode signer, copies the exact manifest through one PowerShell Direct session,
+atomically finalizes the `HostDriverStore` package, creates the verified CUDA alias,
+and writes an applied receipt. A matching reapply rehashes the package and is a no-op:
+
+```powershell
+cargo run --locked --bin hyper-gpu-stage -- apply <guest-user>
+cargo run --locked --bin hyper-gpu-stage -- apply --interactive
+```
+
+Any partial marker, mismatched destination, timeout or interrupted apply makes the
+guest state uncertain; recreate the disposable child instead of retrying in place.
 
 The fixed privileged runner is implemented in `src/runner.rs` and
 `src/bin/hyper-gpu-runner.rs`. Its administrator-owned scheduled task accepts only

@@ -77,6 +77,8 @@ pub struct GuestConfiguration {
     pub session_timeout: Duration,
     /// Maximum time for one verified file transfer.
     pub transfer_timeout: Duration,
+    /// Maximum time for one complete manifest-level staging operation.
+    pub staging_timeout: Duration,
 }
 
 /// Validated identity and disk chain for the one disposable slot.
@@ -125,6 +127,10 @@ pub struct DriverManifestConfiguration {
     pub inf_name: String,
     /// Exact `DriverVer` value expected in the INF.
     pub inf_version: String,
+    /// Exact selected physical GPU driver version reported by Windows PnP.
+    pub driver_version: String,
+    /// Exact qualified host Windows build for this manifest.
+    pub host_build: String,
     /// Signed catalog filename within the package.
     pub catalog_name: String,
     /// Expected number of regular files in the complete package tree.
@@ -135,6 +141,10 @@ pub struct DriverManifestConfiguration {
     pub package_tree_sha256: String,
     /// Expected SHA-256 of the package catalog.
     pub catalog_sha256: String,
+    /// Exact Authenticode signer certificate thumbprint for required signed inputs.
+    pub signer_thumbprint: String,
+    /// Package-relative files whose Authenticode signatures must validate.
+    pub signature_files: Vec<String>,
 }
 
 /// Shared project data locations.
@@ -288,11 +298,15 @@ struct RawDriverManifestConfiguration {
     source_path: PathBuf,
     inf_name: String,
     inf_version: String,
+    driver_version: String,
+    host_build: String,
     catalog_name: String,
     file_count: u32,
     byte_count: u64,
     package_tree_sha256: String,
     catalog_sha256: String,
+    signer_thumbprint: String,
+    signature_files: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -326,6 +340,7 @@ struct RawGuestConfiguration {
     staging_root: PathBuf,
     session_timeout_seconds: u64,
     transfer_timeout_seconds: u64,
+    staging_timeout_seconds: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -707,6 +722,14 @@ impl ProjectConfiguration {
         ] {
             validate_flat_filename(filename)?;
         }
+        if raw.driver_manifest.signature_files.is_empty()
+            || raw.driver_manifest.signature_files.len() > 16
+        {
+            return Err(ConfigError::InvalidManifest);
+        }
+        for filename in &raw.driver_manifest.signature_files {
+            validate_flat_filename(filename)?;
+        }
         if raw.driver_manifest.inf_version.is_empty()
             || raw.driver_manifest.inf_version.len() > 128
             || raw
@@ -714,13 +737,22 @@ impl ProjectConfiguration {
                 .inf_version
                 .chars()
                 .any(char::is_control)
+            || raw.driver_manifest.driver_version.is_empty()
+            || raw.driver_manifest.driver_version.len() > 64
+            || !raw
+                .driver_manifest
+                .driver_version
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || byte == b'.')
             || raw.driver_manifest.file_count == 0
             || raw.driver_manifest.byte_count == 0
             || !is_lower_hex(&raw.driver_manifest.package_tree_sha256, 64)
             || !is_lower_hex(&raw.driver_manifest.catalog_sha256, 64)
+            || !is_lower_hex(&raw.driver_manifest.signer_thumbprint, 40)
         {
             return Err(ConfigError::InvalidManifest);
         }
+        validate_version_label(&raw.driver_manifest.host_build)?;
         validate_absolute_windows_path(&raw.paths.data_root)?;
         validate_relative_path(&raw.paths.test_output)?;
         if !path_is_within(&raw.slot.parent_path, &raw.paths.data_root)
@@ -747,8 +779,10 @@ impl ProjectConfiguration {
         }
         if raw.guest.session_timeout_seconds == 0
             || raw.guest.transfer_timeout_seconds == 0
+            || raw.guest.staging_timeout_seconds == 0
             || raw.guest.session_timeout_seconds > 300
             || raw.guest.transfer_timeout_seconds > 3600
+            || raw.guest.staging_timeout_seconds > 7200
         {
             return Err(ConfigError::InvalidTimeout);
         }
@@ -875,11 +909,15 @@ impl ProjectConfiguration {
                 source_path: raw.driver_manifest.source_path,
                 inf_name: raw.driver_manifest.inf_name,
                 inf_version: raw.driver_manifest.inf_version,
+                driver_version: raw.driver_manifest.driver_version,
+                host_build: raw.driver_manifest.host_build,
                 catalog_name: raw.driver_manifest.catalog_name,
                 file_count: raw.driver_manifest.file_count,
                 byte_count: raw.driver_manifest.byte_count,
                 package_tree_sha256: raw.driver_manifest.package_tree_sha256,
                 catalog_sha256: raw.driver_manifest.catalog_sha256,
+                signer_thumbprint: raw.driver_manifest.signer_thumbprint,
+                signature_files: raw.driver_manifest.signature_files,
             },
             resources,
             paths: ProjectPaths {
@@ -896,6 +934,7 @@ impl ProjectConfiguration {
                 staging_root: raw.guest.staging_root,
                 session_timeout: Duration::from_secs(raw.guest.session_timeout_seconds),
                 transfer_timeout: Duration::from_secs(raw.guest.transfer_timeout_seconds),
+                staging_timeout: Duration::from_secs(raw.guest.staging_timeout_seconds),
             },
             runner: RunnerConfiguration {
                 install_directory: raw.runner.install_directory,
@@ -1350,6 +1389,17 @@ mod tests {
             ),
             valid.replace(
                 &format!(
+                    "signer_thumbprint = \"{}\"",
+                    project.driver_manifest.signer_thumbprint
+                ),
+                "signer_thumbprint = \"not-a-thumbprint\"",
+            ),
+            valid.replace(
+                "signature_files = [\"NV_DISP.CAT\", \"nv_dispi.inf\", \"nvcuda64.dll\", \"nvwgf2umx.dll\"]",
+                "signature_files = [\"nested\\\\NV_DISP.CAT\"]",
+            ),
+            valid.replace(
+                &format!(
                     "powershell_path = '''{}'''",
                     project.guest.powershell_path.display()
                 ),
@@ -1368,6 +1418,13 @@ mod tests {
                     project.guest.session_timeout.as_secs()
                 ),
                 "session_timeout_seconds = 0",
+            ),
+            valid.replace(
+                &format!(
+                    "staging_timeout_seconds = {}",
+                    project.guest.staging_timeout.as_secs()
+                ),
+                "staging_timeout_seconds = 0",
             ),
             valid.replace(
                 &format!(

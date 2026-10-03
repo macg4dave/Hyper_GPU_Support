@@ -12,10 +12,11 @@ handover notes remain in its Resume block. Do not duplicate detailed test output
   coverage that prevents success-shaped output before the configured digest is
   verified.
 
-- [CORE-009](BACKLOG.md#core-009): started the minimum NVIDIA staging path with a
-  deterministic Rust package-manifest inspector, strict source pins and focused
-  missing/changed/partial input tests; the installed 217-file package validates
-  read-only, while guest apply and recovery remain in progress.
+- [CORE-009](BACKLOG.md#core-009): implemented bounded manifest-level NVIDIA guest
+  staging with signature/host-drift preflight, protected atomic publication,
+  per-file verification, idempotent reapply and disposable-recovery classification.
+  Hardware-independent gates pass; live apply stopped safely on BLK-004's host/
+  guest Windows-build drift and pending rename marker without mutating the guest.
 
 - [CORE-008](BACKLOG.md#core-008): completed the bounded PowerShell Direct
   single-file transfer path with ephemeral zeroized credentials, exact host/guest
