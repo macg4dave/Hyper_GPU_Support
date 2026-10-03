@@ -128,14 +128,17 @@ child identities; it is not a general CLI or shell boundary. Installation
 identity, test evidence and remaining protected CORE-005 validation are recorded in
 [CORE-005 evidence](docs/evidence/CORE-005.md).
 
-CORE-008's development harness copies one hash-pinned file to a relative path below
-the configured guest staging root. It prompts on the console so the password never
-appears in the command line or repository:
+CORE-008's development harness copies one hash-pinned file to a flat filename in the
+configured protected guest staging root. It prompts on the console so the password
+never appears in the command line or repository:
 
 ```powershell
 cargo run --locked --bin hyper-gpu-guest-copy -- `
-  <guest-user> <absolute-source> <relative-destination> <lowercase-sha256>
+  <guest-user> <absolute-source> <destination-filename> <lowercase-sha256>
 ```
+
+Use `--interactive` in place of `<guest-user>` to prompt for both the username and
+the hidden password, keeping all guest credentials out of command-line arguments.
 
 The VM must be running locally and the caller must have Hyper-V access. Any timeout
 or interrupted copy makes guest staging state uncertain; recreate the disposable

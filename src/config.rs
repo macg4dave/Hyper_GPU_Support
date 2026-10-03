@@ -691,6 +691,14 @@ impl ProjectConfiguration {
         }
         validate_absolute_windows_path(&raw.guest.staging_root)?;
         validate_absolute_windows_path(&raw.guest.powershell_path)?;
+        if !raw
+            .guest
+            .powershell_path
+            .to_string_lossy()
+            .eq_ignore_ascii_case(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
+        {
+            return Err(ConfigError::InvalidPath);
+        }
         if raw.guest.session_timeout_seconds == 0
             || raw.guest.transfer_timeout_seconds == 0
             || raw.guest.session_timeout_seconds > 300
@@ -1260,6 +1268,13 @@ mod tests {
             valid.replace(
                 &format!("machine_guid = \"{}\"", project.guest.machine_guid),
                 "machine_guid = \"not-a-guid\"",
+            ),
+            valid.replace(
+                &format!(
+                    "powershell_path = '''{}'''",
+                    project.guest.powershell_path.display()
+                ),
+                "powershell_path = '''C:\\Temp\\powershell.exe'''",
             ),
             valid.replace(
                 &format!(

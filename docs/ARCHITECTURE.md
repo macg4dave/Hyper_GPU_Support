@@ -163,7 +163,10 @@ deletes the account by SID. [New-VHD differencing disks][ms-new-vhd]
 Guest sessions use ephemeral credentials supplied securely at execution time, no
 passwords on process command lines or in reports. Native subprocess adapters must
 handle timeouts, structured output, stderr, encoding, cancellation and nonzero
-exit status. These boundaries are tested separately from GPU capabilities.
+exit status. The fixed PowerShell Direct adapter replaces caller-controlled module
+discovery and verifies the system Hyper-V module before reading its
+credential-bearing request. These boundaries are tested separately from GPU
+capabilities.
 
 The development path prepares a clean parent manually, creates one disposable VM
 from a differencing disk, verifies prerequisites and provides native lifecycle

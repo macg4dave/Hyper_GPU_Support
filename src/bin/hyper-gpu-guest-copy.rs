@@ -1,5 +1,6 @@
 //! Operator-facing harness for one verified transfer to the pinned disposable guest.
 
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -22,26 +23,31 @@ fn main() -> ExitCode {
 
 #[cfg(windows)]
 fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let mut arguments = std::env::args_os().skip(1);
-    let username = arguments
-        .next()
-        .and_then(|value| value.into_string().ok())
-        .ok_or("usage: hyper-gpu-guest-copy USER SOURCE RELATIVE_DESTINATION SHA256")?;
-    let source = arguments
-        .next()
-        .map(PathBuf::from)
-        .ok_or("usage: hyper-gpu-guest-copy USER SOURCE RELATIVE_DESTINATION SHA256")?;
-    let destination = arguments
-        .next()
-        .map(PathBuf::from)
-        .ok_or("usage: hyper-gpu-guest-copy USER SOURCE RELATIVE_DESTINATION SHA256")?;
-    let sha256 = arguments
-        .next()
-        .and_then(|value| value.into_string().ok())
-        .ok_or("usage: hyper-gpu-guest-copy USER SOURCE RELATIVE_DESTINATION SHA256")?;
-    if arguments.next().is_some() {
-        return Err("usage: hyper-gpu-guest-copy USER SOURCE RELATIVE_DESTINATION SHA256".into());
-    }
+    let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
+    let (username, source, destination, sha256) = match arguments.as_slice() {
+        [interactive, source, destination, sha256] if interactive == "--interactive" => (
+            prompt_username()?,
+            PathBuf::from(source),
+            PathBuf::from(destination),
+            sha256
+                .to_str()
+                .ok_or("SHA-256 is not valid Unicode")?
+                .to_owned(),
+        ),
+        [username, source, destination, sha256] => (
+            username
+                .to_str()
+                .ok_or("guest username is not valid Unicode")?
+                .to_owned(),
+            PathBuf::from(source),
+            PathBuf::from(destination),
+            sha256
+                .to_str()
+                .ok_or("SHA-256 is not valid Unicode")?
+                .to_owned(),
+        ),
+        _ => return Err(usage().into()),
+    };
 
     let source = source.canonicalize()?;
     let request = TransferRequest::new(source, destination, sha256)?;
@@ -64,6 +70,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("sha256={}", receipt.sha256);
     println!("bytes={}", receipt.bytes);
     Ok(())
+}
+
+#[cfg(windows)]
+fn prompt_username() -> io::Result<String> {
+    eprint!("Guest username: ");
+    io::stderr().flush()?;
+    let mut username = String::new();
+    io::stdin().read_line(&mut username)?;
+    Ok(username.trim_end_matches(['\r', '\n']).to_owned())
+}
+
+#[cfg(windows)]
+fn usage() -> &'static str {
+    "usage: hyper-gpu-guest-copy USER SOURCE DESTINATION_FILENAME SHA256\n       hyper-gpu-guest-copy --interactive SOURCE DESTINATION_FILENAME SHA256"
 }
 
 #[cfg(not(windows))]

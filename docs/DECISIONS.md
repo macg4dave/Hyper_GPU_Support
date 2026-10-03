@@ -510,7 +510,7 @@ configuration domain has a demonstrably different trust/ownership boundary.
 
 ## DEC-020
 
-**Implemented for CORE-008 | 2026-10-01 | Fixed PowerShell Direct transfer adapter**
+**Implemented for CORE-008 | 2026-10-02 | Fixed PowerShell Direct transfer adapter**
 
 Use a Rust-owned transfer contract and process supervisor around one fixed Windows
 PowerShell 5.1 adapter for the initial guest session and file-copy boundary. Microsoft
@@ -521,13 +521,18 @@ persistent VM sessions and `Copy-Item -ToSession` through
 contract for a registered Hyper-V VM. Reimplementing PowerShell remoting/VM-session
 internals would be a larger unsupported security surface.
 
-Rust validates the configured VM and guest identities, source metadata/hash, relative
-destination and returned byte/hash evidence. The fixed adapter repeats identity and
-hash checks in the session, permits creation only below the configured guest staging
-root, rejects reparse traversal and existing/partial targets, and uses a temporary
-file plus same-directory rename. It accepts a bounded JSON request over anonymous
-stdin; the password is never an argument, configuration value, report field or error,
-and Rust zeroes its password buffers. `rpassword` 7.5.4 supplies Windows console echo
+Rust validates the configured VM, attached child/parent chain and guest identities,
+source metadata/hash, flat staging filename and returned byte/hash evidence. The
+fixed adapter repeats identity and hash checks in the session, uses a protected
+`Program Files` staging root, rejects reparse traversal, broad write ACLs and
+existing/partial targets, and revalidates the root before a same-directory rename.
+It accepts a size-bounded UTF-8 JSON request over supervised anonymous stdin through
+the exact configured system PowerShell executable. Rust replaces caller-controlled
+PowerShell module discovery with the protected system module root, explicitly loads
+and path-checks the Hyper-V commands before reading stdin, and rejects success-shaped
+output from a failed process. The password is never an argument, configuration value,
+report field or error, and Rust zeroes its password buffers.
+`rpassword` 7.5.4 supplies Windows console echo
 suppression without adding project-owned unsafe code; `zeroize` 1.9.0 provides the
 non-optimizable buffer clearing. Both are Apache-2.0-compatible dependencies with a
 Rust 1.85 minimum below the pinned toolchain.
@@ -535,9 +540,9 @@ Rust 1.85 minimum below the pinned toolchain.
 Killing and reaping the host adapter bounds the caller but cannot prove an in-flight
 guest copy stopped. A timeout or adapter loss therefore reports uncertain guest state;
 the `.partial-*` marker blocks reuse and the disposable child is recreated instead of
-silently retrying. This exception permits no caller-provided script, network setup,
-remote management change, general guest command execution or destination outside the
-configured staging root.
+silently retrying. This exception permits no caller-provided script, nested
+destination, network setup, remote management change, general guest command
+execution or destination outside the configured staging root.
 
 Revisit if Windows exposes an equally bounded supported native API, if PowerShell
 Direct cancellation can be reconciled more precisely, or when CORE-009 replaces the

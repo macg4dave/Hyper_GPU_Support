@@ -53,7 +53,7 @@ impl GuestCredential {
     }
 }
 
-/// One immutable host file and its relative destination below the configured guest root.
+/// One immutable host file and its flat destination name below the configured guest root.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransferRequest {
     source: PathBuf,
@@ -86,7 +86,7 @@ impl TransferRequest {
         &self.source
     }
 
-    /// Relative path below the configured guest staging root.
+    /// Flat filename below the configured guest staging root.
     #[must_use]
     pub fn destination(&self) -> &Path {
         &self.destination
@@ -183,17 +183,16 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 fn safe_relative_path(path: &Path) -> bool {
-    !path.as_os_str().is_empty()
-        && path.components().all(|component| match component {
-            Component::Normal(value) => {
-                let value = value.to_string_lossy();
-                !value.is_empty()
-                    && !value.ends_with([' ', '.'])
-                    && !value.contains([':', '\0'])
-                    && !value.chars().any(char::is_control)
-            }
-            _ => false,
-        })
+    let mut components = path.components();
+    let Some(Component::Normal(value)) = components.next() else {
+        return false;
+    };
+    let value = value.to_string_lossy();
+    components.next().is_none()
+        && !value.is_empty()
+        && !value.ends_with([' ', '.'])
+        && !value.contains([':', '\0'])
+        && !value.chars().any(char::is_control)
 }
 
 fn paths_equal(left: &Path, right: &Path) -> bool {
@@ -298,7 +297,7 @@ mod tests {
             ),
             computer_name: "TESTVM".into(),
             machine_guid: "046edc35-4c8f-4910-9c53-574681e623af".into(),
-            staging_root: PathBuf::from(r"C:\ProgramData\HyperGpuSupport\Staging"),
+            staging_root: PathBuf::from(r"C:\Program Files\HyperGpuSupport\Staging"),
             session_timeout: std::time::Duration::from_secs(60),
             transfer_timeout: std::time::Duration::from_secs(900),
         }
@@ -311,7 +310,13 @@ mod tests {
             Err(GuestError::InvalidCredential)
         ));
         let hash = "0".repeat(64);
-        for destination in [r"..\escape", r"C:\absolute", r"safe\..\escape", "bad:name"] {
+        for destination in [
+            r"..\escape",
+            r"C:\absolute",
+            r"safe\..\escape",
+            r"nested\file.bin",
+            "bad:name",
+        ] {
             assert_eq!(
                 TransferRequest::new(
                     PathBuf::from(r"C:\source.bin"),

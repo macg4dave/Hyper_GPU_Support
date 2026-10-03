@@ -49,9 +49,9 @@ variables, Windows credential facilities or a runtime prompt appropriate to the
 consumer. Local TOML overlays and secret-named configuration files are ignored;
 the current schema deliberately has no credential field and rejects unknown keys.
 
-The `[guest]` table pins the disposable guest's computer name and MachineGuid, the
-only guest staging root CORE-008 may write below, and separate session/transfer
-deadlines. Guest credentials are acquired at execution time and never belong in this
-file. Transfer destinations are relative to `guest.staging_root`; an absolute path,
-parent traversal, reparse traversal, existing destination or interrupted partial file
-fails closed.
+The `[guest]` table pins the trusted system PowerShell executable, disposable guest's
+computer name and MachineGuid, the protected `Program Files` staging root and
+separate session/transfer deadlines. Guest credentials are acquired at execution
+time and never belong in this file. CORE-008 accepts one flat filename relative to
+`guest.staging_root`; an absolute/nested path, parent traversal, reparse traversal,
+broad write ACL, existing destination or interrupted partial file fails closed.

@@ -4,6 +4,15 @@ Record meaningful completed changes in one short entry per change, with task IDs
 and evidence links when applicable. Task statuses remain in BACKLOG; partial
 handover notes remain in its Resume block. Do not duplicate detailed test output.
 
+## 2026-10-03
+
+- [CORE-008](BACKLOG.md#core-008): completed the bounded PowerShell Direct
+  single-file transfer path with ephemeral zeroized credentials, exact host/guest
+  identity and hash receipts, protected flat staging destinations, pinned system
+  PowerShell/Hyper-V module resolution, strict process status and uncertain-state
+  handling. Passed the hardware-independent security/error coverage and proved one
+  verified transfer to the designated disposable guest before a graceful shutdown.
+
 ## 2026-10-01
 
 - [CORE-005](BACKLOG.md#core-005): made disposable-child reset fail closed with
