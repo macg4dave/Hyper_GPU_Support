@@ -55,7 +55,7 @@ GPU-007 and GPU-015 are optional research lanes.
 | [CORE-004](#core-004) | M1 | P0 | completed | CORE-001, GPU-003 |
 | [CORE-005](#core-005) | M1 | P0 | completed | CORE-001, HV-002, HV-003, GPU-003 |
 | [CORE-008](#core-008) | M1 | P0 | completed | CORE-005, HV-002 |
-| [CORE-009](#core-009) | M1 | P0 | planned | CORE-008, GPU-002 |
+| [CORE-009](#core-009) | M1 | P0 | in progress | CORE-008, GPU-002 |
 | [CORE-002](#core-002) | M1 | P0 | planned | CORE-005, CORE-009 |
 | [CORE-006](#core-006) | M2 | P1 | planned | GPU-006 |
 | [CORE-007](#core-007) | M2 | P1 | planned | CORE-006 |
@@ -726,7 +726,17 @@ for future work is not an invented current blocker.
 - Acceptance: validate source identity/hash/version, apply and verify each required
   guest file/setting, make a matching reapply a no-op and mark partial/uncertain
   staging for disposable recreation. Test missing, changed and partial inputs.
-- Result: pending.
+- Result: Started 2026-10-03. Added the read-only Rust manifest inspector and
+  strict configuration pins for the exact GPU-correlated source path, INF/version,
+  catalog, file/byte extent and package-tree digest. It deterministically encodes
+  all 217 relative paths, sizes and SHA-256 values and rejects missing, changed and
+  partial inputs. Live inspection validated the installed 2,850,973,044-byte
+  package and produced manifest SHA-256
+  `31cf877d2415ad686f34f6498ae4a08893cebdc699244be1649e5379e9516ea3`.
+  Corrected GPU-002's stale tree digest after Rust and an independent temporary
+  PowerShell implementation agreed on Windows ordinal-ignore-case ordering.
+  Guest apply/verify, signature validation, idempotent reapply and uncertain-state
+  recovery remain on this card; no guest or host state was mutated.
 
 ## CORE-002
 

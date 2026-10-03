@@ -10,6 +10,7 @@ pub mod guest;
 pub mod inventory;
 pub mod probe;
 pub mod runner;
+pub mod staging;
 
 #[cfg(windows)]
 pub mod windows_account_rights;

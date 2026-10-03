@@ -118,8 +118,19 @@ command and the boundary between mutable settings and implementation constants.
 The desired-state subset still requires one canonical VM GUID, explicit GPU-P
 interface and immutable manifest identity/hash. Each resource is either
 `provider-default` or an exact `minimum,maximum,optimal` triple in opaque
-provider-defined units. The all-zero manifest hash is intentionally a placeholder
-and must be replaced in `driver_manifest.sha256` before apply validation.
+provider-defined units. `driver_manifest.sha256` pins the deterministic encoded
+file manifest and must match the package inspector before apply validation.
+
+CORE-009's read-only inspector validates the configured DriverStore source,
+complete file/byte extent, INF version, catalog hash, every file hash and the
+canonical tree/encoded-manifest digests without copying proprietary files:
+
+```powershell
+cargo run --locked --bin hyper-gpu-stage
+```
+
+The inspector does not stage the guest; the card remains in progress until the
+manifest-level apply/verify and idempotent reapply path is implemented and tested.
 
 The fixed privileged runner is implemented in `src/runner.rs` and
 `src/bin/hyper-gpu-runner.rs`. Its administrator-owned scheduled task accepts only

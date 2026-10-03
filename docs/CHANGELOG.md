@@ -6,6 +6,11 @@ handover notes remain in its Resume block. Do not duplicate detailed test output
 
 ## 2026-10-03
 
+- [CORE-009](BACKLOG.md#core-009): started the minimum NVIDIA staging path with a
+  deterministic Rust package-manifest inspector, strict source pins and focused
+  missing/changed/partial input tests; the installed 217-file package validates
+  read-only, while guest apply and recovery remain in progress.
+
 - [CORE-008](BACKLOG.md#core-008): completed the bounded PowerShell Direct
   single-file transfer path with ephemeral zeroized credentials, exact host/guest
   identity and hash receipts, protected flat staging destinations, pinned system

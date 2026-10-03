@@ -22,7 +22,15 @@ child_path = '''Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx''
 
 [driver_manifest]
 id = "nvidia-616.92-baseline-v1"
-sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+sha256 = "31cf877d2415ad686f34f6498ae4a08893cebdc699244be1649e5379e9516ea3"
+source_path = '''C:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_b20cc8aeaed64fc2'''
+inf_name = "nv_dispi.inf"
+inf_version = "09/04/2026, 32.0.16.1692"
+catalog_name = "NV_DISP.CAT"
+file_count = 217
+byte_count = 2850973044
+package_tree_sha256 = "3662d618d9fb95d02a354077337d58dbc4c3ccf9db14714b1c5fbc4a675cf950"
+catalog_sha256 = "9c2ada986e2eee73be0b496d809c847c809ccf0e52ba970a9834dbeaf2afff34"
 
 [resources]
 vram = "provider-default"

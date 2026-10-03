@@ -119,6 +119,22 @@ pub struct DriverManifestConfiguration {
     pub id: String,
     /// Canonical lowercase manifest SHA-256.
     pub sha256: String,
+    /// Exact GPU-correlated host DriverStore package root.
+    pub source_path: PathBuf,
+    /// Display INF filename within the package.
+    pub inf_name: String,
+    /// Exact `DriverVer` value expected in the INF.
+    pub inf_version: String,
+    /// Signed catalog filename within the package.
+    pub catalog_name: String,
+    /// Expected number of regular files in the complete package tree.
+    pub file_count: u32,
+    /// Expected aggregate byte length of all package files.
+    pub byte_count: u64,
+    /// GPU-002 canonical package-tree digest.
+    pub package_tree_sha256: String,
+    /// Expected SHA-256 of the package catalog.
+    pub catalog_sha256: String,
 }
 
 /// Shared project data locations.
@@ -269,6 +285,14 @@ struct RawSlotConfiguration {
 struct RawDriverManifestConfiguration {
     id: String,
     sha256: String,
+    source_path: PathBuf,
+    inf_name: String,
+    inf_version: String,
+    catalog_name: String,
+    file_count: u32,
+    byte_count: u64,
+    package_tree_sha256: String,
+    catalog_sha256: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -672,6 +696,28 @@ impl ProjectConfiguration {
         }
         if !is_manifest_id(&raw.driver_manifest.id)
             || !is_lower_hex(&raw.driver_manifest.sha256, 64)
+            || raw.driver_manifest.sha256.bytes().all(|byte| byte == b'0')
+        {
+            return Err(ConfigError::InvalidManifest);
+        }
+        validate_absolute_windows_path(&raw.driver_manifest.source_path)?;
+        for filename in [
+            &raw.driver_manifest.inf_name,
+            &raw.driver_manifest.catalog_name,
+        ] {
+            validate_flat_filename(filename)?;
+        }
+        if raw.driver_manifest.inf_version.is_empty()
+            || raw.driver_manifest.inf_version.len() > 128
+            || raw
+                .driver_manifest
+                .inf_version
+                .chars()
+                .any(char::is_control)
+            || raw.driver_manifest.file_count == 0
+            || raw.driver_manifest.byte_count == 0
+            || !is_lower_hex(&raw.driver_manifest.package_tree_sha256, 64)
+            || !is_lower_hex(&raw.driver_manifest.catalog_sha256, 64)
         {
             return Err(ConfigError::InvalidManifest);
         }
@@ -826,6 +872,14 @@ impl ProjectConfiguration {
             driver_manifest: DriverManifestConfiguration {
                 id: raw.driver_manifest.id,
                 sha256: raw.driver_manifest.sha256,
+                source_path: raw.driver_manifest.source_path,
+                inf_name: raw.driver_manifest.inf_name,
+                inf_version: raw.driver_manifest.inf_version,
+                catalog_name: raw.driver_manifest.catalog_name,
+                file_count: raw.driver_manifest.file_count,
+                byte_count: raw.driver_manifest.byte_count,
+                package_tree_sha256: raw.driver_manifest.package_tree_sha256,
+                catalog_sha256: raw.driver_manifest.catalog_sha256,
             },
             resources,
             paths: ProjectPaths {
@@ -1084,6 +1138,22 @@ fn validate_version_label(value: &str) -> Result<(), ConfigError> {
     Ok(())
 }
 
+fn validate_flat_filename(value: &str) -> Result<(), ConfigError> {
+    let path = Path::new(value);
+    let mut components = path.components();
+    if value.is_empty()
+        || value.len() > 255
+        || value.ends_with([' ', '.'])
+        || value.contains([':', '\0'])
+        || value.chars().any(char::is_control)
+        || !matches!(components.next(), Some(Component::Normal(_)))
+        || components.next().is_some()
+    {
+        return Err(ConfigError::InvalidManifest);
+    }
+    Ok(())
+}
+
 fn validate_https(value: &str) -> Result<(), ConfigError> {
     if value.len() > 2048 || !value.starts_with("https://") || value.chars().any(char::is_control) {
         return Err(ConfigError::InvalidProjectSetting);
@@ -1268,6 +1338,15 @@ mod tests {
             valid.replace(
                 &format!("machine_guid = \"{}\"", project.guest.machine_guid),
                 "machine_guid = \"not-a-guid\"",
+            ),
+            valid.replace("file_count = 217", "file_count = 0"),
+            valid.replace(
+                &project.driver_manifest.sha256,
+                "0000000000000000000000000000000000000000000000000000000000000000",
+            ),
+            valid.replace(
+                "catalog_name = \"NV_DISP.CAT\"",
+                "catalog_name = \"nested\\\\NV_DISP.CAT\"",
             ),
             valid.replace(
                 &format!(

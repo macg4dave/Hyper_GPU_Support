@@ -55,3 +55,9 @@ separate session/transfer deadlines. Guest credentials are acquired at execution
 time and never belong in this file. CORE-008 accepts one flat filename relative to
 `guest.staging_root`; an absolute/nested path, parent traversal, reparse traversal,
 broad write ACL, existing destination or interrupted partial file fails closed.
+
+The `[driver_manifest]` table pins the GPU-correlated host package path, INF and
+catalog names, INF version, complete file/byte extent, catalog hash, canonical
+package-tree digest and encoded manifest identity. These values change together
+after reviewed driver servicing; the read-only CORE-009 inspector rejects partial
+or changed trees before any guest operation.
