@@ -121,6 +121,7 @@ impl GuestPackageStager for WindowsGuestTransfer {
             package_directory: &manifest.package_directory,
             signer_thumbprint: &configuration.signer_thumbprint,
             signature_files: &configuration.signature_files,
+            allowed_pending_delete_sources: &configuration.allowed_pending_delete_sources,
             files: &manifest.files,
             byte_count: manifest.byte_count,
             username: credential.username(),
@@ -178,6 +179,7 @@ struct StageWireRequest<'a> {
     package_directory: &'a str,
     signer_thumbprint: &'a str,
     signature_files: &'a [String],
+    allowed_pending_delete_sources: &'a [String],
     files: &'a [DriverPackageFile],
     byte_count: u64,
     username: &'a str,
@@ -206,6 +208,11 @@ struct WireResponse {
     manifest_id: String,
     #[serde(default)]
     manifest_sha256: String,
+    qualified_host_build: Option<String>,
+    measured_host_build: Option<String>,
+    measured_guest_build: Option<String>,
+    pending_delete_count: Option<u32>,
+    pending_delete_sources: Option<Vec<String>>,
     #[serde(default)]
     package_destination: String,
     #[serde(default)]
@@ -439,6 +446,21 @@ fn parse_stage_receipt(output: &str) -> Result<StageReceipt, StagingError> {
         "already-applied" => StageStatus::AlreadyApplied,
         _ => return Err(StagingError::GuestStateUncertain),
     };
+    let qualified_host_build = response
+        .qualified_host_build
+        .ok_or(StagingError::GuestStateUncertain)?;
+    let measured_host_build = response
+        .measured_host_build
+        .ok_or(StagingError::GuestStateUncertain)?;
+    let measured_guest_build = response
+        .measured_guest_build
+        .ok_or(StagingError::GuestStateUncertain)?;
+    let pending_delete_count = response
+        .pending_delete_count
+        .ok_or(StagingError::GuestStateUncertain)?;
+    let pending_delete_sources = response
+        .pending_delete_sources
+        .ok_or(StagingError::GuestStateUncertain)?;
     Ok(StageReceipt {
         status,
         vm_id: response.vm_id,
@@ -446,6 +468,11 @@ fn parse_stage_receipt(output: &str) -> Result<StageReceipt, StagingError> {
         machine_guid: response.machine_guid,
         manifest_id: response.manifest_id,
         manifest_sha256: response.manifest_sha256,
+        qualified_host_build,
+        measured_host_build,
+        measured_guest_build,
+        pending_delete_count,
+        pending_delete_sources,
         package_destination: response.package_destination.into(),
         cuda_alias: response.cuda_alias.into(),
         alias_method: response.alias_method,
@@ -579,8 +606,27 @@ static STAGING_SCRIPT: LazyLock<String> = LazyLock::new(|| {
     STAGING_SCRIPT_TEMPLATE
         .replace("__HYPERV_BOOTSTRAP__", HYPERV_BOOTSTRAP)
         .replace("__STAGING_ACL_VALIDATOR__", &staging_acl)
+        .replace("__PENDING_RENAME_VALIDATOR__", PENDING_RENAME_VALIDATOR)
         .replace("__ACL_VALIDATOR__", "")
 });
+
+const PENDING_RENAME_VALIDATOR: &str = r#"
+function Get-ReviewedPendingDeletes($Entries, $Allowed) {
+    $values = if ($null -eq $Entries) { @() } else { @($Entries) }
+    $allowedValues = @($Allowed)
+    if (($values.Count % 2) -ne 0) { throw 'host servicing state' }
+    $reviewed = [Collections.Generic.List[string]]::new()
+    for ($index = 0; $index -lt $values.Count; $index += 2) {
+        $source = [string]$values[$index]
+        $destination = [string]$values[$index + 1]
+        if ([string]::IsNullOrWhiteSpace($source) -or
+            -not [string]::IsNullOrEmpty($destination) -or
+            $source -cnotin $allowedValues) { throw 'host servicing state' }
+        $reviewed.Add($source)
+    }
+    [pscustomobject]@{ count = [uint32]$reviewed.Count; sources = [string[]]$reviewed.ToArray() }
+}
+"#;
 
 const HYPERV_BOOTSTRAP: &str = r#"
 try {
@@ -739,6 +785,7 @@ __HYPERV_BOOTSTRAP__
 $aclValidatorSource = @'
 __STAGING_ACL_VALIDATOR__
 '@
+__PENDING_RENAME_VALIDATOR__
 function Open-FixedSession($Request, $Credential) {
     try { New-PSSession -VMId ([guid]$Request.vm_id) -Credential $Credential -ErrorAction Stop }
     catch {
@@ -829,7 +876,6 @@ try {
 
     $hostVersion = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
     $measuredBuild = [string]$hostVersion.CurrentBuildNumber + '.' + [string]$hostVersion.UBR
-    if ($measuredBuild -cne [string]$request.host_build) { throw 'host Windows drift' }
     $gpuPath = [string]$request.gpu_interface
     $interfaceEnd = $gpuPath.IndexOf('#{', [StringComparison]::Ordinal)
     if (-not $gpuPath.StartsWith('\\?\PCI#', [StringComparison]::OrdinalIgnoreCase) -or $interfaceEnd -le 4) { throw 'host GPU drift' }
@@ -839,8 +885,10 @@ try {
     })
     if ($activeDrivers.Count -ne 1 -or [string]$activeDrivers[0].DriverVersion -cne [string]$request.gpu_driver_version) { throw 'host GPU drift' }
     $pendingReboot = (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') -or
-        (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired') -or
-        ($null -ne (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue))
+        (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired')
+    $pendingRenameProperty = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue
+    $pendingRenameEntries = if ($null -eq $pendingRenameProperty) { @() } else { @($pendingRenameProperty.PendingFileRenameOperations) }
+    $pendingDeletes = Get-ReviewedPendingDeletes $pendingRenameEntries $request.allowed_pending_delete_sources
     $setup = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\Setup' -Name SystemSetupInProgress -ErrorAction SilentlyContinue
     if ($pendingReboot -or (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress') -or
         ($null -ne $setup -and [int]$setup.SystemSetupInProgress -ne 0)) { throw 'host servicing state' }
@@ -875,7 +923,9 @@ try {
             if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'identity mismatch' }
             $actualGuid = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid).MachineGuid
             if ($env:COMPUTERNAME -ine $ExpectedComputer -or $actualGuid -cne $ExpectedGuid) { throw 'identity mismatch' }
-            [pscustomobject]@{ computer_name = $env:COMPUTERNAME; machine_guid = $actualGuid }
+            $guestVersion = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+            $guestBuild = [string]$guestVersion.CurrentBuildNumber + '.' + [string]$guestVersion.UBR
+            [pscustomobject]@{ computer_name = $env:COMPUTERNAME; machine_guid = $actualGuid; build = $guestBuild }
         }
         $paths = Invoke-Command -Session $session -ArgumentList @($request.staging_root, $request.package_directory, $request.manifest_id) -ScriptBlock {
             param($StagingRoot, $PackageDirectory, $ManifestId)
@@ -972,6 +1022,9 @@ try {
             Emit 'ok' 'already-applied' ([ordered]@{
                 vm_id=[string]$request.vm_id; computer_name=[string]$identity.computer_name; machine_guid=[string]$identity.machine_guid
                 manifest_id=[string]$request.manifest_id; manifest_sha256=[string]$request.manifest_sha256
+                qualified_host_build=[string]$request.host_build; measured_host_build=$measuredBuild
+                measured_guest_build=[string]$identity.build
+                pending_delete_count=[uint32]$pendingDeletes.count; pending_delete_sources=@($pendingDeletes.sources)
                 package_destination=[string]$paths.package; cuda_alias=[string]$paths.alias; alias_method=[string]$receipt.alias_method
                 files=[uint32]$verified.files; bytes=[uint64]$verified.bytes
             }); exit 0
@@ -1040,6 +1093,9 @@ try {
         Emit 'ok' 'applied' ([ordered]@{
             vm_id=[string]$request.vm_id; computer_name=[string]$identity.computer_name; machine_guid=[string]$identity.machine_guid
             manifest_id=[string]$request.manifest_id; manifest_sha256=[string]$request.manifest_sha256
+            qualified_host_build=[string]$request.host_build; measured_host_build=$measuredBuild
+            measured_guest_build=[string]$identity.build
+            pending_delete_count=[uint32]$pendingDeletes.count; pending_delete_sources=@($pendingDeletes.sources)
             package_destination=[string]$paths.package; cuda_alias=[string]$paths.alias; alias_method=[string]$final.alias_method
             files=[uint32]$verified.files; bytes=[uint64]$verified.bytes
         })
@@ -1049,7 +1105,7 @@ try {
     if ($mutationStarted -or $text -match '(?i)uncertain state') { Emit 'error' 'uncertain-state'; exit 15 }
     if ($text -match '(?i)signature') { Emit 'error' 'invalid-signature'; exit 16 }
     if ($text -match '(?i)credential|logon failure') { Emit 'error' 'credential-denied'; exit 11 }
-    if ($text -match '(?i)target identity|identity mismatch|verification failed|source changed|unsafe path|host GPU drift|host Windows drift|host servicing state') { Emit 'error' 'verification-failed'; exit 14 }
+    if ($text -match '(?i)target identity|identity mismatch|verification failed|source changed|unsafe path|host GPU drift|host servicing state') { Emit 'error' 'verification-failed'; exit 14 }
     Emit 'error' 'uncertain-state'; exit 15
 }
 "#;
@@ -1062,8 +1118,8 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        ACL_VALIDATOR, SCRIPT, SCRIPT_TEMPLATE, STAGING_SCRIPT, category, parse_probe,
-        parse_stage_receipt, parse_transfer, run_script, run_script_with_command,
+        ACL_VALIDATOR, PENDING_RENAME_VALIDATOR, SCRIPT, SCRIPT_TEMPLATE, STAGING_SCRIPT, category,
+        parse_probe, parse_stage_receipt, parse_transfer, run_script, run_script_with_command,
     };
     use crate::guest::GuestError;
     use crate::staging::{StageStatus, StagingError};
@@ -1423,20 +1479,73 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         assert!(STAGING_SCRIPT.contains("[IO.Directory]::Move($Temporary, $Package)"));
         assert!(STAGING_SCRIPT.contains("[IO.File]::Copy($loader, $Alias, $false)"));
         assert!(STAGING_SCRIPT.contains("host servicing state"));
+        assert!(!STAGING_SCRIPT.contains("throw 'host Windows drift'"));
+        assert!(STAGING_SCRIPT.contains("function Get-ReviewedPendingDeletes"));
+        assert!(STAGING_SCRIPT.contains("$source -cnotin $allowedValues"));
+        assert!(STAGING_SCRIPT.contains("pending_delete_sources=@($pendingDeletes.sources)"));
+        assert!(STAGING_SCRIPT.contains("$guestVersion = Get-ItemProperty"));
+        assert!(STAGING_SCRIPT.contains("measured_guest_build=[string]$identity.build"));
         assert!(STAGING_SCRIPT.contains("Win32_PnPSignedDriver"));
         assert!(!STAGING_SCRIPT.contains("Remove-Item -LiteralPath $Package"));
     }
 
     #[test]
     fn stage_receipt_parser_preserves_noop_and_uncertain_protocol() {
-        let output = r#"{"status":"ok","category":"already-applied","vm_id":"vm","computer_name":"guest","machine_guid":"guid","manifest_id":"manifest","manifest_sha256":"hash","package_destination":"C:\\package","cuda_alias":"C:\\alias","alias_method":"hardlink","files":217,"bytes":2850973044}"#;
+        let output = r#"{"status":"ok","category":"already-applied","vm_id":"vm","computer_name":"guest","machine_guid":"guid","manifest_id":"manifest","manifest_sha256":"hash","qualified_host_build":"26200.9457","measured_host_build":"26300.9457","measured_guest_build":"26200.9457","pending_delete_count":2,"pending_delete_sources":["cleanup-a","cleanup-b"],"package_destination":"C:\\package","cuda_alias":"C:\\alias","alias_method":"hardlink","files":217,"bytes":2850973044}"#;
         let receipt = parse_stage_receipt(output).unwrap();
         assert_eq!(receipt.status, StageStatus::AlreadyApplied);
         assert_eq!(receipt.files, 217);
+        assert!(receipt.has_host_qualification_drift());
+        assert!(receipt.has_host_guest_build_drift());
+        assert!(receipt.has_pending_delete_cleanup());
         assert_eq!(
             parse_stage_receipt("not-json"),
             Err(StagingError::GuestStateUncertain)
         );
+        let missing_cleanup_evidence = output.replace(
+            r#","pending_delete_count":2,"pending_delete_sources":["cleanup-a","cleanup-b"]"#,
+            "",
+        );
+        assert_eq!(
+            parse_stage_receipt(&missing_cleanup_evidence),
+            Err(StagingError::GuestStateUncertain)
+        );
+    }
+
+    #[test]
+    fn pending_rename_validator_accepts_only_reviewed_delete_pairs() {
+        let cases = [
+            ("@()", "@('reviewed')", "accepted:0:"),
+            ("@('reviewed','')", "@('reviewed')", "accepted:1:reviewed"),
+            ("@('reviewed')", "@('reviewed')", "rejected"),
+            ("@('','')", "@('reviewed')", "rejected"),
+            ("@('reviewed','replacement')", "@('reviewed')", "rejected"),
+            ("@('unknown','')", "@('reviewed')", "rejected"),
+        ];
+        for (entries, allowed, expected) in cases {
+            let script = format!(
+                "{PENDING_RENAME_VALIDATOR}\ntry{{$result=Get-ReviewedPendingDeletes {entries} {allowed};[Console]::Out.Write('accepted:'+[string]$result.count+':'+(@($result.sources)-join ','))}}catch{{[Console]::Out.Write('rejected')}}"
+            );
+            let output = run_script(
+                Path::new(POWERSHELL),
+                &script,
+                Zeroizing::new(Vec::new()),
+                Duration::from_secs(5),
+            )
+            .unwrap();
+            assert_eq!(output, expected, "entries {entries}");
+        }
+        let absent_registry_script = format!(
+            "{PENDING_RENAME_VALIDATOR}\n$entries=if($true){{@()}}else{{@('reviewed','')}};$result=Get-ReviewedPendingDeletes $entries @('reviewed');[Console]::Out.Write('accepted:'+[string]$result.count+':'+(@($result.sources)-join ','))"
+        );
+        let output = run_script(
+            Path::new(POWERSHELL),
+            &absent_registry_script,
+            Zeroizing::new(Vec::new()),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        assert_eq!(output, "accepted:0:");
     }
 
     #[test]

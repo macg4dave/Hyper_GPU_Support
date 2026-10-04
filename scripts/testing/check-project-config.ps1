@@ -24,6 +24,7 @@ foreach ($key in @(
     'driver_manifest.host_build',
     'driver_manifest.catalog_name',
     'driver_manifest.signer_thumbprint',
+    'driver_manifest.allowed_pending_delete_sources',
     'guest.staging_timeout_seconds',
     'runner.data_directory',
     'tooling.cuda_samples_commit',

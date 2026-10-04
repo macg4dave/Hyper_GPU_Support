@@ -61,7 +61,7 @@ pub enum StageStatus {
     AlreadyApplied,
 }
 
-/// Guest-observed evidence for a complete or matching no-op staging operation.
+/// Verified evidence for a complete or matching no-op staging operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StageReceipt {
     /// Whether this invocation applied state or verified an existing match.
@@ -76,6 +76,16 @@ pub struct StageReceipt {
     pub manifest_id: String,
     /// Exact canonical manifest SHA-256 recorded in the guest receipt.
     pub manifest_sha256: String,
+    /// Host Windows build used as the qualification baseline.
+    pub qualified_host_build: String,
+    /// Host Windows build measured immediately before staging.
+    pub measured_host_build: String,
+    /// Guest Windows build measured in the authenticated staging session.
+    pub measured_guest_build: String,
+    /// Number of residual host delete-on-reboot entries observed before staging.
+    pub pending_delete_count: u32,
+    /// Exact reviewed delete-on-reboot source records observed before staging.
+    pub pending_delete_sources: Vec<String>,
     /// Final guest package directory.
     pub package_destination: PathBuf,
     /// Final guest CUDA loader alias.
@@ -86,6 +96,26 @@ pub struct StageReceipt {
     pub files: u32,
     /// Aggregate byte count rehashed in the guest.
     pub bytes: u64,
+}
+
+impl StageReceipt {
+    /// Whether the measured host build differs from the qualification baseline.
+    #[must_use]
+    pub fn has_host_qualification_drift(&self) -> bool {
+        self.measured_host_build != self.qualified_host_build
+    }
+
+    /// Whether the measured host and guest Windows builds differ.
+    #[must_use]
+    pub fn has_host_guest_build_drift(&self) -> bool {
+        self.measured_host_build != self.measured_guest_build
+    }
+
+    /// Whether residual delete-only reboot cleanup was present on the host.
+    #[must_use]
+    pub fn has_pending_delete_cleanup(&self) -> bool {
+        self.pending_delete_count != 0
+    }
 }
 
 /// Narrow adapter for the fixed PowerShell Direct manifest-level operation.
@@ -132,6 +162,22 @@ pub fn stage_driver_package(
         || receipt.machine_guid != guest.machine_guid
         || receipt.manifest_id != manifest.id
         || receipt.manifest_sha256 != manifest_sha256
+        || receipt.qualified_host_build != configuration.host_build
+        || !valid_windows_build(&receipt.measured_host_build)
+        || !valid_windows_build(&receipt.measured_guest_build)
+        || receipt.pending_delete_count as usize != receipt.pending_delete_sources.len()
+        || receipt.pending_delete_sources.iter().any(|source| {
+            !configuration
+                .allowed_pending_delete_sources
+                .iter()
+                .any(|allowed| allowed == source)
+        })
+        || receipt
+            .pending_delete_sources
+            .iter()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != receipt.pending_delete_sources.len()
         || receipt.files != manifest.files.len() as u32
         || receipt.bytes != manifest.byte_count
         || !matches!(receipt.alias_method.as_str(), "hardlink" | "copy")
@@ -139,6 +185,13 @@ pub fn stage_driver_package(
         return Err(StagingError::GuestStateUncertain);
     }
     Ok(receipt)
+}
+
+fn valid_windows_build(value: &str) -> bool {
+    let mut parts = value.split('.');
+    matches!(parts.next(), Some(part) if !part.is_empty() && part.chars().all(|character| character.is_ascii_digit()))
+        && matches!(parts.next(), Some(part) if !part.is_empty() && part.chars().all(|character| character.is_ascii_digit()))
+        && parts.next().is_none()
 }
 
 impl DriverPackageManifest {
@@ -510,6 +563,10 @@ mod tests {
                         "driver.inf".into(),
                         "nvcuda_loader64.dll".into(),
                     ],
+                    allowed_pending_delete_sources: vec![
+                        r"*1\??\C:\Windows\System32\reviewed.tmp".into(),
+                        r"*1\??\C:\WRP0001.tmp".into(),
+                    ],
                 },
                 root,
             }
@@ -630,6 +687,14 @@ mod tests {
             machine_guid: guest_configuration().machine_guid,
             manifest_id: manifest.id,
             manifest_sha256: fixture.configuration.sha256.clone(),
+            qualified_host_build: fixture.configuration.host_build.clone(),
+            measured_host_build: "26300.9457".into(),
+            measured_guest_build: "26200.9457".into(),
+            pending_delete_count: 2,
+            pending_delete_sources: vec![
+                r"*1\??\C:\Windows\System32\reviewed.tmp".into(),
+                r"*1\??\C:\WRP0001.tmp".into(),
+            ],
             package_destination: PathBuf::from(
                 r"C:\Windows\System32\HostDriverStore\FileRepository\test",
             ),
@@ -649,6 +714,10 @@ mod tests {
             },
         );
         assert_eq!(result, Ok(receipt));
+        let receipt = result.unwrap();
+        assert!(receipt.has_host_qualification_drift());
+        assert!(receipt.has_host_guest_build_drift());
+        assert!(receipt.has_pending_delete_cleanup());
     }
 
     #[test]
@@ -663,11 +732,54 @@ mod tests {
             machine_guid: guest_configuration().machine_guid,
             manifest_id: manifest.id,
             manifest_sha256: fixture.configuration.sha256.clone(),
+            qualified_host_build: fixture.configuration.host_build.clone(),
+            measured_host_build: "26300.9457".into(),
+            measured_guest_build: "26200.9457".into(),
+            pending_delete_count: 0,
+            pending_delete_sources: Vec::new(),
             package_destination: PathBuf::from(
                 r"C:\Windows\System32\HostDriverStore\FileRepository\test",
             ),
             cuda_alias: PathBuf::from(r"C:\Windows\System32\nvcuda.dll"),
             alias_method: "copy".into(),
+            files: manifest.files.len() as u32,
+            bytes: manifest.byte_count,
+        };
+        let credential = GuestCredential::new("user".into(), "secret".into()).unwrap();
+        assert_eq!(
+            stage_driver_package(
+                &fixture.configuration,
+                &guest_configuration(),
+                "2627e735-5b33-4104-b739-622727dd3a40",
+                &credential,
+                &FakeStager { receipt },
+            ),
+            Err(StagingError::GuestStateUncertain)
+        );
+    }
+
+    #[test]
+    fn rejects_success_receipt_without_a_measured_windows_build() {
+        let mut fixture = Fixture::new();
+        let manifest = inspect_driver_package(&fixture.configuration).unwrap();
+        fixture.configuration.sha256 = manifest.sha256().unwrap();
+        let receipt = StageReceipt {
+            status: StageStatus::AlreadyApplied,
+            vm_id: "2627e735-5b33-4104-b739-622727dd3a40".into(),
+            computer_name: "TESTVM".into(),
+            machine_guid: guest_configuration().machine_guid,
+            manifest_id: manifest.id,
+            manifest_sha256: fixture.configuration.sha256.clone(),
+            qualified_host_build: fixture.configuration.host_build.clone(),
+            measured_host_build: String::new(),
+            measured_guest_build: "26200.9457".into(),
+            pending_delete_count: 0,
+            pending_delete_sources: Vec::new(),
+            package_destination: PathBuf::from(
+                r"C:\Windows\System32\HostDriverStore\FileRepository\test",
+            ),
+            cuda_alias: PathBuf::from(r"C:\Windows\System32\nvcuda.dll"),
+            alias_method: "hardlink".into(),
             files: manifest.files.len() as u32,
             bytes: manifest.byte_count,
         };

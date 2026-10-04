@@ -111,6 +111,17 @@ arbitrary shell script or default-GPU fallback. Unknown schema versions/fields,
 unsafe paths and ambiguous identities fail validation at the boundary.
 Keep intended, observed and last-validated state separate; PnP paths can change
 after driver servicing and must be reconciled against identity, never guessed.
+The configured host Windows build is a qualification baseline. Operations record
+the measured host and guest builds and surface host/baseline or host/guest drift for
+the validation record, but build inequality alone does not fail an operation. A
+demonstrated incompatibility, changed driver or package identity, active/unexplained
+servicing, or another failed required capability still blocks mutation or the
+affected milestone.
+Likewise, active servicing and pending rename/replacement operations fail before
+mutation. A `PendingFileRenameOperations` source/empty-destination pair is warning-
+eligible only when its exact raw source record is pinned as reviewed machine state;
+unknown deletions fail for review because delete-only does not imply harmless. Matched
+records are returned as cleanup evidence. The project never clears that state itself.
 
 The operation flow is read -> validate -> plan -> authorize -> revalidate -> apply
 -> verify. Read-only planning writes no protected state. Apply checks the plan's

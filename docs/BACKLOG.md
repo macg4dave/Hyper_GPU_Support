@@ -10,10 +10,11 @@ evidence or authorization system; correct trivial drift in place.
 - Proven foundation: exact host/GPU/VM inventory, protected parent plus disposable
   child, standalone probes, strict configuration types and a fixed Rust runner with
   reset/read-only inspection are complete.
-- Immediate issue: CORE-009 is blocked by BLK-004 after implementing its bounded
-  apply/reapply path: the host drifted to build 26300.9457 while the qualified
-  parent/guest remains 26200.9457, and a pending-file-rename marker is present.
-- Next: resolve BLK-004 and live-validate CORE-009, then CORE-002 ->
+- Immediate issue: CORE-009 is blocked by BLK-004 only on a changed, unexplained
+  pending-file-rename payload. Host/guest build inequality is now a recorded
+  qualification warning, not an automatic staging failure.
+- Next: stabilize the host servicing state, live-validate CORE-009 while recording
+  its build warning, then CORE-002 ->
   GPU-009 -> GPU-005 -> GPU-006. AppSandbox transport blocker BLK-003 is
   diagnostic and does not block the native path.
 
@@ -125,7 +126,7 @@ choices are in DEC-007/008. Promote an actual impediment here with evidence.
 | BLK-001 | resolved 2026-09-25 | HV-001; CORE-001; GPU-002; HV-003 | The initial non-elevated inventory identified the host and RTX 5060 but Hyper-V denied partitionable-GPU, VM and supported-version queries; see [`docs/evidence/HV-001.md`](evidence/HV-001.md). | User approved the bounded administrator read-only rerun. It captured the GPU-P interface/ranges, supported versions and zero registered VMs without mutation. HV-001 completed; dependent cards became ready. |
 | BLK-002 | resolved 2026-09-26 | HV-002; GPU-004; CORE-005 | The owner authorized one normal reboot. Host Secure Boot was enabled, CBS/WU reboot state was clear and pinned identities were unchanged. The only persistent rename entry was a delete request for `gamingservicesproxy_13.dll.0`, whose active/old files were identical Microsoft Gaming Services `10.0.26100.9441`; see [HV-002](evidence/HV-002.md#inspected-baseline). | The plan was refreshed to treat only that exact reboot-persistent Gaming Services cleanup as unrelated noise. No System32/registry cleanup occurred. Any changed marker, servicing state or identity requires new review. |
 | BLK-003 | active 2026-09-26 | GPU-004 | The selected HCS-managed AppSandbox candidate is not a registered Hyper-V VM, so PowerShell Direct does not address it. Its persisted configuration has `SshEnabled` absent/false; no repeatable probe transfer, launch and result channel is established. | When a native failure makes reference comparison useful, use only AppSandbox's supported OpenSSH path under separately approved scope. If that route is unavailable, leave GPU-004 blocked; do not use manual config edits, clipboard injection or an arbitrary agent command. This does not block GPU-006's native demonstration. |
-| BLK-004 | active 2026-10-03 | CORE-009; M1 critical path | Live preflight measured host Windows 11 26H2 build `26300.9457` while the immutable parent/guest and GPU-002 qualification remain pinned to `26200.9457`; `PendingFileRenameOperations` is also present. The RTX 5060 driver remains `32.0.16.1692`, all 217 package files/digests match and all four required signatures remain valid. No guest staging mutation occurred. | Choose and qualify a matching host/guest build pair. The expected route is a new clean 26300.9457 parent/guest plus refreshed HV-001/GPU-002/HV-002 evidence; alternatively provide a supported rollback plan. Inspect the rename payload before any separately authorized physical-host reboot. Never change the build pin merely to bypass the preflight. |
+| BLK-004 | active 2026-10-03; narrowed 2026-10-04 | CORE-009; M1 critical path | Build inequality is no longer an independent blocker under DEC-022: host build `26300.9457` versus the `26200.9457` qualification baseline must be reported and carried into workload qualification. The 2026-10-04 read-only check instead found a changed `PendingFileRenameOperations` payload containing Windows temporary, Chrome, Edge and user-temp cleanup entries beyond HV-002's one reviewed Gaming Services exception. CBS, Windows Update, Installer and system-setup markers are clear; the RTX 5060 driver remains `32.0.16.1692`. No guest staging mutation occurred. | Reach a stable host servicing state and recheck the payload before apply. If a physical-host restart is required, obtain explicit permission immediately beforehand. Do not clear servicing records manually or restore build equality merely to bypass qualification. |
 
 Use permanent BLK-NNN IDs; retain resolved entries and link the resolution.
 A failed essential experiment blocks GPU-006 or the relevant release gate even
@@ -729,7 +730,7 @@ for future work is not an invented current blocker.
   guest file/setting, make a matching reapply a no-op and mark partial/uncertain
   staging for disposable recreation. Test missing, changed and partial inputs.
 - Result: Blocked by BLK-004 on 2026-10-03. Implemented the typed manifest-level
-  apply/reapply operation: exact Authenticode signer and active host/build/servicing
+  apply/reapply operation: exact Authenticode signer and active host/driver/servicing
   preflight, one credential-safe PowerShell Direct session, protected partial tree,
   per-file pre/post hashes and ACL/reparse checks, no-replace finalization, verified
   CUDA alias, atomic receipt, exclusive marker and recreation-required failure
@@ -740,9 +741,11 @@ for future work is not an invented current blocker.
   revalidated the exact 217-file, 2,850,973,044-byte package, encoded manifest SHA-256
   `31cf877d2415ad686f34f6498ae4a08893cebdc699244be1649e5379e9516ea3` and four
   required signatures. Target inspection verified the pinned off VM/child/parent/GPU
-  with zero adapters. Host build drift plus the pending rename marker stopped apply
-  before credentials or guest mutation; apply, matching reapply and injected recovery
-  remain required after BLK-004 resolution.
+  with zero adapters. Build drift initially stopped apply with the pending rename
+  marker before credentials or guest mutation. DEC-022 now makes build inequality a
+  receipt-bound qualification warning rather than a failure; a changed, unexplained
+  pending-rename payload remains the blocker. Apply, matching reapply and injected
+  recovery remain required after the host reaches a stable servicing state.
 
 ## CORE-002
 

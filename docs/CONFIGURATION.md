@@ -57,7 +57,20 @@ time and never belong in this file. CORE-008 accepts one flat filename relative 
 broad write ACL, existing destination or interrupted partial file fails closed.
 
 The `[driver_manifest]` table pins the GPU-correlated host package path, INF and
-catalog names, INF/active-driver versions, qualified host build, complete file/byte extent, catalog hash, required
-Authenticode files/signer, canonical package-tree digest and encoded manifest
-identity. These values change together after reviewed driver servicing; CORE-009
-rejects partial, changed or incorrectly signed trees before guest mutation.
+catalog names, INF/active-driver versions, host-build qualification baseline,
+complete file/byte extent, catalog hash, required Authenticode files/signer,
+canonical package-tree digest and encoded manifest identity. The measured host and
+guest builds are recorded at apply time; a host/guest difference or a difference
+from `host_build` is a visible qualification warning rather than an automatic
+failure. Driver/package identity, signatures and stable servicing state remain hard
+gates. Update the manifest pins together after
+reviewed driver servicing; CORE-009 rejects partial, changed or incorrectly signed
+trees before guest mutation.
+
+The apply preflight distinguishes active/pending replacement servicing from exact
+reviewed delete-only cleanup. `allowed_pending_delete_sources` pins the raw Windows
+source records observed and reviewed for the current machine; it is not a path pattern
+or general allowlist. CBS, Windows Update, Installer/setup state, malformed pending
+rename data, any pending destination, and any unlisted deletion remain hard failures.
+Matched source/empty-destination pairs are returned in the receipt and surfaced as a
+qualification warning; the application never clears or edits Windows servicing state.

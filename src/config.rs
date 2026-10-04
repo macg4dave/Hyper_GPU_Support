@@ -3,7 +3,7 @@
 //! The format is a deliberately small `key=value` document. It has no include,
 //! environment expansion or credential fields, and unknown fields fail closed.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::OnceLock;
@@ -129,7 +129,7 @@ pub struct DriverManifestConfiguration {
     pub inf_version: String,
     /// Exact selected physical GPU driver version reported by Windows PnP.
     pub driver_version: String,
-    /// Exact qualified host Windows build for this manifest.
+    /// Host Windows build used as the qualification baseline for this manifest.
     pub host_build: String,
     /// Signed catalog filename within the package.
     pub catalog_name: String,
@@ -145,6 +145,8 @@ pub struct DriverManifestConfiguration {
     pub signer_thumbprint: String,
     /// Package-relative files whose Authenticode signatures must validate.
     pub signature_files: Vec<String>,
+    /// Exact reviewed delete-on-reboot source records allowed as warnings.
+    pub allowed_pending_delete_sources: Vec<String>,
 }
 
 /// Shared project data locations.
@@ -307,6 +309,7 @@ struct RawDriverManifestConfiguration {
     catalog_sha256: String,
     signer_thumbprint: String,
     signature_files: Vec<String>,
+    allowed_pending_delete_sources: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -730,6 +733,24 @@ impl ProjectConfiguration {
         for filename in &raw.driver_manifest.signature_files {
             validate_flat_filename(filename)?;
         }
+        if raw
+            .driver_manifest
+            .allowed_pending_delete_sources
+            .is_empty()
+            || raw.driver_manifest.allowed_pending_delete_sources.len() > 16
+        {
+            return Err(ConfigError::InvalidManifest);
+        }
+        let mut pending_delete_sources = BTreeSet::new();
+        for source in &raw.driver_manifest.allowed_pending_delete_sources {
+            let Some(path) = source.strip_prefix(r"*1\??\") else {
+                return Err(ConfigError::InvalidManifest);
+            };
+            validate_absolute_windows_path(Path::new(path))?;
+            if !pending_delete_sources.insert(source.to_ascii_lowercase()) {
+                return Err(ConfigError::InvalidManifest);
+            }
+        }
         if raw.driver_manifest.inf_version.is_empty()
             || raw.driver_manifest.inf_version.len() > 128
             || raw
@@ -918,6 +939,7 @@ impl ProjectConfiguration {
                 catalog_sha256: raw.driver_manifest.catalog_sha256,
                 signer_thumbprint: raw.driver_manifest.signer_thumbprint,
                 signature_files: raw.driver_manifest.signature_files,
+                allowed_pending_delete_sources: raw.driver_manifest.allowed_pending_delete_sources,
             },
             resources,
             paths: ProjectPaths {

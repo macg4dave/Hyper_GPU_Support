@@ -64,7 +64,12 @@ fn apply(username: &str) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         username.to_owned()
     };
-    let password = rpassword::prompt_password("Guest password: ")?;
+    let password = rpassword::prompt_password_with_config(
+        "Guest password: ",
+        rpassword::ConfigBuilder::new()
+            .password_feedback_mask('*')
+            .build(),
+    )?;
     let credential = GuestCredential::new(username, password)?;
     let adapter = WindowsGuestTransfer::new(project.slot.clone(), project.guest.clone());
     let receipt = stage_driver_package(
@@ -86,6 +91,22 @@ fn apply(username: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("machine_guid={}", receipt.machine_guid);
     println!("manifest_id={}", receipt.manifest_id);
     println!("manifest_sha256={}", receipt.manifest_sha256);
+    println!("qualified_host_build={}", receipt.qualified_host_build);
+    println!("measured_host_build={}", receipt.measured_host_build);
+    println!("measured_guest_build={}", receipt.measured_guest_build);
+    if receipt.has_host_qualification_drift() {
+        println!("warning=host-build-outside-qualified-baseline");
+    }
+    if receipt.has_host_guest_build_drift() {
+        println!("warning=host-guest-build-drift");
+    }
+    println!("pending_delete_count={}", receipt.pending_delete_count);
+    for source in &receipt.pending_delete_sources {
+        println!("pending_delete_source={source}");
+    }
+    if receipt.has_pending_delete_cleanup() {
+        println!("warning=host-pending-delete-cleanup");
+    }
     println!(
         "package_destination={}",
         receipt.package_destination.display()

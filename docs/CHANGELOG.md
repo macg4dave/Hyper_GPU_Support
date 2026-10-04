@@ -4,6 +4,18 @@ Record meaningful completed changes in one short entry per change, with task IDs
 and evidence links when applicable. Task statuses remain in BACKLOG; partial
 handover notes remain in its Resume block. Do not duplicate detailed test output.
 
+## 2026-10-04
+
+- Refined CORE-009 build-drift handling: staging now records the qualification,
+  measured host and authenticated-guest builds and warns on inequality instead of
+  rejecting it. Exact driver, package, signature, target and stable-servicing checks
+  remain mandatory.
+
+- Refined CORE-009 servicing qualification after a controlled reboot: active or
+  pending replacement servicing and unknown deletions still fail closed, while exact
+  reviewed delete-only records are receipt-bound warnings without clearing
+  Windows-owned state.
+
 ## 2026-10-03
 
 - Extended Windows CI with the existing generated configuration/policy drift and

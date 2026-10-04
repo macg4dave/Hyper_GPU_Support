@@ -130,7 +130,8 @@ canonical tree/encoded-manifest digests without copying proprietary files:
 cargo run --locked --bin hyper-gpu-stage
 ```
 
-The bounded apply mode prompts for the guest password, revalidates the required
+The bounded apply mode prompts for the guest password with masked `*` feedback,
+revalidates the required
 Authenticode signer, copies the exact manifest through one PowerShell Direct session,
 atomically finalizes the `HostDriverStore` package, creates the verified CUDA alias,
 and writes an applied receipt. A matching reapply rehashes the package and is a no-op:
@@ -139,6 +140,15 @@ and writes an applied receipt. A matching reapply rehashes the package and is a 
 cargo run --locked --bin hyper-gpu-stage -- apply <guest-user>
 cargo run --locked --bin hyper-gpu-stage -- apply --interactive
 ```
+
+The configured host build is a qualification baseline, not an equality gate. Apply
+reports the qualified, measured-host and measured-guest builds. It emits
+`warning=host-build-outside-qualified-baseline` or
+`warning=host-guest-build-drift` as applicable. The exact GPU driver/package
+identity, target identity and signatures remain mandatory. Active servicing or a
+pending rename/replacement remains a hard failure. Only exact reviewed delete-only
+sources pinned in configuration are reported as `warning=host-pending-delete-cleanup`;
+an unknown deletion remains a hard review gate.
 
 Any partial marker, mismatched destination, timeout or interrupted apply makes the
 guest state uncertain; recreate the disposable child instead of retrying in place.

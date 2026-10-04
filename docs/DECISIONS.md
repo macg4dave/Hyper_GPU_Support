@@ -550,12 +550,12 @@ single-file harness with its reviewed manifest-level staging operation.
 
 ## DEC-021
 
-**Implemented for CORE-009 | 2026-10-03 | Atomic manifest-level guest staging**
+**Implemented for CORE-009; build-drift rule superseded by DEC-022 | 2026-10-03 | Atomic manifest-level guest staging**
 
 Extend the Rust-owned CORE-008 boundary with a distinct, fixed manifest operation;
 do not authorize nested destinations through the general single-file harness. Rust
-reinspects and hashes the complete GPU-correlated package, refuses host Windows,
-active-driver or reboot/servicing drift, binds the returned receipt
+reinspects and hashes the complete GPU-correlated package, refuses active-driver or
+reboot/servicing drift, binds the returned receipt
 to the configured VM/guest/manifest identities, and supplies only the deterministic
 217-file manifest to the adapter. The fixed PowerShell Direct glue revalidates the
 pinned Authenticode files and signer, host source hash/length immediately before each
@@ -582,6 +582,46 @@ No INF installation, registry/ACL/owner broadening, shim, network change or arbi
 guest command is introduced. Revisit only if a native bounded VM-session file API
 becomes available or measured staging throughput requires a different reviewed
 transport without weakening these receipt and recovery rules.
+
+## DEC-022
+
+**Accepted | 2026-10-04 | Treat Windows build drift as qualification evidence**
+
+Keep `driver_manifest.host_build` as the build on which the manifest combination was
+qualified, but do not require the running host and guest to have that exact build.
+Immediately before staging, measure the host and authenticated guest builds, return
+them with the qualified host build in the verified operation receipt, and emit visible
+warnings for host/baseline or host/guest differences. Use those warnings to scope and
+record the subsequent GPU-PV workload qualification.
+
+Build numbers are useful compatibility and reproducibility signals, but inequality
+does not itself prove that Hyper-V, GPU-PV or the selected driver/runtime combination
+is broken. Hard failure remains appropriate for a reproduced required-capability
+failure, changed GPU driver/package/signature identity, active or unexplained
+servicing, or target/receipt verification failure. Reconsider an explicit build
+denylist only if measured evidence identifies an incompatible build or build range;
+do not infer one from version distance alone.
+
+## DEC-023
+
+**Accepted | 2026-10-04 | Distinguish residual delete cleanup from active servicing**
+
+Continue to fail CORE-009 staging when CBS or Windows Update requests a reboot, an
+Installer/setup operation is active, pending-file-rename data is malformed, any pair
+has a nonempty destination indicating rename/replacement, or a delete source was not
+individually reviewed and pinned in `allowed_pending_delete_sources`. Exact matched
+source/empty-destination records are returned in the verified staging receipt and emit
+`warning=host-pending-delete-cleanup`; never clear or modify the registry value.
+
+The post-reboot 2026-10-04 host had no CBS/WU/Installer/setup or TrustedInstaller/
+TiWorker activity. Its pre-reboot updater entries were processed, leaving two
+delete-only pairs: the already reviewed byte-identical signed Gaming Services old
+DLL and the exact protected root-level WRP temporary file now pinned for this run.
+Another reboot was not justified
+because the WRP file was regenerated under a new name during the first reboot and no
+active replacement remained. Revisit if a required workload fails, Windows reports
+active servicing, a pending destination or unreviewed source appears, or delete-only
+state correlates with a measured driver/runtime incompatibility.
 
 ## Decision template
 
