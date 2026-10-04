@@ -56,6 +56,13 @@ adding a literal to Rust, PowerShell, a prompt or ordinary documentation, decide
 whether it describes software behavior or the current environment. Keep true
 protocol values, Windows API constants, enums and fixed safety bounds in code.
 
+Prefer reliable Windows discovery for inventory such as the Windows directory,
+standard system executables, OS build, installed interfaces, driver facts and the
+resolved identity of an already selected target. Configuration expresses operator
+intent and safety pins; it must not duplicate discoverable inventory without a
+documented verification or security reason. Derive subordinate paths from one
+discovered or configured root instead of storing each path independently.
+
 Rust deserializes at a boundary into strongly typed structures, validates the full
 document once and passes values through normal interfaces; application logic must
 not repeatedly read TOML or environment variables. Maintained scripts use the

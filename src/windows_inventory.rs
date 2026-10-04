@@ -21,8 +21,9 @@ impl InventorySource for WindowsInventory {
     fn collect(&self) -> Result<InventoryReport, InventoryError> {
         let project =
             ProjectConfiguration::embedded().map_err(|_| InventoryError::InvalidProtocol)?;
+        let powershell = project.guest.powershell_path.to_string_lossy();
         let raw = run_bounded(
-            "powershell.exe",
+            &powershell,
             &[
                 "-NoLogo",
                 "-NoProfile",
@@ -659,8 +660,10 @@ mod tests {
 
     #[test]
     fn process_runner_enforces_timeout_and_output_limit() {
+        let powershell = crate::windows_paths::windows_powershell_executable().unwrap();
+        let powershell = powershell.to_string_lossy();
         let timeout = run_bounded(
-            "powershell.exe",
+            &powershell,
             &["-NoProfile", "-Command", "Start-Sleep -Seconds 5"],
             Duration::from_millis(100),
             1024,
@@ -668,7 +671,7 @@ mod tests {
         .unwrap_err();
         assert!(matches!(timeout, InventoryError::AdapterTimeout));
         let oversized = run_bounded(
-            "powershell.exe",
+            &powershell,
             &["-NoProfile", "-Command", "[Console]::Out.Write('A' * 4096)"],
             Duration::from_secs(5),
             128,
@@ -693,8 +696,10 @@ mod tests {
                 ..
             }
         ));
+        let powershell = crate::windows_paths::windows_powershell_executable().unwrap();
+        let powershell = powershell.to_string_lossy();
         let exit = run_bounded(
-            "powershell.exe",
+            &powershell,
             &[
                 "-NoProfile",
                 "-Command",

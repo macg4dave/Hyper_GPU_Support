@@ -363,8 +363,12 @@ fn run_reset(request: &Request, operation_id: &str) -> Result<(), Box<dyn std::e
         operation_id,
         || {
             let script = fixed_script(RESET_SCRIPT)?;
-            let output = run_bounded(&script, project.runner.reset_timeout)
-                .map_err(std::io::Error::other)?;
+            let output = run_bounded_with_powershell(
+                &script,
+                project.runner.reset_timeout,
+                &project.guest.powershell_path,
+            )
+            .map_err(std::io::Error::other)?;
             let result = parse_reset_result(&output)?;
             Ok(format!(
                 concat!(
@@ -462,7 +466,11 @@ fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> 
         "",
     )?;
     let script = fixed_script(INSPECT_SCRIPT)?;
-    let output = match run_bounded(&script, project.runner.inspect_timeout) {
+    let output = match run_bounded_with_powershell(
+        &script,
+        project.runner.inspect_timeout,
+        &project.guest.powershell_path,
+    ) {
         Ok(output) => output,
         Err(error) => {
             append_audit(
@@ -534,8 +542,12 @@ fn run_lifecycle(
 
     let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
         let inspection_script = fixed_script(INSPECT_SCRIPT)?;
-        let inspection_output = run_bounded(&inspection_script, project.runner.inspect_timeout)
-            .map_err(std::io::Error::other)?;
+        let inspection_output = run_bounded_with_powershell(
+            &inspection_script,
+            project.runner.inspect_timeout,
+            &project.guest.powershell_path,
+        )
+        .map_err(std::io::Error::other)?;
         let inspection = parse_inspect_result(&inspection_output)?;
         let expected_state = match operation {
             Operation::StartSlot => "Off",
@@ -546,7 +558,9 @@ fn run_lifecycle(
             return Err("lifecycle preflight state mismatch".into());
         }
         let operation_script = fixed_script(script)?;
-        let output = run_bounded(&operation_script, timeout).map_err(std::io::Error::other)?;
+        let output =
+            run_bounded_with_powershell(&operation_script, timeout, &project.guest.powershell_path)
+                .map_err(std::io::Error::other)?;
         let result = parse_lifecycle_result(&output, operation)?;
         let result_json = format!(
             concat!(
@@ -632,8 +646,12 @@ fn run_gpu_assignment(
 
     let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
         let inspection_script = fixed_script(INSPECT_SCRIPT)?;
-        let inspection_output = run_bounded(&inspection_script, project.runner.inspect_timeout)
-            .map_err(std::io::Error::other)?;
+        let inspection_output = run_bounded_with_powershell(
+            &inspection_script,
+            project.runner.inspect_timeout,
+            &project.guest.powershell_path,
+        )
+        .map_err(std::io::Error::other)?;
         let inspection = parse_inspect_result(&inspection_output)?;
         let expected_count = match operation {
             Operation::AssignGpu => 0,
@@ -644,8 +662,12 @@ fn run_gpu_assignment(
             return Err("GPU assignment preflight state mismatch".into());
         }
         let operation_script = fixed_script(script)?;
-        let output = run_bounded(&operation_script, project.runner.gpu_assignment_timeout)
-            .map_err(std::io::Error::other)?;
+        let output = run_bounded_with_powershell(
+            &operation_script,
+            project.runner.gpu_assignment_timeout,
+            &project.guest.powershell_path,
+        )
+        .map_err(std::io::Error::other)?;
         let result = parse_gpu_assignment_result(&output, operation)?;
         let result_json = format!(
             concat!(
@@ -800,8 +822,12 @@ fn fixed_script(body: &str) -> Result<String, hyper_gpu_support::runner::RunnerE
     ))
 }
 
-fn run_bounded(script: &str, timeout: Duration) -> Result<String, String> {
-    let mut child = Command::new("powershell.exe")
+fn run_bounded_with_powershell(
+    script: &str,
+    timeout: Duration,
+    powershell_path: &Path,
+) -> Result<String, String> {
+    let mut child = Command::new(powershell_path)
         .args([
             "-NoLogo",
             "-NoProfile",
@@ -862,6 +888,12 @@ fn run_bounded(script: &str, timeout: Duration) -> Result<String, String> {
         ));
     }
     String::from_utf8(stdout).map_err(|_| "fixed adapter output was not UTF-8".into())
+}
+
+#[cfg(test)]
+fn run_bounded(script: &str, timeout: Duration) -> Result<String, String> {
+    let project = project_configuration().map_err(|error| error.to_string())?;
+    run_bounded_with_powershell(script, timeout, &project.guest.powershell_path)
 }
 
 fn read_bounded(mut reader: impl Read, overflow: &AtomicBool) -> std::io::Result<Vec<u8>> {

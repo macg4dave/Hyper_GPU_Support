@@ -90,7 +90,8 @@ CLI/core and harden the boundaries exercised by M1.
   (CORE-007), CLI probe integration (CORE-003), repeated lifecycle/resource
   qualification (GPU-010/011), detach/reset, diagnostics, CI coverage and
   operator-quality reporting around the proven M1 path. CORE-013 extends the
-  Windows checks established by CORE-019/001.
+  Windows checks established by CORE-019/001. CORE-021 incrementally removes
+  remaining environment assumptions without gating the vertical slice.
 - Risks: credential handling, external state drift, privileged-runner version/policy
   drift, parent/child identity mistakes and conflicting operations.
 - Validation: Windows CI for pure logic and fake adapters; native integration and

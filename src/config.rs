@@ -337,7 +337,6 @@ struct RawInventoryConfiguration {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawGuestConfiguration {
-    powershell_path: PathBuf,
     computer_name: String,
     machine_guid: String,
     staging_root: PathBuf,
@@ -789,15 +788,8 @@ impl ProjectConfiguration {
             return Err(ConfigError::InvalidProjectSetting);
         }
         validate_absolute_windows_path(&raw.guest.staging_root)?;
-        validate_absolute_windows_path(&raw.guest.powershell_path)?;
-        if !raw
-            .guest
-            .powershell_path
-            .to_string_lossy()
-            .eq_ignore_ascii_case(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
-        {
-            return Err(ConfigError::InvalidPath);
-        }
+        let powershell_path = crate::windows_paths::windows_powershell_executable()
+            .map_err(|_| ConfigError::InvalidPath)?;
         if raw.guest.session_timeout_seconds == 0
             || raw.guest.transfer_timeout_seconds == 0
             || raw.guest.staging_timeout_seconds == 0
@@ -950,7 +942,7 @@ impl ProjectConfiguration {
                 timeout: Duration::from_secs(raw.inventory.timeout_seconds),
             },
             guest: GuestConfiguration {
-                powershell_path: raw.guest.powershell_path,
+                powershell_path,
                 computer_name: raw.guest.computer_name,
                 machine_guid: raw.guest.machine_guid,
                 staging_root: raw.guest.staging_root,
@@ -1421,11 +1413,8 @@ mod tests {
                 "signature_files = [\"nested\\\\NV_DISP.CAT\"]",
             ),
             valid.replace(
-                &format!(
-                    "powershell_path = '''{}'''",
-                    project.guest.powershell_path.display()
-                ),
-                "powershell_path = '''C:\\Temp\\powershell.exe'''",
+                "computer_name = \"TESTVM\"",
+                "powershell_path = '''C:\\Temp\\powershell.exe'''\ncomputer_name = \"TESTVM\"",
             ),
             valid.replace(
                 &format!(

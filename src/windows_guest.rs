@@ -20,8 +20,6 @@ use crate::staging::{
 const OUTPUT_LIMIT: usize = 64 * 1024;
 const REQUEST_LIMIT: usize = 16 * 1024;
 const STAGING_REQUEST_LIMIT: usize = 256 * 1024;
-const SYSTEM_MODULE_PATH: &str = r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules";
-
 /// Fixed PowerShell Direct transport bound to validated project configuration.
 #[derive(Debug, Clone)]
 pub struct WindowsGuestTransfer {
@@ -248,11 +246,22 @@ fn run_script(
     payload: Zeroizing<Vec<u8>>,
     timeout: Duration,
 ) -> Result<String, GuestError> {
-    run_script_with_command(Command::new(powershell_path), script, payload, timeout)
+    let module_path = powershell_path
+        .parent()
+        .ok_or(GuestError::IntegrationUnavailable)?
+        .join("Modules");
+    run_script_with_command(
+        Command::new(powershell_path),
+        &module_path,
+        script,
+        payload,
+        timeout,
+    )
 }
 
 fn run_script_with_command(
     mut command: Command,
+    module_path: &Path,
     script: &str,
     payload: Zeroizing<Vec<u8>>,
     timeout: Duration,
@@ -261,7 +270,7 @@ fn run_script_with_command(
     if script.encode_utf16().count() > 30_000 {
         return Err(GuestError::InvalidProtocol);
     }
-    configure_powershell_command(&mut command);
+    configure_powershell_command(&mut command, module_path);
     let mut child = command
         .args([
             "-NoLogo",
@@ -356,12 +365,12 @@ fn run_script_with_command(
     Ok(output)
 }
 
-fn configure_powershell_command(command: &mut Command) {
+fn configure_powershell_command(command: &mut Command, module_path: &Path) {
     // PowerShell rebuilds its default module path when the variable is absent, so
     // remove caller-controlled discovery by replacing it with the protected system
     // module root. The fixed script separately verifies every Hyper-V command's
     // loaded module path before it reads the credential-bearing request.
-    command.env("PSModulePath", SYSTEM_MODULE_PATH);
+    command.env("PSModulePath", module_path);
 }
 
 fn terminate(child: &mut std::process::Child) {
@@ -630,7 +639,7 @@ function Get-ReviewedPendingDeletes($Entries, $Allowed) {
 
 const HYPERV_BOOTSTRAP: &str = r#"
 try {
-    $trustedModuleRoot = [IO.Path]::GetFullPath('C:\Windows\System32\WindowsPowerShell\v1.0\Modules').TrimEnd('\')
+    $trustedModuleRoot = [IO.Path]::GetFullPath((Join-Path $PSHOME 'Modules')).TrimEnd('\')
     Import-Module -Name 'Hyper-V' -Force -ErrorAction Stop
     $getVmCommand = Get-Command -Name 'Get-VM' -Module 'Hyper-V' -CommandType Cmdlet -ErrorAction Stop
     $getVmHardDiskDriveCommand = Get-Command -Name 'Get-VMHardDiskDrive' -Module 'Hyper-V' -CommandType Cmdlet -ErrorAction Stop
@@ -1113,7 +1122,7 @@ try {
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::path::Path;
+    use std::path::PathBuf;
     use std::process::Command;
     use std::time::Duration;
 
@@ -1125,7 +1134,9 @@ mod tests {
     use crate::staging::{StageStatus, StagingError};
     use zeroize::Zeroizing;
 
-    const POWERSHELL: &str = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+    fn powershell() -> PathBuf {
+        crate::windows_paths::windows_powershell_executable().unwrap()
+    }
 
     fn fixed_script_fixture(new_session_body: &str, parent_path: &str) -> String {
         let test_bootstrap = r#"
@@ -1215,7 +1226,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
 "#
         );
         run_script(
-            Path::new(POWERSHELL),
+            &powershell(),
             &script,
             Zeroizing::new(case.as_bytes().to_vec()),
             Duration::from_secs(5),
@@ -1251,7 +1262,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
     fn process_deadline_kills_and_reaps_stalled_adapter() {
         assert_eq!(
             run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 "[Console]::In.ReadToEnd() | Out-Null; Start-Sleep -Seconds 30",
                 Zeroizing::new(b"{}".to_vec()),
                 Duration::from_millis(20)
@@ -1277,10 +1288,13 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         )
         .unwrap();
 
-        let mut command = Command::new(POWERSHELL);
+        let powershell = powershell();
+        let module_path = powershell.parent().unwrap().join("Modules");
+        let mut command = Command::new(&powershell);
         command.env("PSModulePath", &shadow_root);
         let output = run_script_with_command(
             command,
+            &module_path,
             SCRIPT.as_str(),
             Zeroizing::new(Vec::new()),
             Duration::from_secs(5),
@@ -1299,7 +1313,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
     fn nonzero_process_exit_cannot_report_success() {
         assert_eq!(
             run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 "[Console]::Out.Write('{\"status\":\"ok\",\"category\":\"ready\"}'); exit 1",
                 Zeroizing::new(Vec::new()),
                 Duration::from_secs(5),
@@ -1314,7 +1328,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         assert!(!STAGING_SCRIPT.contains("__"));
         assert_eq!(
             run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 "[scriptblock]::Create([Console]::In.ReadToEnd()) | Out-Null",
                 Zeroizing::new(SCRIPT.as_bytes().to_vec()),
                 Duration::from_secs(5)
@@ -1323,7 +1337,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         );
         assert_eq!(
             run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 "[scriptblock]::Create([Console]::In.ReadToEnd()) | Out-Null",
                 Zeroizing::new(STAGING_SCRIPT.as_bytes().to_vec()),
                 Duration::from_secs(5)
@@ -1340,7 +1354,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         assert!(script.len() < 30_000);
         assert_eq!(
             run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 &script,
                 Zeroizing::new(Vec::new()),
                 Duration::from_secs(5)
@@ -1354,7 +1368,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         let value = "Zażółć 🔒";
         assert_eq!(
             run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 concat!(
                     "$utf8=[Text.UTF8Encoding]::new($false);",
                     "[Console]::InputEncoding=$utf8;[Console]::OutputEncoding=$utf8;",
@@ -1371,7 +1385,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
     fn deadline_covers_stalled_large_stdin_write() {
         assert_eq!(
             run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 "Start-Sleep -Seconds 30",
                 Zeroizing::new(vec![b'x'; 1024 * 1024]),
                 Duration::from_millis(20)
@@ -1389,7 +1403,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         let _ = fs::remove_file(&marker);
         assert_eq!(
             run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 "$path=[Console]::In.ReadToEnd(); Set-Content -LiteralPath $path -Value partial -NoNewline; Start-Sleep -Seconds 30",
                 Zeroizing::new(marker.to_string_lossy().as_bytes().to_vec()),
                 // Several adapter tests launch Windows PowerShell in parallel. Give
@@ -1414,7 +1428,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
             r"Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx",
         );
         let output = run_script(
-            Path::new(POWERSHELL),
+            &powershell(),
             &script,
             probe_payload(),
             Duration::from_secs(5),
@@ -1430,7 +1444,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
             r"Z:\HyperGpuSupport\images\golden\win11-pro-25h2-26200.9457-x64-v1\parent.vhdx",
         );
         let output = run_script(
-            Path::new(POWERSHELL),
+            &powershell(),
             &script,
             probe_payload(),
             Duration::from_secs(5),
@@ -1446,7 +1460,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
     fn fixed_script_rejects_wrong_parent_before_session() {
         let script = fixed_script_fixture("throw 'must not open session'", r"Z:\wrong\parent.vhdx");
         let output = run_script(
-            Path::new(POWERSHELL),
+            &powershell(),
             &script,
             probe_payload(),
             Duration::from_secs(5),
@@ -1527,7 +1541,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
                 "{PENDING_RENAME_VALIDATOR}\ntry{{$result=Get-ReviewedPendingDeletes {entries} {allowed};[Console]::Out.Write('accepted:'+[string]$result.count+':'+(@($result.sources)-join ','))}}catch{{[Console]::Out.Write('rejected')}}"
             );
             let output = run_script(
-                Path::new(POWERSHELL),
+                &powershell(),
                 &script,
                 Zeroizing::new(Vec::new()),
                 Duration::from_secs(5),
@@ -1539,7 +1553,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
             "{PENDING_RENAME_VALIDATOR}\n$entries=if($true){{@()}}else{{@('reviewed','')}};$result=Get-ReviewedPendingDeletes $entries @('reviewed');[Console]::Out.Write('accepted:'+[string]$result.count+':'+(@($result.sources)-join ','))"
         );
         let output = run_script(
-            Path::new(POWERSHELL),
+            &powershell(),
             &absent_registry_script,
             Zeroizing::new(Vec::new()),
             Duration::from_secs(5),
@@ -1551,7 +1565,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
     #[test]
     fn publication_primitives_refuse_existing_destinations() {
         let output = run_script(
-            Path::new(POWERSHELL),
+            &powershell(),
             concat!(
                 "$root=Join-Path ([IO.Path]::GetTempPath()) ('hyper-gpu-publish-' + [guid]::NewGuid().ToString('N'));",
                 "$a=Join-Path $root 'a';$b=Join-Path $root 'b';New-Item -ItemType Directory -Path $a,$b|Out-Null;",

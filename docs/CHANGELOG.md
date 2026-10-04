@@ -6,6 +6,11 @@ handover notes remain in its Resume block. Do not duplicate detailed test output
 
 ## 2026-10-04
 
+- Began CORE-021's configuration/discovery cleanup without adding it to the M1
+  gate: inbox Windows PowerShell, System32 tools and the trusted Hyper-V module
+  root now derive from the OS-reported Windows directory instead of `C:` or
+  `PATH`; the backlog and agent standards now preserve the same boundary.
+
 - Refined CORE-009 build-drift handling: staging now records the qualification,
   measured host and authenticated-guest builds and warns on inequality instead of
   rejecting it. Exact driver, package, signature, target and stable-servicing checks

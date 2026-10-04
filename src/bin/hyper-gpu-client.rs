@@ -9,6 +9,7 @@ use hyper_gpu_support::config::{ProjectConfiguration, RunnerConfiguration};
 use hyper_gpu_support::runner::{
     Operation, PIPE_NAME, Request, parse_enrollment, parse_response, policy_fingerprint,
 };
+use hyper_gpu_support::windows_paths::task_scheduler_executable;
 use hyper_gpu_support::windows_runner::{current_user_sid_string, transact};
 use sha2::{Digest, Sha256};
 
@@ -98,7 +99,7 @@ fn fresh_token(domain: &str) -> Result<String, std::time::SystemTimeError> {
 
 fn trigger_runner(runner: &RunnerConfiguration) -> Result<(), Box<dyn std::error::Error>> {
     let task_name = format!("{}{}", runner.task_path, runner.task_name);
-    let status = Command::new("schtasks.exe")
+    let status = Command::new(task_scheduler_executable()?)
         .args(["/Run", "/TN", &task_name])
         .stdin(Stdio::null())
         .stdout(Stdio::null())

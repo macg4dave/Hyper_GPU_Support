@@ -51,7 +51,6 @@ test_output = '''local\evidence'''
 timeout_seconds = 15
 
 [guest]
-powershell_path = '''C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'''
 computer_name = "TESTVM"
 machine_guid = "046edc35-4c8f-4910-9c53-574681e623af"
 staging_root = '''C:\Program Files\HyperGpuSupport\Staging'''

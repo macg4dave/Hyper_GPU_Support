@@ -67,6 +67,7 @@ GPU-007 and GPU-015 are optional research lanes.
 | [CORE-003](#core-003) | M2 | P1 | planned | CORE-002, CORE-020, GPU-006 |
 | [CORE-020](#core-020) | M1 | P0 | completed | GPU-008 |
 | [CORE-013](#core-013) | M2 | P1 | planned | CORE-001 |
+| [CORE-021](#core-021) | M2 | P1 | planned | GPU-006 |
 | [CORE-014](#core-014) | M3 | P1 | planned | CORE-003, CORE-013 |
 | [CORE-015](#core-015) | M3 | P1 | planned | CORE-003 |
 | [GPU-012](#gpu-012) | M3 | P1 | planned | CORE-014, CORE-015 |
@@ -848,6 +849,34 @@ for future work is not an invented current blocker.
 - Read: CORE-001 actual commands and [test lanes](ARCHITECTURE.md#test-lanes).
 - Acceptance: Pin dependency lockfile/toolchain and CI actions; run formatting/lints/build and focused logic/adapter-fake tests on Windows x64. Keep privileged/GPU suites explicit manual/self-hosted jobs requiring the designated target, never default on untrusted PRs. Verify failed assertions/nonzero adapters fail CI and artifacts contain no secrets/driver binaries. Later tasks add meaningful tests to this lane.
 - Files/output: Proposed CI workflow and `docs/evidence/CORE-013.md`.
+- Result: pending.
+
+## CORE-021
+
+**Remove remaining machine-specific assumptions from application and test tooling**
+
+- Objective: finish the bounded configuration/discovery audit without delaying the
+  M1 GPU-PV demonstration, then remove environment literals incrementally from the
+  affected Rust modules and maintained scripts.
+- Dependencies: GPU-006 demonstrated configuration.
+- Context/scope: The 2026-10-04 audit classified mutable VM/GPU/image/driver/tool
+  identities, hashes, external roots and tunable hardware deadlines under the shared
+  project TOML; Windows/Hyper-V/GPU/driver inventory under runtime discovery; paths
+  below one selected root under derivation; and protocol spellings, deterministic
+  probe oracles and fixed safety limits as implementation constants. The immediate
+  high-risk `C:`/`PATH` assumptions for inbox Windows PowerShell and its Hyper-V
+  module root were removed during the audit. Follow-up should prioritize discoverable
+  driver/tool locations, known-folder-derived application roots, target-selector
+  authority and any remaining script duplication; do not turn every literal or
+  unit-test fixture into a setting.
+- Acceptance: No real VM name/GUID or development-machine path is embedded in
+  production Rust. Common mutable values have one authoritative source; standard
+  Windows paths and selected VM/GPU facts are discovered where reliable, with the
+  authoritative target selector and mismatch behavior explicit. Maintained scripts
+  share configuration/discovery rather than duplicate environment values. Hardware
+  tests obtain their environment from configuration/discovery, while deliberate
+  static unit-test fixtures remain allowed. Integrity verification remains intact,
+  generated pins have an explicit refresh/check path, and existing tests pass.
 - Result: pending.
 
 ## CORE-014

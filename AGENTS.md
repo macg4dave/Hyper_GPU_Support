@@ -71,12 +71,14 @@ instructions link here and to engineering standards instead of duplicating them.
 - Keep code idiomatic, focused and modular, with explicit errors and safe interfaces
   around small, justified `unsafe` blocks. Cover every function with meaningful logic
   through behavior tests or document why testing is impractical and how it is validated.
-- Put values expected to change between machines, VM/image/driver revisions or test
-  runs in the authoritative `config/project.toml`; deserialize and validate once at
-  the boundary, then pass typed values. Scripts consume the shared configuration or
-  accept explicit overrides. Keep protocol/API constants and fixed safety limits in
-  code, do not duplicate current environment values in prose, and never store secrets
-  in repository configuration. See [configuration policy](docs/CONFIGURATION.md).
+- Discover values through reliable Windows facilities when they are inventory rather
+  than operator intent. Put remaining values expected to change between machines,
+  VM/image/driver revisions or test runs in the authoritative `config/project.toml`;
+  deserialize and validate once at the boundary, then pass typed values. Scripts
+  consume the shared configuration or accept explicit overrides. Keep protocol/API
+  constants and fixed safety limits in code, do not duplicate current environment
+  values in prose, and never store secrets in repository configuration. See
+  [configuration policy](docs/CONFIGURATION.md).
 - Enforce formatting, strict Clippy and compiler warnings; fix causes instead of
   broad lint suppressions. Document public interfaces, invariants and non-obvious
   Windows/FFI behavior. Follow ENGINEERING for the detailed rules and test lanes.

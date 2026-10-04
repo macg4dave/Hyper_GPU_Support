@@ -340,7 +340,7 @@ if ($SelfTest) {
     )) {
         $failedAsExpected = $false
         try {
-            Invoke-BoundedProcess -Name $case.Name -Executable 'powershell.exe' `
+            Invoke-BoundedProcess -Name $case.Name -Executable (Join-Path $PSHOME 'powershell.exe') `
                 -Arguments @('-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', $case.Command) `
                 -WorkingDirectory $repositoryRoot -TimeoutSeconds $case.Timeout -Phase 'self-test' | Out-Null
         } catch {

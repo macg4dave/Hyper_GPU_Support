@@ -20,6 +20,19 @@ The centralized settings cover:
   upstream revisions, download URLs and expected archive hashes; and
 - inventory and host-probe timeouts, repetitions and output locations.
 
+The 2026-10-04 Rust/script audit applies this classification:
+
+| Value class | Ownership | Audit disposition |
+|---|---|---|
+| Windows directory, inbox executables and system module roots | Discover | PowerShell, Task Scheduler and the Hyper-V module root now derive from the OS-reported Windows directory; maintained scripts use Windows/PowerShell environment discovery. |
+| Selected VM/GPU and guest identity | Configure intent, discover and verify state | The slot VM/GPU pins and guest mismatch checks remain centralized. CORE-021 will simplify selector authority where the privileged enrollment no longer requires an exact safety pin. |
+| VHDX, external data, runner, staging and evidence roots | Configure one root, derive children | Current roots are centralized and scripts construct subordinate paths. Known-folder derivation remains CORE-021 follow-up where it does not weaken installed-runner policy. |
+| Driver package/version and integrity hashes | Configure/manifest, verify discovered state | Exact reviewed staging inputs remain pins; CORE-021 may discover the active package location from the selected GPU while retaining version, signature and digest verification. |
+| CUDA/CMake/DXC/upstream inputs | Configure pins, derive extracted tools | Versions, URLs, revisions and hashes are centralized; extracted executable paths derive from configured staging roots. Remaining `PATH`-resolved development tools are bounded follow-up. |
+| Deadlines and retries | Configure only environment-sensitive bounds | Hardware/process deadlines remain centralized; short polling intervals and fixed safety ceilings remain implementation constants. |
+| Temporary paths and deterministic probe output | Derive/implementation constant | Rust uses temporary-directory APIs and repository output roots; deterministic image hashes are test oracles, not environment state. |
+| Unit-test VM/GUID/path literals | Test fixture | Allowed when isolated from hardware/integration selection; process-launch tests now discover Windows PowerShell. |
+
 `config/runner-policy-v1.json` and `config/artifact-pins.toml` are generated
 artifacts, not additional editing surfaces. The policy contains the subset installed
 outside the repository and remains byte-for-byte checked by the compiled runner;
@@ -49,9 +62,13 @@ variables, Windows credential facilities or a runtime prompt appropriate to the
 consumer. Local TOML overlays and secret-named configuration files are ignored;
 the current schema deliberately has no credential field and rejects unknown keys.
 
-The `[guest]` table pins the trusted system PowerShell executable, disposable guest's
-computer name and MachineGuid, the protected `Program Files` staging root and
-separate session, single-file transfer and whole-manifest staging deadlines. Guest credentials are acquired at execution
+The inbox Windows PowerShell executable and its protected module directory are
+derived from the Windows installation directory reported by the operating system;
+they are not configuration because they are reliable host inventory. The `[guest]`
+table pins the disposable guest's computer name and MachineGuid as defense-in-depth
+checks after selecting the authoritative `slot.vm_id`, plus the protected staging
+root and separate session, single-file transfer and whole-manifest staging deadlines.
+Guest credentials are acquired at execution
 time and never belong in this file. CORE-008 accepts one flat filename relative to
 `guest.staging_root`; an absolute/nested path, parent traversal, reparse traversal,
 broad write ACL, existing destination or interrupted partial file fails closed.
