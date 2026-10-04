@@ -6,7 +6,8 @@ description: Add meaningful behavioral, failure, and regression coverage
 Add focused tests that verify the requested behavior and its relevant failure paths.
 
 Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
-[testing](../../docs/ENGINEERING.md#testing) and
+[testing](../../docs/ENGINEERING.md#testing),
+[Windows elevation and UAC](../../docs/ENGINEERING.md#windows-elevation-and-uac), and
 [required checks](../../docs/ENGINEERING.md#required-checks-and-ci).
 
 - Prefer deterministic tests for parsing, policy, API, state transitions, and

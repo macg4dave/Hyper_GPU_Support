@@ -10,11 +10,10 @@ evidence or authorization system; correct trivial drift in place.
 - Proven foundation: exact host/GPU/VM inventory, protected parent plus disposable
   child, standalone probes, strict configuration types and a fixed Rust runner with
   reset/read-only inspection are complete.
-- Immediate issue: CORE-009 is complete after live apply, no-op reapply and
-  partial-state discard/recreate validation. Host/guest build inequality remains a
-  recorded qualification warning for the later workload proof.
-- Next: CORE-002 ->
-  GPU-009 -> GPU-005 -> GPU-006. AppSandbox transport blocker BLK-003 is
+- Immediate issue: CORE-002 is complete after verified attach, matching reapply
+  and a corrected one-shot task readiness race. Host/guest build inequality remains
+  a recorded qualification warning for the later workload proof.
+- Next: GPU-009 -> GPU-005 -> GPU-006. AppSandbox transport blocker BLK-003 is
   diagnostic and does not block the native path.
 
 ## Task register
@@ -57,7 +56,7 @@ GPU-007 and GPU-015 are optional research lanes.
 | [CORE-005](#core-005) | M1 | P0 | completed | CORE-001, HV-002, HV-003, GPU-003 |
 | [CORE-008](#core-008) | M1 | P0 | completed | CORE-005, HV-002 |
 | [CORE-009](#core-009) | M1 | P0 | completed | CORE-008, GPU-002 |
-| [CORE-002](#core-002) | M1 | P0 | planned | CORE-005, CORE-009 |
+| [CORE-002](#core-002) | M1 | P0 | completed | CORE-005, CORE-009 |
 | [CORE-006](#core-006) | M2 | P1 | planned | GPU-006 |
 | [CORE-007](#core-007) | M2 | P1 | planned | CORE-006 |
 | [CORE-010](#core-010) | M2 | P1 | planned | CORE-006, CORE-007, GPU-006 |
@@ -526,7 +525,15 @@ for future work is not an invented current blocker.
 - Acceptance: verify guest/artifact identities and hashes, then run the same bounded
   essential probes and separate assignment, device, runtime and workload outcomes.
   Do not add an arbitrary guest command channel or treat desktop display as proof.
-- Result: pending.
+- Result: Completed 2026-10-04. Added the normal-token `ensure-gpu` client flow
+  with strict correlation and identity checks, verified no-op reapply and exact
+  zero-to-one attachment on the enrolled off VM, and kept staging readiness
+  separate. Live testing exposed and corrected a Task Scheduler teardown race:
+  the client now waits through the native COM API for the one-shot task to become
+  `Ready` before triggering another operation, so `TASK_INSTANCES_IGNORE_NEW`
+  cannot silently drop the attach request after inspection. Focused client and
+  transport tests, strict Clippy and the full locked repository/documentation
+  checks passed. Evidence: [`docs/evidence/CORE-002.md`](evidence/CORE-002.md).
 
 ## GPU-009
 

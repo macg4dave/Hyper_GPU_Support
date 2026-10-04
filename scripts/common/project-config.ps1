@@ -1,3 +1,4 @@
+# Privilege: non-elevated (dot-sourced helper; no privileged effects).
 Set-StrictMode -Version Latest
 
 function Import-ProjectConfiguration {

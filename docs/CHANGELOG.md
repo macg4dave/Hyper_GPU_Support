@@ -6,6 +6,16 @@ handover notes remain in its Resume block. Do not duplicate detailed test output
 
 ## 2026-10-04
 
+- [CORE-002](BACKLOG.md#core-002): added strict idempotent `ensure-gpu`, proved
+  matching reapply and zero-to-one RTX 5060 attachment, and fixed a live one-shot
+  Task Scheduler teardown race by waiting for native `Ready` state before another
+  bounded runner trigger. Evidence: [CORE-002](evidence/CORE-002.md).
+
+- Established one authoritative Windows elevation/UAC policy: determine privilege
+  before execution, keep ordinary development unelevated, route known privileged
+  GPU-PV/Hyper-V work through the bounded runner, classify maintained scripts, and
+  retain explicit approval only for physical-host lifecycle operations.
+
 - [CORE-009](BACKLOG.md#core-009): completed live NVIDIA guest staging, verified
   full-hash no-op reapply and partial-state discard/recreate on the fixed disposable
   VM. Added masked credential feedback and credential-safe fixed preflight phase

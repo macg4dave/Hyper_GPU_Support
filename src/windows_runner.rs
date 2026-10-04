@@ -27,13 +27,21 @@ use windows::Win32::Storage::FileSystem::{
     FILE_CREATE_PIPE_INSTANCE, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_GENERIC_READ, FILE_WRITE_DATA,
     PIPE_ACCESS_DUPLEX, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
 };
+use windows::Win32::System::Com::{
+    CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
+};
 use windows::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, ImpersonateNamedPipeClient, PIPE_REJECT_REMOTE_CLIENTS,
     PeekNamedPipe,
 };
+use windows::Win32::System::TaskScheduler::{
+    ITaskService, TASK_STATE_READY, TASK_STATE_RUNNING, TaskScheduler,
+};
 use windows::Win32::System::Threading::{
     GetCurrentProcess, GetCurrentThread, OpenProcessToken, OpenThreadToken,
 };
+use windows::Win32::System::Variant::VARIANT;
+use windows::core::BSTR;
 use windows::core::{PCWSTR, PWSTR};
 
 use crate::runner::{FRAME_LIMIT, FrameError, read_frame, write_frame};
@@ -42,6 +50,73 @@ const PIPE_BUFFER: u32 = 64 * 1024;
 const CLIENT_PIPE_ACCESS: u32 = FILE_GENERIC_READ.0 | FILE_WRITE_DATA.0;
 const CLIENT_PIPE_SQOS: u32 = SECURITY_SQOS_PRESENT.0 | SECURITY_IDENTIFICATION.0;
 const _: () = assert!(CLIENT_PIPE_ACCESS & FILE_CREATE_PIPE_INSTANCE.0 == 0);
+
+struct ComApartment;
+
+impl ComApartment {
+    #[allow(unsafe_code)]
+    fn initialize() -> io::Result<Self> {
+        // SAFETY: initializes COM for this thread once for the duration of the guard.
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
+            .ok()
+            .map_err(windows_error)?;
+        Ok(Self)
+    }
+}
+
+impl Drop for ComApartment {
+    #[allow(unsafe_code)]
+    fn drop(&mut self) {
+        // SAFETY: paired with this guard's successful CoInitializeEx call.
+        unsafe { CoUninitialize() };
+    }
+}
+
+/// Wait until an enrolled scheduled task is ready for a new one-shot invocation.
+///
+/// This closes the interval in which a completed pipe response can precede Task
+/// Scheduler observing process exit. Triggering during that interval would be
+/// ignored by the runner task's `TASK_INSTANCES_IGNORE_NEW` policy.
+///
+/// # Errors
+/// Returns native COM/Task Scheduler errors, an unexpected task state, or a
+/// timeout while the preceding invocation is still running.
+#[allow(unsafe_code)]
+pub fn wait_for_task_ready(task_path: &str, task_name: &str, timeout: Duration) -> io::Result<()> {
+    let _apartment = ComApartment::initialize()?;
+    // SAFETY: COM is initialized on this thread; no aggregation is requested.
+    let service: ITaskService =
+        unsafe { CoCreateInstance(&TaskScheduler, None, CLSCTX_INPROC_SERVER) }
+            .map_err(windows_error)?;
+    let empty = VARIANT::default();
+    // SAFETY: empty variants request a connection using the current local token.
+    unsafe { service.Connect(&empty, &empty, &empty, &empty) }.map_err(windows_error)?;
+    let folder_path = task_path.trim_end_matches('\\');
+    // SAFETY: BSTR arguments remain valid for each synchronous COM call.
+    let folder = unsafe { service.GetFolder(&BSTR::from(folder_path)) }.map_err(windows_error)?;
+    let task = unsafe { folder.GetTask(&BSTR::from(task_name)) }.map_err(windows_error)?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        // SAFETY: the registered-task interface remains valid in this apartment.
+        match unsafe { task.State() }.map_err(windows_error)? {
+            TASK_STATE_READY => return Ok(()),
+            TASK_STATE_RUNNING if Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(25));
+            }
+            TASK_STATE_RUNNING => {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "previous runner task invocation did not become ready",
+                ));
+            }
+            _ => {
+                return Err(io::Error::other(
+                    "runner task is not enabled and ready for invocation",
+                ));
+            }
+        }
+    }
+}
 
 /// Serve exactly one authenticated request and response, then close the pipe.
 ///

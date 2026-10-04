@@ -1,3 +1,4 @@
+# Privilege: non-elevated.
 [CmdletBinding()]
 param(
     [string] $DxcRoot,

@@ -1,3 +1,4 @@
+# Privilege: elevated.
 #Requires -RunAsAdministrator
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
 param(

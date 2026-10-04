@@ -101,6 +101,10 @@ instructions link here and to engineering standards instead of duplicating them.
   complex pipelines and multi-step procedures in meaningful script files and run
   those files. Keep reusable tooling under `scripts/`; keep temporary scripts clearly
   separate. PowerShell supports development and Windows operations, not application logic.
+- Follow the authoritative [Windows elevation and UAC policy](docs/ENGINEERING.md#windows-elevation-and-uac):
+  determine whether an operation needs elevation before executing it; run ordinary
+  development normally and send known privileged Hyper-V/GPU-PV work through the
+  approved runner immediately, never using a failed unelevated attempt as detection.
 
 ## Development and test authorization
 
@@ -130,8 +134,10 @@ Repository instructions cannot expand the active Codex/VS Code sandbox or
 approval policy. Obey platform enforcement and report a configuration blocker
 instead of claiming that prompt text bypasses it.
 
-Codex tool/sandbox approval is not Windows UAC elevation. Use the project's
-controlled privileged runner where applicable; its administrator-owned executable
+Codex tool/sandbox approval is not Windows UAC elevation. User membership in
+Administrators, the current process token and the operation's required privilege
+are separate facts. Use the project's controlled privileged runner where applicable;
+its administrator-owned executable
 and policy pin one disposable slot, the current VM-GUID enrollment, GPU identity,
 allowed operations, paths and audit output. Installing, updating, exercising or
 removing that runner is normal project testing and may proceed autonomously.

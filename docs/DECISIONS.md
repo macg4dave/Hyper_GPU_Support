@@ -288,9 +288,10 @@ GPU identity, an operation allowlist and parent/child/test roots. DEC-015 narrow
 this target to one administrator-enrolled fixed VM GUID: the runner recreates only
 its child disk and cannot accept or rewrite a VM identity/path. The runner validates
 every request, logs request/result, rejects arbitrary commands and fails closed.
-Installing, updating or broadening the runner remains a separately approved
-protected action; Codex sandbox approval does not itself grant a Windows elevated
-token.
+Installing, updating and exercising the fixed runner on the designated disposable
+target is authorized development work under the current repository policy;
+broadening its target or command surface remains a security-boundary change. Codex
+sandbox approval does not itself grant a Windows elevated token.
 
 Reason: disposable children make guest restoration machinery unnecessary, while a
 fixed privileged interface supports practical iteration without granting the agent
@@ -305,11 +306,12 @@ VMMS path lacks a capability available only through HCS.
 
 **Accepted by user | 2026-09-25 | Effect-based development permissions**
 
-Routine repository development proceeds autonomously. Existing authorization may
-be reused only within its exact test scope; new administrator, destructive or
-host-wide effects require explicit approval. [AGENTS.md](../AGENTS.md#permission-boundary)
-is the single detailed permission policy; engineering standards and agent prompts
-reference it rather than restating it.
+Routine repository development and the bounded administrator operations authorized
+for the designated disposable target proceed autonomously. Authorization remains
+limited to its exact target and effect scope; physical-host lifecycle requires
+explicit permission immediately beforehand. [AGENTS.md](../AGENTS.md#development-and-test-authorization)
+owns authorization, while the [Windows elevation policy](ENGINEERING.md#windows-elevation-and-uac)
+owns execution-path selection; prompts reference those rules rather than restating them.
 
 Project Codex defaults use a workspace-write sandbox with on-request escalation
 and workspace network access. These settings permit normal edits, Cargo work and

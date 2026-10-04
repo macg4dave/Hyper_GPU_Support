@@ -7,6 +7,7 @@ Review or harden the requested area.
 
 Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 [errors and lifetimes](../../docs/ENGINEERING.md#errors-and-operation-lifetimes),
+[Windows elevation and UAC](../../docs/ENGINEERING.md#windows-elevation-and-uac),
 [dependencies](../../docs/ENGINEERING.md#toolchain-dependencies-and-features),
 [testing](../../docs/ENGINEERING.md#testing), and
 [required checks](../../docs/ENGINEERING.md#required-checks-and-ci).

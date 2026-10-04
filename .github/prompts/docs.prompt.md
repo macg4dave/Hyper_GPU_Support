@@ -7,7 +7,8 @@ Make the requested documentation change.
 
 Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
 [documentation](../../docs/ENGINEERING.md#documentation),
-[shell commands and development scripts](../../docs/ENGINEERING.md#shell-commands-and-development-scripts), and
+[shell commands and development scripts](../../docs/ENGINEERING.md#shell-commands-and-development-scripts),
+[Windows elevation and UAC](../../docs/ENGINEERING.md#windows-elevation-and-uac), and
 [required checks](../../docs/ENGINEERING.md#required-checks-and-ci).
 
 - Distinguish observed or implemented behavior from planned work and hypotheses.

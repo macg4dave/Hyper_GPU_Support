@@ -77,10 +77,12 @@ configuration, desired-state subset, plan/report and error contracts. `src/inven
 reporting and the replaceable source contract; `src/windows_inventory.rs` owns
 the bounded query-process transport and Rust target/VM selection. `src/runner.rs`
 owns the fixed privileged protocol while `src/bin/hyper-gpu-runner.rs` implements
-reset, inspection, lifecycle and fixed GPU attach/detach slices. `src/windows_runner.rs` authenticates
-the connected client through bounded-frame pipe impersonation and lets the client
-verify the pipe object's explicit enrolled owner SID, avoiding cross-account process
-token access. `src/probe.rs`, `src/windows_probe.rs`
+reset, inspection, lifecycle and fixed GPU attach/detach slices. `src/windows_runner.rs`
+authenticates the connected client through bounded-frame pipe impersonation and lets
+the client verify the pipe object's explicit enrolled owner SID, avoiding
+cross-account process token access. It also gates one-shot triggers on native Task
+Scheduler readiness so ignore-new task policy cannot discard a composed client
+operation. `src/probe.rs`, `src/windows_probe.rs`
 and the dedicated probe binaries own the standalone D3D/CUDA contracts, exact
 DXGI/D3DKMT selection and checked host workloads. `src/lib.rs` exposes the library
 boundary and `tests/cli.rs` exercises the built product executable.

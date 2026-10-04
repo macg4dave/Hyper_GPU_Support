@@ -1,3 +1,4 @@
+# Privilege: non-elevated.
 [CmdletBinding()]
 param(
     [string] $ProjectConfigurationPath = (Join-Path $PSScriptRoot '..\..\config\project.toml')

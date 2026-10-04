@@ -46,6 +46,47 @@ become a parallel implementation of application logic, CLI behavior, validation,
 diagnostics or GPU/Hyper-V management assigned to Rust. Embedded application-side
 shell remains subject to the non-Rust exception process below.
 
+## Windows elevation and UAC
+
+Determine the required Windows privilege before running a command, script, Rust
+integration test or utility. Ordinary builds, unit tests, repository checks and
+other non-privileged development run with the normal token. Send a known privileged
+operation through the approved fixed runner immediately when it exposes that
+operation; use another explicitly authorized, bounded elevation path only when the
+runner does not provide it. Do not run a known-admin operation unelevated merely to
+observe `Access Denied`.
+
+Assume elevation is required for Hyper-V configuration and protected host
+management, GPU-PV adapter changes, service/driver/scheduled-task/runner install or
+removal, protected filesystem or registry writes, VHD/VHDX mount or servicing, and
+Windows feature or system-configuration changes. Before a privileged sequence,
+distinguish whether the user belongs to Administrators, whether the current process
+has an elevated token and whether the operation itself requires elevation; group
+the token check at the start rather than rediscovering it during each step.
+
+Never disable or weaken UAC, bypass consent, silently approve a prompt, or create
+an unrestricted elevated command channel. The fixed runner accepts bounded typed
+operations, validates the enrolled disposable target and arguments, and records
+requests and results. Work already within its authorized scope does not need a new
+permission prompt. Administrator privilege is distinct from authorization: the
+physical host must never be restarted, shut down, logged out or have its interactive
+session terminated without explicit user permission immediately beforehand. Stop
+and ask if an otherwise authorized operation reports that a host restart is needed.
+
+Every maintained executable PowerShell script declares one privilege class in its
+header and in [`scripts/README.md`](../scripts/README.md): `non-elevated`,
+`elevated`, or `either` with the reduced non-elevated behavior stated. An elevated
+script checks near startup and fails concisely before other work; prefer PowerShell's
+`#Requires -RunAsAdministrator` when applicable. Hardware/native Rust tests that
+need elevation remain explicitly selected and separate from the normal test suite,
+and must use the runner or fail immediately after a deliberate token check.
+
+For an unexpected access-denied result, first verify the expected privilege class
+and execution path, then the runner's effective rights, before treating it as a
+different Windows permission defect. Do not blindly retry every permission failure
+with elevation; preserve the native error and justify any elevated retry from the
+operation being performed.
+
 ## Configuration and mutable values
 
 Use [`config/project.toml`](../config/project.toml) as the single checked-in source

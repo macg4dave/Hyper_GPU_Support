@@ -141,8 +141,9 @@ cargo run --locked --bin hyper-gpu-stage -- apply <guest-user>
 cargo run --locked --bin hyper-gpu-stage -- apply --interactive
 ```
 
-Run apply from an elevated PowerShell session on hosts where the operator's normal
-token cannot query Hyper-V. A pre-mutation failure reports only its fixed phase name;
+Apply requires Hyper-V administrator access and is not a fixed-runner operation;
+invoke it through the explicitly authorized elevated development path from the
+start when the normal token lacks that access. A pre-mutation failure reports only its fixed phase name;
 native error text and credentials are not emitted. Post-mutation uncertainty still
 requires disposable-child recreation.
 
@@ -164,6 +165,19 @@ compiled, policy-listed operations for the exact disposable VM, GPU and parent/
 child identities; it is not a general CLI or shell boundary. Installation
 identity, test evidence and remaining protected CORE-005 validation are recorded in
 [CORE-005 evidence](docs/evidence/CORE-005.md).
+
+From the enrolled normal account, ensure the configured GPU is attached while the
+disposable VM is off:
+
+```powershell
+cargo run --locked --bin hyper-gpu-client -- ensure-gpu
+```
+
+The command strictly validates the runner's published inspection and assignment
+records. An exact existing assignment is a verified no-op; a foreign adapter,
+different target, running VM, failed provider operation or malformed result fails.
+`staging_readiness=not-checked` is intentional: attachment does not imply that the
+guest driver/runtime receipt remains ready, which is validated separately.
 
 CORE-008's development harness copies one hash-pinned file to a flat filename in the
 configured protected guest staging root. It prompts on the console so the password
@@ -203,11 +217,12 @@ NVIDIA runtime staging and probes occur only in the disposable child. If its sta
 is damaged or uncertain, discard and recreate the child instead of repairing it;
 never boot or modify the parent for an experiment.
 
-Normal Rust builds and tests remain unelevated. Planned hardware tests use a
-separately approved, administrator-installed runner with fixed operations and
+Normal Rust builds and tests remain unelevated. Privileged hardware tests use the
+approved administrator-installed runner with fixed operations and
 explicit VM/GPU identities. The repository and agent cannot modify its installed
 binary or policy. VMConnect, Enhanced Session Mode or RDP may be used for operator
 access; no project virtual display driver is planned, and display connectivity is
 not evidence of NVIDIA workload execution. See the
+[Windows elevation policy](docs/ENGINEERING.md#windows-elevation-and-uac),
 [configuration and recovery contract](docs/ARCHITECTURE.md#configuration-and-recovery-contract)
 and [display boundary](docs/ARCHITECTURE.md#display-and-presentation-boundary).
