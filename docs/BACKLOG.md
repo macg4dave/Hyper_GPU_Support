@@ -46,7 +46,7 @@ GPU-007 and GPU-015 are optional research lanes.
 | [GPU-003](#gpu-003) | M0 | P0 | completed | GPU-002, HV-003, REF-002, GPU-008 |
 | [HV-002](#hv-002) | M1 | P0 | completed | DOC-002, GPU-003 |
 | [GPU-004](#gpu-004) | M1 | P1 | blocked | CORE-020 |
-| [GPU-009](#gpu-009) | M1 | P0 | planned | CORE-002 |
+| [GPU-009](#gpu-009) | M1 | P0 | in progress | CORE-002 |
 | [GPU-005](#gpu-005) | M1 | P0 | planned | CORE-002, GPU-009, CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-005 |
 | [GPU-010](#gpu-010) | M2 | P1 | planned | GPU-006 |
@@ -539,6 +539,7 @@ for future work is not an invented current blocker.
 
 **Prove native guest staging and disposable recovery**
 
+- Owner: Codex session 2026-10-04.
 - Objective: validate the minimum unmodified NVIDIA provisioning in the disposable
   guest and its existing discard/recreate recovery.
 - Dependencies: CORE-002 attachment (which follows CORE-009 staging).
@@ -547,7 +548,20 @@ for future work is not an invented current blocker.
   mark it unusable, recreate from the protected parent and stage successfully. Add
   no offline servicing or shim without a demonstrated need and separate approval
   where its effects require it.
-- Result: pending.
+- Result: In progress. Fresh pinned-guest inspection reproduced `vrd.inf` Code 43
+  with matching NVIDIA package anchors. One guest-local NVML alias experiment
+  advanced `nvidia-smi` past DLL discovery but did not change Code 43; the alias
+  was removed. A clean disposable-child reset and successful copy-only manifest
+  stage verified the guest package and CUDA alias; Code 43 persisted after GPU
+  attach. An ordinary NVML loader copy matched host size/hash/version and gave
+  the same `Driver Not Loaded` result as the earlier hard-link experiment.
+  A timestamped repeat proved that Code 43 returned after the `vrd.inf`
+  disable/enable cycle **without** the later diagnostic: Code 0 through
+  20:20:06.132 UTC, Code 43 at 20:20:07.160 UTC. The unknown VMBus child is
+  the GPU-PV global DXGK channel, unbound with Code 12; its role in sustained
+  initialization is unresolved. The HCS versus VMMS assignment difference
+  remains untested. Evidence: [`timeline/VMBus`](evidence/GPU-009-timeline-vmbus.md)
+  and [`upstream comparison`](evidence/GPU-009-upstream-comparison.md).
 
 ## GPU-005
 

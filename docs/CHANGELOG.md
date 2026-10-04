@@ -6,6 +6,12 @@ handover notes remain in its Resume block. Do not duplicate detailed test output
 
 ## 2026-10-04
 
+- [GPU-009](BACKLOG.md#gpu-009): changed the guest CUDA runtime alias from a hard
+  link to a normal verified copy. A clean disposable-VM restage passed package
+  and alias checks; Code 43 persisted. A copied NVML alias and AppSandbox-style
+  device cycle narrowed the remaining failure without adding filesystem tricks.
+  Evidence: [upstream comparison](evidence/GPU-009-upstream-comparison.md).
+
 - [CORE-002](BACKLOG.md#core-002): added strict idempotent `ensure-gpu`, proved
   matching reapply and zero-to-one RTX 5060 attachment, and fixed a live one-shot
   Task Scheduler teardown race by waiting for native `Ready` state before another

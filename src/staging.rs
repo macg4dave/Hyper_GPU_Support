@@ -90,7 +90,7 @@ pub struct StageReceipt {
     pub package_destination: PathBuf,
     /// Final guest CUDA loader alias.
     pub cuda_alias: PathBuf,
-    /// `hardlink` or `copy`, as verified in the guest.
+    /// `copy`, as verified in the guest.
     pub alias_method: String,
     /// Number of package files rehashed in the guest.
     pub files: u32,
@@ -180,7 +180,7 @@ pub fn stage_driver_package(
             != receipt.pending_delete_sources.len()
         || receipt.files != manifest.files.len() as u32
         || receipt.bytes != manifest.byte_count
-        || !matches!(receipt.alias_method.as_str(), "hardlink" | "copy")
+        || receipt.alias_method != "copy"
     {
         return Err(StagingError::GuestStateUncertain);
     }
@@ -707,7 +707,7 @@ mod tests {
                 r"C:\Windows\System32\HostDriverStore\FileRepository\test",
             ),
             cuda_alias: PathBuf::from(r"C:\Windows\System32\nvcuda.dll"),
-            alias_method: "hardlink".into(),
+            alias_method: "copy".into(),
             files: manifest.files.len() as u32,
             bytes: manifest.byte_count,
         };
@@ -726,6 +726,21 @@ mod tests {
         assert!(receipt.has_host_qualification_drift());
         assert!(receipt.has_host_guest_build_drift());
         assert!(receipt.has_pending_delete_cleanup());
+
+        let mut linked_receipt = receipt;
+        linked_receipt.alias_method = "hardlink".into();
+        assert_eq!(
+            stage_driver_package(
+                &fixture.configuration,
+                &guest_configuration(),
+                "2627e735-5b33-4104-b739-622727dd3a40",
+                &credential,
+                &FakeStager {
+                    receipt: linked_receipt
+                },
+            ),
+            Err(StagingError::GuestStateUncertain)
+        );
     }
 
     #[test]

@@ -892,6 +892,24 @@ function Test-Package($Session, $Root, $Files, [uint64]$ExpectedBytes) {
     }
     return $result
 }
+function Test-CudaAlias($Session, $Alias, $Receipt, $Lock, [uint64]$ExpectedBytes, $ExpectedVersion) {
+    Invoke-Command -Session $Session -ArgumentList @($Alias, $Receipt, $Lock, $ExpectedBytes, $ExpectedVersion) -ScriptBlock {
+        param($Alias, $Receipt, $Lock, [uint64]$ExpectedBytes, $ExpectedVersion)
+        __ACL_VALIDATOR__
+        foreach ($path in @($Alias, $Receipt, $Lock)) {
+            $item = Get-Item -LiteralPath $path -Force
+            if ($item.PSIsContainer -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) { throw 'verification failed' }
+            Assert-ProtectedFile $path
+            $anchor = if ($path -ieq $Alias) { $env:SystemRoot } else { [Environment]::GetFolderPath('ProgramFiles') }
+            Assert-ProtectedTree (Split-Path -Parent $path) $anchor
+        }
+        $aliasItem = Get-Item -LiteralPath $Alias -Force
+        if ([uint64]$aliasItem.Length -ne $ExpectedBytes -or
+            [string]$aliasItem.VersionInfo.FileVersion -cne [string]$ExpectedVersion -or
+            [string]$aliasItem.LinkType -ceq 'HardLink') { throw 'verification failed' }
+        (Get-FileHash -LiteralPath $Alias -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+}
 $mutationStarted = $false
 $phase = 'request'
 try {
@@ -1040,21 +1058,10 @@ try {
             $receipt = Invoke-Command -Session $session -ArgumentList @($paths.receipt) -ScriptBlock { param($Path) Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json }
             if ([string]$receipt.manifest_id -cne [string]$request.manifest_id -or
                 [string]$receipt.manifest_sha256 -cne [string]$request.manifest_sha256 -or
-                [string]$receipt.alias_method -notin @('hardlink','copy')) { throw 'uncertain state' }
+                [int]$receipt.schema -ne 1 -or [string]$receipt.alias_method -cne 'copy') { throw 'uncertain state' }
             $verified = Test-Package $session $paths.package $request.files ([uint64]$request.byte_count)
             $loader = $request.files | Where-Object { [string]$_.relative_path -ieq 'nvcuda_loader64.dll' }
-            $aliasHash = Invoke-Command -Session $session -ArgumentList @($paths.alias, $paths.receipt, $lockPath) -ScriptBlock {
-                param($Alias, $Receipt, $Lock)
-                __ACL_VALIDATOR__
-                foreach ($path in @($Alias, $Receipt, $Lock)) {
-                    $item = Get-Item -LiteralPath $path -Force
-                    if ($item.PSIsContainer -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) { throw 'verification failed' }
-                    Assert-ProtectedFile $path
-                    $anchor = if ($path -ieq $Alias) { $env:SystemRoot } else { [Environment]::GetFolderPath('ProgramFiles') }
-                    Assert-ProtectedTree (Split-Path -Parent $path) $anchor
-                }
-                (Get-FileHash -LiteralPath $Alias -Algorithm SHA256).Hash.ToLowerInvariant()
-            }
+            $aliasHash = Test-CudaAlias $session $paths.alias $paths.receipt $lockPath $loader.bytes $request.gpu_driver_version
             if ($null -eq $loader -or $aliasHash -cne [string]$loader.sha256) { throw 'uncertain state' }
             Invoke-Command -Session $session -ArgumentList @($lockPath) -ScriptBlock { param($Lock) Remove-Item -LiteralPath $Lock -Force }
             Emit 'ok' 'already-applied' ([ordered]@{
@@ -1099,33 +1106,16 @@ try {
             if ((Test-Path -LiteralPath $Package) -or (Test-Path -LiteralPath $Alias) -or (Test-Path -LiteralPath $Receipt)) { throw 'uncertain state' }
             [IO.Directory]::Move($Temporary, $Package)
             $loader = [IO.Path]::Combine($Package, 'nvcuda_loader64.dll')
-            $method = 'hardlink'
-            try { New-Item -ItemType HardLink -Path $Alias -Target $loader -ErrorAction Stop | Out-Null }
-            catch {
-                if (Test-Path -LiteralPath $Alias) { throw 'uncertain state' }
-                $method = 'copy'
-                [IO.File]::Copy($loader, $Alias, $false)
-            }
-            $receiptValue = [ordered]@{ schema=1; manifest_id=$ManifestId; manifest_sha256=$ManifestSha256; alias_method=$method }
+            [IO.File]::Copy($loader, $Alias, $false)
+            $receiptValue = [ordered]@{ schema=1; manifest_id=$ManifestId; manifest_sha256=$ManifestSha256; alias_method='copy' }
             $temporaryReceipt = $Receipt + '.partial-' + [guid]::NewGuid().ToString('N')
             $receiptValue | ConvertTo-Json -Compress | Set-Content -LiteralPath $temporaryReceipt -Encoding UTF8
             [IO.File]::Move($temporaryReceipt, $Receipt)
-            [pscustomobject]@{ alias_method=$method }
+            [pscustomobject]@{ alias_method='copy' }
         }
         $loader = $request.files | Where-Object { [string]$_.relative_path -ieq 'nvcuda_loader64.dll' }
         $verified = Test-Package $session $paths.package $request.files ([uint64]$request.byte_count)
-        $aliasHash = Invoke-Command -Session $session -ArgumentList @($paths.alias, $paths.receipt, $lockPath) -ScriptBlock {
-            param($Alias, $Receipt, $Lock)
-            __ACL_VALIDATOR__
-            foreach ($path in @($Alias, $Receipt, $Lock)) {
-                $item = Get-Item -LiteralPath $path -Force
-                if ($item.PSIsContainer -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) { throw 'verification failed' }
-                Assert-ProtectedFile $path
-                $anchor = if ($path -ieq $Alias) { $env:SystemRoot } else { [Environment]::GetFolderPath('ProgramFiles') }
-                Assert-ProtectedTree (Split-Path -Parent $path) $anchor
-            }
-            (Get-FileHash -LiteralPath $Alias -Algorithm SHA256).Hash.ToLowerInvariant()
-        }
+        $aliasHash = Test-CudaAlias $session $paths.alias $paths.receipt $lockPath $loader.bytes $request.gpu_driver_version
         if ($null -eq $loader -or $aliasHash -cne [string]$loader.sha256) { throw 'verification failed' }
         Invoke-Command -Session $session -ArgumentList @($lockPath) -ScriptBlock { param($Lock) Remove-Item -LiteralPath $Lock -Force }
         Emit 'ok' 'applied' ([ordered]@{
@@ -1522,6 +1512,9 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         assert!(STAGING_SCRIPT.contains("[IO.FileMode]::CreateNew"));
         assert!(STAGING_SCRIPT.contains("[IO.Directory]::Move($Temporary, $Package)"));
         assert!(STAGING_SCRIPT.contains("[IO.File]::Copy($loader, $Alias, $false)"));
+        assert!(!STAGING_SCRIPT.contains("New-Item -ItemType HardLink"));
+        assert!(STAGING_SCRIPT.contains("$aliasItem.Length -ne $ExpectedBytes"));
+        assert!(STAGING_SCRIPT.contains("$aliasItem.VersionInfo.FileVersion"));
         assert!(STAGING_SCRIPT.contains("host servicing state"));
         assert!(!STAGING_SCRIPT.contains("throw 'host Windows drift'"));
         assert!(STAGING_SCRIPT.contains("function Get-ReviewedPendingDeletes"));
@@ -1535,7 +1528,7 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
 
     #[test]
     fn stage_receipt_parser_preserves_noop_and_uncertain_protocol() {
-        let output = r#"{"status":"ok","category":"already-applied","vm_id":"vm","computer_name":"guest","machine_guid":"guid","manifest_id":"manifest","manifest_sha256":"hash","qualified_host_build":"26200.9457","measured_host_build":"26300.9457","measured_guest_build":"26200.9457","pending_delete_count":2,"pending_delete_sources":["cleanup-a","cleanup-b"],"package_destination":"C:\\package","cuda_alias":"C:\\alias","alias_method":"hardlink","files":217,"bytes":2850973044}"#;
+        let output = r#"{"status":"ok","category":"already-applied","vm_id":"vm","computer_name":"guest","machine_guid":"guid","manifest_id":"manifest","manifest_sha256":"hash","qualified_host_build":"26200.9457","measured_host_build":"26300.9457","measured_guest_build":"26200.9457","pending_delete_count":2,"pending_delete_sources":["cleanup-a","cleanup-b"],"package_destination":"C:\\package","cuda_alias":"C:\\alias","alias_method":"copy","files":217,"bytes":2850973044}"#;
         let receipt = parse_stage_receipt(output).unwrap();
         assert_eq!(receipt.status, StageStatus::AlreadyApplied);
         assert_eq!(receipt.files, 217);

@@ -54,6 +54,14 @@ Current maintained entry points and their required privilege:
   it does not install software or change host environment state.
 - **Non-elevated** — `testing/build-cuda-probe.ps1` builds the unchanged pinned `vectorAddDrv`
   sample for `sm_120`, verifies the FATBIN and retains its source/license/artifacts.
+- **Elevated** — `diagnostics/inspect-disposable-gpu-runtime.ps1` verifies the running pinned
+  disposable VM, reads its GPU-PV PnP status, package anchors, NVIDIA runtime query and
+  recent guest System events through an interactive PowerShell Direct credential,
+  then writes an ignored local diagnostic. It makes no guest or VM change.
+- **Elevated** — `diagnostics/inspect-gpu-pv-timeline.ps1` verifies the same disposable
+  target, then collects read-only VMBus/PnP properties and timestamped guest
+  events for the initial or controlled-repeat GPU-PV interval into ignored
+  local evidence. It uses an interactive PowerShell Direct credential.
 - **Non-elevated** — `testing/run-host-probe-controls.ps1` performs the configured bounded host warm-up
   and measured correctness repetitions for D3D11, D3D12 and CUDA, enforcing
   output caps, timeouts, exact output oracles and cross-API LUID identity. Run
