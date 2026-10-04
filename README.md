@@ -141,6 +141,11 @@ cargo run --locked --bin hyper-gpu-stage -- apply <guest-user>
 cargo run --locked --bin hyper-gpu-stage -- apply --interactive
 ```
 
+Run apply from an elevated PowerShell session on hosts where the operator's normal
+token cannot query Hyper-V. A pre-mutation failure reports only its fixed phase name;
+native error text and credentials are not emitted. Post-mutation uncertainty still
+requires disposable-child recreation.
+
 The configured host build is a qualification baseline, not an equality gate. Apply
 reports the qualified, measured-host and measured-guest builds. It emits
 `warning=host-build-outside-qualified-baseline` or

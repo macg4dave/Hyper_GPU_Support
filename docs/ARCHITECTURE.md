@@ -91,6 +91,8 @@ single-file executable is an M1 development harness, not a general guest shell.
 CORE-009 adds the complete manifest contract in `src/staging.rs` and a separate
 fixed adapter mode that permits only the pinned `HostDriverStore` package, CUDA
 loader alias and applied receipt on the enrolled disposable guest.
+Its pre-mutation failures expose only validated fixed phase names for diagnosis;
+after mutation may begin, unexpected failures retain the recreate-only category.
 
 CORE-002 integrates the fixed assignment operation after CORE-005 target proof;
 later guest staging/probe adapters remain separately gated. Revisit CORE-001's

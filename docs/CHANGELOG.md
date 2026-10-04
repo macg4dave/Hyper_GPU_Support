@@ -6,6 +6,12 @@ handover notes remain in its Resume block. Do not duplicate detailed test output
 
 ## 2026-10-04
 
+- [CORE-009](BACKLOG.md#core-009): completed live NVIDIA guest staging, verified
+  full-hash no-op reapply and partial-state discard/recreate on the fixed disposable
+  VM. Added masked credential feedback and credential-safe fixed preflight phase
+  diagnostics after live testing exposed an unelevated Hyper-V query failure.
+  Evidence: [CORE-009](evidence/CORE-009.md).
+
 - Began CORE-021's configuration/discovery cleanup without adding it to the M1
   gate: inbox Windows PowerShell, System32 tools and the trusted Hyper-V module
   root now derive from the OS-reported Windows directory instead of `C:` or

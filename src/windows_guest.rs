@@ -191,6 +191,8 @@ struct WireResponse {
     #[serde(default)]
     category: String,
     #[serde(default)]
+    phase: String,
+    #[serde(default)]
     vm_id: String,
     #[serde(default)]
     computer_name: String,
@@ -447,6 +449,11 @@ fn parse_stage_receipt(output: &str) -> Result<StageReceipt, StagingError> {
             "credential-denied" | "integration-unavailable" => StagingError::GuestUnavailable,
             "uncertain-state" => StagingError::GuestStateUncertain,
             "verification-failed" => StagingError::VerificationFailed,
+            "preflight-failed" if valid_preflight_phase(&response.phase) => {
+                StagingError::GuestPreflightFailed {
+                    phase: response.phase,
+                }
+            }
             _ => StagingError::GuestStateUncertain,
         });
     }
@@ -488,6 +495,20 @@ fn parse_stage_receipt(output: &str) -> Result<StageReceipt, StagingError> {
         files: response.files,
         bytes: response.bytes,
     })
+}
+
+fn valid_preflight_phase(phase: &str) -> bool {
+    matches!(
+        phase,
+        "request"
+            | "host-target"
+            | "host-gpu"
+            | "host-servicing"
+            | "source-signatures"
+            | "guest-session"
+            | "guest-identity"
+            | "guest-paths"
+    )
 }
 
 struct BoundedBytes {
@@ -872,8 +893,10 @@ function Test-Package($Session, $Root, $Files, [uint64]$ExpectedBytes) {
     return $result
 }
 $mutationStarted = $false
+$phase = 'request'
 try {
     $request = [Console]::In.ReadToEnd() | ConvertFrom-Json -ErrorAction Stop
+    $phase = 'host-target'
     $vm = & $getVmCommand -Id ([guid]$request.vm_id) -ErrorAction Stop
     $drives = @(& $getVmHardDiskDriveCommand -VM $vm -ErrorAction Stop)
     $checkpoints = @(& $getVmSnapshotCommand -VM $vm -ErrorAction Stop)
@@ -883,6 +906,7 @@ try {
     $vhd = & $getVhdCommand -Path $drives[0].Path -ErrorAction Stop
     if ($vhd.VhdType -cne 'Differencing' -or $vhd.ParentPath -ine [string]$request.parent_path) { throw 'target identity mismatch' }
 
+    $phase = 'host-gpu'
     $hostVersion = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
     $measuredBuild = [string]$hostVersion.CurrentBuildNumber + '.' + [string]$hostVersion.UBR
     $gpuPath = [string]$request.gpu_interface
@@ -893,6 +917,7 @@ try {
         $_.DeviceClass -ieq 'DISPLAY' -and $_.DeviceID -ieq $deviceId
     })
     if ($activeDrivers.Count -ne 1 -or [string]$activeDrivers[0].DriverVersion -cne [string]$request.gpu_driver_version) { throw 'host GPU drift' }
+    $phase = 'host-servicing'
     $pendingReboot = (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') -or
         (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired')
     $pendingRenameProperty = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue
@@ -902,6 +927,7 @@ try {
     if ($pendingReboot -or (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress') -or
         ($null -ne $setup -and [int]$setup.SystemSetupInProgress -ne 0)) { throw 'host servicing state' }
 
+    $phase = 'source-signatures'
     $sourceRoot = [IO.Path]::GetFullPath([string]$request.source_root).TrimEnd('\')
     $sourceItem = Get-Item -LiteralPath $sourceRoot -Force
     if (-not $sourceItem.PSIsContainer -or (($sourceItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) { throw 'unsafe path' }
@@ -916,6 +942,7 @@ try {
         }
     }
 
+    $phase = 'guest-session'
     $secure = ConvertTo-SecureString ([string]$request.password) -AsPlainText -Force
     $credential = [pscredential]::new([string]$request.username, $secure)
     $request.password = $null
@@ -925,6 +952,7 @@ try {
             param($Source)
             . ([scriptblock]::Create($Source))
         }
+        $phase = 'guest-identity'
         $identity = Invoke-Command -Session $session -ArgumentList @($request.computer_name, $request.machine_guid) -ScriptBlock {
             param($ExpectedComputer, $ExpectedGuid)
             $windowsIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -936,6 +964,7 @@ try {
             $guestBuild = [string]$guestVersion.CurrentBuildNumber + '.' + [string]$guestVersion.UBR
             [pscustomobject]@{ computer_name = $env:COMPUTERNAME; machine_guid = $actualGuid; build = $guestBuild }
         }
+        $phase = 'guest-paths'
         $paths = Invoke-Command -Session $session -ArgumentList @($request.staging_root, $request.package_directory, $request.manifest_id) -ScriptBlock {
             param($StagingRoot, $PackageDirectory, $ManifestId)
             $windowsRoot = [IO.Path]::GetFullPath($env:SystemRoot).TrimEnd('\')
@@ -1115,6 +1144,7 @@ try {
     if ($text -match '(?i)signature') { Emit 'error' 'invalid-signature'; exit 16 }
     if ($text -match '(?i)credential|logon failure') { Emit 'error' 'credential-denied'; exit 11 }
     if ($text -match '(?i)target identity|identity mismatch|verification failed|source changed|unsafe path|host GPU drift|host servicing state') { Emit 'error' 'verification-failed'; exit 14 }
+    if (-not $mutationStarted) { Emit 'error' 'preflight-failed' ([ordered]@{ phase=$phase }); exit 14 }
     Emit 'error' 'uncertain-state'; exit 15
 }
 "#;
@@ -1514,6 +1544,20 @@ catch {{ [Console]::Out.Write('rejected:' + $_.Exception.Message) }}
         assert!(receipt.has_pending_delete_cleanup());
         assert_eq!(
             parse_stage_receipt("not-json"),
+            Err(StagingError::GuestStateUncertain)
+        );
+        assert_eq!(
+            parse_stage_receipt(
+                r#"{"status":"error","category":"preflight-failed","phase":"guest-paths"}"#
+            ),
+            Err(StagingError::GuestPreflightFailed {
+                phase: "guest-paths".into()
+            })
+        );
+        assert_eq!(
+            parse_stage_receipt(
+                r#"{"status":"error","category":"preflight-failed","phase":"native error text"}"#
+            ),
             Err(StagingError::GuestStateUncertain)
         );
         let missing_cleanup_evidence = output.replace(

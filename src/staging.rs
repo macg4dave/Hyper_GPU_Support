@@ -468,6 +468,11 @@ pub enum StagingError {
     InvalidSignature,
     /// A bounded guest operation was interrupted after mutation may have begun.
     GuestStateUncertain,
+    /// A fixed, credential-safe guest preflight phase failed before mutation.
+    GuestPreflightFailed {
+        /// Fixed adapter phase name; never contains native error text.
+        phase: String,
+    },
     /// Guest staging was denied or unavailable before mutation.
     GuestUnavailable,
     /// Guest success evidence did not match the configured identities or manifest.
@@ -498,6 +503,9 @@ impl fmt::Display for StagingError {
             Self::InvalidSignature => "required driver package signature is invalid",
             Self::GuestStateUncertain => {
                 "guest staging state is uncertain; recreate the disposable child"
+            }
+            Self::GuestPreflightFailed { phase } => {
+                return write!(formatter, "guest staging preflight failed at {phase}");
             }
             Self::GuestUnavailable => "guest staging session is unavailable",
             Self::VerificationFailed => "guest staging verification failed",
