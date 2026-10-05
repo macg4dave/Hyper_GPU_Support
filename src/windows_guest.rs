@@ -1070,7 +1070,7 @@ function Assert-SafeSourceFile([string]$Root, [string]$Path) {
     while ($true) {
         $item = Get-Item -LiteralPath $current -Force
         if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'unsafe path' }
-        if ($current -ieq $rootFull) { break }
+        if ([IO.Path]::GetFullPath($current).TrimEnd('\') -ieq $rootFull) { break }
         $current = Split-Path -Parent $current
         if ([string]::IsNullOrEmpty($current)) { throw 'unsafe path' }
     }
@@ -1158,6 +1158,25 @@ mod tests {
     use std::path::PathBuf;
     use std::process::Command;
     use std::time::Duration;
+
+    #[test]
+    fn source_guard_accepts_volume_root_and_rejects_outside_root() {
+        let (_, helper) = super::STAGING_PRELUDE
+            .split_once("function Assert-SafeSourceFile")
+            .unwrap();
+        let script = format!(
+            "function Assert-SafeSourceFile{helper}\n$ErrorActionPreference='Stop';$source=Join-Path $env:SystemRoot 'System32\\kernel32.dll';Assert-SafeSourceFile ([IO.Path]::GetPathRoot($source)) $source;try{{Assert-SafeSourceFile (Join-Path $env:SystemRoot 'System32\\drivers') $source;throw 'accepted outside root'}}catch{{if($_.Exception.Message -cne 'unsafe path'){{throw}}}};[Console]::Out.Write('verified')"
+        );
+        assert_eq!(
+            run_script(
+                &powershell(),
+                &script,
+                Zeroizing::new(Vec::new()),
+                Duration::from_secs(5)
+            ),
+            Ok("verified".into())
+        );
+    }
 
     use super::{
         ACL_VALIDATOR, PENDING_RENAME_VALIDATOR, SCRIPT, SCRIPT_TEMPLATE, STAGING_SCRIPT, category,

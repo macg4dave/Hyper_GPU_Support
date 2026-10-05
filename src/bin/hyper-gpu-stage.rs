@@ -70,7 +70,6 @@ fn discover_manifest(
 #[cfg(windows)]
 fn apply(username: &str) -> Result<(), Box<dyn std::error::Error>> {
     let project = ProjectConfiguration::embedded()?;
-    let manifest = discover_manifest(&project)?;
     let username = if username == "--interactive" {
         prompt_username()?
     } else {
@@ -83,6 +82,11 @@ fn apply(username: &str) -> Result<(), Box<dyn std::error::Error>> {
             .build(),
     )?;
     let credential = GuestCredential::new(username, password)?;
+    eprintln!("Discovering and verifying the configured driver environment...");
+    let manifest = discover_manifest(&project)?;
+    eprintln!(
+        "Verifying sources and staging the complete environment; this can take several minutes."
+    );
     let adapter = WindowsEnvironmentStager::new(project.clone());
     let result = stage_driver_environment(
         &project,

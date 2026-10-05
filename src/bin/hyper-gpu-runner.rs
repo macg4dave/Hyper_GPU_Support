@@ -20,10 +20,14 @@ use hyper_gpu_support::runner::{
 };
 use hyper_gpu_support::windows_runner::serve_one;
 
+#[path = "hyper_gpu_runner/supervision.rs"]
+mod supervision;
+
 const RECONCILIATION_MARKER: &str = "reconciliation-required-v1";
 const OUTPUT_LIMIT: usize = 64 * 1024;
 
 fn main() -> ExitCode {
+    let started = Instant::now();
     let startup_failure_path =
         data_directory().map(|path| path.join("audit").join("runner-startup-failure-v1.txt"));
     if let Ok(path) = &startup_failure_path {
@@ -36,7 +40,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     let outcome = match mode.as_deref() {
-        Some(value) if value == "serve-once" => run_server(),
+        Some(value) if value == "serve-once" => run_server(started),
         _ => Err("only fixed serve-once mode is accepted".into()),
     };
     match outcome {
@@ -94,21 +98,21 @@ fn prepare_install_state() -> Result<Enrollment, Box<dyn std::error::Error>> {
     Ok(enrollment)
 }
 
-fn run_server() -> Result<(), Box<dyn std::error::Error>> {
+fn run_server(started: Instant) -> Result<(), Box<dyn std::error::Error>> {
     let enrollment = prepare_install_state()?;
     serve_one(
         PIPE_NAME,
         enrollment.client_sid(),
         &enrollment.pipe_sddl(),
         |input| {
-            let response = handle_request(input);
+            let response = handle_request(input, started);
             Ok(response.encode().into_bytes())
         },
     )?;
     Ok(())
 }
 
-fn handle_request(input: &[u8]) -> Response {
+fn handle_request(input: &[u8], started: Instant) -> Response {
     let parsed = std::str::from_utf8(input)
         .map_err(|_| "invalid-request")
         .and_then(|input| parse_request(input).map_err(|_| "invalid-request"));
@@ -123,7 +127,7 @@ fn handle_request(input: &[u8]) -> Response {
     if append_protocol_audit(Some(&request), "received", "none").is_err() {
         return failed_response(Some(&request), "audit-unavailable");
     }
-    match execute_request(&request) {
+    match execute_request(&request, started) {
         Ok(operation_id) => {
             if append_protocol_audit(Some(&request), "succeeded", "none").is_err() {
                 return Response {
@@ -209,7 +213,7 @@ struct ExecutionFailure {
     operation_id: Option<String>,
 }
 
-fn execute_request(request: &Request) -> Result<String, ExecutionFailure> {
+fn execute_request(request: &Request, started: Instant) -> Result<String, ExecutionFailure> {
     let before_effect = |diagnostic| ExecutionFailure {
         diagnostic,
         operation_id: None,
@@ -249,26 +253,36 @@ fn execute_request(request: &Request) -> Result<String, ExecutionFailure> {
         })
     })?;
     match request.operation {
-        Operation::Inspect => run_inspect(request).map_err(|_| before_effect("operation-failed")),
-        Operation::ResetSlot => execute_reset_request(request),
+        Operation::Inspect => {
+            run_inspect(request, started).map_err(|_| before_effect("operation-failed"))
+        }
+        Operation::ResetSlot => execute_reset_request(request, started),
         Operation::StartSlot => execute_lifecycle_request(
             request,
             Operation::StartSlot,
             START_SCRIPT,
             project.runner.start_timeout,
+            started,
         ),
         Operation::ShutdownSlot => execute_lifecycle_request(
             request,
             Operation::ShutdownSlot,
             SHUTDOWN_SCRIPT,
             project.runner.shutdown_timeout,
+            started,
         ),
-        Operation::AssignGpu => {
-            execute_gpu_assignment_request(request, Operation::AssignGpu, ASSIGN_GPU_SCRIPT)
-        }
-        Operation::RemoveGpu => {
-            execute_gpu_assignment_request(request, Operation::RemoveGpu, REMOVE_GPU_SCRIPT)
-        }
+        Operation::AssignGpu => execute_gpu_assignment_request(
+            request,
+            Operation::AssignGpu,
+            ASSIGN_GPU_SCRIPT,
+            started,
+        ),
+        Operation::RemoveGpu => execute_gpu_assignment_request(
+            request,
+            Operation::RemoveGpu,
+            REMOVE_GPU_SCRIPT,
+            started,
+        ),
         _ => Err(before_effect("operation-denied")),
     }
 }
@@ -299,12 +313,13 @@ fn execute_lifecycle_request(
     operation: Operation,
     script: &str,
     timeout: Duration,
+    started: Instant,
 ) -> Result<String, ExecutionFailure> {
     let operation_id = operation_id().map_err(|_| ExecutionFailure {
         diagnostic: "operation-id-failed",
         operation_id: None,
     })?;
-    match run_lifecycle(request, operation, &operation_id, script, timeout) {
+    match run_lifecycle(request, operation, &operation_id, script, timeout, started) {
         Ok(()) => Ok(operation_id),
         Err(_) => Err(ExecutionFailure {
             diagnostic: "operation-failed-reconciliation-required",
@@ -313,12 +328,12 @@ fn execute_lifecycle_request(
     }
 }
 
-fn execute_reset_request(request: &Request) -> Result<String, ExecutionFailure> {
+fn execute_reset_request(request: &Request, started: Instant) -> Result<String, ExecutionFailure> {
     let operation_id = operation_id().map_err(|_| ExecutionFailure {
         diagnostic: "operation-id-failed",
         operation_id: None,
     })?;
-    match run_reset(request, &operation_id) {
+    match run_reset(request, &operation_id, started) {
         Ok(()) => Ok(operation_id),
         Err(_) => Err(ExecutionFailure {
             diagnostic: "operation-failed-reconciliation-required",
@@ -331,12 +346,13 @@ fn execute_gpu_assignment_request(
     request: &Request,
     operation: Operation,
     script: &str,
+    started: Instant,
 ) -> Result<String, ExecutionFailure> {
     let operation_id = operation_id().map_err(|_| ExecutionFailure {
         diagnostic: "operation-id-failed",
         operation_id: None,
     })?;
-    match run_gpu_assignment(request, operation, &operation_id, script) {
+    match run_gpu_assignment(request, operation, &operation_id, script, started) {
         Ok(()) => Ok(operation_id),
         Err(_) => Err(ExecutionFailure {
             diagnostic: "operation-failed-reconciliation-required",
@@ -345,7 +361,11 @@ fn execute_gpu_assignment_request(
     }
 }
 
-fn run_reset(request: &Request, operation_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn run_reset(
+    request: &Request,
+    operation_id: &str,
+    started: Instant,
+) -> Result<(), Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
     let project = project_configuration()?;
     let state_directory = project.runner.data_directory.join("state");
@@ -363,10 +383,16 @@ fn run_reset(request: &Request, operation_id: &str) -> Result<(), Box<dyn std::e
         operation_id,
         || {
             let script = fixed_script(RESET_SCRIPT)?;
-            let output = run_bounded_with_powershell(
+            let output = run_supervised(
                 &script,
                 project.runner.reset_timeout,
+                adapter_budget(
+                    project.runner.task_execution_timeout,
+                    Duration::ZERO,
+                    started.elapsed(),
+                ),
                 &project.guest.powershell_path,
+                "reset-slot adapter",
             )
             .map_err(std::io::Error::other)?;
             let result = parse_reset_result(&output)?;
@@ -448,7 +474,7 @@ fn run_reconciled_operation(
     Ok(())
 }
 
-fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> {
+fn run_inspect(request: &Request, started: Instant) -> Result<String, Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
     let project = project_configuration()?;
     let state_directory = project.runner.data_directory.join("state");
@@ -466,10 +492,16 @@ fn run_inspect(request: &Request) -> Result<String, Box<dyn std::error::Error>> 
         "",
     )?;
     let script = fixed_script(INSPECT_SCRIPT)?;
-    let output = match run_bounded_with_powershell(
+    let output = match run_supervised(
         &script,
         project.runner.inspect_timeout,
+        adapter_budget(
+            project.runner.task_execution_timeout,
+            Duration::ZERO,
+            started.elapsed(),
+        ),
         &project.guest.powershell_path,
+        "inspect adapter",
     ) {
         Ok(output) => output,
         Err(error) => {
@@ -522,6 +554,7 @@ fn run_lifecycle(
     operation_id: &str,
     script: &str,
     timeout: Duration,
+    started: Instant,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
     let project = project_configuration()?;
@@ -542,10 +575,16 @@ fn run_lifecycle(
 
     let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
         let inspection_script = fixed_script(INSPECT_SCRIPT)?;
-        let inspection_output = run_bounded_with_powershell(
+        let inspection_output = run_supervised(
             &inspection_script,
             project.runner.inspect_timeout,
+            adapter_budget(
+                project.runner.task_execution_timeout,
+                timeout,
+                started.elapsed(),
+            ),
             &project.guest.powershell_path,
+            "lifecycle preflight adapter",
         )
         .map_err(std::io::Error::other)?;
         let inspection = parse_inspect_result(&inspection_output)?;
@@ -558,6 +597,11 @@ fn run_lifecycle(
             return Err("lifecycle preflight state mismatch".into());
         }
         let operation_script = fixed_script(script)?;
+        require_transition_budget(
+            project.runner.task_execution_timeout,
+            timeout,
+            started.elapsed(),
+        )?;
         let output =
             run_bounded_with_powershell(&operation_script, timeout, &project.guest.powershell_path)
                 .map_err(std::io::Error::other)?;
@@ -626,6 +670,7 @@ fn run_gpu_assignment(
     operation: Operation,
     operation_id: &str,
     script: &str,
+    started: Instant,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
     let project = project_configuration()?;
@@ -646,10 +691,16 @@ fn run_gpu_assignment(
 
     let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
         let inspection_script = fixed_script(INSPECT_SCRIPT)?;
-        let inspection_output = run_bounded_with_powershell(
+        let inspection_output = run_supervised(
             &inspection_script,
             project.runner.inspect_timeout,
+            adapter_budget(
+                project.runner.task_execution_timeout,
+                project.runner.gpu_assignment_timeout,
+                started.elapsed(),
+            ),
             &project.guest.powershell_path,
+            "GPU assignment preflight adapter",
         )
         .map_err(std::io::Error::other)?;
         let inspection = parse_inspect_result(&inspection_output)?;
@@ -662,6 +713,11 @@ fn run_gpu_assignment(
             return Err("GPU assignment preflight state mismatch".into());
         }
         let operation_script = fixed_script(script)?;
+        require_transition_budget(
+            project.runner.task_execution_timeout,
+            project.runner.gpu_assignment_timeout,
+            started.elapsed(),
+        )?;
         let output = run_bounded_with_powershell(
             &operation_script,
             project.runner.gpu_assignment_timeout,
@@ -827,6 +883,41 @@ fn run_bounded_with_powershell(
     timeout: Duration,
     powershell_path: &Path,
 ) -> Result<String, String> {
+    run_supervised(script, timeout, timeout, powershell_path, "fixed adapter")
+}
+
+// Reserve time for result publication before Task Scheduler's outer limit.
+fn adapter_budget(
+    task_limit: Duration,
+    following_operation: Duration,
+    elapsed: Duration,
+) -> Duration {
+    task_limit.saturating_sub(elapsed + following_operation + Duration::from_secs(30))
+}
+
+fn require_transition_budget(
+    task_limit: Duration,
+    transition: Duration,
+    elapsed: Duration,
+) -> Result<(), std::io::Error> {
+    if adapter_budget(task_limit, Duration::ZERO, elapsed) < transition {
+        return Err(std::io::Error::other(
+            "insufficient runner budget to begin native transition",
+        ));
+    }
+    Ok(())
+}
+
+fn run_supervised(
+    script: &str,
+    idle_limit: Duration,
+    total_limit: Duration,
+    powershell_path: &Path,
+    phase: &str,
+) -> Result<String, String> {
+    if total_limit.is_zero() || idle_limit.is_zero() {
+        return Err(format!("{phase}: no execution budget available"));
+    }
     let mut child = Command::new(powershell_path)
         .args([
             "-NoLogo",
@@ -848,32 +939,37 @@ fn run_bounded_with_powershell(
     let stderr_overflow = Arc::clone(&overflow);
     let stdout_reader = thread::spawn(move || read_bounded(stdout, &stdout_overflow));
     let stderr_reader = thread::spawn(move || read_bounded(stderr, &stderr_overflow));
-    let deadline = Instant::now() + timeout;
-    let status = loop {
+    let started = Instant::now();
+    let mut watchdog = supervision::Watchdog::new(idle_limit, total_limit);
+    let outcome = loop {
         if overflow.load(Ordering::Acquire) {
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = stdout_reader.join();
-            let _ = stderr_reader.join();
-            return Err("fixed adapter output exceeded limit".into());
+            break Err("fixed adapter output exceeded limit".to_owned());
         }
         match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(50)),
+            Ok(Some(status)) => break Ok(status),
             Ok(None) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err("fixed Hyper-V adapter timed out".into());
+                let progress = supervision::read_bytes(&child)
+                    .and_then(|bytes| watchdog.observe(started.elapsed(), bytes));
+                if let Err(error) = progress {
+                    break Err(format!("{phase}: {error}"));
+                }
+                thread::sleep(Duration::from_millis(50));
             }
-            Err(error) => return Err(format!("cannot wait for fixed adapter: {error}")),
+            Err(error) => break Err(format!("cannot wait for fixed adapter: {error}")),
         }
     };
-    let stdout = stdout_reader
-        .join()
+    if outcome.is_err() {
+        // Always reap the adapter and drain both bounded readers on failure.
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let stdout = stdout_reader.join();
+    let stderr = stderr_reader.join();
+    let status = outcome?;
+    let stdout = stdout
         .map_err(|_| "stdout reader failed")?
         .map_err(|error| error.to_string())?;
-    let stderr = stderr_reader
-        .join()
+    let stderr = stderr
         .map_err(|_| "stderr reader failed")?
         .map_err(|error| error.to_string())?;
     if !status.success() {
@@ -1398,7 +1494,7 @@ mod tests {
 
     #[test]
     fn malformed_pipe_request_returns_bounded_failure() {
-        let response = handle_request(b"not-a-request");
+        let response = handle_request(b"not-a-request", Instant::now());
         assert_eq!(response.status, "failed");
         assert_eq!(response.diagnostic, "invalid-request");
         assert!(response.operation_id.is_none());
@@ -1407,9 +1503,10 @@ mod tests {
     #[test]
     fn fixed_adapter_timeout_and_output_limit_cancel_process() {
         let started = Instant::now();
-        assert_eq!(
-            run_bounded("Start-Sleep -Seconds 5", Duration::from_millis(100)).unwrap_err(),
-            "fixed Hyper-V adapter timed out"
+        assert!(
+            run_bounded("Start-Sleep -Seconds 5", Duration::from_millis(100))
+                .unwrap_err()
+                .contains("overall execution budget exhausted")
         );
         assert!(started.elapsed() < Duration::from_secs(3));
 

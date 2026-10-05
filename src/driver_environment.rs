@@ -390,12 +390,48 @@ mod tests {
             r"System32\nv.dll.",
             r"System32\DriverStore\nv.dll",
             r"System32\DriverStore\FileRepository\nv.inf",
+            r"System32\CON.dll",
+            r"System32\COM1",
+            r"System32\LPT9.bin",
         ] {
             assert!(map_destination(path).is_err(), "{path}");
         }
         assert!(
             relative_windows_path(r"C:\Windows", Path::new(r"C:\WindowsOther\nv.dll")).is_err()
         );
+    }
+    #[test]
+    fn maps_every_measured_baseline_destination_without_a_payload_limit() {
+        let inventory = include_str!("../docs/evidence/GPU-PV-BASELINE-INVENTORY.tsv");
+        let header = inventory
+            .trim_start_matches('\u{feff}')
+            .lines()
+            .next()
+            .unwrap()
+            .split('\t')
+            .collect::<Vec<_>>();
+        let source_column = header.iter().position(|v| *v == "\"source\"").unwrap();
+        let destination_column = header
+            .iter()
+            .position(|v| *v == "\"easy_destination\"")
+            .unwrap();
+        let mut destinations = std::collections::BTreeSet::new();
+        for line in inventory.lines().skip(1) {
+            let columns = line
+                .split('\t')
+                .map(|v| v.trim_matches('"'))
+                .collect::<Vec<_>>();
+            let relative =
+                relative_windows_path(r"C:\Windows", Path::new(columns[source_column])).unwrap();
+            let expected =
+                relative_windows_path(r"C:\Windows", Path::new(columns[destination_column]))
+                    .unwrap();
+            let mapped = map_destination(&relative).unwrap();
+            assert!(mapped.eq_ignore_ascii_case(&expected), "{relative}");
+            assert!(destinations.insert(mapped.to_ascii_lowercase()));
+        }
+        // The baseline is a fixture; product discovery and writing have no 271-file cap.
+        assert_eq!(destinations.len(), 271);
     }
     #[test]
     fn physical_interface_mapping_is_explicit_and_destination_collision_fails() {

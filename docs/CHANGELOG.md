@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+## 2026-10-06 - Runner activity supervision
+
+- CORE-022 live fresh apply and verified no-op reapply passed on a clean child: complete 271-file environment through PowerShell Direct. Settings and workload integration remain separate tasks.
+
+- Inspection/reset now use Rust read-activity supervision instead of a single elapsed-time cutoff, with a finite task budget and reserved transition/publication time. Client waits cover that outer budget.
+- Failure cleanup reaps the adapter and drains bounded output; watchdog diagnostics include phase and read activity. Independent hash/readback and reconciliation requirements remain authoritative.
+- Interactive staging asks for guest credentials before the lengthy native driver scan, so the local test window displays its prompt immediately.
+
+## 2026-10-05 - Complete Rust driver environment writer
+
+- `hyper-gpu-stage` now discovers and stages the complete native manifest instead of the older package/CUDA-alias subset. Fresh staging requires an unattached guest; reapply verifies the full manifest receipt and every guest length/hash.
+- Reused protected target, signature, servicing, credential and session boundaries; partial or interrupted writes retain the recovery lock. Added focused source/receipt and real local-copy tests, plus mapping coverage for the 271-file baseline.
+- Independent review found and closed a volume-root preflight defect. Live apply/reapply was subsequently qualified on 2026-10-06; settings and workload integration remain separate tasks.
+
 ## 2026-10-05 â€” Engineering delivery plan
 
 - Rebuilt M1â€“M3 around Rust reproduction, usable operation/maintenance and packaged delivery. Added CORE-022 full writer and CORE-023 settings; moved automated probes into M1. Retained GPU-006 as clean-child integration acceptance.

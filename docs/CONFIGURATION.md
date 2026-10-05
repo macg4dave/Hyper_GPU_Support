@@ -38,8 +38,10 @@ driver/INF/catalog/signature identity, package file/byte extent, tree digest and
 encoded package-manifest digest. Native discovery additionally produces the
 complete environment manifest, including external Windows destinations. The current
 package digest/count must not be described as the full environment identity.
-[CORE-022](BACKLOG.md#core-022) integrates that complete manifest into bounded
-guest writing, receipts and apply verification.
+The complete writer derives its separate receipt digest from fresh native discovery
+and the full encoded environment. [CORE-022](BACKLOG.md#core-022) implements bounded
+guest writing, receipts and apply verification, qualified by live fresh apply and
+matching reapply on a clean child. The package pins continue to guard the selected service package.
 
 Current `[resources]` fields accept `provider-default` or exact
 `minimum,maximum,optimal` triples in opaque provider units. The checked-in
@@ -55,6 +57,17 @@ mutable environment values are changed in TOML, not copied into future code/prom
 enumeration separately from short product inventory and guest transfers. COM
 connection and individual object resolution remain synchronous and are not
 cancelled by that enumeration deadline.
+
+Runner inspection and reset limits are inactivity watchdogs: native process read
+byte activity restarts the idle clock, allowing parent verification to finish
+under slow storage. This is activity evidence, not an integrity or success claim;
+the hash and native readback still decide success. Each adapter also has a finite
+budget derived from `runner.task_execution_timeout_seconds`, reserving 30 seconds
+for result publication and the configured transition limit when one follows.
+Start, shutdown and GPU changes retain their fixed transition limits. The client
+waits for the outer task budget plus transport allowance. Failures report adapter
+phase, elapsed time, last read activity and bytes; uncertain effects retain the
+reconciliation marker.
 
 ## Integrity, build drift and servicing
 

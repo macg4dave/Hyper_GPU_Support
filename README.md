@@ -5,8 +5,9 @@ RTX 5060 8 GB. Normal Hyper-V GPU-PV has passed sustained Code 0, `nvidia-smi`,
 checked D3D11/D3D12 rendering and CUDA computation. Native Rust discovery matches
 the complete 271-file driver/runtime inventory for the measured baseline.
 
-The product is still in development: full Rust guest writing, validated VM/resource
-settings and automated clean-child reproduction remain incomplete. The
+The complete Rust guest writer passed live full-manifest apply and verified reapply
+on a clean child. Validated VM/resource settings, automated workloads and combined
+clean-child reproduction remain implementation work. The
 [architecture](docs/ARCHITECTURE.md) defines our recipe; the
 [baseline](docs/evidence/GPU-PV-BASELINE.md) records measured results. Start work at
 [AGENTS.md](AGENTS.md) and the relevant [backlog card](docs/BACKLOG.md).
@@ -48,27 +49,31 @@ These are implemented development entry points, not a completed v1 workflow:
 | Entry point | Current capability |
 |---|---|
 | `hyper-gpu-driver-environment` | Native read-only complete source/destination/length/hash manifest discovery |
-| `hyper-gpu-stage` | Inspect or apply the older 217-file package/CUDA-alias subset |
+| `hyper-gpu-stage` | Discover, inspect and apply the complete driver/runtime manifest; verify every destination on reapply |
 | `hyper-gpu-client` | Enrolled fixed-runner inspection, guest lifecycle/reset and exact GPU attach/detach |
 | D3D11/D3D12/CUDA probe artifacts | Checked workloads; automated guest execution/reporting remains integration work |
 
 Read-only inspectors:
 
 ```powershell
-cargo run --locked --bin hyper-gpu-driver-environment
-cargo run --locked --bin hyper-gpu-stage
+cargo run --locked --release --bin hyper-gpu-driver-environment
+cargo run --locked --release --bin hyper-gpu-stage
 ```
 
 The full-environment inspector emits deterministic JSON and does not copy files.
-The current subset apply prompts for runtime credentials:
+The complete-manifest apply prompts for runtime credentials:
 
 ```powershell
-cargo run --locked --bin hyper-gpu-stage -- apply --interactive
+cargo run --locked --release --bin hyper-gpu-stage -- apply --interactive
 ```
 
-That apply requires Hyper-V access and uses the authorized elevated development
-path from the outset when required. It does not yet provision the full validated
-recipe. Interrupted or partial staging requires recreation of the disposable child.
+Inspection and apply require Hyper-V read access; apply additionally requires the
+authorized elevated development path from the outset. Fresh staging requires a
+running disposable guest with no GPU adapter attached. The writer uses discovered
+destinations and ordinary byte copies, verifies all guest lengths/hashes and records
+a full-manifest receipt. Matching reapply rehashes every destination. It does not
+apply the VM/resource settings or run GPU workloads. Interrupted or partial staging
+retains the staging lock and requires recreation of the disposable child.
 
 With the controlled runner installed and the configured VM off:
 

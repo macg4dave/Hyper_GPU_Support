@@ -274,15 +274,12 @@ fn parse_published_gpu(
 fn response_timeout(operation: Operation, runner: &RunnerConfiguration) -> Duration {
     let transport_allowance = Duration::from_secs(30);
     match operation {
-        Operation::Inspect => runner.inspect_timeout + transport_allowance,
-        Operation::ResetSlot => runner.reset_timeout + transport_allowance,
-        Operation::StartSlot => runner.inspect_timeout + runner.start_timeout + transport_allowance,
-        Operation::ShutdownSlot => {
-            runner.inspect_timeout + runner.shutdown_timeout + transport_allowance
-        }
-        Operation::AssignGpu | Operation::RemoveGpu => {
-            runner.inspect_timeout + runner.gpu_assignment_timeout + transport_allowance
-        }
+        Operation::Inspect
+        | Operation::ResetSlot
+        | Operation::StartSlot
+        | Operation::ShutdownSlot
+        | Operation::AssignGpu
+        | Operation::RemoveGpu => runner.task_execution_timeout + transport_allowance,
         _ => Duration::from_secs(15),
     }
 }
@@ -362,31 +359,31 @@ mod tests {
         let runner = &project.runner;
         assert_eq!(
             response_timeout(Operation::Inspect, runner),
-            runner.inspect_timeout + Duration::from_secs(30)
+            runner.task_execution_timeout + Duration::from_secs(30)
         );
         assert_eq!(
             response_timeout(Operation::StartSlot, runner),
-            runner.inspect_timeout + runner.start_timeout + Duration::from_secs(30)
+            runner.task_execution_timeout + Duration::from_secs(30)
         );
         assert_eq!(
             response_timeout(Operation::ShutdownSlot, runner),
-            runner.inspect_timeout + runner.shutdown_timeout + Duration::from_secs(30)
+            runner.task_execution_timeout + Duration::from_secs(30)
         );
         assert_eq!(
             response_timeout(Operation::AssignGpu, runner),
-            runner.inspect_timeout + runner.gpu_assignment_timeout + Duration::from_secs(30)
+            runner.task_execution_timeout + Duration::from_secs(30)
         );
         assert_eq!(
             response_timeout(Operation::RemoveGpu, runner),
-            runner.inspect_timeout + runner.gpu_assignment_timeout + Duration::from_secs(30)
+            runner.task_execution_timeout + Duration::from_secs(30)
         );
         let installer = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/scripts/setup/install-runner-v1.ps1"
         ));
         assert!(installer.contains("runner.task_execution_timeout_seconds"));
-        assert!(response_timeout(Operation::StartSlot, runner) < runner.task_execution_timeout);
-        assert!(response_timeout(Operation::ShutdownSlot, runner) < runner.task_execution_timeout);
+        assert!(response_timeout(Operation::StartSlot, runner) > runner.task_execution_timeout);
+        assert!(response_timeout(Operation::ShutdownSlot, runner) > runner.task_execution_timeout);
     }
 
     fn inspected(state: &str, gpu_adapters: u32) -> InspectResult {

@@ -12,11 +12,10 @@ passed sustained Code 0, `nvidia-smi`, checked D3D11/D3D12 hardware rendering an
 CUDA allocation, transfer and kernel computation. Native Rust discovery matches
 the complete 271-file driver/runtime manifest for that measured driver.
 
-The remaining reproduction work is the complete bounded guest writer, application
-of the validated VM/resource settings and composition with readiness/workload
-checks. Existing Rust staging covers the earlier 217-file package and CUDA alias;
-it does not apply the full environment manifest. Experimental success is
-established; product automation is incomplete.
+The complete bounded Rust guest writer passed live full-manifest apply and
+verified reapply on a clean child. Application of the validated VM/resource
+settings and composition with readiness/workload checks are still implementation
+work. Experimental success is established; product automation is incomplete.
 
 The v1 product is a Rust CLI and TOML configuration for one configured Windows 11
 VM and one RTX 5060. Windows owns virtualization, disk management and GPU-PV.
@@ -178,8 +177,15 @@ platform or transaction engine is required.
 | Fixed privileged protocol/native operations | `src/runner.rs`, `src/windows_runner.rs`, `src/bin/hyper-gpu-runner.rs`, `src/bin/hyper-gpu-client.rs` |
 | Hardware selection and checked workloads | `src/probe.rs`, `src/windows_probe.rs`, probe binaries |
 
-The current guest adapter authorizes its package/CUDA-alias subset. Extending it
-to the full environment is [CORE-022](BACKLOG.md#core-022); validated settings are
+`src/environment_staging.rs` binds all source mappings and receipt evidence;
+`src/windows_environment_staging.rs` independently repeats native discovery before
+authorizing the complete guest write. `hyper-gpu-stage` uses this full writer.
+It shares the existing target/signature/servicing/session/ACL preflight, uses the
+same exclusive staging marker and retains it after uncertain effects. Each copy
+is verified before publication and all final destinations are rehashed before
+publishing the separate full-environment receipt. Fresh staging requires no attached
+GPU; matching reapply verifies the saved identities and every managed file.
+Live staging qualification passed in [CORE-022](BACKLOG.md#core-022); validated settings are
 [CORE-023](BACKLOG.md#core-023), and probe integration is
 [CORE-003](BACKLOG.md#core-003). [GPU-006](BACKLOG.md#gpu-006) composes these into
 clean-child Rust reproduction.
@@ -204,6 +210,11 @@ adapter where the runner does not yet expose that operation. Protected executabl
 policy pin the slot, VM GUID, GPU, paths, operations and audit output. Mutual pipe
 authentication verifies runner owner/client SID before dispatch. Fixed Windows
 cmdlet transports are supervised and bounded; callers cannot supply scripts.
+Inspection/reset supervision observes native process read-byte activity, with an
+inactivity watchdog inside a shared finite runner budget. Startup/request time
+and transition/publication reserves count against that budget; the client waits
+for the outer limit. Activity never substitutes for the parent hash or native
+readback. A failed or uncertain mutation retains reconciliation state.
 Guest credentials exist only at runtime, never in TOML, command lines or reports.
 
 Approved disposable-guest and non-rebooting runner work is normal testing. Physical

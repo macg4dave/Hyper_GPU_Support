@@ -7,9 +7,10 @@ Code 0, nvidia-smi, checked D3D11/D3D12 and CUDA computation. Native Rust discov
 matches the complete measured inventory. The product work remaining is integration,
 usable operation and release; no feasibility or external-reference task remains.
 
-Next three development tasks: **CORE-022 full manifest writer**, **CORE-023 validated
-Hyper-V settings**, and **CORE-003 automated readiness/workloads**. They can be developed
-independently. GPU-006 then exercises their combined Rust workflow on a clean child.
+CORE-022 complete-manifest staging and verified reapply passed on a clean child.
+Next work is **CORE-023 validated Hyper-V settings** and **CORE-003 automated
+readiness/workloads**, which can be developed independently. GPU-006 then exercises
+their combined Rust workflow on a clean child.
 The public CLI/config cleanup and reusable lifecycle/diagnostics work are also actionable.
 Current starting evidence: [project baseline](evidence/GPU-PV-BASELINE.md).
 Do not assume the preserved experimental guest is a production Rust reproduction.
@@ -23,7 +24,7 @@ M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the 
 
 | ID | Milestone/class | Priority | Status | Depends on |
 |---|---|---|---|---|
-| [CORE-022](#core-022) | M1 | P0 | in progress | CORE-009 |
+| [CORE-022](#core-022) | M1 | P0 | completed | CORE-009 |
 | [CORE-023](#core-023) | M1 | P0 | ready | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | ready | CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | CORE-022, CORE-023, CORE-003 |
@@ -136,8 +137,11 @@ development blocker.
 - Read: src/driver_environment.rs, src/staging.rs, src/guest.rs, src/windows_guest.rs and [validated placement](ARCHITECTURE.md#driverruntime-manifest-and-guest-placement).
 - Acceptance: consume the complete typed manifest; preserve ordinary byte copies, discovered destination mapping and deterministic hashes. Validate roots, source identity, collisions and unsafe/reparse paths before effects. Verify every written length/hash and matching reapply; report partial or uncertain staging as requiring child recreation. Test meaningful new mapping/write/no-op/interruption behavior; compare output with the measured [inventory](evidence/GPU-PV-BASELINE-INVENTORY.tsv). The current 271 count is a fixture, never a future discovery limit.
 - Reuse existing credential, receipt and target guards. Review the changed privileged writer boundary before deploying it. No new arbitrary guest-command transport.
-- Owner: Codex, 2026-10-05. Implementing the complete native-manifest writer and focused integrity/recovery checks.
-- Result: pending; full native discovery already exists, the current writer remains incomplete.
+- Owner: Codex; completed 2026-10-06.
+- Result: complete Rust writer and CLI integration; native source/destination/digest authorization, protected ordinary copies, full receipt, verified no-op and retained-lock interruption recovery. Focused tests cover all 271 baseline mappings, real local publication, tampering and interrupted-copy refusal. Independent review closed the volume-root defect and has no remaining blockers.
+- Live release-build Windows x64 qualification passed through PowerShell Direct on the recreated clean child: `applied`, then `already-applied`; both verified 271 files / 3,407,066,692 bytes and digest `6408de79388db75085c75c79fee9fdc376617349c11f89630615da2738f4d7f8`. Host build 26300.9457, guest build 26200.9457, RTX 5060 / driver 32.0.16.1692 (616.92). This qualifies file staging/reapply; VM settings and GPU workloads remain separate tasks. Local results: `local/evidence/core022-live.log` and `core022-live.status.json`.
+- Preparation passed fixed-runner remove/reset/start after reconciling Hyper-V's session-lock shutdown refusal through exact-target forced shutdown and Off readback. Replaced inspection/reset's elapsed cutoff with read-activity supervision inside a shared finite task budget; updated release pins and installed the reviewed runner. A before-write servicing refusal was resolved by reviewing/configuring the exact absent Opera updater delete-only entry; unknown cleanup and replacement records remain refused.
+- Validation: full Rust quality gate (143 tests, strict Clippy, formatting, build, rustdoc and configuration/policy drift), documentation checks, focused servicing/budget regressions and independent privileged-boundary review passed. Interactive credentials now precede driver discovery; use release builds for full-manifest hashing.
 
 ## CORE-023
 

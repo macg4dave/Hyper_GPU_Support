@@ -151,8 +151,8 @@ static SCRIPT: LazyLock<String> = LazyLock::new(|| expand_staging_script(SCRIPT_
 const SCRIPT_TEMPLATE: &str = r#"
 __STAGING_PRELUDE__
 function Invoke-Environment($Session, $Request, [string]$Mode) {
-    Invoke-Command -Session $Session -ArgumentList @($Request.manifest.files, $Request.staging_root, $Request.manifest_sha256, $Request.byte_count, $Mode) -ScriptBlock {
-        param($Files, $StagingRoot, $Digest, [uint64]$ExpectedBytes, $Mode)
+    Invoke-Command -Session $Session -ArgumentList @($Request.manifest.files, $Request.staging_root, $Request.manifest_sha256, $Request.byte_count, $Mode, $Request.vm_id, $Request.computer_name, $Request.machine_guid) -ScriptBlock {
+        param($Files, $StagingRoot, $Digest, [uint64]$ExpectedBytes, $Mode, $VmId, $ComputerName, $MachineGuid)
         $ErrorActionPreference = 'Stop'
         function Target([string]$Relative) {
             $root = [IO.Path]::GetFullPath($env:SystemRoot).TrimEnd('\')
@@ -189,6 +189,8 @@ function Invoke-Environment($Session, $Request, [string]$Mode) {
                 Assert-ProtectedTree (Split-Path -Parent $receiptPath)
                 $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
                 if ([int]$receipt.schema -ne 1 -or [string]$receipt.manifest_sha256 -cne $Digest -or
+                    [string]$receipt.vm_id -cne $VmId -or [string]$receipt.computer_name -ine $ComputerName -or
+                    [string]$receipt.machine_guid -cne $MachineGuid -or [string]$receipt.windows_root -ine $env:SystemRoot -or
                     [int]$receipt.files -ne $Files.Count -or [uint64]$receipt.bytes -ne $ExpectedBytes) { throw 'uncertain state' }
             }
             foreach ($entry in $Files) {
@@ -282,7 +284,7 @@ __STAGING_PREFLIGHT__
                     $target = $Partial.Substring(0, $Partial.Length - '.hyper-gpu-partial'.Length)
                     if (Test-Path -LiteralPath $target) {
                         Assert-ProtectedFile $target
-                        [IO.File]::Replace($Partial, $target, $null)
+                        [IO.File]::Replace($Partial, $target, [NullString]::Value)
                     } else { [IO.File]::Move($Partial, $target) }
                 }
             }
@@ -366,7 +368,7 @@ mod tests {
             let parent = root.join("parent");
             fs::write(&parent, b"parent").unwrap();
             let request = serde_json::json!({"guest_root": root.join("guest"), "staging_root":root.join("staging"),
-                "vm_id":"vm", "vm_name":"vm", "child_path":root.join("child"), "parent_path":parent,
+                "vm_id":"11111111-1111-1111-1111-111111111111", "vm_name":"vm", "child_path":root.join("child"), "parent_path":parent,
                 "parent_sha256":crate::probe::sha256_hex(b"parent"), "windows_root":root.join("host"),
                 "computer_name":"guest", "machine_guid":"guid", "host_build":"1.0",
                 "manifest_sha256":"a".repeat(64), "byte_count":22,
@@ -379,7 +381,8 @@ mod tests {
             // receipts and retained locks. Existing tests cover the real ACL policy.
             let script = SCRIPT_TEMPLATE
                 .replace("__STAGING_PRELUDE__", FIXTURE_PRELUDE)
-                .replace("__STAGING_PREFLIGHT__", FIXTURE_PREFLIGHT);
+                .replace("__STAGING_PREFLIGHT__", FIXTURE_PREFLIGHT)
+                .replace("$env:SystemRoot", "$script:guestRoot");
             let output = run_script(
                 &windows_powershell_executable().unwrap(),
                 &script,
@@ -457,6 +460,34 @@ mod tests {
         );
     }
     #[test]
+    fn saved_receipt_identity_drift_requires_recreation() {
+        let f = Fixture::new();
+        f.run().unwrap();
+        let path = f.root.join("staging/applied-environment-v1.json");
+        let mut receipt: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        receipt["machine_guid"] = "other-guest".into();
+        fs::write(path, serde_json::to_vec(&receipt).unwrap()).unwrap();
+        assert_eq!(f.run(), Err(StagingError::GuestStateUncertain));
+        assert!(!f.root.join("staging/stage-runtime-v1.lock").exists());
+    }
+    #[test]
+    fn fresh_staging_rejects_an_attached_guest_before_writes() {
+        let mut f = Fixture::new();
+        f.request["attached"] = true.into();
+        assert_eq!(
+            f.run(),
+            Err(StagingError::GuestPreflightFailed {
+                phase: "guest-paths".into()
+            })
+        );
+        assert!(!f.root.join("staging").exists());
+        assert_eq!(
+            fs::read(f.root.join("guest/System32/nv.dll")).unwrap(),
+            b"old runtime"
+        );
+    }
+    #[test]
     fn full_receipt_parser_rejects_malformed_or_missing_evidence() {
         for output in [
             "not json",
@@ -481,7 +512,7 @@ function Invoke-Command { param($Session,$ArgumentList,$ScriptBlock) & $ScriptBl
 function Remove-PSSession { param($Session,$ErrorAction) }
 function Assert-ProtectedTree { param($Path,$Anchor)
     $current=$Path
-    while($current){$item=Get-Item -LiteralPath $current -Force;if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint)-ne 0 -or -not $item.PSIsContainer){throw 'unsafe path'};if($current -ieq $request.guest_root -or $current -ieq $request.staging_root){break};$current=Split-Path -Parent $current;if($current -ieq (Split-Path -Parent $request.guest_root)){break}}
+    while($current){$item=Get-Item -LiteralPath $current -Force;if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint)-ne 0 -or -not $item.PSIsContainer){throw 'unsafe path'};if($current -ieq $request.guest_root -or $current -ieq $request.staging_root -or $current -ieq (Split-Path -Parent $request.guest_root)){break};$current=Split-Path -Parent $current}
 }
 function Assert-ProtectedFile { param($Path)
     $item=Get-Item -LiteralPath $Path -Force
@@ -498,10 +529,11 @@ $script:copies=0
 "#;
     const FIXTURE_PREFLIGHT: &str = r#"
 $request=[Console]::In.ReadToEnd()|ConvertFrom-Json
-$env:SystemRoot=[string]$request.guest_root
+$script:guestRoot=[string]$request.guest_root
 $trustedModuleRoot='C:\trusted'
-$script:gpuCommand={@()}
-Add-Member -InputObject $script:gpuCommand -MemberType NoteProperty -Name Module -Value ([pscustomobject]@{Path='C:\trusted\Hyper-V'})
+function Fixed-Gpu { param($VM,$ErrorAction) if($request.attached){[pscustomobject]@{InstancePath='fixture-gpu'}}else{@()} }
+$script:gpuCommand=Microsoft.PowerShell.Core\Get-Command -Name Fixed-Gpu
+Add-Member -InputObject $script:gpuCommand -MemberType NoteProperty -Name Module -Value ([pscustomobject]@{Path='C:\trusted\Hyper-V'}) -Force
 function Get-Command { param($Name,$Module,$CommandType,$ErrorAction) return $script:gpuCommand }
 $getVmCommand={param($Id) [pscustomobject]@{Name=$request.vm_name;State='Running';Generation=2}}
 $getVmHardDiskDriveCommand={param($VM) [pscustomobject]@{Path=$request.child_path}}

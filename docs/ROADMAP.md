@@ -50,8 +50,9 @@ Read a specific foundation result only when the selected implementation needs it
 
 ## M1 â€” Rust reproduces the baseline
 
-Three independent implementation tasks:
-- CORE-022: extend the bounded guest writer to the complete native manifest.
+Independent implementation tasks:
+
+- CORE-022 completed: complete native-manifest staging and verified reapply passed on a clean child.
 - CORE-023: apply/read back the validated VM settings and explicit GPU resources.
 - CORE-003: automate readiness, nvidia-smi and existing checked essential probes.
 
