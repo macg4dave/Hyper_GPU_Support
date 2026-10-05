@@ -14,6 +14,10 @@ pub mod staging;
 
 #[cfg(windows)]
 pub mod driver_environment;
+#[cfg(windows)]
+pub mod environment_staging;
+#[cfg(windows)]
+pub mod windows_environment_staging;
 
 #[cfg(windows)]
 pub mod windows_account_rights;

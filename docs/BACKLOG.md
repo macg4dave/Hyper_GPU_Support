@@ -23,7 +23,7 @@ M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the 
 
 | ID | Milestone/class | Priority | Status | Depends on |
 |---|---|---|---|---|
-| [CORE-022](#core-022) | M1 | P0 | ready | CORE-009 |
+| [CORE-022](#core-022) | M1 | P0 | in progress | CORE-009 |
 | [CORE-023](#core-023) | M1 | P0 | ready | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | ready | CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | CORE-022, CORE-023, CORE-003 |
@@ -136,6 +136,7 @@ development blocker.
 - Read: src/driver_environment.rs, src/staging.rs, src/guest.rs, src/windows_guest.rs and [validated placement](ARCHITECTURE.md#driverruntime-manifest-and-guest-placement).
 - Acceptance: consume the complete typed manifest; preserve ordinary byte copies, discovered destination mapping and deterministic hashes. Validate roots, source identity, collisions and unsafe/reparse paths before effects. Verify every written length/hash and matching reapply; report partial or uncertain staging as requiring child recreation. Test meaningful new mapping/write/no-op/interruption behavior; compare output with the measured [inventory](evidence/GPU-PV-BASELINE-INVENTORY.tsv). The current 271 count is a fixture, never a future discovery limit.
 - Reuse existing credential, receipt and target guards. Review the changed privileged writer boundary before deploying it. No new arbitrary guest-command transport.
+- Owner: Codex, 2026-10-05. Implementing the complete native-manifest writer and focused integrity/recovery checks.
 - Result: pending; full native discovery already exists, the current writer remains incomplete.
 
 ## CORE-023

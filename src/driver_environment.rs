@@ -39,7 +39,7 @@ pub struct DriverDiscovery {
 }
 
 /// Full package trees plus every associated external destination.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DriverEnvironmentManifest {
     /// Version of this independent full-environment manifest contract.
     pub schema: u32,
@@ -60,7 +60,7 @@ pub struct DriverEnvironmentManifest {
 }
 
 /// One ordinary byte-preserving copy; there is no hard-link/rename instruction.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct EnvironmentFile {
     /// Native discovered host source path.
     pub source: PathBuf,
@@ -237,7 +237,10 @@ fn insert_copy(
     Ok(())
 }
 
-fn relative_windows_path(windows_root: &str, source: &Path) -> Result<String, StagingError> {
+pub(crate) fn relative_windows_path(
+    windows_root: &str,
+    source: &Path,
+) -> Result<String, StagingError> {
     let source = source.to_str().ok_or(StagingError::UnsafeSource)?;
     let prefix = format!("{windows_root}\\");
     if !source
@@ -251,13 +254,14 @@ fn relative_windows_path(windows_root: &str, source: &Path) -> Result<String, St
     Ok(relative.to_owned())
 }
 
-fn validate_relative(relative: &str) -> Result<(), StagingError> {
+pub(crate) fn validate_relative(relative: &str) -> Result<(), StagingError> {
     if relative.is_empty()
         || relative.split('\\').any(|segment| {
             segment.is_empty()
                 || segment == "."
                 || segment == ".."
                 || segment.ends_with(['.', ' '])
+                || reserved_component(segment)
                 || segment
                     .chars()
                     .any(|character| character.is_control() || ":/\"<>|?*".contains(character))
@@ -266,6 +270,20 @@ fn validate_relative(relative: &str) -> Result<(), StagingError> {
         return Err(StagingError::UnsafeSource);
     }
     Ok(())
+}
+
+fn reserved_component(segment: &str) -> bool {
+    let stem = segment
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || (stem.len() == 4
+        && (stem.starts_with("COM") || stem.starts_with("LPT"))
+        && matches!(stem.as_bytes()[3], b'1'..=b'9'))
 }
 
 fn package_relative_root(relative: &str) -> Result<Option<String>, StagingError> {
@@ -283,7 +301,7 @@ fn package_relative_root(relative: &str) -> Result<Option<String>, StagingError>
     Ok(None)
 }
 
-fn map_destination(relative: &str) -> Result<String, StagingError> {
+pub(crate) fn map_destination(relative: &str) -> Result<String, StagingError> {
     if package_relative_root(relative)?.is_some() {
         let mut parts = relative.split('\\').collect::<Vec<_>>();
         parts[1] = "HostDriverStore";
@@ -293,7 +311,7 @@ fn map_destination(relative: &str) -> Result<String, StagingError> {
     }
 }
 
-fn validate_source_ancestors(root: &Path, source: &Path) -> Result<(), StagingError> {
+pub(crate) fn validate_source_ancestors(root: &Path, source: &Path) -> Result<(), StagingError> {
     use std::os::windows::fs::MetadataExt;
     let mut current = source;
     loop {

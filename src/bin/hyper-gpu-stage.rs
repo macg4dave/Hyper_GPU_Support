@@ -1,15 +1,19 @@
-//! CORE-009 manifest inspection and bounded disposable-guest staging harness.
+//! Complete native driver environment inspection and bounded guest staging harness.
 
 use std::io::{self, Write};
 use std::process::ExitCode;
 
 use hyper_gpu_support::config::ProjectConfiguration;
-use hyper_gpu_support::staging::{StageStatus, inspect_driver_package, stage_driver_package};
+use hyper_gpu_support::{
+    driver_environment::{DriverEnvironmentManifest, inspect_driver_environment},
+    environment_staging::stage_driver_environment,
+    windows_driver_environment::discover_driver_environment,
+    windows_environment_staging::WindowsEnvironmentStager,
+    windows_paths::windows_directory,
+};
 
 #[cfg(windows)]
 use hyper_gpu_support::guest::GuestCredential;
-#[cfg(windows)]
-use hyper_gpu_support::windows_guest::WindowsGuestTransfer;
 
 fn main() -> ExitCode {
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
@@ -43,22 +47,30 @@ fn valid_arguments(arguments: &[String]) -> bool {
 
 fn inspect() -> Result<(), Box<dyn std::error::Error>> {
     let project = ProjectConfiguration::embedded()?;
-    let manifest = inspect_driver_package(&project.driver_manifest)?;
+    let manifest = discover_manifest(&project)?;
     let manifest_sha256 = manifest.sha256()?;
-    verify_manifest_sha256(&project.driver_manifest.sha256, &manifest_sha256)?;
     println!("status=validated");
-    println!("manifest_id={}", manifest.id);
     println!("manifest_sha256={manifest_sha256}");
-    println!("package_directory={}", manifest.package_directory);
-    println!("package_tree_sha256={}", manifest.package_tree_sha256);
+    println!("device_id={}", manifest.device_id);
+    println!("driver_version={}", manifest.driver_version);
     println!("files={}", manifest.files.len());
-    println!("bytes={}", manifest.byte_count);
     Ok(())
+}
+
+fn discover_manifest(
+    project: &ProjectConfiguration,
+) -> Result<DriverEnvironmentManifest, Box<dyn std::error::Error>> {
+    Ok(inspect_driver_environment(
+        project,
+        &windows_directory()?,
+        discover_driver_environment(project)?,
+    )?)
 }
 
 #[cfg(windows)]
 fn apply(username: &str) -> Result<(), Box<dyn std::error::Error>> {
     let project = ProjectConfiguration::embedded()?;
+    let manifest = discover_manifest(&project)?;
     let username = if username == "--interactive" {
         prompt_username()?
     } else {
@@ -71,48 +83,47 @@ fn apply(username: &str) -> Result<(), Box<dyn std::error::Error>> {
             .build(),
     )?;
     let credential = GuestCredential::new(username, password)?;
-    let adapter = WindowsGuestTransfer::new(project.slot.clone(), project.guest.clone());
-    let receipt = stage_driver_package(
-        &project.driver_manifest,
-        &project.guest,
-        &project.slot.vm_id,
+    let adapter = WindowsEnvironmentStager::new(project.clone());
+    let result = stage_driver_environment(
+        &project,
+        &windows_directory()?,
+        &manifest,
         &credential,
         &adapter,
     )?;
+    let receipt = result.receipt;
     println!(
         "status={}",
-        match receipt.status {
-            StageStatus::Applied => "applied",
-            StageStatus::AlreadyApplied => "already-applied",
+        if result.already_applied {
+            "already-applied"
+        } else {
+            "applied"
         }
     );
     println!("vm_id={}", receipt.vm_id);
     println!("computer_name={}", receipt.computer_name);
     println!("machine_guid={}", receipt.machine_guid);
-    println!("manifest_id={}", receipt.manifest_id);
     println!("manifest_sha256={}", receipt.manifest_sha256);
     println!("qualified_host_build={}", receipt.qualified_host_build);
     println!("measured_host_build={}", receipt.measured_host_build);
     println!("measured_guest_build={}", receipt.measured_guest_build);
-    if receipt.has_host_qualification_drift() {
+    if receipt.measured_host_build != receipt.qualified_host_build {
         println!("warning=host-build-outside-qualified-baseline");
     }
-    if receipt.has_host_guest_build_drift() {
+    if receipt.measured_host_build != receipt.measured_guest_build {
         println!("warning=host-guest-build-drift");
     }
-    println!("pending_delete_count={}", receipt.pending_delete_count);
+    println!(
+        "pending_delete_count={}",
+        receipt.pending_delete_sources.len()
+    );
     for source in &receipt.pending_delete_sources {
         println!("pending_delete_source={source}");
     }
-    if receipt.has_pending_delete_cleanup() {
+    if !receipt.pending_delete_sources.is_empty() {
         println!("warning=host-pending-delete-cleanup");
     }
-    println!(
-        "package_destination={}",
-        receipt.package_destination.display()
-    );
-    println!("cuda_alias={}", receipt.cuda_alias.display());
-    println!("alias_method={}", receipt.alias_method);
+    println!("windows_root={}", receipt.windows_root);
     println!("files={}", receipt.files);
     println!("bytes={}", receipt.bytes);
     Ok(())
@@ -134,26 +145,4 @@ fn prompt_username() -> io::Result<String> {
 
 fn usage() -> &'static str {
     "usage: hyper-gpu-stage [inspect]\n       hyper-gpu-stage apply USER\n       hyper-gpu-stage apply --interactive"
-}
-
-fn verify_manifest_sha256(configured: &str, measured: &str) -> Result<(), &'static str> {
-    if configured == measured {
-        Ok(())
-    } else {
-        Err("encoded manifest hash does not match project configuration")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::verify_manifest_sha256;
-
-    #[test]
-    fn manifest_hash_mismatch_cannot_reach_success_output() {
-        assert!(verify_manifest_sha256("expected", "expected").is_ok());
-        assert_eq!(
-            verify_manifest_sha256("configured", "measured"),
-            Err("encoded manifest hash does not match project configuration")
-        );
-    }
 }

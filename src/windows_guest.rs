@@ -19,7 +19,7 @@ use crate::staging::{
 
 const OUTPUT_LIMIT: usize = 64 * 1024;
 const REQUEST_LIMIT: usize = 16 * 1024;
-const STAGING_REQUEST_LIMIT: usize = 256 * 1024;
+pub(crate) const STAGING_REQUEST_LIMIT: usize = 256 * 1024;
 /// Fixed PowerShell Direct transport bound to validated project configuration.
 #[derive(Debug, Clone)]
 pub struct WindowsGuestTransfer {
@@ -242,7 +242,7 @@ fn run_phase(
     run_script(powershell_path, SCRIPT.as_str(), payload, timeout)
 }
 
-fn run_script(
+pub(crate) fn run_script(
     powershell_path: &Path,
     script: &str,
     payload: Zeroizing<Vec<u8>>,
@@ -429,7 +429,7 @@ fn category(value: &str) -> GuestError {
     }
 }
 
-fn map_staging_error(error: GuestError) -> StagingError {
+pub(crate) fn map_staging_error(error: GuestError) -> StagingError {
     match error {
         GuestError::Interrupted | GuestError::AdapterFailed => StagingError::GuestStateUncertain,
         GuestError::CredentialDenied | GuestError::IntegrationUnavailable => {
@@ -440,7 +440,7 @@ fn map_staging_error(error: GuestError) -> StagingError {
     }
 }
 
-fn parse_stage_receipt(output: &str) -> Result<StageReceipt, StagingError> {
+pub(crate) fn parse_stage_receipt(output: &str) -> Result<StageReceipt, StagingError> {
     let response: WireResponse =
         serde_json::from_str(output.trim()).map_err(|_| StagingError::GuestStateUncertain)?;
     if response.status != "ok" {
@@ -631,14 +631,19 @@ static SCRIPT: LazyLock<String> = LazyLock::new(|| {
         .replace("__ACL_VALIDATOR__", ACL_VALIDATOR)
 });
 
-static STAGING_SCRIPT: LazyLock<String> = LazyLock::new(|| {
+static STAGING_SCRIPT: LazyLock<String> =
+    LazyLock::new(|| expand_staging_script(STAGING_SCRIPT_TEMPLATE));
+
+pub(crate) fn expand_staging_script(template: &str) -> String {
     let staging_acl = ACL_VALIDATOR.replace("function Assert-", "function global:Assert-");
-    STAGING_SCRIPT_TEMPLATE
+    template
+        .replace("__STAGING_PRELUDE__", STAGING_PRELUDE)
+        .replace("__STAGING_PREFLIGHT__", STAGING_PREFLIGHT)
         .replace("__HYPERV_BOOTSTRAP__", HYPERV_BOOTSTRAP)
         .replace("__STAGING_ACL_VALIDATOR__", &staging_acl)
         .replace("__PENDING_RENAME_VALIDATOR__", PENDING_RENAME_VALIDATOR)
         .replace("__ACL_VALIDATOR__", "")
-});
+}
 
 const PENDING_RENAME_VALIDATOR: &str = r#"
 function Get-ReviewedPendingDeletes($Entries, $Allowed) {
@@ -801,66 +806,7 @@ try {
 "#;
 
 const STAGING_SCRIPT_TEMPLATE: &str = r#"
-$utf8 = [Text.UTF8Encoding]::new($false)
-[Console]::InputEncoding = $utf8
-[Console]::OutputEncoding = $utf8
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-function Emit([string]$Status, [string]$Category, $Data = @{}) {
-    $result = [ordered]@{ status = $Status; category = $Category }
-    foreach ($entry in $Data.GetEnumerator()) { $result[$entry.Key] = $entry.Value }
-    [Console]::Out.Write(($result | ConvertTo-Json -Compress))
-}
-__HYPERV_BOOTSTRAP__
-$aclValidatorSource = @'
-__STAGING_ACL_VALIDATOR__
-'@
-__PENDING_RENAME_VALIDATOR__
-function Open-FixedSession($Request, $Credential) {
-    try { New-PSSession -VMId ([guid]$Request.vm_id) -Credential $Credential -ErrorAction Stop }
-    catch {
-        $text = [string]$_.Exception.Message
-        $category = [string]$_.CategoryInfo.Category
-        if ($category -in @('AuthenticationError', 'SecurityError') -or $text -match '(?i)credential|user name or password|logon failure') {
-            Emit 'error' 'credential-denied'; exit 11
-        }
-        Emit 'error' 'integration-unavailable'; exit 12
-    }
-}
-function Assert-SafeRelative([string]$Relative) {
-    if ([string]::IsNullOrWhiteSpace($Relative) -or [IO.Path]::IsPathRooted($Relative) -or
-        $Relative -match '(^|[\\/])\.\.([\\/]|$)' -or $Relative -match ':' -or
-        $Relative.EndsWith('.') -or $Relative.EndsWith(' ')) { throw 'unsafe path' }
-}
-function Ensure-SafeDirectory([string]$FullPath) {
-    $full = [IO.Path]::GetFullPath($FullPath).TrimEnd('\')
-    $volume = [IO.Path]::GetPathRoot($full).TrimEnd('\')
-    $current = $volume + '\'
-    $remaining = $full.Substring($current.Length)
-    foreach ($segment in $remaining.Split('\', [StringSplitOptions]::RemoveEmptyEntries)) {
-        $current = [IO.Path]::Combine($current, $segment)
-        if (Test-Path -LiteralPath $current) {
-            $item = Get-Item -LiteralPath $current -Force
-            if (-not $item.PSIsContainer -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) { throw 'unsafe path' }
-        } else {
-            $item = New-Item -ItemType Directory -Path $current
-            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'unsafe path' }
-        }
-    }
-}
-function Assert-SafeSourceFile([string]$Root, [string]$Path) {
-    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\')
-    $pathFull = [IO.Path]::GetFullPath($Path)
-    if (-not $pathFull.StartsWith($rootFull + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'unsafe path' }
-    $current = $pathFull
-    while ($true) {
-        $item = Get-Item -LiteralPath $current -Force
-        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'unsafe path' }
-        if ($current -ieq $rootFull) { break }
-        $current = Split-Path -Parent $current
-        if ([string]::IsNullOrEmpty($current)) { throw 'unsafe path' }
-    }
-}
+__STAGING_PRELUDE__
 function Test-Package($Session, $Root, $Files, [uint64]$ExpectedBytes) {
     $result = Invoke-Command -Session $Session -ArgumentList @($Root, $Files, $ExpectedBytes) -ScriptBlock {
         param($Root, $Files, [uint64]$ExpectedBytes)
@@ -910,78 +856,7 @@ function Test-CudaAlias($Session, $Alias, $Receipt, $Lock, [uint64]$ExpectedByte
         (Get-FileHash -LiteralPath $Alias -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 }
-$mutationStarted = $false
-$phase = 'request'
-try {
-    $request = [Console]::In.ReadToEnd() | ConvertFrom-Json -ErrorAction Stop
-    $phase = 'host-target'
-    $vm = & $getVmCommand -Id ([guid]$request.vm_id) -ErrorAction Stop
-    $drives = @(& $getVmHardDiskDriveCommand -VM $vm -ErrorAction Stop)
-    $checkpoints = @(& $getVmSnapshotCommand -VM $vm -ErrorAction Stop)
-    if ($vm.Name -cne [string]$request.vm_name -or $vm.State -cne 'Running' -or
-        $drives.Count -ne 1 -or $drives[0].Path -ine [string]$request.child_path -or
-        $checkpoints.Count -ne 0) { throw 'target identity mismatch' }
-    $vhd = & $getVhdCommand -Path $drives[0].Path -ErrorAction Stop
-    if ($vhd.VhdType -cne 'Differencing' -or $vhd.ParentPath -ine [string]$request.parent_path) { throw 'target identity mismatch' }
-
-    $phase = 'host-gpu'
-    $hostVersion = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
-    $measuredBuild = [string]$hostVersion.CurrentBuildNumber + '.' + [string]$hostVersion.UBR
-    $gpuPath = [string]$request.gpu_interface
-    $interfaceEnd = $gpuPath.IndexOf('#{', [StringComparison]::Ordinal)
-    if (-not $gpuPath.StartsWith('\\?\PCI#', [StringComparison]::OrdinalIgnoreCase) -or $interfaceEnd -le 4) { throw 'host GPU drift' }
-    $deviceId = $gpuPath.Substring(4, $interfaceEnd - 4).Replace('#', '\')
-    $activeDrivers = @(Get-CimInstance Win32_PnPSignedDriver | Where-Object {
-        $_.DeviceClass -ieq 'DISPLAY' -and $_.DeviceID -ieq $deviceId
-    })
-    if ($activeDrivers.Count -ne 1 -or [string]$activeDrivers[0].DriverVersion -cne [string]$request.gpu_driver_version) { throw 'host GPU drift' }
-    $phase = 'host-servicing'
-    $pendingReboot = (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') -or
-        (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired')
-    $pendingRenameProperty = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue
-    $pendingRenameEntries = if ($null -eq $pendingRenameProperty) { @() } else { @($pendingRenameProperty.PendingFileRenameOperations) }
-    $pendingDeletes = Get-ReviewedPendingDeletes $pendingRenameEntries $request.allowed_pending_delete_sources
-    $setup = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\Setup' -Name SystemSetupInProgress -ErrorAction SilentlyContinue
-    if ($pendingReboot -or (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress') -or
-        ($null -ne $setup -and [int]$setup.SystemSetupInProgress -ne 0)) { throw 'host servicing state' }
-
-    $phase = 'source-signatures'
-    $sourceRoot = [IO.Path]::GetFullPath([string]$request.source_root).TrimEnd('\')
-    $sourceItem = Get-Item -LiteralPath $sourceRoot -Force
-    if (-not $sourceItem.PSIsContainer -or (($sourceItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) { throw 'unsafe path' }
-    foreach ($relative in $request.signature_files) {
-        Assert-SafeRelative ([string]$relative)
-        $path = [IO.Path]::GetFullPath([IO.Path]::Combine($sourceRoot, [string]$relative))
-        Assert-SafeSourceFile $sourceRoot $path
-        $signature = Get-AuthenticodeSignature -LiteralPath $path
-        if ([string]$signature.Status -cne 'Valid' -or $null -eq $signature.SignerCertificate -or
-            $signature.SignerCertificate.Thumbprint.ToLowerInvariant() -cne [string]$request.signer_thumbprint) {
-            Emit 'error' 'invalid-signature'; exit 16
-        }
-    }
-
-    $phase = 'guest-session'
-    $secure = ConvertTo-SecureString ([string]$request.password) -AsPlainText -Force
-    $credential = [pscredential]::new([string]$request.username, $secure)
-    $request.password = $null
-    $session = Open-FixedSession $request $credential
-    try {
-        Invoke-Command -Session $session -ArgumentList @($aclValidatorSource) -ScriptBlock {
-            param($Source)
-            . ([scriptblock]::Create($Source))
-        }
-        $phase = 'guest-identity'
-        $identity = Invoke-Command -Session $session -ArgumentList @($request.computer_name, $request.machine_guid) -ScriptBlock {
-            param($ExpectedComputer, $ExpectedGuid)
-            $windowsIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-            $principal = [Security.Principal.WindowsPrincipal]::new($windowsIdentity)
-            if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'identity mismatch' }
-            $actualGuid = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid).MachineGuid
-            if ($env:COMPUTERNAME -ine $ExpectedComputer -or $actualGuid -cne $ExpectedGuid) { throw 'identity mismatch' }
-            $guestVersion = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
-            $guestBuild = [string]$guestVersion.CurrentBuildNumber + '.' + [string]$guestVersion.UBR
-            [pscustomobject]@{ computer_name = $env:COMPUTERNAME; machine_guid = $actualGuid; build = $guestBuild }
-        }
+__STAGING_PREFLIGHT__
         $phase = 'guest-paths'
         $paths = Invoke-Command -Session $session -ArgumentList @($request.staging_root, $request.package_directory, $request.manifest_id) -ScriptBlock {
             param($StagingRoot, $PackageDirectory, $ManifestId)
@@ -1137,6 +1012,144 @@ try {
     if (-not $mutationStarted) { Emit 'error' 'preflight-failed' ([ordered]@{ phase=$phase }); exit 14 }
     Emit 'error' 'uncertain-state'; exit 15
 }
+"#;
+
+pub(crate) const STAGING_PRELUDE: &str = r#"
+$utf8 = [Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8
+[Console]::OutputEncoding = $utf8
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+function Emit([string]$Status, [string]$Category, $Data = @{}) {
+    $result = [ordered]@{ status = $Status; category = $Category }
+    foreach ($entry in $Data.GetEnumerator()) { $result[$entry.Key] = $entry.Value }
+    [Console]::Out.Write(($result | ConvertTo-Json -Compress))
+}
+__HYPERV_BOOTSTRAP__
+$aclValidatorSource = @'
+__STAGING_ACL_VALIDATOR__
+'@
+__PENDING_RENAME_VALIDATOR__
+function Open-FixedSession($Request, $Credential) {
+    try { New-PSSession -VMId ([guid]$Request.vm_id) -Credential $Credential -ErrorAction Stop }
+    catch {
+        $text = [string]$_.Exception.Message
+        $category = [string]$_.CategoryInfo.Category
+        if ($category -in @('AuthenticationError', 'SecurityError') -or $text -match '(?i)credential|user name or password|logon failure') {
+            Emit 'error' 'credential-denied'; exit 11
+        }
+        Emit 'error' 'integration-unavailable'; exit 12
+    }
+}
+function Assert-SafeRelative([string]$Relative) {
+    if ([string]::IsNullOrWhiteSpace($Relative) -or [IO.Path]::IsPathRooted($Relative) -or
+        $Relative -match '(^|[\\/])\.\.([\\/]|$)' -or $Relative -match ':' -or
+        $Relative.EndsWith('.') -or $Relative.EndsWith(' ')) { throw 'unsafe path' }
+}
+function Ensure-SafeDirectory([string]$FullPath) {
+    $full = [IO.Path]::GetFullPath($FullPath).TrimEnd('\')
+    $volume = [IO.Path]::GetPathRoot($full).TrimEnd('\')
+    $current = $volume + '\'
+    $remaining = $full.Substring($current.Length)
+    foreach ($segment in $remaining.Split('\', [StringSplitOptions]::RemoveEmptyEntries)) {
+        $current = [IO.Path]::Combine($current, $segment)
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force
+            if (-not $item.PSIsContainer -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) { throw 'unsafe path' }
+        } else {
+            $item = New-Item -ItemType Directory -Path $current
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'unsafe path' }
+        }
+    }
+}
+function Assert-SafeSourceFile([string]$Root, [string]$Path) {
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+    $pathFull = [IO.Path]::GetFullPath($Path)
+    if (-not $pathFull.StartsWith($rootFull + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'unsafe path' }
+    $current = $pathFull
+    while ($true) {
+        $item = Get-Item -LiteralPath $current -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'unsafe path' }
+        if ($current -ieq $rootFull) { break }
+        $current = Split-Path -Parent $current
+        if ([string]::IsNullOrEmpty($current)) { throw 'unsafe path' }
+    }
+}
+"#;
+
+pub(crate) const STAGING_PREFLIGHT: &str = r#"
+$mutationStarted = $false
+$phase = 'request'
+try {
+    $request = [Console]::In.ReadToEnd() | ConvertFrom-Json -ErrorAction Stop
+    $phase = 'host-target'
+    $vm = & $getVmCommand -Id ([guid]$request.vm_id) -ErrorAction Stop
+    $drives = @(& $getVmHardDiskDriveCommand -VM $vm -ErrorAction Stop)
+    $checkpoints = @(& $getVmSnapshotCommand -VM $vm -ErrorAction Stop)
+    if ($vm.Name -cne [string]$request.vm_name -or $vm.State -cne 'Running' -or
+        $drives.Count -ne 1 -or $drives[0].Path -ine [string]$request.child_path -or
+        $checkpoints.Count -ne 0) { throw 'target identity mismatch' }
+    $vhd = & $getVhdCommand -Path $drives[0].Path -ErrorAction Stop
+    if ($vhd.VhdType -cne 'Differencing' -or $vhd.ParentPath -ine [string]$request.parent_path) { throw 'target identity mismatch' }
+
+    $phase = 'host-gpu'
+    $hostVersion = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    $measuredBuild = [string]$hostVersion.CurrentBuildNumber + '.' + [string]$hostVersion.UBR
+    $gpuPath = [string]$request.gpu_interface
+    $interfaceEnd = $gpuPath.IndexOf('#{', [StringComparison]::Ordinal)
+    if (-not $gpuPath.StartsWith('\\?\PCI#', [StringComparison]::OrdinalIgnoreCase) -or $interfaceEnd -le 4) { throw 'host GPU drift' }
+    $deviceId = $gpuPath.Substring(4, $interfaceEnd - 4).Replace('#', '\')
+    $activeDrivers = @(Get-CimInstance Win32_PnPSignedDriver | Where-Object {
+        $_.DeviceClass -ieq 'DISPLAY' -and $_.DeviceID -ieq $deviceId
+    })
+    if ($activeDrivers.Count -ne 1 -or [string]$activeDrivers[0].DriverVersion -cne [string]$request.gpu_driver_version) { throw 'host GPU drift' }
+    $phase = 'host-servicing'
+    $pendingReboot = (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') -or
+        (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired')
+    $pendingRenameProperty = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue
+    $pendingRenameEntries = if ($null -eq $pendingRenameProperty) { @() } else { @($pendingRenameProperty.PendingFileRenameOperations) }
+    $pendingDeletes = Get-ReviewedPendingDeletes $pendingRenameEntries $request.allowed_pending_delete_sources
+    $setup = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\Setup' -Name SystemSetupInProgress -ErrorAction SilentlyContinue
+    if ($pendingReboot -or (Test-Path -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress') -or
+        ($null -ne $setup -and [int]$setup.SystemSetupInProgress -ne 0)) { throw 'host servicing state' }
+
+    $phase = 'source-signatures'
+    $sourceRoot = [IO.Path]::GetFullPath([string]$request.source_root).TrimEnd('\')
+    $sourceItem = Get-Item -LiteralPath $sourceRoot -Force
+    if (-not $sourceItem.PSIsContainer -or (($sourceItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) { throw 'unsafe path' }
+    foreach ($relative in $request.signature_files) {
+        Assert-SafeRelative ([string]$relative)
+        $path = [IO.Path]::GetFullPath([IO.Path]::Combine($sourceRoot, [string]$relative))
+        Assert-SafeSourceFile $sourceRoot $path
+        $signature = Get-AuthenticodeSignature -LiteralPath $path
+        if ([string]$signature.Status -cne 'Valid' -or $null -eq $signature.SignerCertificate -or
+            $signature.SignerCertificate.Thumbprint.ToLowerInvariant() -cne [string]$request.signer_thumbprint) {
+            Emit 'error' 'invalid-signature'; exit 16
+        }
+    }
+
+    $phase = 'guest-session'
+    $secure = ConvertTo-SecureString ([string]$request.password) -AsPlainText -Force
+    $credential = [pscredential]::new([string]$request.username, $secure)
+    $request.password = $null
+    $session = Open-FixedSession $request $credential
+    try {
+        Invoke-Command -Session $session -ArgumentList @($aclValidatorSource) -ScriptBlock {
+            param($Source)
+            . ([scriptblock]::Create($Source))
+        }
+        $phase = 'guest-identity'
+        $identity = Invoke-Command -Session $session -ArgumentList @($request.computer_name, $request.machine_guid) -ScriptBlock {
+            param($ExpectedComputer, $ExpectedGuid)
+            $windowsIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+            $principal = [Security.Principal.WindowsPrincipal]::new($windowsIdentity)
+            if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'identity mismatch' }
+            $actualGuid = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid).MachineGuid
+            if ($env:COMPUTERNAME -ine $ExpectedComputer -or $actualGuid -cne $ExpectedGuid) { throw 'identity mismatch' }
+            $guestVersion = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+            $guestBuild = [string]$guestVersion.CurrentBuildNumber + '.' + [string]$guestVersion.UBR
+            [pscustomobject]@{ computer_name = $env:COMPUTERNAME; machine_guid = $actualGuid; build = $guestBuild }
+        }
 "#;
 
 #[cfg(test)]
