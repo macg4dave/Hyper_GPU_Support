@@ -13,7 +13,12 @@ pub mod runner;
 pub mod staging;
 
 #[cfg(windows)]
+pub mod driver_environment;
+
+#[cfg(windows)]
 pub mod windows_account_rights;
+#[cfg(windows)]
+pub mod windows_driver_environment;
 #[cfg(windows)]
 pub mod windows_guest;
 #[cfg(windows)]

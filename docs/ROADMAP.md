@@ -7,10 +7,13 @@ milestone membership and task dependencies; follow its links for executable card
 
 Build reproducible GPU-PV for Windows 11 x64 host/guest and one NVIDIA RTX 5060
 8 GB. Start with one disposable Generation 2 VM based on an immutable clean parent, native Windows management
-and a Rust CLI/library. AppSandbox is a pinned technical reference. There is no
-GPU-PV implementation yet. The user's successful AppSandbox use on this host is
-the known-working HCS reference; project tests must reproduce it but do not need to
-re-prove general hardware feasibility. CORE-019 provides the hardware-independent
+and a Rust CLI/library. Easy-GPU-PV is the primary implementation reference for
+normal Hyper-V configuration and driver provisioning; AppSandbox is secondary.
+The Rust foundation implements lifecycle, attachment and package staging. The
+full-copy Easy-GPU-PV experiment sustained Code 0 and passed NVIDIA, D3D11/D3D12
+and CUDA computation; complete Rust provisioning/recreation and CUDA identity
+correlation remain to be qualified. HCS-owned
+guest work is paused. CORE-019 provides the hardware-independent
 foundation and [build commands](../README.md#windows-development).
 
 ## Version 1.0 contract
@@ -47,7 +50,8 @@ requires the user, not a task-status edit.
 - Research gates: [technical gaps](ARCHITECTURE.md#technical-gaps-and-research-gates)
   G1-G6. Unknown native interface availability, guest access, driver provisioning
   or reference build/signing dependencies must be resolved or explicitly blocked;
-  AppSandbox's working HCS result is the baseline, not a question to reopen.
+  Easy-GPU-PV's normal Hyper-V configuration and provisioning are the primary
+  reproduction baseline; AppSandbox is a secondary technical reference.
 - Validation: read-only queries distinguish denial from absence; inspect artifact
   provenance and setup side effects; define host controls and expected probe output.
 - Exit: CORE-019/001 establish the build/test and read-only inventory foundation;
@@ -62,21 +66,27 @@ disposable VM through autonomous implementation and target testing.
 
 - Dependency: M0. Normal runner, Hyper-V, GPU-PV and guest changes on the designated
   disposable VM proceed without another permission gate.
-- Critical path: finish the fixed runner operations (CORE-005), establish the
-  minimal guest session and manifest staging path (CORE-008/009), attach the exact
-  RTX 5060 with the Rust tooling (CORE-002), validate staging/recovery (GPU-009),
-  run the standalone D3D11/D3D12/CUDA probes (GPU-005), and record the demonstrated
-  configuration (GPU-006).
+- Critical path: the fixed runner, guest transfer/package staging and exact GPU
+  attachment foundation (CORE-005/008/009/002) is complete. GPU-009 now owns
+  Easy-GPU-PV discovery -> full manifest/destination comparison -> complete ordinary
+  file copies on a clean disposable child -> matching relevant Hyper-V settings ->
+  sustained NVIDIA Code 0. Immediately run nvidia-smi and the checked standalone
+  D3D11/D3D12/CUDA probes (GPU-005), then refine the proven Rust provisioning path
+  and record reproducibility (GPU-006). Do not minimize files before readiness.
 - Validation: verify the pinned parent/child/GPU identities immediately before a
   mutation, verify attachment and guest device/runtime readiness, reject software
   rendering, check probe outputs, and leave the VM in a known recoverable state.
-  One complete attach/start/probe/graceful-shutdown path is enough for this gate.
+  GPU-009 has passed the sustained Code 0 gate on the full-copy baseline. Preserve
+  that working guest; the next gate is complete Rust provisioning, explicit CUDA
+  identity correlation and attach/start/probe/graceful-shutdown reproducibility.
+  Transient Code 0 is insufficient.
 - Exit: GPU-006 records passing D3D11, D3D12 and CUDA workloads through the
   Rust-driven path with exact versions, manifest, configuration and checked output.
   Only the critical-path cards above gate M1.
 - Diagnostic/reference work: GPU-004 is useful when a native failure needs comparison
   with AppSandbox, but its current guest-access blocker does not hold up the native
-  vertical slice. Do not introduce HCS or shim work without an observed native gap.
+  vertical slice. HCS-owned-guest work is paused and outside the critical path.
+  Use AppSandbox selectively after the normal Hyper-V baseline is reproduced.
 - Deferred hardening: generalized planning, broader audit/locking, probe integration,
   repeated lifecycle cycles, resource tuning and extended diagnostics belong in M2.
 
@@ -157,19 +167,20 @@ CLI/core and harden the boundaries exercised by M1.
 
 The completed preparation has already identified the RTX 5060, pinned the disposable
 VM/parent, built the probes and established the Rust configuration/runner foundation.
-From the current state, use this sequence:
+The discovery, comparison and clean-child full-copy experiment below passed on
+2026-10-05. Preserve the working guest while completing the remaining Rust path:
 
-1. CORE-005: recover/reinstall the corrected fixed runner, prove start/shutdown,
-   then add only the fixed GPU attach/detach operations needed
-   by the slice.
-2. CORE-008 and CORE-009: connect to the known guest, transfer the pinned manifest
-   inputs and stage the minimum NVIDIA runtime with hash verification.
-3. CORE-002: apply the exact VM/GPU/resource configuration and verify the adapter.
-4. GPU-009: prove guest readiness and that a failed staging attempt can be recovered
-   by recreating the disposable child.
-5. GPU-005: start the guest and run the existing D3D11, D3D12 and CUDA probes through
-   the RTX 5060; use AppSandbox/HCS comparison only if an observed failure requires it.
-6. GPU-006: record the passing vertical slice and exact reproducible configuration.
+1. GPU-009: use the completed Rust runner/transfer/package/attachment foundation;
+   discover the full Easy-GPU-PV file closure and compare every logical destination.
+2. GPU-009: recreate the disposable child, provision all discovered files with
+   ordinary copies, match relevant VM/resource settings, and verify filesystem
+   parity plus sustained NVIDIA Code 0. Keep HCS paused.
+3. GPU-005: immediately test nvidia-smi and checked D3D11/D3D12/CUDA through the
+   RTX 5060. Use AppSandbox as a secondary reference for a measured API failure.
+4. GPU-006: integrate the full discovered manifest into Rust provisioning,
+   reproduce the passing configuration with checked lifecycle evidence, and only
+   then evaluate payload reduction. GPU-005 retains the CUDA LUID correlation gap;
+   its vector-add workload passed independently.
 
 After that proof, complete M2 hardening and then the release milestones. Do not split
 minor fixes, documentation drift or implementation choices into new cards. Create a

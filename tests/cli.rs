@@ -3,6 +3,17 @@
 use std::process::Command;
 
 #[test]
+fn driver_environment_inspector_rejects_arguments_before_native_discovery() {
+    let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-driver-environment"))
+        .arg("--target")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("accepts no target"));
+}
+
+#[test]
 fn help_and_default_invocation_succeed() {
     for arguments in [vec![], vec!["--help"], vec!["-h"]] {
         let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))

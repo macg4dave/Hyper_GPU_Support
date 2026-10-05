@@ -12,15 +12,16 @@ command. Inventory uses a typed Rust report/selection boundary plus the bounded,
 query-only Windows process adapter recorded in [DEC-013](DECISIONS.md#dec-013).
 Build and check commands are in [README.md](../README.md). The fixed runner
 implements disposable lifecycle and explicit GPU attach/detach; manifest staging
-is implemented, but guest workload success remains unproven.
+is implemented. The full-copy Easy-GPU-PV experiment passed guest NVIDIA,
+D3D11/D3D12 and CUDA computation; integration into the bounded Rust staging
+adapter and CUDA/D3D identity correlation remain incomplete.
 The target is a Windows 11 x64 host and guest with an NVIDIA RTX 5060 8 GB.
 The user has run AppSandbox successfully on this hardware, establishing a
 known-working HCS GPU-PV reference. HV-001 and CORE-001 captured host, adapter,
 driver and query-rights inventory. HV-002 prepared the immutable parent and fixed
-disposable VM, but there is still no project D3D11/D3D12/CUDA evidence. Native
-Hyper-V/VMMS attachment is verified; guest readiness and workload parity remain
-unproven. Those narrower questions do not
-reopen general GPU-PV feasibility.
+disposable VM. GPU-009 now establishes sustained guest Code 0 and checked graphics/
+compute in that normal VM. This measured configuration does not close Rust-driven
+recreation, graceful shutdown or CUDA identity-correlation qualification.
 
 The inherited research snapshot is dated **24 September 2026**, from AppSandbox
 [`6f3adb6aafd4fc819d7715bdfacf52ac87df26a6`][upstream-commit] (0.1.9 version
@@ -110,6 +111,17 @@ single-file executable is an M1 development harness, not a general guest shell.
 CORE-009 adds the complete manifest contract in `src/staging.rs` and a separate
 fixed adapter mode that permits only the pinned `HostDriverStore` package, CUDA
 loader alias and applied receipt on the enrolled disposable guest.
+That 217-file package manifest is not the complete Easy-GPU-PV destination
+contract: GPU-009 discovered 54 associated non-DriverStore paths in addition to
+the package tree. The immediate reproduction experiment copies the full closure
+offline with normal copies; the product adapter still manages only its existing
+package/alias set. `src/windows_driver_environment.rs` adds native COM/WMI discovery;
+`src/driver_environment.rs` expands whole associated packages, maps all external
+destinations and hashes the complete copy contract. The read-only
+`hyper-gpu-driver-environment` executable does not widen the guest writer's
+privileged policy. Integrate the full contract into that writer before claiming
+Rust provisioning parity. See the
+[full comparison](evidence/GPU-009-easy-gpu-pv-comparison.md).
 Its pre-mutation failures expose only validated fixed phase names for diagnosis;
 after mutation may begin, unexpected failures retain the recreate-only category.
 

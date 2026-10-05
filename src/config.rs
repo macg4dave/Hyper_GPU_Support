@@ -117,6 +117,8 @@ pub struct SlotConfiguration {
 /// Immutable driver/runtime manifest identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DriverManifestConfiguration {
+    /// Deadline for the selected driver's complete native WMI association discovery.
+    pub discovery_timeout: Duration,
     /// Human-auditable manifest identifier.
     pub id: String,
     /// Canonical lowercase manifest SHA-256.
@@ -295,6 +297,7 @@ struct RawSlotConfiguration {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawDriverManifestConfiguration {
+    discovery_timeout_seconds: u64,
     id: String,
     sha256: String,
     source_path: PathBuf,
@@ -750,7 +753,9 @@ impl ProjectConfiguration {
                 return Err(ConfigError::InvalidManifest);
             }
         }
-        if raw.driver_manifest.inf_version.is_empty()
+        if raw.driver_manifest.discovery_timeout_seconds == 0
+            || raw.driver_manifest.discovery_timeout_seconds > 300
+            || raw.driver_manifest.inf_version.is_empty()
             || raw.driver_manifest.inf_version.len() > 128
             || raw
                 .driver_manifest
@@ -917,6 +922,9 @@ impl ProjectConfiguration {
                 child_path: raw.slot.child_path,
             },
             driver_manifest: DriverManifestConfiguration {
+                discovery_timeout: Duration::from_secs(
+                    raw.driver_manifest.discovery_timeout_seconds,
+                ),
                 id: raw.driver_manifest.id,
                 sha256: raw.driver_manifest.sha256,
                 source_path: raw.driver_manifest.source_path,
@@ -1373,6 +1381,8 @@ mod tests {
         let project = ProjectConfiguration::embedded().unwrap();
         for invalid in [
             valid.replace("schema = 1", "schema = 2"),
+            valid.replace("discovery_timeout_seconds = 300", "discovery_timeout_seconds = 0"),
+            valid.replace("discovery_timeout_seconds = 300", "discovery_timeout_seconds = 301"),
             valid.replace(
                 &format!("vm_name = \"{}\"", project.slot.vm_name),
                 &format!(

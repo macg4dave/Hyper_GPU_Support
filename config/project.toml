@@ -21,6 +21,7 @@ parent_sha256 = "0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb0
 child_path = '''Z:\HyperGpuSupport\images\disposable\gpu-pv-slot-01\child.vhdx'''
 
 [driver_manifest]
+discovery_timeout_seconds = 300
 id = "nvidia-616.92-baseline-v1"
 sha256 = "31cf877d2415ad686f34f6498ae4a08893cebdc699244be1649e5379e9516ea3"
 source_path = '''C:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_b20cc8aeaed64fc2'''

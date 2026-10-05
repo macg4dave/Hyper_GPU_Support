@@ -5,9 +5,16 @@ RTX 5060 8 GB, using a normal Generation 2 Hyper-V VM and Rust CLI/core.
 Easy-GPU-PV is the primary reference for VM configuration, GPU assignment and
 driver staging; AppSandbox is secondary GPU-PV reference material. HCS-owned-guest
 work is paused. The project implements inventory, fixed disposable lifecycle,
-GPU attachment and manifest staging, but has not yet demonstrated successful
-guest D3D11/D3D12/CUDA workloads. See the
+GPU attachment and manifest staging. The full Easy-GPU-PV reproduction on a clean
+guest sustained Code 0 and passed NVIDIA, D3D11/D3D12 and CUDA computation checks.
+Rust provisioning integration and CUDA/D3D identity correlation remain incomplete. See the
 [Easy-GPU-PV comparison](docs/evidence/GPU-009-easy-gpu-pv-comparison.md).
+
+`cargo build --locked --bin hyper-gpu-driver-environment` builds the read-only native
+COM/WMI inspector. Run that executable through the documented elevated development
+path when Hyper-V query rights require it; it accepts no arguments and emits the
+complete selected-driver destination/hash manifest as JSON. It does not apply files
+to a guest. The existing guest writer has not yet adopted that full contract.
 
 ## Windows development
 

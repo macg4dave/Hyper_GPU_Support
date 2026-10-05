@@ -293,7 +293,7 @@ pub fn inspect_driver_package(
     })
 }
 
-fn collect_files(
+pub(crate) fn collect_files(
     root: &Path,
     directory: &Path,
     files: &mut Vec<DriverPackageFile>,
@@ -394,7 +394,7 @@ fn find_file<'a>(files: &'a [DriverPackageFile], name: &str) -> Option<&'a Drive
         .find(|file| file.relative_path.eq_ignore_ascii_case(name))
 }
 
-fn hash_file(path: &Path) -> Result<String, StagingError> {
+pub(crate) fn hash_file(path: &Path) -> Result<String, StagingError> {
     let mut file = File::open(path).map_err(io_error)?;
     let mut digest = Sha256::new();
     let mut buffer = [0_u8; 128 * 1024];
@@ -553,6 +553,7 @@ mod tests {
             let catalog_sha256 = find_file(&files, "CAT.CAT").unwrap().sha256.clone();
             Self {
                 configuration: DriverManifestConfiguration {
+                    discovery_timeout: std::time::Duration::from_secs(15),
                     id: "test-manifest-v1".into(),
                     sha256: "0".repeat(64),
                     source_path: root.clone(),

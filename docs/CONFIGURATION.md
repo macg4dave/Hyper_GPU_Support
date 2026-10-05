@@ -84,6 +84,12 @@ gates. Update the manifest pins together after
 reviewed driver servicing; CORE-009 rejects partial, changed or incorrectly signed
 trees before guest mutation.
 
+`discovery_timeout_seconds` separately bounds native WMI enumeration of the full
+signed-driver association closure (1 to 300 seconds). This is a read-only discovery
+deadline, distinct from the short product inventory and guest-copy deadlines.
+COM connection/query setup and individual provider object resolution are synchronous
+and cannot be cancelled by this enumeration deadline.
+
 The apply preflight distinguishes active/pending replacement servicing from exact
 reviewed delete-only cleanup. `allowed_pending_delete_sources` pins the raw Windows
 source records observed and reviewed for the current machine; it is not a path pattern

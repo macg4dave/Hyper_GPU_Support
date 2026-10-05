@@ -3,8 +3,10 @@
 use std::fmt;
 
 use windows::Wdk::Graphics::Direct3D::{
-    D3DKMT_ADAPTERTYPE, D3DKMT_CLOSEADAPTER, D3DKMT_OPENADAPTERFROMLUID, D3DKMT_QUERYADAPTERINFO,
+    D3DKMT_ADAPTERTYPE, D3DKMT_CLOSEADAPTER, D3DKMT_OPENADAPTERFROMLUID,
+    D3DKMT_PHYSICAL_ADAPTER_COUNT, D3DKMT_QUERY_DEVICE_IDS, D3DKMT_QUERYADAPTERINFO,
     D3DKMTCloseAdapter, D3DKMTOpenAdapterFromLuid, D3DKMTQueryAdapterInfo, KMTQAITYPE_ADAPTERTYPE,
+    KMTQAITYPE_PHYSICALADAPTERCOUNT, KMTQAITYPE_PHYSICALADAPTERDEVICEIDS,
 };
 use windows::Win32::Graphics::Dxgi::{
     CreateDXGIFactory1, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_ERROR_NOT_FOUND, IDXGIAdapter1,
@@ -14,7 +16,8 @@ use windows::Win32::Graphics::Dxgi::{
 use crate::config::ProjectConfiguration;
 use crate::probe::AdapterIdentity;
 
-/// One unambiguous hardware adapter selected by exact PCI identity.
+/// One unambiguous hardware adapter selected by exact PCI identity, using
+/// D3DKMT physical device IDs when GPU-PV's DXGI descriptor omits host fields.
 #[derive(Clone)]
 pub struct SelectedAdapter {
     adapter: IDXGIAdapter1,
@@ -77,7 +80,7 @@ pub fn select_configured_gpu() -> Result<SelectedAdapter, AdapterSelectionError>
     // the windows crate manages its reference count.
     let factory: IDXGIFactory1 =
         unsafe { CreateDXGIFactory1() }.map_err(|_| AdapterSelectionError::Runtime)?;
-    let mut selected = None;
+    let mut candidates = Vec::new();
     let mut index = 0;
     loop {
         // SAFETY: `factory` is a live COM interface and `index` is bounded by the
@@ -100,15 +103,12 @@ pub fn select_configured_gpu() -> Result<SelectedAdapter, AdapterSelectionError>
         if adapter_type & (1 << 6) != 0 {
             continue;
         }
-        if selected.is_some() {
-            return Err(AdapterSelectionError::Ambiguous);
-        }
         let end = description
             .Description
             .iter()
             .position(|character| *character == 0)
             .unwrap_or(description.Description.len());
-        let identity = AdapterIdentity {
+        let mut identity = AdapterIdentity {
             description: String::from_utf16_lossy(&description.Description[..end]),
             vendor_id: description.VendorId,
             device_id: description.DeviceId,
@@ -123,12 +123,49 @@ pub fn select_configured_gpu() -> Result<SelectedAdapter, AdapterSelectionError>
             indirect_display: adapter_type & (1 << 6) != 0,
             paravirtualized: adapter_type & (1 << 7) != 0,
         };
-        identity
-            .validate()
-            .map_err(|_| AdapterSelectionError::Missing)?;
-        selected = Some(SelectedAdapter { adapter, identity });
+        if identity.paravirtualized {
+            // VRD's DXGI descriptor omits subsystem/revision on the measured guest.
+            // Query its host-backed physical identity; never fill gaps from config.
+            let ids = query_physical_device_ids(description.AdapterLuid)?;
+            identity.vendor_id = ids.VendorID;
+            identity.device_id = ids.DeviceID;
+            identity.subsystem_id = packed_subsystem_id(ids.SubVendorID, ids.SubSystemID)?;
+            identity.revision = ids.RevisionID;
+        }
+        candidates.push(SelectedAdapter { adapter, identity });
+    }
+    let identities = candidates
+        .iter()
+        .map(|candidate| candidate.identity.clone())
+        .collect::<Vec<_>>();
+    let selected = select_identity_index(&identities)?;
+    Ok(candidates.swap_remove(selected))
+}
+
+fn select_identity_index(identities: &[AdapterIdentity]) -> Result<usize, AdapterSelectionError> {
+    // Windows can expose a display-paired proxy plus the actual render partition.
+    // When a partition exists, select only that namespace and still require every
+    // configured physical identity field. Never choose the first matching name.
+    let partition_present = identities.iter().any(|identity| {
+        identity.paravirtualized && !identity.software && !identity.indirect_display
+    });
+    let mut selected = None;
+    for (index, identity) in identities.iter().enumerate() {
+        if identity.paravirtualized != partition_present || identity.validate().is_err() {
+            continue;
+        }
+        if selected.replace(index).is_some() {
+            return Err(AdapterSelectionError::Ambiguous);
+        }
     }
     selected.ok_or(AdapterSelectionError::Missing)
+}
+
+fn packed_subsystem_id(subvendor: u32, subsystem: u32) -> Result<u32, AdapterSelectionError> {
+    if subvendor > u32::from(u16::MAX) || subsystem > u32::from(u16::MAX) {
+        return Err(AdapterSelectionError::Runtime);
+    }
+    Ok((subsystem << 16) | subvendor)
 }
 
 /// Enumerate DXGI adapter identities for read-only failure diagnosis.
@@ -220,4 +257,122 @@ fn query_adapter_type(
     // SAFETY: the successful query initialized the union and `Value` is the
     // documented complete bitfield representation.
     Ok(unsafe { adapter_type.Anonymous.Value })
+}
+
+/// Query index zero only after verifying that the adapter represents one physical
+/// GPU. Both native failure and linked-adapter ambiguity fail closed.
+#[allow(unsafe_code)]
+fn query_physical_device_ids(
+    luid: windows::Win32::Foundation::LUID,
+) -> Result<windows::Wdk::Graphics::Direct3D::D3DKMT_DEVICE_IDS, AdapterSelectionError> {
+    let mut opened = D3DKMT_OPENADAPTERFROMLUID {
+        AdapterLuid: luid,
+        hAdapter: 0,
+    };
+    // SAFETY: initialized output storage; the exact LUID is supplied by DXGI.
+    let open_status = unsafe { D3DKMTOpenAdapterFromLuid(&mut opened) };
+    if open_status.0 < 0 || opened.hAdapter == 0 {
+        return Err(AdapterSelectionError::Native(open_status.0));
+    }
+    let mut count = D3DKMT_PHYSICAL_ADAPTER_COUNT::default();
+    let mut query = D3DKMT_QUERYADAPTERINFO {
+        hAdapter: opened.hAdapter,
+        Type: KMTQAITYPE_PHYSICALADAPTERCOUNT,
+        pPrivateDriverData: std::ptr::addr_of_mut!(count).cast(),
+        PrivateDriverDataSize: std::mem::size_of::<D3DKMT_PHYSICAL_ADAPTER_COUNT>() as u32,
+    };
+    // SAFETY: live handle, initialized count buffer, and its exact ABI size/type.
+    let count_status = unsafe { D3DKMTQueryAdapterInfo(&mut query) };
+    let mut ids = D3DKMT_QUERY_DEVICE_IDS::default();
+    let result = if count_status.0 < 0 {
+        Err(AdapterSelectionError::Native(count_status.0))
+    } else if count.Count != 1 {
+        Err(AdapterSelectionError::Ambiguous)
+    } else {
+        query.Type = KMTQAITYPE_PHYSICALADAPTERDEVICEIDS;
+        query.pPrivateDriverData = std::ptr::addr_of_mut!(ids).cast();
+        query.PrivateDriverDataSize = std::mem::size_of::<D3DKMT_QUERY_DEVICE_IDS>() as u32;
+        // SAFETY: index zero is valid for the verified single physical adapter;
+        // `ids` has the initialized repr(C) layout and exact advertised size.
+        let status = unsafe { D3DKMTQueryAdapterInfo(&mut query) };
+        if status.0 < 0 {
+            Err(AdapterSelectionError::Native(status.0))
+        } else {
+            Ok(ids.DeviceIds)
+        }
+    };
+    let close = D3DKMT_CLOSEADAPTER {
+        hAdapter: opened.hAdapter,
+    };
+    // SAFETY: release the owned adapter handle on every query outcome.
+    let close_status = unsafe { D3DKMTCloseAdapter(&close) };
+    if result.is_ok() && close_status.0 < 0 {
+        return Err(AdapterSelectionError::Native(close_status.0));
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AdapterSelectionError, packed_subsystem_id, select_identity_index};
+    use crate::{config::ProjectConfiguration, probe::AdapterIdentity};
+
+    fn target(partition: bool) -> AdapterIdentity {
+        let target = ProjectConfiguration::embedded().unwrap().slot;
+        AdapterIdentity {
+            description: target.gpu_name,
+            vendor_id: target.gpu_vendor_id,
+            device_id: target.gpu_device_id,
+            subsystem_id: target.gpu_subsystem_id,
+            revision: target.gpu_revision,
+            dedicated_video_memory: 1,
+            luid: "00000000:00000001".into(),
+            software: false,
+            indirect_display: false,
+            paravirtualized: partition,
+        }
+    }
+
+    #[test]
+    fn selects_exact_host_or_partition_without_display_proxy_fallback() {
+        assert_eq!(select_identity_index(&[target(false)]), Ok(0));
+        let mut proxy = target(false);
+        proxy.subsystem_id = 0;
+        proxy.revision = 0;
+        assert_eq!(select_identity_index(&[proxy, target(true)]), Ok(1));
+        let mut wrong_partition = target(true);
+        wrong_partition.revision ^= 1;
+        assert_eq!(
+            select_identity_index(&[target(false), wrong_partition]),
+            Err(AdapterSelectionError::Missing)
+        );
+    }
+
+    #[test]
+    fn rejects_ambiguous_or_nonhardware_candidates() {
+        assert_eq!(
+            select_identity_index(&[target(true), target(true)]),
+            Err(AdapterSelectionError::Ambiguous)
+        );
+        for change in [0, 1, 2, 3] {
+            let mut identity = target(true);
+            match change {
+                0 => identity.software = true,
+                1 => identity.indirect_display = true,
+                2 => identity.subsystem_id = 0,
+                _ => identity.luid = "00000000:00000000".into(),
+            }
+            assert_eq!(
+                select_identity_index(&[identity]),
+                Err(AdapterSelectionError::Missing)
+            );
+        }
+    }
+
+    #[test]
+    fn combines_native_subsystem_fields_without_truncation() {
+        assert_eq!(packed_subsystem_id(0x1043, 0x8a15), Ok(0x8a15_1043));
+        assert!(packed_subsystem_id(0x10000, 0).is_err());
+        assert!(packed_subsystem_id(0, 0x10000).is_err());
+    }
 }

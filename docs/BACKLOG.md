@@ -10,13 +10,14 @@ evidence or authorization system; correct trivial drift in place.
 - Proven foundation: exact host/GPU/VM inventory, protected parent plus disposable
   child, standalone probes, strict configuration types and a fixed Rust runner with
   reset/read-only inspection are complete.
-- Immediate issue: CORE-002 is complete after verified attach, matching reapply
-  and a corrected one-shot task readiness race. Host/guest build inequality remains
-  a recorded qualification warning for the later workload proof.
-- Next: GPU-009 Easy-GPU-PV configuration/driver comparison, then native guest
-  readiness -> GPU-005 -> GPU-006. HCS-owned-guest work is paused at the user's
-  direction (2026-10-05); a normal Generation 2 Hyper-V VM remains the target.
-  AppSandbox is a secondary GPU-PV reference; BLK-003 does not block this path.
+- Proven live baseline: GPU-009's clean-child full 271-file normal-copy closure
+  plus Easy-GPU-PV settings sustained Code 0. NVIDIA, D3D11/D3D12 checked frames
+  and CUDA vector addition passed. The working guest is running; preserve it.
+- Next: GPU-005 retains CUDA/D3D LUID correlation (CUDA reports the host LUID);
+  GPU-006 owns full Rust writer integration, clean recreation and graceful-shutdown
+  qualification. Native Rust discovery is read-only; the writer still covers its
+  earlier package/alias set. HCS-owned guest work is paused, AppSandbox secondary,
+  and BLK-003 does not block this normal Generation 2 VM path.
 
 ## Task register
 
@@ -48,8 +49,8 @@ GPU-007 and GPU-015 are optional research lanes.
 | [GPU-003](#gpu-003) | M0 | P0 | completed | GPU-002, HV-003, REF-002, GPU-008 |
 | [HV-002](#hv-002) | M1 | P0 | completed | DOC-002, GPU-003 |
 | [GPU-004](#gpu-004) | M1 | P1 | blocked | CORE-020 |
-| [GPU-009](#gpu-009) | M1 | P0 | in progress | CORE-002 |
-| [GPU-005](#gpu-005) | M1 | P0 | planned | CORE-002, GPU-009, CORE-020 |
+| [GPU-009](#gpu-009) | M1 | P0 | completed | CORE-002 |
+| [GPU-005](#gpu-005) | M1 | P0 | ready | CORE-002, GPU-009, CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | GPU-005 |
 | [GPU-010](#gpu-010) | M2 | P1 | planned | GPU-006 |
 | [GPU-011](#gpu-011) | M2 | P1 | planned | CORE-010, CORE-011, GPU-006 |
@@ -539,34 +540,35 @@ for future work is not an invented current blocker.
 
 ## GPU-009
 
-**Prove native guest staging and disposable recovery**
+**Reproduce Easy-GPU-PV provisioning and prove stable NVIDIA Code 0**
 
-- Owner: Codex session 2026-10-05 (focused Easy-GPU-PV comparison).
-- Objective: validate the minimum unmodified NVIDIA provisioning in the disposable
-  guest and its existing discard/recreate recovery.
+- Objective: reproduce the complete Easy-GPU-PV associated-file placement and
+  relevant Hyper-V settings on a clean disposable child, then prove stable Code 0.
 - Dependencies: CORE-002 attachment (which follows CORE-009 staging).
 - Current scope: trace Easy-GPU-PV as the primary normal-Hyper-V configuration,
-  assignment and staging reference; compare live settings and driver destinations
-  before selecting further native experiments. HCS-owned-guest work is paused.
+  assignment and staging reference; compare the full package/association inventory,
+  copy every discovered destination normally, and run the combined clean-child
+  baseline before reducing the payload. HCS-owned-guest work is paused.
 - Acceptance: under scoped authorization, verify transferred hashes, applied files/
-  settings and guest device/runtime readiness. Inject one interrupted staging case,
-  mark it unusable, recreate from the protected parent and stage successfully. Add
-  no offline servicing or shim without a demonstrated need and separate approval
-  where its effects require it.
-- Result: In progress. Fresh pinned-guest inspection reproduced `vrd.inf` Code 43
-  with matching NVIDIA package anchors. One guest-local NVML alias experiment
-  advanced `nvidia-smi` past DLL discovery but did not change Code 43; the alias
-  was removed. A clean disposable-child reset and successful copy-only manifest
-  stage verified the guest package and CUDA alias; Code 43 persisted after GPU
-  attach. An ordinary NVML loader copy matched host size/hash/version and gave
-  the same `Driver Not Loaded` result as the earlier hard-link experiment.
-  A timestamped repeat proved that Code 43 returned after the `vrd.inf`
-  disable/enable cycle **without** the later diagnostic: Code 0 through
-  20:20:06.132 UTC, Code 43 at 20:20:07.160 UTC. The unknown VMBus child is
-  the GPU-PV global DXGK channel, unbound with Code 12; its role in sustained
-  initialization is unresolved. The HCS versus VMMS assignment difference
-  remains untested. Evidence: [`timeline/VMBus`](evidence/GPU-009-timeline-vmbus.md)
-  and [`upstream comparison`](evidence/GPU-009-upstream-comparison.md).
+  settings and sustained guest device/runtime readiness. Preserve the established
+  interrupted-stage/disposable-recovery proof. Offline child copying is authorized
+  for this baseline; preserve the parent and security settings. Run nvidia-smi and
+  checked D3D11/D3D12/CUDA immediately once Code 0 is stable.
+- Result: completed 2026-10-05. Actual pinned Easy-GPU-PV source trace and fresh
+  host WMI discovery found 236 associations: 182 package files and 54 external
+  paths. Whole-package expansion yields 271 destinations; our prior package/CUDA
+  stager omitted 53. Reset the verified disposable child, copied and rehashed all
+  271, applied/read back Easy-GPU-PV MMIO/cache/nested/resource settings, then
+  attached/started via the fixed runner. Captured 116 consecutive Code 0 samples
+  over 120 seconds, no remaining problem devices and inbox VirtualRender binding.
+  nvidia-smi, checked D3D11/D3D12 frames and CUDA vector addition passed. Historical
+  A was Code 43; B changed copies/settings together, so individual causality remains
+  unisolated. Guest is preserved running. Evidence: [full source trace, inventory
+  and live results](evidence/GPU-009-easy-gpu-pv-comparison.md). No M1 closure:
+  GPU-005 identity correlation and GPU-006 Rust recreation remain.
+  Native Rust COM/WMI discovery independently produced exactly the same 236
+  associations and 271 source/destination/length/hash records; full writer
+  integration remains separate from this passing read-only discovery.
 
 ## GPU-005
 
@@ -578,9 +580,17 @@ for future work is not an invented current blocker.
 - Acceptance: verify actual adapter identity/effective state, reject software
   rendering, and pass checked D3D11/D3D12 render outputs plus CUDA allocation,
   transfer, kernel and CPU comparison. Classify any failure by assignment, device,
-  runtime or workload layer. Use AppSandbox/HCS/shim comparison only for a concrete
-  failure; never silently fall back to a default GPU.
-- Result: pending.
+  runtime or workload layer. Use AppSandbox selectively as a secondary technical
+  reference for a concrete API failure; keep HCS-owned guest work paused and never
+  silently fall back to a default GPU.
+- Result: initial live workload run passed 2026-10-05 on GPU-009's full-copy
+  baseline: nvidia-smi exit 0; D3D11 FL12_1 and D3D12 FL12_2 hardware GPU-PV
+  frames share the expected SHA-256; CUDA Driver API sm_120 vector addition exits
+  0 with checked output. Rust D3D selection now reads exact physical PCI identity
+  through D3DKMT when guest DXGI omits subsystem/revision and rejects the display
+  proxy. Remaining: the strict CUDA identity companion rejects host LUID `14b54`
+  versus guest render LUID `5425`; do not relax correlation or claim interoperability.
+  See [live evidence](evidence/GPU-009-easy-gpu-pv-comparison.md#checked-guest-workloads-and-remaining-limitation).
 
 ## GPU-010
 
@@ -613,6 +623,9 @@ for future work is not an invented current blocker.
 - Objective: close the first Rust-driven end-to-end GPU-PV demonstration and pin
   the minimum working configuration.
 - Dependencies: GPU-005 passing native workload run.
+- Scope: integrate the demonstrated complete association/package copy contract
+  into the bounded Rust guest writer; its existing 217-file/alias policy is not
+  the new working baseline. Keep the full closure until clean recreation passes.
 - Acceptance: record exact host/guest/driver/probe versions, configuration, staged
   manifest, adapter identity and checked D3D11/D3D12/CUDA results. Confirm graceful
   shutdown and a known recoverable disposable state. Update the backend/component

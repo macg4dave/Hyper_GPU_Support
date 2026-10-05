@@ -644,11 +644,13 @@ installer, display, remote desktop or audio architecture.
 
 The [focused comparison](evidence/GPU-009-easy-gpu-pv-comparison.md) found live
 MMIO/cache/nested-virtualization differences, unset resource triples and
-associated driver destinations outside our package-only staging. None has yet
-been shown irrelevant or causal. Test those native differences before drawing
-backend conclusions. Keep hash verification, explicit identities and bounded
-recovery while extending the Rust implementation. Source settings/copies do not
-prove RTX 5060 D3D11/D3D12/CUDA execution; those workload gates remain unchanged.
+associated driver destinations outside our package-only staging. The combined
+clean-child reproduction now sustained Code 0 and passed nvidia-smi, checked
+D3D11/D3D12 frames and CUDA vector addition. This proves the measured normal-VM
+baseline, not the necessity or sufficiency of an individual file/setting. Keep
+the full normal-copy closure while integrating Rust provisioning; do not reduce
+it before reproducibility. CUDA/D3D LUID correlation remains an explicit gap.
+No HCS vendor extension was needed for the workloads actually passed.
 
 Revisit the normal-VM product boundary only if the user explicitly changes the
 objective. No upstream PowerShell product implementation was imported. The

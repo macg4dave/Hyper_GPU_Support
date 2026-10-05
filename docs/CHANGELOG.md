@@ -4,6 +4,15 @@ Record meaningful completed changes in one short entry per change, with task IDs
 and evidence links when applicable. Task statuses remain in BACKLOG; partial
 handover notes remain in its Resume block. Do not duplicate detailed test output.
 
+## 2026-10-05
+
+- [GPU-009](BACKLOG.md#gpu-009): reproduced Easy-GPU-PV's complete 271-file copy
+  closure and relevant VM/resource settings on a clean normal Hyper-V guest.
+  Sustained Code 0, nvidia-smi, checked D3D11/D3D12 frames and CUDA vector addition
+  passed. Added exact D3DKMT physical identity selection for GPU-PV probes and native
+  Rust read-only driver discovery/manifest construction. CUDA LUID correlation and
+  full Rust guest-writer integration remain open. [Evidence and inventory](evidence/GPU-009-easy-gpu-pv-comparison.md).
+
 ## 2026-10-04
 
 - [GPU-009](BACKLOG.md#gpu-009): changed the guest CUDA runtime alias from a hard
