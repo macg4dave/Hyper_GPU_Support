@@ -1,4 +1,4 @@
-//! Read-only native discovery of the complete Easy-GPU-PV copy manifest.
+//! Read-only native discovery of the complete validated driver/runtime manifest.
 use hyper_gpu_support::{
     config::ProjectConfiguration, driver_environment::inspect_driver_environment,
     windows_driver_environment::discover_driver_environment, windows_paths::windows_directory,

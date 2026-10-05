@@ -1,673 +1,289 @@
 # Decisions
 
-Record rationale here; current component descriptions belong in
-[ARCHITECTURE.md](ARCHITECTURE.md). IDs never change or get reused.
-Append a replacement decision and mark the old one superseded when direction
-changes. Do not turn routine implementation choices into decision records.
+Current rationale belongs here; implementation contracts are in
+[ARCHITECTURE.md](ARCHITECTURE.md) and work/status in [BACKLOG.md](BACKLOG.md).
+Decision IDs remain stable and are not reused. Superseded investigation is condensed;
+routine implementation choices do not need a decision record.
 
 ## DEC-001
 
-**Accepted | 2026-09-24 | Purpose-built Windows GPU-PV scope**
+**Accepted, narrowed by DEC-026 | 2026-09-24 | Product scope**
 
-Windows 11 x64 host and guest; NVIDIA RTX 5060 8 GB; Rust-first;
-native Windows/Hyper-V integration; CLI/core independent of any GUI.
-AppSandbox supplies technical reference and selective improvements.
-
-Reason: focus effort on graphics, compute, video and supported vendor
-capabilities for one actual system. Linux/macOS, ARM, other GPU vendors,
-AppSandbox architecture/API compatibility and its full VM feature set are
-outside the initial scope. A later GUI should primarily edit configuration.
-32-bit Windows application support is a separate workload decision.
-
-Revisit only for an explicit requirement, not to accommodate upstream structure.
+Rust-first CLI/core, TOML configuration, Windows 11 x64 host/guest, normal Generation
+2 Hyper-V and one configured RTX 5060 8 GB target. No GUI, multi-VM scheduler,
+multi-GPU orchestration or background GPU service is required. Windows owns VM
+and GPU-PV facilities. Expand scope only for an explicit product requirement.
 
 ## DEC-002
 
-**Backend/reference selection superseded by DEC-024; disposable scope retained from DEC-011 | 2026-09-24 | Native management first**
+**Superseded by DEC-024/025/026 | 2026-09-24 | Backend exploration retired**
 
-Prefer a dedicated persistent Generation 2 VM managed by Hyper-V/VMMS.
-Measure the AppSandbox HCS reference against native Hyper-V operations using
-matching Windows builds, NVIDIA runtime files and workloads.
-
-Reason: Windows already owns VM lifecycle/storage/integration and GPU-PV.
-The backend is not finally selected: edition, available cmdlets and vendor
-extension behavior need target evidence. HCS becomes an implementation choice
-only for a demonstrated gap, recorded by GPU-006.
-See [native boundaries](ARCHITECTURE.md#native-windows-boundaries).
-
-DEC-011 replaces the persistent experimental guest with one disposable child
-while retaining native-management-first and evidence-triggered HCS comparison.
+Normal Hyper-V / VMMS is proven and chosen. HCS backend selection and broad
+feasibility comparisons have no remaining delivery dependency.
 
 ## DEC-003
 
-**Superseded by DEC-011 | 2026-09-24 | Reproduce before implementing**
+**Superseded by DEC-011/025/026 | 2026-09-24 | Reproduction-before-code gate retired**
 
-Complete the hardware reproduction milestone before a Rust product skeleton.
-Start comparisons with matching unmodified vendor runtimes; add only shims
-needed by a failing workload. The earlier preference to retain C/C++ shims is
-superseded by [DEC-009](#dec-009); the reproduce-before-product gate remains.
-
-Reason: source inspection, DLL loading and physical GPU specifications cannot
-establish guest behavior. Native management, driver staging, compatibility
-hooks and desktop presentation must be evaluated independently.
-See the [validation contract](ARCHITECTURE.md#validation-contract).
-
-DEC-011 retains measured workload validation but removes the requirement to
-finish the whole reproduction milestone before a thin Rust vertical slice.
+The working baseline settles feasibility. Implement and test the remaining Rust
+product slices directly; fresh reproduction qualifies automation rather than
+reopening whether GPU-PV works.
 
 ## DEC-004
 
-**Accepted | 2026-09-24 | Independent history and selective upstream review**
+**Reference-review workflow retired by DEC-026 | 2026-09-24**
 
-Use independent project history: `origin` is our repository when one is known;
-`upstream` is `https://github.com/jamesstringer90/appsandbox.git`.
-GitHub fork-network membership is optional. Keep upstream history/authorship
-available without importing its working tree or routinely merging it into ours.
-
-REF-001 will establish the remaining local upstream Git relationship.
-The DOC-002 workspace check found local commit `dd95e58` and an existing origin
-at `https://github.com/macg4dave/Hyper_GPU_Support.git`; upstream/ref preservation
-remains REF-001 work. Do not reinitialize or replace the existing history/remotes.
-
-Future reviews:
-
-1. Fetch without merging. Compare last-reviewed and new commits in upstream's
-   own history, not a merge-base with our unrelated project history.
-2. Inspect the [source map](ARCHITECTURE.md#upstream-reference-map), its callers,
-   new/renamed GPU code, build/provisioning dependencies and notices.
-3. Add a short review entry below with range, relevant commits, capability,
-   adopt/defer/reject result and rationale.
-4. Adapt a focused change to our architecture; link its source commit/path.
-   Cherry-pick only self-contained compatible code with authorship preserved.
-5. Retain a durable ref for reviewed commits and validate affected workloads.
-
-Preserve MIT copyright/license text for adapted AppSandbox material, including
-translations to Rust, and applicable third-party notices for included components.
-Retain original notices in reference checkouts. Local driver use does not imply
-redistribution permission. Do not import proprietary binaries into this project.
-[Upstream license][license], [component notices][notices].
-
-### Upstream review log
-
-- 2026-09-24: inspected
-  [`6f3adb6aafd4fc819d7715bdfacf52ac87df26a6`][reference]
-  (0.1.9 version-bump commit), with no earlier reviewed range.
-  Recorded GPU assignment, staging, shim and display responsibilities.
-  Adopt the responsibility boundaries; defer code adoption to hardware evidence.
-  Full findings: [source map](ARCHITECTURE.md#upstream-reference-map).
-  No code imported or target capability verified.
-- 2026-09-24, DOC-002: selectively rechecked the **same pinned commit**, not a new
-  revision range. Confirmed HCS fallback/assignment-status behavior and inspected
-  provisioning/copy errors, ACLs, runtime and compute-hook dependencies, project
-  build inputs, signing branches and notices. Defer adoption until hardware proof;
-  reject default-GPU fallback, masked failures and broad permission changes.
-  See [hazards](ARCHITECTURE.md#reference-implementation-hazards). No build/run.
-- 2026-09-26, M0 gate review: selectively rechecked the **same pinned commit**,
-  specifically Windows configuration persistence/creation, the optional OpenSSH
-  guest install/deployed-key path and its loopback proxy. This established a
-  supported candidate transport but did not establish it on the existing VM,
-  whose persisted entry has no SSH enablement; BLK-003 records the M1 gate. No
-  code was adopted and no upstream artifact or VM was run.
+The initial recipe was developed during reference research, then measured on this
+project's target system. Future implementation uses our source, recipe and
+validation results. No external repository lookup, comparison or periodic review
+is required. Preserve existing authorship/license notices for any reused material;
+historical origin does not create an active research obligation.
 
 ## DEC-005
 
-**Accepted | 2026-09-24 | Five documents with one task register**
+**Accepted, simplified by DEC-026 | 2026-09-24 | One task register**
 
-The five planning-document responsibilities below remain; [DEC-009](#dec-009)
-adds a separate engineering policy without introducing another planning store.
-
-Use ROADMAP, BACKLOG, ARCHITECTURE, DECISIONS and CHANGELOG under `docs/`.
-Keep blockers, task cards and one overwrite-in-place resume note in BACKLOG,
-where they can be read together. A separate BLOCKERS file would duplicate
-task relationships and require another context read.
-
-The backlog register owns task status, priority, milestone and dependencies.
-Task cards own scope, acceptance and result evidence. Roadmap owns the current
-milestone and its exit criteria. Architecture owns current/proposed components
-and the validation contract; decisions own rationale; changelog owns concise
-completed-change history. Link instead of copying.
-
-Use the compact Markdown register instead of a YAML/JSON/TOML manifest.
-It provides an index readable with ordinary search and has no second status
-store to synchronize. No tracker service, scripts or generated dashboards.
-Revisit if measured lookup cost justifies automation; any generated index must
-derive from this single task source.
-
-FORK_PLAN.md was a migration pointer, never a planning authority. Its later
-user deletion is preserved; the pointer need not be restored. Existing optional
-workflow prompts remain available, but sessions must not read all of them.
-Create evidence files only when a task has real procedures/results to retain.
+ROADMAP owns milestones/exit criteria; BACKLOG owns task status, dependencies,
+cards, actual blockers and the latest handover; ARCHITECTURE owns current behavior;
+DECISIONS owns rationale; CHANGELOG owns concise meaningful completed changes.
+ENGINEERING owns shared engineering rules. Link instead of duplicating stores.
+Update affected documentation after ordinary implementation/testing, without
+creating reconciliation tasks or evidence gates for trivial corrections.
 
 ## DEC-006
 
-**Accepted by user | 2026-09-24 | Essential v1.0 workloads and guest count**
+**Accepted | 2026-09-24 | Essential workloads**
 
-Essential workloads are D3D11 and D3D12 hardware graphics plus CUDA compute on
-one Windows 11 x64 guest. Concurrent guests are experimental. Keep other APIs
-in the probe matrix but outside the essential release gate; the detailed scope
-is owned by the [v1.0 contract](ROADMAP.md#version-10-contract).
-
-This refines DEC-003: reproduction before implementation still applies. The old
-blanket gate requiring parity for every optional passing upstream probe is replaced
-by essential-workload parity, with optional gaps recorded individually. This follows
-the user's explicit choices and request that speculative APIs not block v1.0.
-It does not authorize silently dropping CUDA or either Direct3D requirement.
+v1 requires D3D11 and D3D12 checked hardware rendering plus checked CUDA computation
+on the configured guest. Those workloads already passed experimentally. Optional
+APIs, video codecs, vendor features and interoperability do not block release
+unless an essential function demonstrably needs them. Extra claims need their
+own measured workload.
 
 ## DEC-007
 
-**HCS/backend alternatives superseded by DEC-024; other contingencies retained | 2026-09-24 | Resolve a failed baseline or backend gap**
+**Superseded by DEC-025/026 | 2026-09-24 | Feasibility contingencies retired**
 
-No new backend decision is made by this plan. GPU-006 selects the minimum proven
-path under DEC-002, and records reasons and remaining limitations.
-
-| Trigger / options | Practical implication / recommendation | Who resolves |
-|---|---|---|
-| Essential VMMS probe fails: repair provisioning/session/identity; or run minimal HCS comparison | First isolate a reproducible cause. Recommend bounded HCS research only after matching native runtimes fail; do not create two production backends speculatively. | Technical evidence in GPU-005/006; ask user if HCS requires a broader VM-management product. |
-| Safe upstream reference cannot be built/run: find a safe pinned artifact; use a source-derived minimal reference; or pause | Recommend finding a safe artifact first. A source-derived reference changes the reproduction contract and needs explicit user acceptance before substituting it. | User after REF-002/GPU-004 evidence. No signing/isolation exception is proposed. |
-| Essential capability fails on both paths | Diagnose and retry a specific cause, change target/scope, or stop. Do not hide failure by marking it optional. | User after exact blocker and experiment results. |
-
-These are conditional decisions, not present blockers. No question about choosing
-a backend can be answered reliably before target measurements.
+Diagnose concrete failures against our complete validated recipe. Do not restore
+backend/reference investigations because an integration test fails.
 
 ## DEC-008
 
-**Proposed, owner input before packaging | 2026-09-24 | Distribution and licensing**
+**Owner decision before distribution | 2026-09-24 | Licensing and delivery**
 
-DOC-004 must obtain the owner's project license and intended delivery channel.
-Options: source release with reproducible local build; portable CLI archive without
-a publisher signature (simpler delivery, less publisher identity assurance); or
-signed portable CLI archive (identity and certificate/service cost). An installer
-adds maintenance without being needed for existing-VM operation.
+The owner selects the project license and distribution channel when preparing
+release delivery. Source delivery, portable binaries and publisher signing have
+different prerequisites; no current choice is implied. Local candidate packaging
+can proceed without public distribution. An installer is optional.
 
-Recommendation: a portable archive plus source, checksums, notices and build recipe;
-use publisher signing if available. This is **not** selection of a license, purchase
-of a certificate, or permission to publish. The owner can resolve this at M4 after
-the actual component set and terms are known. No keys enter the repository and no
-test-signing/Secure Boot change is an acceptable packaging workaround. Proprietary
-driver/OS binaries remain local inputs under their actual terms, not release payload.
+Review actual dependency/probe/runtime terms and preserve applicable copyright,
+license and third-party notices, including source translations. Local provisioning
+does not grant redistribution rights. Drivers, OS images, disks, credentials and
+signing keys are excluded from release payloads. Retain Secure Boot/signing
+boundaries; unresolved essential rights block distribution, not unrelated development.
 
 ## DEC-009
 
-**Accepted by user | 2026-09-24 | Rust-native implementation and shared engineering standards**
+**Accepted | 2026-09-24 | Rust and native Windows**
 
-Implement all project functionality in Rust wherever technically possible,
-including utilities and compatibility components. Native Windows facilities remain
-the integration boundary; using an existing utility does not itself add an
-implementation language. Supersede DEC-003's C/C++ retention preference and the
-former architecture default to PowerShell adapters. Reference artifacts remain
-external comparison inputs; ABI or upstream language alone cannot justify a
-non-Rust implementation.
-
-[ENGINEERING.md](ENGINEERING.md) owns detailed language-exception, quality,
-testing, toolchain, dependency, CI and code-documentation rules. AGENTS remains
-the concise mandatory entry point and session/protected-operation authority;
-agent-specific instructions and optional prompts link to these sources.
-This extends DEC-005's document map without changing its single task register.
-
-Reason: the user's DOC-007 request requires maintainable, idiomatic Rust developed
-in small tested changes, with no duplicated or conflicting agent policy. Initial
-hardware-independent tests and minimal Windows PR checks start in CORE-001;
-CORE-013 extends and verifies them. No application scaffolding or CI is introduced
-by this documentation task, and the hardware reproduction gate is unchanged.
-
-Revisit a language exception only with a specific technical limitation and an
-investigated Rust-native alternative, recorded before introducing the exception.
-See [DOC-007](BACKLOG.md#doc-007) for review and validation evidence.
+Application logic, CLI, configuration, diagnostics and supporting utilities belong
+in Rust wherever technically possible. Existing Windows utilities can provide
+bounded native interfaces; ABI language or convenience does not justify non-Rust
+application logic. Investigate Rust alternatives and record a technical exception
+before introducing another language. [ENGINEERING.md](ENGINEERING.md) owns the
+detailed language, quality, test and FFI rules.
 
 ## DEC-010
 
-**Accepted, refined by DEC-011 | 2026-09-25 | Early hardware-independent foundation**
+**Implemented foundation; sequencing superseded by DEC-026 | 2026-09-25**
 
-The user's scaffolding request brought the non-hardware portion of CORE-001
-forward into CORE-019 at M0. DEC-011 subsequently moved CORE-001's read-only
-inventory directly behind HV-001 and moved the thin Rust vertical slice into M1;
-backend selection still follows measured native/reference workload results.
-
-Use one root package/workspace, Rust edition 2024, resolver 3, exact Rust 1.94.0
-and the same declared minimum version, targeting x86_64-pc-windows-msvc. This
-matches the installed stable compiler, now installed under its exact version
-name; it is not a claim to use the latest release. The
-[official release](https://blog.rust-lang.org/2026/03/05/Rust-1.94.0/)
-identifies the compiler. Updates remain separately validated changes.
-
-The standard library suffices for two informational options, typed usage errors
-and process I/O. No dependency, serialization format, structured logging library,
-Windows bindings or backend abstraction is warranted yet. CLI growth in CORE-004
-is the point to reevaluate a maintained parser and configuration crates; inventory
-will introduce diagnostics. There is no non-Rust implementation exception.
-
-Forbid unsafe code in the foundation. Revisit this lint narrowly when native FFI
-is justified, using the engineering safety requirements. Use default rustfmt and
-Clippy, warnings-as-errors verification, and a SHA-pinned checkout action. Native
-SDK/MSVC inputs and actual commands live in [README.md](../README.md).
-No project license is selected; registry publication is disabled pending DEC-008.
-
-Repository-local validation exposed Windows error 5 when rustc finalized its
-incremental cache (the same code passed in the shell's external target directory).
-Disable dev-profile incremental compilation, inherited by tests, for this small
-foundation. This avoids the failing optional cache operation without suppressing
-warnings or changing security settings. Revisit if build time warrants diagnosing
-the filesystem/cache interaction; the exact external cause is not established.
+Keep one root package/workspace, edition 2024, resolver 3 and the pinned Windows
+x64 MSVC toolchain. Current inputs/commands belong in repository configuration and
+README. Development incremental compilation remains disabled after observed
+Windows cache-finalization failures; revisit only if build cost warrants it.
+Do not add scaffolding abstractions without behavior needing them.
 
 ## DEC-011
 
-**Accepted by user | 2026-09-25 | Disposable-VM vertical slice and controlled elevation**
+**Accepted, refined by DEC-025/026 | 2026-09-25 | Disposable target and elevation**
 
-Treat the user's successful AppSandbox operation on this RTX 5060 host as evidence
-that the hardware/Windows combination can execute GPU-PV through AppSandbox's HCS
-path. The project must still measure its own D3D11, D3D12 and CUDA results and must
-not infer that Hyper-V/VMMS exposes every HCS capability.
-
-Develop against one designated disposable Generation 2 VM whose OS disk is a
-differencing VHDX based on a shut-down, immutable clean Windows 11 parent. The
-parent contains normal updates and integration support but no experimental GPU-PV
-assignment, copied NVIDIA runtime or compatibility shim. A damaged or uncertain
-child is destroyed and recreated; checkpoints and guest-file rollback are not the
-primary recovery system. The project never deletes or mutates the parent image.
-
-Begin a small Rust vertical slice after target inventory and interface discovery:
-inventory the explicit RTX/VM, read a versioned configuration, invoke only fixed
-native operations, stage the measured minimum runtime into the disposable child,
-assign GPU-PV, and run identity-checked D3D11/D3D12/CUDA probes. AppSandbox remains
-the known-working reference for GPU discovery, HCS assignment, provisioning and
-conditional vendor handling. Investigate a specific VMMS/HCS difference only when
-the native path fails; do not restart general hardware-feasibility planning.
-
-GPU acceleration and desktop presentation are separate. VMConnect, Enhanced
-Session Mode or RDP may provide operator access, but their display adapter is not
-GPU proof. No custom indirect display driver or transport enters v1 unless a named
-essential workload is shown to require it. Existing Phaze and remote-display
-drivers on the host are observed components, not project dependencies or mutation
-targets.
-
-Ordinary builds and tests stay unelevated. Repeated privileged tests use a small
-administrator-installed Rust runner or equivalently narrow native boundary, not an
-elevated editor or arbitrary administrative shell. Its executable and policy are
-outside agent-writable paths; policy pins one logical disposable slot, the selected
-GPU identity, an operation allowlist and parent/child/test roots. DEC-015 narrows
-this target to one administrator-enrolled fixed VM GUID: the runner recreates only
-its child disk and cannot accept or rewrite a VM identity/path. The runner validates
-every request, logs request/result, rejects arbitrary commands and fails closed.
-Installing, updating and exercising the fixed runner on the designated disposable
-target is authorized development work under the current repository policy;
-broadening its target or command surface remains a security-boundary change. Codex
-sandbox approval does not itself grant a Windows elevated token.
-
-Reason: disposable children make guest restoration machinery unnecessary, while a
-fixed privileged interface supports practical iteration without granting the agent
-general host administration. The shortest useful proof is the project's own Rust
-path reproducing the already observed reference behavior.
-
-Revisit when: differencing-disk performance prevents representative testing; an
-essential workload demonstrably needs a custom display device; or the measured
-VMMS path lacks a capability available only through HCS.
+Use one immutable clean parent and disposable differencing child. Recover uncertain
+guest state by recreating the child, not a general guest-file rollback engine.
+Native lifecycle/assignment and bounded privileged operations remain project
+testing. GPU computation and operator desktop presentation are separate; a custom
+display device/transport is outside v1 unless essential workload evidence requires it.
 
 ## DEC-012
 
-**Accepted by user | 2026-09-25 | Effect-based development permissions**
+**Accepted | 2026-09-25 | Effect-based development authorization**
 
-Routine repository development and the bounded administrator operations authorized
-for the designated disposable target proceed autonomously. Authorization remains
-limited to its exact target and effect scope; physical-host lifecycle requires
-explicit permission immediately beforehand. [AGENTS.md](../AGENTS.md#development-and-test-authorization)
-owns authorization, while the [Windows elevation policy](ENGINEERING.md#windows-elevation-and-uac)
-owns execution-path selection; prompts reference those rules rather than restating them.
-
-Project Codex defaults use a workspace-write sandbox with on-request escalation
-and workspace network access. These settings permit normal edits, Cargo work and
-dependency retrieval while retaining a platform boundary around external writes.
-Repository text cannot override client, organization or sandbox enforcement, and
-Codex approval never supplies a Windows administrator token.
-
-Reason: the earlier protected-operation wording was sound for host resources but
-did not expressly authorize ordinary development, while the project Codex config
-left sandbox and approval behavior to higher-level defaults.
+[AGENTS.md](../AGENTS.md#development-and-test-authorization) owns authorization;
+[ENGINEERING.md](ENGINEERING.md#windows-elevation-and-uac) owns elevation paths.
+Normal development and approved disposable-target testing proceed autonomously
+after identity checks. Physical-host lifecycle requires explicit permission
+immediately beforehand. Repository text never overrides platform enforcement,
+and Codex tool approval never supplies a Windows elevated token.
 
 ## DEC-013
 
-**Implemented for CORE-001 | 2026-09-25 | Bounded query-process inventory adapter**
+**Implemented | 2026-09-25 | Bounded inventory query process**
 
-Retain one fixed, parameter-free Windows PowerShell process as the read-only query
-transport for the initial inventory slice. Rust owns the operation deadline,
-termination/reaping, bounded stdout/stderr, protocol validation, status semantics,
-RTX 5060/interface correlation, VM selection and final reporting. The script owns
-no configuration or policy decision, accepts no user input and invokes only
-registry, CIM and installed Hyper-V query facilities.
-
-The Rust-native alternatives were evaluated before retaining this narrow boundary.
-`windows-registry` can safely replace the registry reads, and `wmi` or direct
-`windows` bindings can query CIM/COM in-process. Their synchronous provider calls
-do not provide the bounded cancellation contract required here; abandoning an
-in-process thread on timeout would leave an untracked WMI operation. Direct COM
-cancellation and SetupAPI enumeration would also require new unsafe/FFI surface
-before HV-003 has fixed the required native interface and rights matrix. A child
-process can be killed and reaped on deadline while keeping the current read-only
-provider operation isolated. Calling the installed Windows utility is permitted by
-DEC-009, but embedding selection or mutation logic in it is not.
-
-Revisit after HV-003. Replace registry and device discovery with safe Rust bindings
-when the complete query set can retain deadlines, cancellation and structured
-Windows codes; keep any Hyper-V cmdlet transport only for interfaces that lack an
-equivalent bounded native route. No mutation may be added to this adapter.
+The initial inventory adapter uses a fixed parameter-free Windows query process.
+Rust owns deadlines, bounded output, termination/reaping, protocol validation,
+target selection and reporting. Synchronous in-process provider calls did not
+provide that cancellation boundary without additional FFI. Retain this working
+transport unless a concrete requirement warrants replacement; native full-driver
+discovery is a separate implemented read-only path.
 
 ## DEC-014
 
-**Accepted by user | 2026-09-26 | Maintained scripts and explicit host lifecycle consent**
+**Accepted | 2026-09-26 | Reviewable development procedures**
 
-Substantial shell procedures are committed as meaningful scripts and executed as
-files; short, straightforward commands remain direct. ENGINEERING owns script
-quality, placement and Rust-boundary details, while AGENTS remains the single
-detailed permission authority. Useful tooling stays under `scripts/`; temporary
-scripts remain clearly separate under ignored `local/scripts/`.
-
-No host restart, shutdown, logout, session termination or automatic/scheduled
-restart may occur without an explanation and the user's explicit permission for
-that occurrence, including under elevation or the approved test runner. Verified,
-explicitly authorized disposable-guest lifecycle work remains autonomous within
-its exact scope; the golden master and unrelated VMs remain protected.
-
-Reason: file-backed procedures are reviewable and reproducible, and host lifecycle
-effects require a stronger boundary than ordinary privileged test operations without
-adding approval friction to normal repository development.
+Short commands run directly; substantial procedures live in meaningful scripts.
+Maintained tooling uses `scripts/`; temporary task procedures use ignored
+`local/scripts/`. Application behavior remains Rust-owned. Host restart,
+shutdown, logout or session termination is never implicit in a script or test.
 
 ## DEC-015
 
-**Accepted by user | 2026-09-26 | Fixed VM identity without Sysprep**
+**Accepted | 2026-09-26 | Fixed VM identity**
 
-Retain the completed Windows installation without Sysprep and use it only through
-one persistent Hyper-V VM shell. The shell pins VM GUID `2627E735-5B33-4104-B739-
-622727DD3A40`, Generation 2 firmware, Secure Boot, vTPM, MAC address and the guest's
-existing `TESTVM` identity. Reset discards and recreates only the differencing child;
-the VM configuration is neither cloned nor recreated. No two descendants run or
-exist as separately registered Windows machines.
-
-Microsoft requires generalization when an image is deployed to another computer.
-This workflow instead repeatedly restores storage state for the same virtual
-computer, preserving the user's local account and avoiding unnecessary OOBE. If the
-project later creates a new VM GUID, concurrent clone, domain-joined descendant or
-portable image, rebuild/generalize a parent before that use; do not silently extend
-this exception.
-
-The owner also chose not to gate this development master on Windows activation or
-four remaining offered Windows/Defender/.NET updates. Those facts remain recorded
-as limitations rather than being reported as ready/passing checks.
-
-Reason: the disposable test policy requires one active instance, while preserving
-the completed local setup materially simplifies repeated GPU-PV development.
-
-Revisit when: a second VM identity is required, the VM shell/vTPM is lost, domain
-membership is introduced, or supported multi-machine image deployment is needed.
+Reset only the child of the configured persistent VM shell, retaining VM GUID,
+firmware/vTPM, MAC and guest identity. The completed un-generalized parent is used
+only to restore that same virtual machine, never to create a separately registered
+clone. Another VM identity, domain-joined clone or portable image requires separately
+preparing/generalizing a parent. Target identities belong in TOML and enrollment,
+not duplicated decision prose.
 
 ## DEC-016
 
-**Implemented for CORE-005 | 2026-09-27 | Fixed Hyper-V cmdlet boundary for the enrolled slot**
+**Implemented | 2026-09-27 | Fixed native-management runner**
 
-Retain the installed Hyper-V and Virtual Machine PowerShell modules only as a
-fixed, parameter-free adapter inside the administrator-owned Rust runner for the
-initial `inspect` and `reset-slot` operations. The scripts contain literal reviewed
-operation bodies and receive VM, GPU and parent/child identities only from the
-validated exact-byte policy compiled into the administrator-installed executable.
-Values are single-quoted with embedded quotes escaped before the fixed preamble is
-formed; callers supply no values, paths or commands. Provider failures propagate and
-the adapter runs in a killed/reaped child process with configured bounded deadlines
-and fixed output limits. Rust owns authenticated request parsing, exact policy
-verification, replay rejection, locking, audit/result publication and operation
-selection. The interactive user cannot replace either the body or installed policy.
-
-The Rust-native alternatives were investigated after HV-003 fixed the available
-surface. Direct `windows` bindings expose HCS and low-level virtualization WMI,
-but the selected registered Hyper-V VMMS path has no maintained typed Rust API for
-the installed `Add/Get/Set/Remove-VMGpuPartitionAdapter`, VM storage attachment and
-PowerShell Direct contracts. Implementing those operations through raw COM/WMI and
-VirtDisk FFI would add a substantially larger unsafe/provider surface, while their
-synchronous calls still do not provide the runner's required bounded cancellation.
-The installed cmdlets are the measured native Windows management contract and can
-be isolated by terminating and reaping their process on timeout.
-
-This exception permits only the reviewed fixed body plus the validated policy
-preamble; it does not permit caller-controlled interpolation, arbitrary process
-execution, HCS fallback or application decisions in PowerShell. Each added fixed
-operation requires its own adapter review, malformed/denied/native-failure tests,
-exact policy change and protected installation approval. Revisit when a
-maintained Rust/Win32 interface covers the measured operation set with equivalent
-identity checks, native error fidelity and cancellation, or if process termination
-is shown not to bound an in-flight provider mutation; in the latter case reconcile
-native state and stop before retry.
+The administrator-installed Rust runner exposes compiled policy-listed operations
+for the enrolled slot. Fixed Windows cmdlet bodies provide measured VMMS management
+and supervised cancellation without recreating Hyper-V. Rust owns authentication,
+exact policy verification, locking, request validation and audit/results. Callers
+cannot supply commands, scripts, targets or paths. Wider command/target surfaces
+require security review; normal installed-runner updates/testing are authorized.
 
 ## DEC-017
 
-**Implemented for CORE-005 | 2026-09-28 | Exact-SID LSA account-right delta**
+**Implemented | 2026-09-28 | Exact-SID account-right changes**
 
-Use a fixed administrator-only Rust helper over `LsaAddAccountRights`,
-`LsaRemoveAccountRights(AllRights=false)` and `LsaEnumerateAccountRights` to add
-or remove only `SeBatchLogonRight`, `SeDenyNetworkLogonRight`,
-`SeDenyInteractiveLogonRight`, `SeDenyRemoteInteractiveLogonRight` and
-`SeDenyServiceLogonRight` for the dedicated runner SID. Verify the complete
-before/after right set so every unrelated right remains unchanged. Persist that SID
-in the administrator-owned recovery directory immediately after account creation;
-recovery rejects a same-name/different-SID account and deletes only by the recorded
-SID.
-
-The first S4U installation trial registered the fixed limited task but Task
-Scheduler never launched it. Read-only local-policy inspection showed the runner
-SID lacked batch logon. A security-template update was rejected because replacing
-whole privilege membership lists could overwrite concurrent local or domain-policy
-changes. The exact LSA delta has the smallest target and a symmetric rollback.
-Applying it remains a separately approved host security-policy operation; repository
-implementation does not authorize execution.
-
-Revisit if Task Scheduler can use an equally restricted measured logon mode without
-an account-right change, or if domain policy prevents the fixed local SID rights.
+Runner setup/recovery uses native LSA add/remove calls for only the fixed batch/
+deny-logon right delta on its enrolled SID, verifying unrelated rights remain.
+Recovery deletes the persisted SID rather than trusting an account name.
+Replacing entire local/domain privilege membership lists would risk unrelated
+state and is not the contract.
 
 ## DEC-018
 
-**Implemented for CORE-005 | 2026-09-28 | Cross-account named-pipe identity without process-token access**
+**Implemented | 2026-09-28 | Mutual named-pipe identity**
 
-Authenticate the fixed local runner pipe without opening the peer process. The
-runner-owned pipe security descriptor records the enrolled runner SID as owner and
-grants the enrolled client only specific read/write-data, read-control and supporting
-read/synchronization rights (`0x0012008b`), explicitly excluding
-`FILE_CREATE_PIPE_INSTANCE`. The client requests identification-only SQOS, verifies
-the pipe owner SID through `GetSecurityInfo`, and only then writes its bounded frame.
-After reading that frame, the runner impersonates the connected client at
-identification level, queries `TokenUser`, reverts, and compares the exact enrolled
-SID before invoking any handler. If `RevertToSelf` fails, the one-shot runner aborts
-instead of continuing under an untrusted identity.
-
-The earlier peer-process-token design passed a same-user component test but failed
-with access denied when the dedicated S4U runner and interactive client used distinct
-accounts. Process DACL access is neither needed nor a stable authentication contract.
-Explicit pipe owner/client token checks preserve mutual identity without granting
-the limited runner `SeImpersonatePrivilege` or allowing the client to create pipe
-server instances. Remote clients, additional instances and pre-authentication
-effects remain rejected.
-
-Revisit if the transport moves to a service broker or an authenticated Windows RPC
-surface with an equally narrow fixed operation boundary.
+The client checks the pipe's enrolled owner SID before sending its bounded request.
+The runner reads the frame, identifies the client through pipe impersonation,
+reverts and checks the enrolled client SID before dispatch. Client rights exclude
+pipe-instance creation. Cross-account process-token access and additional
+impersonation privilege are unnecessary; remote clients and pre-authentication
+effects are rejected.
 
 ## DEC-019
 
-**Implemented | 2026-09-30 | One typed non-secret project configuration**
+**Implemented, operator cleanup remains CORE-021 | 2026-09-30 | Typed configuration**
 
-Use `config/project.toml` as the sole hand-edited source for mutable machine, slot,
-image, driver/tool input and test-harness values. Deserialize and validate it into
-typed Rust structures at the boundary. Maintained PowerShell consumes the same flat
-scalar/table document through one shared reader; script parameters may select a
-different configuration file but do not establish competing defaults. Keep protocol,
-Windows API, enum and fixed safety constants in implementation code.
-
-The administrator-installed `runner-policy-v1.json` remains a separate exact-byte
-security artifact, but it is generated from the policy subset of `project.toml` and
-checked for drift. Release executable and policy hashes live in generated
-`artifact-pins.toml` so no executable embeds its own expected hash; both artifacts
-are updated/verified by the same maintained command after a reviewed build. The schema has no secret fields,
-rejects unknown keys, and local/secret overlays remain ignored.
-
-Reason: mutable literals had spread across Rust, setup/build/test scripts and prose,
-causing inconsistent updates and unnecessary repository-wide searches. One source
-keeps environment change local without weakening policy or artifact integrity checks.
-
-Revisit only if a consumer cannot safely read the shared TOML subset or a second
-configuration domain has a demonstrably different trust/ownership boundary.
+Use `config/project.toml` as the sole hand-edited mutable, non-secret configuration.
+Validate at the boundary and pass typed values. Discover reliable Windows inventory.
+Generated policy and artifact hashes are integrity artifacts, not independent
+settings; retain installed privileged enrollment as a distinct trust boundary.
+[CONFIGURATION.md](CONFIGURATION.md) records current embedding and schema gaps.
 
 ## DEC-020
 
-**Implemented for CORE-008 | 2026-10-02 | Fixed PowerShell Direct transfer adapter**
+**Implemented | 2026-10-02 | Bounded PowerShell Direct transport**
 
-Use a Rust-owned transfer contract and process supervisor around one fixed Windows
-PowerShell 5.1 adapter for the initial guest session and file-copy boundary. Microsoft
-exposes [PowerShell Direct](https://learn.microsoft.com/windows-server/virtualization/hyper-v/powershell-direct)
-persistent VM sessions and `Copy-Item -ToSession` through
-[`New-PSSession`](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/new-pssession)
-`-VMId -Credential`; no maintained typed Rust or Win32 API exposes that
-contract for a registered Hyper-V VM. Reimplementing PowerShell remoting/VM-session
-internals would be a larger unsupported security surface.
-
-Rust validates the configured VM, attached child/parent chain and guest identities,
-source metadata/hash, flat staging filename and returned byte/hash evidence. The
-fixed adapter repeats identity and hash checks in the session, uses a protected
-`Program Files` staging root, rejects reparse traversal, broad write ACLs and
-existing/partial targets, and revalidates the root before a same-directory rename.
-It accepts a size-bounded UTF-8 JSON request over supervised anonymous stdin through
-the exact configured system PowerShell executable. Rust replaces caller-controlled
-PowerShell module discovery with the protected system module root, explicitly loads
-and path-checks the Hyper-V commands before reading stdin, and rejects success-shaped
-output from a failed process. The password is never an argument, configuration value,
-report field or error, and Rust zeroes its password buffers.
-`rpassword` 7.5.4 supplies Windows console echo
-suppression without adding project-owned unsafe code; `zeroize` 1.9.0 provides the
-non-optimizable buffer clearing. Both are Apache-2.0-compatible dependencies with a
-Rust 1.85 minimum below the pinned toolchain.
-
-Killing and reaping the host adapter bounds the caller but cannot prove an in-flight
-guest copy stopped. A timeout or adapter loss therefore reports uncertain guest state;
-the `.partial-*` marker blocks reuse and the disposable child is recreated instead of
-silently retrying. This exception permits no caller-provided script, nested
-destination, network setup, remote management change, general guest command
-execution or destination outside the configured staging root.
-
-Revisit if Windows exposes an equally bounded supported native API, if PowerShell
-Direct cancellation can be reconciled more precisely, or when CORE-009 replaces the
-single-file harness with its reviewed manifest-level staging operation.
+Existing PowerShell Direct provides supported registered-VM sessions/file transfer;
+reimplementing its remoting internals would enlarge the security surface. Rust owns
+target/source/path/hash validation, structured requests and process supervision.
+Load/verify protected system modules before accepting credentials, keep credentials
+off command lines/reports, and zero password buffers. Killing the host process
+does not establish guest-copy cancellation; interruption makes guest state uncertain.
 
 ## DEC-021
 
-**Implemented for CORE-009; build-drift rule superseded by DEC-022 | 2026-10-03 | Atomic manifest-level guest staging**
+**Package implementation retained; full recipe superseded by DEC-025 | 2026-10-03**
 
-Extend the Rust-owned CORE-008 boundary with a distinct, fixed manifest operation;
-do not authorize nested destinations through the general single-file harness. Rust
-reinspects and hashes the complete GPU-correlated package, refuses active-driver or
-reboot/servicing drift, binds the returned receipt
-to the configured VM/guest/manifest identities, and supplies only the deterministic
-217-file manifest to the adapter. The fixed PowerShell Direct glue revalidates the
-pinned Authenticode files and signer, host source hash/length immediately before each
-copy, and guest hash/length after copying.
-
-The adapter creates one `.partial-*` package below the guest's system
-`HostDriverStore` mirror, copies through one authenticated session, verifies the
-complete tree, atomically renames it, then creates a byte-identical `nvcuda.dll`
-hard link (or recorded copy fallback) and an atomic applied receipt under the
-protected staging root. An exact reapply rehashes every package file and alias and
-returns `already-applied`; any partial marker, unexpected destination, mismatch,
-timeout or lost adapter makes the disposable child uncertain and non-retryable.
-Recovery is child recreation, never deletion or takeover of unknown guest state.
-
-PowerShell remains the smallest supported bridge because PowerShell Direct and
-`Copy-Item -ToSession` have no maintained native Rust/Win32 interface. Credentials
-remain zeroized, stdin-only and absent from configuration, command lines and output.
-The fixed adapter installs one in-memory ACL validator definition into the persistent
-guest session instead of duplicating that source in every remote block. Rust rejects
-any expanded fixed script above a conservative 30,000 UTF-16-unit bound before
-launch, keeping the reviewed script inside the Windows process command-line limit;
-the credential payload remains on anonymous stdin rather than in that command line.
-No INF installation, registry/ACL/owner broadening, shim, network change or arbitrary
-guest command is introduced. Revisit only if a native bounded VM-session file API
-becomes available or measured staging throughput requires a different reviewed
-transport without weakening these receipt and recovery rules.
+The current writer verifies/atomically publishes its package, CUDA alias and receipt.
+It is a bounded staging implementation, not the complete provisioning contract.
+Keep integrity, partial-state and verified-no-op principles while extending the
+writer to every discovered environment destination. Do not retain package-only
+assumptions as full-driver requirements.
 
 ## DEC-022
 
-**Accepted | 2026-10-04 | Treat Windows build drift as qualification evidence**
+**Accepted | 2026-10-04 | Windows build drift is qualification evidence**
 
-Keep `driver_manifest.host_build` as the build on which the manifest combination was
-qualified, but do not require the running host and guest to have that exact build.
-Immediately before staging, measure the host and authenticated guest builds, return
-them with the qualified host build in the verified operation receipt, and emit visible
-warnings for host/baseline or host/guest differences. Use those warnings to scope and
-record the subsequent GPU-PV workload qualification.
-
-Build numbers are useful compatibility and reproducibility signals, but inequality
-does not itself prove that Hyper-V, GPU-PV or the selected driver/runtime combination
-is broken. Hard failure remains appropriate for a reproduced required-capability
-failure, changed GPU driver/package/signature identity, active or unexplained
-servicing, or target/receipt verification failure. Reconsider an explicit build
-denylist only if measured evidence identifies an incompatible build or build range;
-do not infer one from version distance alone.
+Record configured qualification, measured host and measured guest builds. A build
+difference is a visible warning, not automatic refusal. The working baseline used
+different host/guest builds. Driver/package identity, signatures, stable servicing
+and checked capabilities remain mandatory; changed combinations need affected
+workload validation before a new compatibility claim.
 
 ## DEC-023
 
-**Accepted | 2026-10-04 | Distinguish residual delete cleanup from active servicing**
+**Accepted | 2026-10-04 | Reviewed cleanup versus active servicing**
 
-Continue to fail CORE-009 staging when CBS or Windows Update requests a reboot, an
-Installer/setup operation is active, pending-file-rename data is malformed, any pair
-has a nonempty destination indicating rename/replacement, or a delete source was not
-individually reviewed and pinned in `allowed_pending_delete_sources`. Exact matched
-source/empty-destination records are returned in the verified staging receipt and emit
-`warning=host-pending-delete-cleanup`; never clear or modify the registry value.
-
-The post-reboot 2026-10-04 host had no CBS/WU/Installer/setup or TrustedInstaller/
-TiWorker activity. Its pre-reboot updater entries were processed, leaving two
-delete-only pairs: the already reviewed byte-identical signed Gaming Services old
-DLL and the exact protected root-level WRP temporary file now pinned for this run.
-Another reboot was not justified
-because the WRP file was regenerated under a new name during the first reboot and no
-active replacement remained. Revisit if a required workload fails, Windows reports
-active servicing, a pending destination or unreviewed source appears, or delete-only
-state correlates with a measured driver/runtime incompatibility.
+Only exact configured raw pending-delete source/empty-destination records may be
+reported as reviewed cleanup warnings. Active servicing, unknown deletions,
+malformed records and rename/replacement destinations fail before mutation.
+Delete-only does not mean harmless; never clear Windows servicing state to pass.
 
 ## DEC-024
 
-**Accepted | 2026-10-05 | Normal Hyper-V VM; Easy-GPU-PV is the primary reference**
+**Product boundary retained; reference policy superseded by DEC-026 | 2026-10-05**
 
-The user reaffirmed the objective: apply GPU-PV knowledge in a clean Rust
-implementation around a normal Generation 2 Hyper-V Windows 11 VM. Pause
-HCS-owned-guest work. A native failure does not select HCS as a product backend
-or authorize implementing an AppSandbox replacement. This replaces the
-conditional backend-selection language in DEC-002/007/011.
+The product uses a normal Generation 2 Windows 11 Hyper-V VM. HCS ownership and
+vendor-extension investigations are outside the delivery plan. Changing this
+boundary requires an explicit user scope change.
 
-Use Easy-GPU-PV for VM configuration, explicit partition assignment and driver
-staging destinations. Pin reviewed source to
-`2353d36325e18c759ca3888e6591e18e5f371011`. Use AppSandbox secondarily for GPU-PV
-internals, diagnostics and API-specific runtime/identity workarounds when a
-measured failure calls for them; do not inherit its VM ownership, Plan9, agent,
-installer, display, remote desktop or audio architecture.
+## DEC-025
 
-The [focused comparison](evidence/GPU-009-easy-gpu-pv-comparison.md) found live
-MMIO/cache/nested-virtualization differences, unset resource triples and
-associated driver destinations outside our package-only staging. The combined
-clean-child reproduction now sustained Code 0 and passed nvidia-smi, checked
-D3D11/D3D12 frames and CUDA vector addition. This proves the measured normal-VM
-baseline, not the necessity or sufficiency of an individual file/setting. Keep
-the full normal-copy closure while integrating Rust provisioning; do not reduce
-it before reproducibility. CUDA/D3D LUID correlation remains an explicit gap.
-No HCS vendor extension was needed for the workloads actually passed.
+**Accepted | 2026-10-05 | Complete measured recipe is authoritative**
 
-Revisit the normal-VM product boundary only if the user explicitly changes the
-objective. No upstream PowerShell product implementation was imported. The
-Easy-GPU-PV tree has no root license file; AppSandbox's license is not a substitute
-for reviewing reuse permissions and attribution for any later source adaptation.
+Sustained Code 0, `nvidia-smi`, checked D3D11/D3D12 and CUDA computation passed.
+Use the complete ordinary-copy environment and measured VM/resource settings in
+[ARCHITECTURE.md](ARCHITECTURE.md#working-recipe). Native Rust discovery matches
+all 271 measured source/destination/length/hash records; the older 217-file
+package/alias subset is incomplete.
 
-## Decision template
+Files and settings changed together. Reproduce the supported complete recipe
+without claiming isolated necessity or minimizing it before v1. CUDA computation
+passed despite the identity companion's host/guest LUID mismatch. Correlation/
+interop is separate post-v1 work; essential target selection and correctness remain
+release requirements. [Baseline evidence](evidence/GPU-PV-BASELINE.md).
 
-```markdown
-## DEC-<next number>
-**Accepted / Proposed / Superseded by DEC-... | YYYY-MM-DD | Title**
-Decision: <choice>
-Reason: <relevant evidence and tradeoff>
-Revisit when: <concrete trigger>
-Links: <task, source or affected architecture section>
-```
+## DEC-026
 
-[reference]: https://github.com/jamesstringer90/appsandbox/commit/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6
-[license]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/LICENSE
-[notices]: https://github.com/jamesstringer90/appsandbox/blob/6f3adb6aafd4fc819d7715bdfacf52ac87df26a6/THIRD-PARTY-NOTICES.md
+**Accepted by user | 2026-10-05 | Engineering delivery replaces investigation**
+
+Use our implementation and measured behavior as the specification. Remove active
+external-reference lookup, comparison and feasibility tasks. Preserve useful
+historical evidence outside the normal task-reading path, and applicable reuse
+notices without imposing a continuing research workflow.
+
+The delivery milestones are Rust clean-child reproduction, usable daily operation
+and maintenance, then release. Complete bounded guest writing, recipe settings and
+probe integration as independent useful slices; compose them into reproduction.
+Then integrate CLI/config, lifecycle/recovery, diagnostics and full-manifest
+restaging, followed by bounded repeatability and candidate release rehearsal.
+
+Do not make minimum-file/resource optimization, optional APIs, CUDA/D3D interop,
+actual host driver upgrades, physical-host reboots or new platform abstractions
+release prerequisites. Keep identity, destructive-target, privilege, signature and
+host-lifecycle boundaries. A materially widened privileged boundary needs focused
+review; routine changes use implement → test → update the existing card.
+
+## New decisions
+
+Add a stable new ID only for a changed architectural/public/security contract,
+with choice, reason and concrete revisit condition. A task, code comment or concise
+correction is enough for ordinary implementation details.

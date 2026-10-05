@@ -9,8 +9,6 @@ competing rules. Documentation records implemented behavior; it is not a preflig
 gate for a small change unless a safety, compatibility or public contract depends
 on it.
 
-CORE-019 establishes the Cargo project, tests and basic Windows PR checks.
-CORE-001 extends the foundation with inventory; CORE-013 extends test coverage.
 Actual commands are in [README.md](../README.md); results belong on task cards.
 Routine repository edits, dependency changes, development commands and targeted
 cleanup are normal task execution and do not require separate approval.
@@ -126,13 +124,12 @@ appropriate. See the [configuration ownership and audit](CONFIGURATION.md).
   maintained Rust crates and native Windows APIs; use
   [`windows`](https://github.com/microsoft/windows-rs) where appropriate.
 - Do not add Python, PowerShell, C, C++, C#, JavaScript or another implementation
-  language when Rust can do the job. AppSandbox is a behavioral reference for
-  selective Rust reimplementation, not a language or architecture template.
-  Translations and adaptations retain required attribution and notices.
+  language when Rust can do the job. Adapted material retains required attribution
+  and notices.
 - Before introducing a non-Rust exception, investigate a Rust-native route and
   record in [DECISIONS.md](DECISIONS.md) the technical limitation, alternatives
   investigated, smallest exceptional component, validation, dependencies/notices
-  and conditions for revisiting it. Convenience or upstream language is insufficient.
+  and conditions for revisiting it. Convenience is insufficient.
   An external ABI alone does not require C/C++ source; evaluate
   [Rust FFI](https://doc.rust-lang.org/reference/items/external-blocks.html#abi) first.
 - Use existing Windows/Hyper-V facilities; do not reimplement the OS. Invoking an
@@ -141,10 +138,11 @@ appropriate. See the [configuration ownership and audit](CONFIGURATION.md).
   invoke it through a typed, bounded adapter; document the necessity. Any embedded
   scripts must be minimal interface glue covered by the exception, with application
   decisions and parsing/validation kept in Rust. Never interpolate untrusted scripts.
-- Unmodified reference artifacts and vendor tools used for comparison are external
-  inputs, not application-language choices. Inspect and pin their provenance,
-  dependencies, license and side effects. New project-owned probe/utility code follows
-  this policy; genuine SDK/toolchain constraints use the same exception process.
+- Installed vendor tools are external inputs, not application-language choices.
+  Record their identity/license and bound their invocation where used. New
+  project-owned probes follow this policy; SDK/toolchain constraints use the same
+  exception process. Implement the project recipe from our source and architecture,
+  without an external-reference comparison prerequisite.
 
 ## Code and module design
 
@@ -163,7 +161,7 @@ appropriate. See the [configuration ownership and audit](CONFIGURATION.md).
 - Keep interfaces explicit and visibility minimal. Inspect callers before changing
   module contracts; update callers, tests and documentation together. Preserve
   promised CLI/config/report compatibility or version and explain the change.
-  No AppSandbox API compatibility is required; no premature public SDK is implied.
+  No premature public SDK or external-project API compatibility is required.
 - Handle expected failures with `Result`/`Option`; do not use `unwrap()`, `expect()`
   or `panic!()` where production failures should be handled normally. Test assertions
   and clearly invariant-only cases need judgment, not blanket suppression. Do not
@@ -191,7 +189,7 @@ appropriate. See the [configuration ownership and audit](CONFIGURATION.md).
   surface their outcomes. Preserve both the primary error and any recovery failure;
   provide an actionable next step without hiding partial changes.
 - Use consistent structured logs with useful levels and fields such as operation,
-  stage, outcome and duration; choose one lightweight approach when code exists.
+  stage, outcome and duration; use the existing lightweight logging approach.
   Keep CLI summaries readable. Redact credentials and unnecessary identifying data;
   avoid full environment dumps, secrets in command lines and duplicate error logging.
 - Validate all inputs before Hyper-V, GPU or guest-driver changes, revalidate state
@@ -213,11 +211,9 @@ per trivial accessor, implementation-mirroring assertion or arbitrary coverage
 percentage substitutes for this requirement. If testing a function is impractical,
 record why and the concrete alternative validation and remaining gap on its task.
 
-- Reuse recent relevant results and run a pre-edit baseline only when diagnosing a
-  regression, changing a risky boundary or needing to distinguish pre-existing
-  failures. Add/update tests with implementation and include a regression test for
-  each bug fix wherever feasible. Avoid unrelated refactoring or weakening
-  assertions to obtain a pass.
+- Reuse established results. Run a fresh baseline only to diagnose a regression or
+  establish behavior at a changed risky boundary. Add/update focused tests with the
+  implementation; do not weaken assertions or add unrelated refactoring for a pass.
 - Use unit tests for isolated logic; integration tests for component contracts,
   configuration validation, error propagation and recovery. Test examples with
   Rust doc tests where useful; mark truly non-runnable examples honestly.
@@ -233,14 +229,19 @@ record why and the concrete alternative validation and remaining gap on its task
   outside path needs existing explicit authorization under AGENTS. Remove only
   resources owned by the test; retain evidence or recovery backups when necessary.
 
-Keep these lanes distinct (task ownership and hardware evidence requirements are
-in [architecture test lanes](ARCHITECTURE.md#test-lanes)):
+Keep these lanes distinct (workload checks are specified in
+[architecture test lanes](ARCHITECTURE.md#test-lanes)):
 
 | Lane | Required behavior |
 |---|---|
 | Hardware-independent Windows tests | Unit, component integration, configuration, regression and doc tests with no administrator, Hyper-V, GPU or network prerequisite. Run routinely and on PRs. |
 | Native Windows integration | Test actual API/adapter contracts and OS failure behavior. Run safe unprivileged cases in Windows CI where available; explicitly invoke environment/privilege-dependent cases only on a prepared target. |
 | Hyper-V and GPU workloads | Explicitly selected runs on the designated disposable target with exact environment, inputs and checked output. These runs may install/update the runner and mutate/recreate the guest without another approval. Enumeration, loading a DLL or compiling does not prove GPU support. |
+
+The measured normal Hyper-V Code 0, `nvidia-smi`, D3D11/D3D12 and CUDA baseline
+is established. Hardware testing now verifies changed Rust behavior, clean-child
+reproduction and driver re-stage workflows; it is not a renewed feasibility gate.
+Do not add repeated evidence audits or unchanged hardware runs to ordinary tasks.
 
 Default tests and `--all-features` must never implicitly opt into environment-
 mutating operations. Use explicit ignored/dedicated suites with runtime prerequisite
@@ -249,8 +250,8 @@ untested cases distinctly from passes.
 
 ## Toolchain, dependencies and features
 
-- At CORE-019, select and record an exact stable Rust toolchain in
-  [`rust-toolchain.toml`](https://rust-lang.github.io/rustup/overrides.html), including
+- Keep the exact stable Rust toolchain in
+  [`rust-toolchain.toml`](../rust-toolchain.toml), including
   rustfmt/Clippy and the Windows x64 MSVC target. Use one explicit edition consistently
   ([2024](https://doc.rust-lang.org/edition-guide/rust-2024/index.html) for new code unless a documented
   compatibility constraint requires otherwise). Declare the supported minimum Rust
@@ -265,7 +266,8 @@ untested cases distinctly from passes.
   Windows facilities. Prefer maintained crates with suitable licenses and clear
   reliability/maintenance value; review enabled features, transitive cost, native
   build requirements and security exposure. Avoid a large crate for trivial work.
-- Use `cargo audit` and `cargo deny check` where practical once dependencies exist.
+- Use `cargo audit` and `cargo deny check` for scoped dependency changes or release
+  checks where practical.
   Record tool availability, advisory database date/availability and findings; no
   unavailable check is a pass. Add a small project-specific license/advisory policy
   when needed, not a generic compliance framework. Triage findings and document
@@ -280,17 +282,17 @@ untested cases distinctly from passes.
 
 ## Required checks and CI
 
-Once a Cargo workspace exists, the normal development checks are:
+The normal checks after meaningful Rust changes are:
 
 ```powershell
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
+cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+cargo test --locked --workspace --all-features
 ```
 
-Use `--locked` on Cargo build, Clippy and test commands in CI and reproducible
-verification. Run these checks after meaningful Rust changes, plus focused tests
-while iterating. Keep doc tests in the test lane: `cargo test --all-targets` alone
+Use `--locked` on Cargo builds and checks in CI and reproducible verification.
+Run focused tests while iterating. Keep doc tests in the test lane:
+`cargo test --all-targets` alone
 does not run them ([Cargo test](https://doc.rust-lang.org/cargo/commands/cargo-test.html)).
 If all features cannot validly combine, record the actual
 supported commands/matrix in the build documentation and task evidence instead
@@ -304,10 +306,9 @@ of invoking an invalid combination or silently reducing coverage.
   applicable, in addition to Clippy's `-D warnings`. Test touched runnable examples;
   check generated rustdoc with warnings denied when public docs/interfaces change.
   Do not enable every optional lint family or ban language constructs indiscriminately.
-- CORE-019 adds minimal Windows x64 PR checks with the first code: formatting,
-  strict Clippy, locked build/tests and applicable doc tests. CORE-013 extends
-  feature coverage and failure/artifact checks. Every PR runs the applicable gates;
-  docs-only work checks links/consistency without requiring hardware or a new crate.
+- Keep Windows x64 PR checks focused on formatting, strict Clippy, locked
+  build/tests and applicable doc tests. Docs-only work checks touched links and
+  consistency without hardware runs or a new crate.
 - Privileged/hardware suites stay explicitly selected on the designated dedicated
   target. Never run untrusted PR code with elevated access or repository secrets.
   Hosted Windows CI results are not Hyper-V/GPU workload evidence.

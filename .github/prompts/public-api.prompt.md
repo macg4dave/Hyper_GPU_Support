@@ -5,12 +5,7 @@ description: Evolve a public Rust interface with a documented caller contract
 
 Change the named public interface.
 
-Follow [AGENTS.md](../../AGENTS.md), the shared
-[API change workflow](api-change.prompt.md), and the engineering standards for
-[documentation](../../docs/ENGINEERING.md#documentation).
-
-- Confirm which callers need public access before expanding visibility.
-- Document inputs, outputs, errors, ownership, and any cancellation, timeout, or
-  safety obligations in the caller-facing contract.
-- Add runnable examples or doctests where they clarify intended use; update
-  existing public examples and compatibility tests affected by the change.
+Use the [API change workflow](api-change.prompt.md) under
+[AGENTS.md](../../AGENTS.md). Confirm which callers require public access.
+Document the caller contract and add useful runnable examples/doctests; update
+affected compatibility tests. Do not create a public SDK for an internal CLI need.

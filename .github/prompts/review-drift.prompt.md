@@ -6,8 +6,7 @@ description: Review a diff for behavior, contract, documentation, and scope drif
 Review the current diff. Lead with concrete findings, ordered by severity.
 
 Follow [AGENTS.md](../../AGENTS.md) and review against the relevant sections of
-[ENGINEERING.md](../../docs/ENGINEERING.md), especially
-[required checks](../../docs/ENGINEERING.md#required-checks-and-ci).
+[ENGINEERING.md](../../docs/ENGINEERING.md).
 
 For each finding, provide:
 
@@ -16,10 +15,7 @@ For each finding, provide:
 - likely runtime, security, compatibility, licensing, or maintenance impact;
 - the smallest correction.
 
-Check Rust policy and exception rationale, module boundaries, error preservation,
-unsafe invariants, resource cleanup, meaningful test coverage, lint suppressions,
-and unnecessary dependencies. Also check unsupported GPU claims, missing
-environment evidence, attribution/notices, proprietary binary redistribution,
-wrong-target mutations, stale capability documentation, and unrelated scope.
-Report only checks actually run. Passing tests do not replace review; if there
-are no findings, say so and name residual validation gaps.
+Focus on changed behavior, Rust/FFI correctness, target safety, recovery, useful
+tests, contracts and required attribution. Trust established baseline results;
+inspect historical evidence only for a concrete regression. Report actual checks
+and material gaps. If there are no findings, say so.

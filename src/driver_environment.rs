@@ -1,8 +1,8 @@
-//! Complete Easy-GPU-PV copy closure, expressed as a deterministic Rust manifest.
+//! Complete validated driver/runtime environment as a deterministic Rust manifest.
 //!
 //! Native discovery supplies the selected service and signed-driver associations;
 //! Rust owns package expansion, destination mapping, source validation and hashes.
-//! Inspection does not mutate the working guest. Behavioral reference: James
+//! Inspection does not mutate the working guest. Historical recipe research: James
 //! Stringer's Easy-GPU-PV, commit 2353d36325e18c759ca3888e6591e18e5f371011,
 //! Add-VMGpuPartitionAdapterFiles.psm1; no upstream implementation text is reused.
 

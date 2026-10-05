@@ -1,4 +1,4 @@
-//! Native COM/WMI discovery for the Easy-GPU-PV driver association closure.
+//! Native COM/WMI discovery for the validated driver/runtime association closure.
 //!
 //! Queries are read-only and fixed to the configured physical GPU. This adapter
 //! requires Hyper-V read access for partitionability verification; invoke it via
@@ -291,7 +291,7 @@ pub fn discover_driver_environment(
         quoted(&service)
     );
     let mut kernel = exactly_one(query(&cim, &service_query, &["PathName"], deadline)?)?;
-    // Match the same association Antecedent as Easy-GPU-PV. This provider returns
+    // Resolve the selected signed driver's association Antecedent. The provider returns
     // null __PATH for projected signed-driver objects even with ENSURE_LOCATABLE.
     let mut computer = exactly_one(query(
         &cim,

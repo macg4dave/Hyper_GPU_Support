@@ -5,27 +5,12 @@ description: Review and harden host, guest, API, driver, and parsing boundaries
 
 Review or harden the requested area.
 
-Follow [AGENTS.md](../../AGENTS.md) and the engineering standards for
-[errors and lifetimes](../../docs/ENGINEERING.md#errors-and-operation-lifetimes),
-[Windows elevation and UAC](../../docs/ENGINEERING.md#windows-elevation-and-uac),
-[dependencies](../../docs/ENGINEERING.md#toolchain-dependencies-and-features),
-[testing](../../docs/ENGINEERING.md#testing), and
-[required checks](../../docs/ENGINEERING.md#required-checks-and-ci).
+Follow [AGENTS.md](../../AGENTS.md) and relevant
+[engineering standards](../../docs/ENGINEERING.md).
 
-Check for:
-
-- untrusted API, guest, file, path, process, and device inputs;
-- overflow, truncation, alignment, range, lifetime, and encoding errors;
-- command injection, unsafe path handling, excessive privileges, and secret leaks;
-- insecure loopback/API ownership assumptions and unexpected network exposure;
-- weakened VM isolation, signing, Secure Boot, driver, or host boundaries;
-- dependency, downloaded artifact, vendored code, and binary provenance risks;
-- denial-of-service inputs, crashes, unchecked assumptions, and unsafe code;
-- cancellation, timeout, partial-failure recovery, and resource cleanup behavior.
-
-Keep fixes minimal and add a regression test for each fixed issue where feasible;
-document alternative validation when a test is impractical. Preserve compatibility
-where possible and update affected security/contract docs. Keep live exploitation
-within the designated disposable target and agreed task; normal runner, Hyper-V,
-GPU-PV and guest mutations follow the autonomous testing rule in `AGENTS.md`.
-Report exact checks and remaining risks.
+- Check untrusted inputs, FFI lifetimes/ranges, injection, paths, privilege,
+  target identity, secrets, isolation and dependency provenance.
+- Check bounded operations, cleanup and recovery after partial failure.
+- Keep fixes focused; add meaningful regression coverage and update changed
+  security contracts. Live tests stay within the authorised disposable target.
+  Report exact checks and material remaining risks.

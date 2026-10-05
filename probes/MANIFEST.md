@@ -66,10 +66,18 @@ license under `cuda/upstream/`.
 | `cuda/compiled/vectorAdd_kernel64.fatbin` | `2ed942fddfd59e0ff8de285eb8bbc789d22d3986b01a63ce568e2cf4ea1d6953` |
 
 `cuobjdump --dump-elf` must report `arch = sm_120`, `-arch sm_120` and
-`CUDA Virtual SM: sm_120`. Runtime acceptance pairs `cuda-identity.exe` with the
+`CUDA Virtual SM: sm_120`. Host-control acceptance pairs `cuda-identity.exe` with the
 unchanged sample so device 0 must be the exact RTX 5060, compute capability 12.0,
 and have the same nonzero Windows LUID as the physical DXGI adapter before
 `vectorAddDrv.exe --device=0` can pass.
+
+Guest acceptance is checked standalone computation on the one configured GPU,
+with explicit device selection and reported hardware identity. The validated guest
+passes vector addition while CUDA and guest DXGI LUIDs differ; cross-namespace LUID
+equality and graphics/compute interoperability are post-v1 work. CORE-003 must
+preserve the identity diagnostic separately from the computation result and fail
+if the intended CUDA device cannot be selected safely. See the
+[measured baseline](../docs/evidence/GPU-PV-BASELINE.md).
 
 ## Bounded execution
 

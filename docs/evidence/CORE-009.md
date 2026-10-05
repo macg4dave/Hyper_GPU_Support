@@ -1,5 +1,7 @@
 # CORE-009 evidence
 
+Historical evidence: the later [complete 271-file normal-Hyper-V baseline](GPU-PV-BASELINE.md) passed Code 0, D3D11/D3D12 and CUDA. Preserve these earlier results for debugging; they do not define the current delivery gate.
+
 ## Implemented boundary
 
 The Rust staging contract validates the complete configured NVIDIA DriverStore
