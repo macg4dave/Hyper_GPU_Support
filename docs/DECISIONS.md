@@ -23,7 +23,7 @@ Revisit only for an explicit requirement, not to accommodate upstream structure.
 
 ## DEC-002
 
-**Accepted, refined by DEC-011 | 2026-09-24 | Native management first**
+**Backend/reference selection superseded by DEC-024; disposable scope retained from DEC-011 | 2026-09-24 | Native management first**
 
 Prefer a dedicated persistent Generation 2 VM managed by Hyper-V/VMMS.
 Measure the AppSandbox HCS reference against native Hyper-V operations using
@@ -155,7 +155,7 @@ It does not authorize silently dropping CUDA or either Direct3D requirement.
 
 ## DEC-007
 
-**Proposed, evidence-triggered | 2026-09-24 | Resolve a failed baseline or backend gap**
+**HCS/backend alternatives superseded by DEC-024; other contingencies retained | 2026-09-24 | Resolve a failed baseline or backend gap**
 
 No new backend decision is made by this plan. GPU-006 selects the minimum proven
 path under DEC-002, and records reasons and remaining limitations.
@@ -624,6 +624,36 @@ because the WRP file was regenerated under a new name during the first reboot an
 active replacement remained. Revisit if a required workload fails, Windows reports
 active servicing, a pending destination or unreviewed source appears, or delete-only
 state correlates with a measured driver/runtime incompatibility.
+
+## DEC-024
+
+**Accepted | 2026-10-05 | Normal Hyper-V VM; Easy-GPU-PV is the primary reference**
+
+The user reaffirmed the objective: apply GPU-PV knowledge in a clean Rust
+implementation around a normal Generation 2 Hyper-V Windows 11 VM. Pause
+HCS-owned-guest work. A native failure does not select HCS as a product backend
+or authorize implementing an AppSandbox replacement. This replaces the
+conditional backend-selection language in DEC-002/007/011.
+
+Use Easy-GPU-PV for VM configuration, explicit partition assignment and driver
+staging destinations. Pin reviewed source to
+`2353d36325e18c759ca3888e6591e18e5f371011`. Use AppSandbox secondarily for GPU-PV
+internals, diagnostics and API-specific runtime/identity workarounds when a
+measured failure calls for them; do not inherit its VM ownership, Plan9, agent,
+installer, display, remote desktop or audio architecture.
+
+The [focused comparison](evidence/GPU-009-easy-gpu-pv-comparison.md) found live
+MMIO/cache/nested-virtualization differences, unset resource triples and
+associated driver destinations outside our package-only staging. None has yet
+been shown irrelevant or causal. Test those native differences before drawing
+backend conclusions. Keep hash verification, explicit identities and bounded
+recovery while extending the Rust implementation. Source settings/copies do not
+prove RTX 5060 D3D11/D3D12/CUDA execution; those workload gates remain unchanged.
+
+Revisit the normal-VM product boundary only if the user explicitly changes the
+objective. No upstream PowerShell product implementation was imported. The
+Easy-GPU-PV tree has no root license file; AppSandbox's license is not a substitute
+for reviewing reuse permissions and attribution for any later source adaptation.
 
 ## Decision template
 

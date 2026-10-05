@@ -10,14 +10,16 @@ evidence requirements, not implementation progress.
 The Rust CLI/library foundation provides help, version and a read-only inventory
 command. Inventory uses a typed Rust report/selection boundary plus the bounded,
 query-only Windows process adapter recorded in [DEC-013](DECISIONS.md#dec-013).
-Build and check commands are in [README.md](../README.md). Mutating GPU-PV
-components below are not implemented.
+Build and check commands are in [README.md](../README.md). The fixed runner
+implements disposable lifecycle and explicit GPU attach/detach; manifest staging
+is implemented, but guest workload success remains unproven.
 The target is a Windows 11 x64 host and guest with an NVIDIA RTX 5060 8 GB.
 The user has run AppSandbox successfully on this hardware, establishing a
 known-working HCS GPU-PV reference. HV-001 and CORE-001 captured host, adapter,
 driver and query-rights inventory. HV-002 prepared the immutable parent and fixed
 disposable VM, but there is still no project D3D11/D3D12/CUDA evidence. Native
-Hyper-V/VMMS assignment parity is untested; those narrower questions do not
+Hyper-V/VMMS attachment is verified; guest readiness and workload parity remain
+unproven. Those narrower questions do not
 reopen general GPU-PV feasibility.
 
 The inherited research snapshot is dated **24 September 2026**, from AppSandbox
@@ -38,6 +40,21 @@ its supported GPU-P/DDA configurations. This Windows 11/GeForce combination is
 an experimental validation target;
 successful workloads establish a measured configuration, not a change to vendor
 support policy. [Microsoft support boundaries][ms-support]
+
+## Reference roles and product boundary
+
+[DEC-024](DECISIONS.md#dec-024) fixes the product around a normal Generation 2
+Hyper-V Windows 11 VM and pauses HCS-owned-guest work. Easy-GPU-PV at
+`2353d36325e18c759ca3888e6591e18e5f371011` is the primary reference for VM settings,
+GPU partition assignment and driver destinations. The
+[focused source/live comparison](evidence/GPU-009-easy-gpu-pv-comparison.md)
+records the existing-VM sequence, all resource triples, driver association
+closure, update behavior and unresolved experiments.
+
+AppSandbox remains a secondary source for GPU-PV internals and specific measured
+runtime/identity failures. Its HCS lifecycle and transport architecture are not
+the product direction. The historical source map below records useful knowledge,
+not an instruction to implement another guest owner or backend.
 
 ## Proposed components
 
@@ -296,7 +313,7 @@ were selectively checked on 2026-09-24; no target inventory or workloads were ru
 |---|---|---|
 | G1: native interface versus working HCS reference | AppSandbox works on the user's target through HCS; client/GeForce deployment remains outside Microsoft's supported GPU-P/DDA configurations. Installed VMMS/WMI partition identity and mutation behavior remain unknown. | HV-001/003 and CORE-001/005; test the native equivalent, then isolate only a demonstrated VMMS/HCS gap. Product claims remain version-pinned, not vendor certification. |
 | G2: reference reproducibility and safety | Pinned source has test-signing, certificate/setup and Secure Boot test-mode branches; solution builds can invoke packaging/signing. Which minimal signed artifact/provisioning route preserves project boundaries? | REF-002 before GPU-003/HV-002. Review only chosen dependencies; blocked safe baseline requires the decision route in DEC-007. |
-| G3: VMMS versus HCS vendor behavior | HCS documents AllowVendorExtension and the GPU-PV 0xffff sentinel; secure-VM vendor escape restrictions exist. No established VMMS equivalence for our CUDA workload. | HV-003, GPU-005/006; compare identical runtimes and session before bounded HCS test. Never relax isolation to obtain parity. |
+| G3: VMMS versus HCS vendor behavior | HCS documents AllowVendorExtension and the GPU-PV 0xffff sentinel; no established VMMS equivalence for our CUDA workload. | GPU-009 first tests Easy-GPU-PV settings and driver destinations; GPU-005/006 measure native workloads. HCS-owned-guest work is paused under DEC-024. Never relax isolation to obtain parity. |
 | G4: runtime servicing and provenance | Microsoft documents guest user-mode/host kernel driver pairing and disabled automatic full-VM driver-store copying in released OS. Exact NVIDIA files/ICDs and legal terms depend on the chosen package. | GPU-002/009; prove minimum staging in a disposable child, then CORE-009/015 and REF-003. Hashes and actual execution, not filenames, establish the tested combination; discard the child for recovery. |
 | G5: target API feasibility | RTX specifications describe physical capability, not guest CUDA, video, interop or monitoring. Probe SDK/driver compatibility, Blackwell-capable CUDA toolchain and software fallback can confound results. | GPU-008/004/005; pin probe dependencies and host control; essential APIs gate GPU-006, optional APIs receive individual results. |
 | G6: guest access and presentation | PowerShell Direct needs a local running configured guest, host Hyper-V rights and guest credentials. VMConnect/RDP display and offscreen workloads may select different adapters. | HV-001, GPU-003/009; validate native transfer and explicit adapter identity. Custom display infrastructure is evidence-triggered, not part of the baseline. |
@@ -356,7 +373,7 @@ a different management route does not mean rebuilding GPU-PV.
 | Pinned source / responsibility | Observed dependency and intended treatment |
 |---|---|
 | [`gpu_enum.c`][u-enum], `gpu_enumerate` | SetupAPI/Configuration Manager enumerate partition-adapter interfaces, device identity, driver service and INF location, and map `DriverStore` to `HostDriverStore`; also prepare NVIDIA runtime/profile shares. Reimplement discovery and a manifest for the explicitly selected RTX 5060, using native management queries plus SetupAPI where needed. |
-| [`hcs_vm.c`][u-hcs], `hcs_apply_gpu` | After creation/start, `HcsModifyComputeSystem` updates `VirtualMachine/ComputeTopology/Gpu`: `List` maps an adapter-interface path to `65535`, or uses `Default`, with `AllowVendorExtension=true`. Use as the assignment reference; first compare native Hyper-V cmdlets. |
+| [`hcs_vm.c`][u-hcs], `hcs_apply_gpu` | After creation/start, `HcsModifyComputeSystem` updates `VirtualMachine/ComputeTopology/Gpu`: `List` maps an adapter-interface path to `65535`, or uses `Default`, with `AllowVendorExtension=true`. Secondary internals reference only; normal-VM assignment follows Easy-GPU-PV and native Hyper-V. |
 | [`disk_util.c`][u-disk], `generate_vhdx_manifest` | Pre-stages driver files in the guest disk; NVIDIA shims, DRS profiles and mapping layers follow a separate provisioning path. Retain path/file-selection knowledge; use Windows transfer or disk servicing rather than the custom filesystem engine. |
 | [`hcs_vm.c` Plan9 shares][u-plan9], [`vm_agent.c`][u-host-agent], [`agent.c`][u-guest-agent], [`p9copy.c`][u-p9] | Host driver shares and Hyper-V socket metadata feed guest copying/provisioning; the agent also attempts a GPU device restart for code 43. Replace the custom protocol with PowerShell Direct/file transfer where feasible; device recovery must be explicit. |
 | [`gl_vk_provision.c`][u-provision] | Validates/deploys NVIDIA runtimes/shims, rewrites Vulkan ICD manifests, replaces applicable OpenGL/OpenCL/CUDA entry points, prepares NVAPI/NGX paths, and stages Optical Flow/OptiX DLLs when found. Test matching unmodified runtimes first; adapt only demonstrated needs with an exact change/restore manifest. |
@@ -387,7 +404,7 @@ retain provenance and applicable notices as described in
 
 ## Native Windows boundaries
 
-The proposed default is one disposable Generation 2 Windows 11 VM managed by
+The selected product path is one disposable Generation 2 Windows 11 VM managed by
 Hyper-V/VMMS and backed by a differencing VHDX whose clean parent is never used
 for experiments. Prepare and seal the parent manually with normal Windows tools;
 a general VM installer is not an early component.
@@ -412,10 +429,11 @@ The normal Hyper-V role needs an eligible Windows edition; Windows 11 Home
 does not provide it. Discover the edition before backend selection.
 [Hyper-V installation requirements][ms-hyperv-install]
 
-If VMMS cannot reproduce a reference capability, isolate assignment,
-vendor-extension behavior, runtime provisioning, and display-session differences
-before a minimal HCS comparison. HCS requires more caller-owned provisioning and
-lifecycle work. [HCS management model][ms-hcs-overview]
+If a native workload fails, first compare Easy-GPU-PV VM settings, explicit
+resource requests, complete driver destinations and the Windows build pair.
+Then use AppSandbox knowledge to isolate a specific runtime/identity issue.
+HCS-owned-guest work is paused; changing VM ownership is outside the selected
+product boundary under DEC-024.
 
 ## Validation contract
 

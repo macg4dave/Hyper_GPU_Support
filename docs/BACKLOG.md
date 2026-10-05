@@ -13,8 +13,10 @@ evidence or authorization system; correct trivial drift in place.
 - Immediate issue: CORE-002 is complete after verified attach, matching reapply
   and a corrected one-shot task readiness race. Host/guest build inequality remains
   a recorded qualification warning for the later workload proof.
-- Next: GPU-009 -> GPU-005 -> GPU-006. AppSandbox transport blocker BLK-003 is
-  diagnostic and does not block the native path.
+- Next: GPU-009 Easy-GPU-PV configuration/driver comparison, then native guest
+  readiness -> GPU-005 -> GPU-006. HCS-owned-guest work is paused at the user's
+  direction (2026-10-05); a normal Generation 2 Hyper-V VM remains the target.
+  AppSandbox is a secondary GPU-PV reference; BLK-003 does not block this path.
 
 ## Task register
 
@@ -539,10 +541,13 @@ for future work is not an invented current blocker.
 
 **Prove native guest staging and disposable recovery**
 
-- Owner: Codex session 2026-10-04.
+- Owner: Codex session 2026-10-05 (focused Easy-GPU-PV comparison).
 - Objective: validate the minimum unmodified NVIDIA provisioning in the disposable
   guest and its existing discard/recreate recovery.
 - Dependencies: CORE-002 attachment (which follows CORE-009 staging).
+- Current scope: trace Easy-GPU-PV as the primary normal-Hyper-V configuration,
+  assignment and staging reference; compare live settings and driver destinations
+  before selecting further native experiments. HCS-owned-guest work is paused.
 - Acceptance: under scoped authorization, verify transferred hashes, applied files/
   settings and guest device/runtime readiness. Inject one interrupted staging case,
   mark it unusable, recreate from the protected parent and stage successfully. Add

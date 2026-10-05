@@ -5,8 +5,11 @@
 Build a Windows-native GPU-PV project for Windows 11 x64 host/guest and NVIDIA
 RTX 5060 8 GB. Implement in Rust wherever technically possible, using native
 Windows/Hyper-V facilities. Follow the [engineering standards](docs/ENGINEERING.md).
-AppSandbox is a technical reference for selective adaptation. First reproduce
-its relevant GPU-PV behavior on the target, then improve it. Keep the core
+Easy-GPU-PV is the primary reference for normal Hyper-V VM configuration,
+GPU assignment and driver staging. AppSandbox is a secondary GPU-PV technical
+reference for selective adaptation. HCS-owned-guest work is paused; keep the
+product around a normal Generation 2 Hyper-V Windows 11 VM. First reproduce
+the relevant GPU-PV behavior on the target, then improve it. Keep the core
 GUI-independent; Linux/macOS and upstream architecture/API compatibility are
 outside the initial scope.
 

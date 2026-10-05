@@ -1,9 +1,13 @@
 # Hyper GPU Support
 
 A Windows 11 x64 GPU-PV project targeting one Windows 11 guest and an NVIDIA
-RTX 5060 8 GB. AppSandbox is the user's known-working HCS reference on this
-hardware. The project executable provides help, version and read-only inventory;
-it has not yet reproduced GPU-PV through its own Rust/native path.
+RTX 5060 8 GB, using a normal Generation 2 Hyper-V VM and Rust CLI/core.
+Easy-GPU-PV is the primary reference for VM configuration, GPU assignment and
+driver staging; AppSandbox is secondary GPU-PV reference material. HCS-owned-guest
+work is paused. The project implements inventory, fixed disposable lifecycle,
+GPU attachment and manifest staging, but has not yet demonstrated successful
+guest D3D11/D3D12/CUDA workloads. See the
+[Easy-GPU-PV comparison](docs/evidence/GPU-009-easy-gpu-pv-comparison.md).
 
 ## Windows development
 
