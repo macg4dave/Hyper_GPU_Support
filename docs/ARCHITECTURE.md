@@ -13,9 +13,9 @@ CUDA allocation, transfer and kernel computation. Native Rust discovery matches
 the complete 271-file driver/runtime manifest for that measured driver.
 
 The complete bounded Rust guest writer passed live full-manifest apply and
-verified reapply on a clean child. Application of the validated VM/resource
-settings and composition with readiness/workload checks are still implementation
-work. Experimental success is established; product automation is incomplete.
+verified reapply on a clean child. The fixed Rust runner applies the validated
+VM/resource settings with independent process readback. Composition with
+readiness/workload checks remains implementation work; product automation is incomplete.
 
 The v1 product is a Rust CLI and TOML configuration for one configured Windows 11
 VM and one RTX 5060. Windows owns virtualization, disk management and GPU-PV.
@@ -95,9 +95,11 @@ operation requires an exact existing attachment, checks fresh provider resource
 limits and existing Microsoft Windows Secure Boot/vTPM, and applies the typed
 `[vm_profile]` and explicit `[resources]` values pinned in its installed policy.
 It stores a durable settings preimage, rejects stale effective observations before
-effects, and independently reads fresh provider objects before reporting applied
+effects, and independently reads fresh provider objects in a new process before reporting applied
 or already-applied. Failed or uncertain operations retain the reconciliation marker
-and preimage. It never changes the host partition count or security devices.
+and preimage. The setter process is not an effective-state oracle. Enabled automatic
+checkpoints can be disabled by this operation; existing snapshots remain refused.
+It never changes the host partition count or security devices.
 
 ### Driver/runtime manifest and guest placement
 

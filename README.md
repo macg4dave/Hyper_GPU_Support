@@ -6,8 +6,9 @@ checked D3D11/D3D12 rendering and CUDA computation. Native Rust discovery matche
 the complete 271-file driver/runtime inventory for the measured baseline.
 
 The complete Rust guest writer passed live full-manifest apply and verified reapply
-on a clean child. Validated VM/resource settings, automated workloads and combined
-clean-child reproduction remain implementation work. The
+on a clean child. The fixed Rust runner applies and independently verifies the
+validated VM/resource settings. Automated workloads and combined clean-child
+reproduction remain implementation work. The
 [architecture](docs/ARCHITECTURE.md) defines our recipe; the
 [baseline](docs/evidence/GPU-PV-BASELINE.md) records measured results. Start work at
 [AGENTS.md](AGENTS.md) and the relevant [backlog card](docs/BACKLOG.md).

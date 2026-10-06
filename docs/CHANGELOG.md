@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## 2026-10-06 - Validated Hyper-V settings
+
+- CORE-023 completed: typed VM profile and all GPU resource triples applied through the bounded, policy-pinned Rust runner; live apply and matching reapply passed on the existing staged child.
+- Independent fresh-process readback verifies effective settings and retained Secure Boot/vTPM. Durable preimages and reconciliation markers preserve partial/uncertain outcomes; automatic checkpoints can be disabled while actual snapshots remain refused.
+- Independent review and 151-test quality gate passed. Automated guest workloads and combined clean-child reproduction remain separate work.
+
 ## 2026-10-06 - Runner activity supervision
 
 - CORE-022 live fresh apply and verified no-op reapply passed on a clean child: complete 271-file environment through PowerShell Direct. Settings and workload integration remain separate tasks.

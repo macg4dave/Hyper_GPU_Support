@@ -123,11 +123,19 @@ impl SettingsSnapshot {
     /// # Errors
     /// Wrong state/adapter, weakened security and unsupported resources fail closed.
     pub fn validate(&self, project: &ProjectConfiguration) -> Result<(), &'static str> {
-        if !matches!(self.checkpoint_type.as_str(), "Disabled" | "Standard" | "Production" | "ProductionOnly")
-            || !matches!(self.automatic_stop_action.as_str(), "Save" | "TurnOff" | "ShutDown")
-            || self.profile.checkpoints_disabled != (self.checkpoint_type == "Disabled" && !self.automatic_checkpoints)
-            || self.profile.automatic_stop_guest_shutdown != (self.automatic_stop_action == "ShutDown")
-        { return Err("inconsistent native checkpoint/stop observation"); }
+        if !matches!(
+            self.checkpoint_type.as_str(),
+            "Disabled" | "Standard" | "Production" | "ProductionOnly"
+        ) || !matches!(
+            self.automatic_stop_action.as_str(),
+            "Save" | "TurnOff" | "ShutDown"
+        ) || self.profile.checkpoints_disabled
+            != (self.checkpoint_type == "Disabled" && !self.automatic_checkpoints)
+            || self.profile.automatic_stop_guest_shutdown
+                != (self.automatic_stop_action == "ShutDown")
+        {
+            return Err("inconsistent native checkpoint/stop observation");
+        }
         if self.vm_id != project.slot.vm_id
             || self.state != "Off"
             || self.gpu_adapters != 1
@@ -190,7 +198,8 @@ mod tests {
             secure_boot_template: "MicrosoftWindows".into(),
             tpm_enabled: true,
             dynamic_memory: false,
-            checkpoint_type: "Disabled".into(), automatic_checkpoints: false,
+            checkpoint_type: "Disabled".into(),
+            automatic_checkpoints: false,
             automatic_stop_action: "ShutDown".into(),
             profile: project.vm_profile.clone(),
             limits: resources.clone(),

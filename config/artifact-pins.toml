@@ -4,7 +4,7 @@ schema = 1
 # build. Do not edit these values by hand.
 
 [runner]
-runner_sha256 = "8f54a638e248697058cda5737151c536d61bf5a8e6aa82abf9409c27956e654a"
-client_sha256 = "d6d14a5e97a4e12f903c4d265563692ff17cfaf1b7b29f0dfffb7c371c20f65d"
-rights_sha256 = "72e6a42d2fe1a4a40966f517fae87decad30b021105fed275110c01e71d76b61"
+runner_sha256 = "1ceef08b71859ccb7546a363fcacb8eb4119a5c01b37856bdca24d156e0fd120"
+client_sha256 = "73c73faee8bf813ff6716478ef1a76014db0b2303de5b2ecf93fb42ff9dce79f"
+rights_sha256 = "36e67d850428b920c98e4badfe73b15f087a279fcde6e9d0b19b949a37b94c2c"
 policy_sha256 = "31724acb0ef54cc8acc7534296155fefebdc90f9afaff07866b9dcaabcf6ff89"

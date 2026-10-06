@@ -7,9 +7,9 @@ Code 0, nvidia-smi, checked D3D11/D3D12 and CUDA computation. Native Rust discov
 matches the complete measured inventory. The product work remaining is integration,
 usable operation and release; no feasibility or external-reference task remains.
 
-CORE-022 complete-manifest staging and verified reapply passed on a clean child.
-Next work is **CORE-023 validated Hyper-V settings** and **CORE-003 automated
-readiness/workloads**, which can be developed independently. GPU-006 then exercises
+CORE-022 complete-manifest staging and verified reapply passed on a clean child;
+CORE-023 settings apply and verified no-op reapply passed on that existing child.
+Next work is **CORE-003 automated readiness/workloads**. GPU-006 then exercises
 their combined Rust workflow on a clean child.
 The public CLI/config cleanup and reusable lifecycle/diagnostics work are also actionable.
 Current starting evidence: [project baseline](evidence/GPU-PV-BASELINE.md).
@@ -25,7 +25,7 @@ M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the 
 | ID | Milestone/class | Priority | Status | Depends on |
 |---|---|---|---|---|
 | [CORE-022](#core-022) | M1 | P0 | completed | CORE-009 |
-| [CORE-023](#core-023) | M1 | P0 | in-progress | CORE-002 |
+| [CORE-023](#core-023) | M1 | P0 | completed | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | ready | CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | CORE-022, CORE-023, CORE-003 |
 | [CORE-006](#core-006) | M2 | P1 | planned | CORE-022, CORE-023 |
@@ -151,8 +151,11 @@ development blocker.
 - Read: config/project.toml, src/config.rs, src/runner.rs, src/windows_runner.rs and [validated settings](ARCHITECTURE.md#hyper-v-settings-and-gpu-partition-resources).
 - Acceptance: configure MMIO, cache types, static memory, CPU/virtualization, checkpoint policy and all four GPU resource triples; retain Secure Boot/vTPM. Reuse exact attachment, require the safe VM state and read fresh effective values before reporting success or no-op. Refuse unsupported resource ranges and wrong/duplicate adapters. Test mismatch, partial update, stale readback and malformed configuration. Never change host partition count or reinterpret opaque resource units as physical percentages.
 - Add the bounded operation and policy pins required for these settings; review that changed privileged boundary before deployment. Leave unrelated Hyper-V configuration to Windows.
-- Owner: Codex; started 2026-10-06. Use the existing fresh child; no reinstall or reset for this task.
-- Result: in progress; implementing typed settings and bounded fixed-runner application/readback.
+- Owner: Codex; completed 2026-10-06 on the existing staged child, without recreation.
+- Result: typed VM profile and all four explicit GPU resource triples are pinned in policy and applied through `configure-slot`. Off-state target/chain/security/range guards, durable preimage, stale-preimage refusal and independent fresh-process readback cover apply and matching no-op. Automatic checkpoints can be disabled; actual snapshots remain refused. Independent privileged-boundary review closed that guard defect and cleared the readback correction.
+- Live release-build Windows x64 qualification passed on host build 26300.9457, RTX 5060 / NVIDIA 32.0.16.1692 (616.92): exact attachment, then `applied` (`1791282267-965953300`) and `already-applied` (`1791282472-671670700`). Both confirmed static 8 GiB/four CPUs, 3/32 GiB MMIO, cache/nested virtualization, disabled checkpoints, guest shutdown, retained Microsoft Windows Secure Boot/vTPM and all twelve GPU values, including encode 2^63. This qualifies Hyper-V settings; guest readiness and workloads were not run for this task.
+- Initial live mutation reached the desired state but its setter-process verification failed; an independent diagnostic confirmed all settings. Removed that redundant verification and retained the independent reader as the success gate. Suspected Hyper-V object caching is not a proven diagnosis. Reviewed recovery restored only the recorded resource preimage with independent readback before clearing the exact marker and repeating Rust apply/reapply. Failure/preimage/audit remain retained.
+- Validation: `scripts/testing/check.ps1` passed 151 tests, strict Clippy/compiler warnings, formatting, build, rustdoc and policy drift; release runner/client/rights build, all artifact-pin checks and documentation checks passed. Local test: `local/scripts/test-core023-live.ps1 -SettingsOnly`; results in `local/evidence/core023-live.status.json` and `core023-live-{0,1}-configure-slot.log`.
 
 ## CORE-003
 

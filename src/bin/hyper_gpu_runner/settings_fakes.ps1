@@ -3,7 +3,7 @@ $script:memory = [pscustomobject]@{Startup=[uint64]4294967296; DynamicMemoryEnab
 $script:cpu = [pscustomobject]@{Count=2; ExposeVirtualizationExtensions=$false}
 $script:vm = [pscustomobject]@{
     Id=$vmId; Name=$vmName; State='Off'; Generation=2; Version='12.0'
-    AutomaticCheckpointsEnabled=$false; CheckpointType='Production'; AutomaticStopAction='Save'
+    AutomaticCheckpointsEnabled=$true; CheckpointType='Production'; AutomaticStopAction='Save'
     LowMemoryMappedIoSpace=[uint64]1073741824; HighMemoryMappedIoSpace=[uint64]2147483648; GuestControlledCacheTypes=$false
 }
 $script:adapter = [pscustomobject]@{InstancePath=$gpuPath}

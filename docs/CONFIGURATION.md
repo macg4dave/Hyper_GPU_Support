@@ -45,10 +45,12 @@ matching reapply on a clean child. The package pins continue to guard the select
 
 Current `[resources]` fields accept `provider-default` or exact
 `minimum,maximum,optimal` triples in opaque provider units. The checked-in
-development configuration still requests defaults. [CORE-023](BACKLOG.md#core-023)
-must represent/apply the validated resource triples and VM recipe settings through
-typed configuration. No automated full-recipe apply is claimed until those fields,
-runner operations and readbacks are integrated. The
+development configuration requests the validated explicit triples. The fixed
+`configure-slot` operation requires explicit values, checks freshly observed provider
+ranges, and applies them with the typed `[vm_profile]` memory, processor, MMIO,
+cache, virtualization and checkpoint/stop settings. These settings are pinned in
+the installed policy; a configuration change requires a reviewed rebuild and runner
+update. Fresh independent readback determines success and matching reapply. The
 [architecture recipe](ARCHITECTURE.md#hyper-v-settings-and-gpu-partition-resources)
 and [measured baseline](evidence/GPU-PV-BASELINE.md) define the target behavior;
 mutable environment values are changed in TOML, not copied into future code/prompts.

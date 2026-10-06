@@ -70,7 +70,9 @@ pub(super) fn apply(project: &ProjectConfiguration) -> Result<String, Box<dyn st
             triple.minimum, triple.maximum, triple.optimal,
         ));
     }
-    script.push_str(" -ErrorAction Stop\n[Console]::Out.WriteLine((Read-Profile))\n");
+    // Hyper-V's module may retain resource objects within the setter process.
+    // The runner verifies effective state only in its independent reader process.
+    script.push_str(" -ErrorAction Stop\n");
     Ok(script)
 }
 
@@ -93,7 +95,7 @@ mod tests {
     fn native_mapping_applies_every_field_and_preserves_unsigned_encode() {
         let project = ProjectConfiguration::embedded().unwrap();
         let output = run(&format!(
-            "{}\n{READ}\n[Console]::Out.WriteLine((Read-Profile))\n{}",
+            "{}\n{READ}\n[Console]::Out.WriteLine((Read-Profile))\n{}\n[Console]::Out.WriteLine((Read-Profile))",
             settings_guard().unwrap(),
             apply(&project).unwrap()
         ))
@@ -102,6 +104,8 @@ mod tests {
         assert_eq!(lines.len(), 2);
         let before: SettingsSnapshot = serde_json::from_str(lines[0]).unwrap();
         let after: SettingsSnapshot = serde_json::from_str(lines[1]).unwrap();
+        assert!(before.automatic_checkpoints);
+        assert!(!after.automatic_checkpoints);
         assert!(!before.matches(&project).unwrap());
         after.verify(&before, &project).unwrap();
         assert_eq!(after.resources.encode.optimal, 1 << 63);
@@ -129,5 +133,15 @@ mod tests {
         // Independent fake processes return a stable snapshot for the CAS guard.
         let same = run(&format!("{READ}\n[Console]::Out.WriteLine((Read-Profile))")).unwrap();
         assert_eq!(same, before);
+    }
+
+    #[test]
+    fn native_settings_guard_still_refuses_existing_snapshots() {
+        let error = run(&format!(
+            "function Get-VMSnapshot {{ param($VM,$ErrorAction) [pscustomobject]@{{Id='existing'}} }}\n{}",
+            settings_guard().unwrap()
+        ))
+        .unwrap_err();
+        assert!(error.contains("checkpoint state rejected"), "{error}");
     }
 }

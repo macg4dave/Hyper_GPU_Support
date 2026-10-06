@@ -493,11 +493,13 @@ fn execute_settings_request(
         })
 }
 
-fn settings_guard() -> Result<&'static str, Box<dyn std::error::Error>> {
+fn settings_guard() -> Result<String, Box<dyn std::error::Error>> {
     // Reuse the exact attachment's immediate identity, child-chain and parent guards.
     ASSIGN_GPU_SCRIPT
         .split_once("$gpuAdapters =")
-        .map(|(guard, _)| guard)
+        // This operation owns disabling automatic checkpoints. Existing snapshots
+        // remain forbidden, but the enabled flag alone must be repairable.
+        .map(|(guard, _)| guard.replace("$vm.AutomaticCheckpointsEnabled -or ", ""))
         .ok_or_else(|| "fixed settings guard unavailable".into())
 }
 
@@ -526,7 +528,7 @@ fn run_settings(
         id,
         || {
             let inspection = run_supervised(
-                &fixed_script(INSPECT_SCRIPT)?,
+                &fixed_script(&INSPECT_SCRIPT.replace("$vm.AutomaticCheckpointsEnabled -or ", ""))?,
                 project.runner.inspect_timeout,
                 adapter_budget(
                     project.runner.task_execution_timeout,
@@ -588,8 +590,9 @@ fn run_settings(
                     &project.guest.powershell_path,
                 )
                 .map_err(std::io::Error::other)?;
-                let effective: SettingsSnapshot = serde_json::from_str(output.trim())?;
-                effective.verify(&before, &project)?;
+                if !output.trim().is_empty() {
+                    return Err("unexpected settings update output; reconciliation required".into());
+                }
             }
             // Independent process/provider objects verify effective values for apply and no-op.
             let effective: SettingsSnapshot = serde_json::from_str(read()?.trim())?;

@@ -53,7 +53,7 @@ Read a specific foundation result only when the selected implementation needs it
 Independent implementation tasks:
 
 - CORE-022 completed: complete native-manifest staging and verified reapply passed on a clean child.
-- CORE-023: apply/read back the validated VM settings and explicit GPU resources.
+- CORE-023 completed: validated VM settings and explicit GPU resources passed live apply and independent verified no-op reapply.
 - CORE-003: automate readiness, nvidia-smi and existing checked essential probes.
 
 GPU-006 then runs the combined Rust workflow on a clean child.
