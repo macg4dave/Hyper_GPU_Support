@@ -401,7 +401,7 @@ mod tests {
         );
     }
     #[test]
-    fn maps_every_measured_baseline_destination_without_a_payload_limit() {
+    fn maps_historical_nvidia_616_92_baseline_destinations() {
         let inventory = include_str!("../docs/evidence/GPU-PV-BASELINE-INVENTORY.tsv");
         let header = inventory
             .trim_start_matches('\u{feff}')
@@ -430,7 +430,7 @@ mod tests {
             assert!(mapped.eq_ignore_ascii_case(&expected), "{relative}");
             assert!(destinations.insert(mapped.to_ascii_lowercase()));
         }
-        // The baseline is a fixture; product discovery and writing have no 271-file cap.
+        // Historical RTX 5060 / NVIDIA 616.92 fixture extent, not a product limit.
         assert_eq!(destinations.len(), 271);
     }
     #[test]

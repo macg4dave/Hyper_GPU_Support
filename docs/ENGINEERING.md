@@ -38,8 +38,13 @@ normal development work. A script must not restart, shut down or end the physica
 host session without the user's explicit permission immediately before that
 lifecycle operation.
 
-PowerShell is permitted for repository development, diagnostics, Windows
-environment setup and invoking existing Hyper-V/Windows facilities. It must not
+PowerShell is permitted for repository development, manual diagnostics and
+development-environment setup. Ordinary product operation, installation and
+recovery belong in Rust. Invoking a cmdlet from Rust does not complete migration;
+existing product adapters are tracked in the [migration audit](../scripts/PRODUCT-MIGRATION.md).
+Retain working adapters until demonstrated replacements, and do not extend them
+as product implementations except for necessary correctness/safety fixes or
+bounded behavior comparisons needed for porting. PowerShell must not
 become a parallel implementation of application logic, CLI behavior, validation,
 diagnostics or GPU/Hyper-V management assigned to Rust. Embedded application-side
 shell remains subject to the non-Rust exception process below.
@@ -117,6 +122,14 @@ files, environment variables, Windows credential facilities or runtime prompting
 appropriate. See the [configuration ownership and audit](CONFIGURATION.md).
 
 ## Rust and native Windows
+
+Driver provisioning dynamically discovers the complete associated payload for the
+selected GPU and installed signed driver, expands package trees, calculates guest
+destinations and verifies the discovered files. Counts and hashes describe that
+run; do not use an old environment's count, static NVIDIA file list or per-file
+hash table as product logic. Use small artificial fixtures of different lengths
+for ordinary tests; label historical baseline regression data explicitly. A
+manifest/receipt count comparison verifies the current contract, not a fixed total.
 
 - Implement application logic, CLI tools, configuration, GPU discovery/management,
   GPU-PV setup, Hyper-V integration, diagnostics and supporting utilities in Rust

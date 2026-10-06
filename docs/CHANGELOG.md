@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+## 2026-10-06 - Dynamic driver payload contract
+
+- Clarified dynamic discovery of the selected signed driver's complete package/associated payload, derived guest mapping and per-run integrity; no fixed file count or static NVIDIA list defines success.
+- Updated agent/prompts, roadmap/backlog, architecture, configuration and script guidance. Preserved historical baseline results and explicitly labelled the NVIDIA 616.92 mapping fixture.
+- Added variable-length apply/reapply, stale receipt extent and missing-source tests. Documented current baseline package-pin guards and CORE-015 regeneration work without weakening drift validation.
+
+## 2026-10-06 - Native Rust production migration
+
+- Classified all 14 maintained scripts and embedded PowerShell product adapters in the [migration audit](../scripts/PRODUCT-MIGRATION.md); runner setup/recovery and policy generation remain product debt.
+- Prioritized CORE-024 native inventory, CORE-025 Hyper-V management, CORE-026 Rust guest writer/transport and CORE-027 runner setup. Existing CLI integration cards own workflow, lifecycle, removal, diagnostics and restaging.
+- Made demonstrated native replacements and no manual PowerShell part of v1 acceptance. Preserved working adapters and current qualification work; historical adapter decisions no longer grant broad release exemptions. This change implements the audit and delivery plan, not the backend ports.
+- Updated agent guidance and task/implementation/review/test/security prompts; added a focused native migration prompt to carry the replacement and qualification rules into future work.
+
 ## 2026-10-06 - Automated guest validation
 
 - CORE-003 completed: public `validate` now verifies transferred runtime inputs, observes sustained Code 0 and runs fixed nvidia-smi/D3D11/D3D12/CUDA checks through a Rust guest worker, with per-check evidence and exit propagation.

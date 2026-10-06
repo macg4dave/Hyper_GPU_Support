@@ -21,8 +21,8 @@ use windows::{
         Variant::{VARIANT, VT_BSTR, VariantClear},
         Wmi::{
             IWbemClassObject, IWbemLocator, IWbemServices, WBEM_FLAG_CONNECT_USE_MAX_WAIT,
-            WBEM_FLAG_ENSURE_LOCATABLE, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY,
-            WBEM_GENERIC_FLAG_TYPE, WbemLocator,
+            WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_GENERIC_FLAG_TYPE,
+            WbemLocator,
         },
     },
     core::{BSTR, PCWSTR},
@@ -34,9 +34,11 @@ pub enum DriverDiscoveryError {
     /// Windows supplied a failing HRESULT for the named operation.
     Native {
         /// Fixed operation context.
-        operation: &'static str,
-        /// Original COM/WMI error.
+        operation: String,
+        /// Original HRESULT without apartment-bound COM error information.
         source: windows::core::Error,
+        /// Native message copied before the calling COM apartment is released.
+        message: String,
     },
     /// Returned facts were absent, ambiguous, malformed or changed.
     Invalid(&'static str),
@@ -53,8 +55,12 @@ pub enum DriverDiscoveryError {
 impl fmt::Display for DriverDiscoveryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Native { operation, source } => {
-                write!(f, "{operation}: {}: {source}", source.code())
+            Self::Native {
+                operation,
+                source,
+                message,
+            } => {
+                write!(f, "{operation}: {}: {message}", source.code())
             }
             Self::Invalid(reason) => write!(f, "driver discovery: {reason}"),
             Self::Property { name, variant_type } => write!(
@@ -73,8 +79,16 @@ impl std::error::Error for DriverDiscoveryError {
         }
     }
 }
-fn native(operation: &'static str, source: windows::core::Error) -> DriverDiscoveryError {
-    DriverDiscoveryError::Native { operation, source }
+fn native(operation: impl Into<String>, source: windows::core::Error) -> DriverDiscoveryError {
+    // windows::core::Error can own IErrorInfo. Copy its message and release that
+    // object while this thread's COM apartment is still alive; an error returned
+    // to main must not call/release an apartment-bound proxy after CoUninitialize.
+    let message = source.message();
+    DriverDiscoveryError::Native {
+        operation: operation.into(),
+        source: windows::core::Error::from_hresult(source.code()),
+        message,
+    }
 }
 
 struct Apartment;
@@ -183,11 +197,13 @@ fn query(
         services.ExecQuery(
             &BSTR::from("WQL"),
             &BSTR::from(wql),
-            WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY | WBEM_FLAG_ENSURE_LOCATABLE,
+            // Only named data properties are consumed. Do not ask providers to
+            // synthesize system paths for projected objects with null key fields.
+            WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
             None,
         )
     }
-    .map_err(|error| native("execute driver WMI query", error))?;
+    .map_err(|error| native(format!("execute driver WMI query ({wql})"), error))?;
     let mut rows = Vec::new();
     loop {
         if Instant::now() >= deadline {
@@ -200,7 +216,7 @@ fn query(
         let status = unsafe { enumerator.Next(1000, &mut objects, &mut returned) };
         status
             .ok()
-            .map_err(|error| native("enumerate driver WMI query", error))?;
+            .map_err(|error| native(format!("enumerate driver WMI query ({wql})"), error))?;
         if returned == 0 {
             if status.0 == 1 {
                 break;
@@ -337,20 +353,17 @@ pub fn discover_driver_environment(
         quoted(&service)
     );
     let mut kernel = exactly_one(query(&cim, &service_query, &["PathName"], deadline)?)?;
-    // Resolve the selected signed driver's association Antecedent. The provider returns
-    // null __PATH for projected signed-driver objects even with ENSURE_LOCATABLE.
+    // Win32_PNPSignedDriver reports a null Name key and __PATH. ASSOCIATORS
+    // rejects a DeviceID key path; preserve the provider's association Antecedent
+    // representation and resolve its returned file references through WMI.
     let mut computer = exactly_one(query(
         &cim,
         "SELECT Name FROM Win32_ComputerSystem",
         &["Name"],
         deadline,
     )?)?;
-    let hostname = take(&mut computer, "Name")?;
-    let antecedent = signed_driver_antecedent(&hostname, &device_id);
-    let association_query = format!(
-        "SELECT Dependent FROM Win32_PNPSignedDriverCIMDataFile WHERE Antecedent='{}'",
-        quoted(&antecedent)
-    );
+    let antecedent = signed_driver_antecedent(&take(&mut computer, "Name")?, &device_id);
+    let association_query = associated_file_query(&antecedent);
     let mut associated_files = Vec::new();
     for mut file in query(&cim, &association_query, &["Dependent"], deadline)? {
         if Instant::now() >= deadline {
@@ -378,14 +391,21 @@ fn signed_driver_antecedent(hostname: &str, device_id: &str) -> String {
     format!(r#"\\{hostname}\ROOT\cimv2:Win32_PNPSignedDriver.DeviceID="{escaped}""#)
 }
 
+fn associated_file_query(antecedent: &str) -> String {
+    format!(
+        "SELECT Dependent FROM Win32_PNPSignedDriverCIMDataFile WHERE Antecedent='{}'",
+        quoted(antecedent)
+    )
+}
+
 #[allow(unsafe_code)]
 fn dependent_file_name(
     services: &IWbemServices,
     path: &str,
 ) -> Result<String, DriverDiscoveryError> {
     let mut object = None;
-    // SAFETY: live services, a provider-returned object path and initialized output.
-    // Resolve through WMI so quoted/backslash-containing paths are not hand-parsed.
+    // SAFETY: live services, provider-returned path and initialized output. WMI
+    // resolves quoted/backslash-containing file references rather than our parser.
     unsafe {
         services.GetObject(
             &BSTR::from(path),
@@ -421,5 +441,56 @@ mod tests {
         assert!(take(&mut row, "Name").is_err());
         row.insert("Name".into(), String::new());
         assert!(take(&mut row, "Name").is_err());
+    }
+
+    #[test]
+    fn association_query_targets_signed_driver_and_native_error_retains_query() {
+        let antecedent = signed_driver_antecedent("HOST", r"PCI\x");
+        let query = associated_file_query(&antecedent);
+        assert_eq!(
+            query,
+            "SELECT Dependent FROM Win32_PNPSignedDriverCIMDataFile WHERE Antecedent='\\\\\\\\HOST\\\\ROOT\\\\cimv2:Win32_PNPSignedDriver.DeviceID=\"PCI\\\\\\\\x\"'"
+        );
+        let error = native(
+            format!("enumerate driver WMI query ({query})"),
+            windows::core::Error::from(windows::core::HRESULT(0x80041033_u32 as i32)),
+        );
+        let diagnostic = error.to_string();
+        assert!(diagnostic.contains(&query));
+        assert!(diagnostic.contains("0x80041033"));
+        assert!(std::error::Error::source(&error).is_some());
+        let DriverDiscoveryError::Native { source, .. } = error else {
+            panic!("native error required")
+        };
+        assert!(
+            source.as_ptr().is_null(),
+            "native error must not retain a COM proxy"
+        );
+    }
+
+    #[test]
+    fn native_error_outlives_apartment_without_retaining_error_info() {
+        let error = {
+            let _apartment = Apartment::initialize().unwrap();
+            let source = windows::core::Error::new(
+                windows::core::HRESULT(0x80041033_u32 as i32),
+                "distinctive provider error fixture",
+            );
+            assert!(
+                !source.as_ptr().is_null(),
+                "fixture must carry COM error information"
+            );
+            native("fixture operation", source)
+        };
+        assert!(
+            error
+                .to_string()
+                .contains("distinctive provider error fixture")
+        );
+        let DriverDiscoveryError::Native { source, .. } = error else {
+            panic!("native error required")
+        };
+        assert_eq!(source.code(), windows::core::HRESULT(0x80041033_u32 as i32));
+        assert!(source.as_ptr().is_null());
     }
 }

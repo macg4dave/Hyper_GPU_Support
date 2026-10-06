@@ -262,6 +262,8 @@ pub fn inspect_driver_package(
     })?;
     let package_tree_sha256 = tree_digest(&files);
 
+    // Bind this observed package to its configured integrity preimage; neither
+    // this count nor the package alone defines the complete discovered payload.
     if files.len() != configuration.file_count as usize
         || byte_count != configuration.byte_count
         || package_tree_sha256 != configuration.package_tree_sha256

@@ -22,8 +22,17 @@ host lifecycle is the explicit permission boundary.
 
 Keep temporary, task-local scripts in ignored `local/scripts/`, not here. This
 tree is for useful tooling that should be reviewed, debugged, modified and reused.
-PowerShell may support development, diagnostics, setup and native Windows/Hyper-V
-facilities; application behavior remains implemented in Rust.
+PowerShell may support development, diagnostics and development-machine setup.
+Any functionality required by ordinary product operation, installation or recovery
+belongs in Rust unless a concrete interface limitation is documented narrowly.
+The [complete classification and migration audit](PRODUCT-MIGRATION.md) covers all
+14 maintained scripts and embedded product adapters. Runner installation/restore
+and policy generation still provide product functionality (CORE-027); keep them
+working until their Rust replacements are demonstrated. The clean-child harness
+is optional acceptance tooling; CORE-006 must own ordinary workflow orchestration.
+Provisioning/qualification scripts consume the dynamically discovered manifest
+and compare receipts for that run. Do not gate them on a historical file count
+or supply a static NVIDIA runtime list; driver updates require rediscovery.
 
 Current maintained entry points and their required privilege:
 
@@ -47,6 +56,16 @@ Current maintained entry points and their required privilege:
   configuration and generated runner policy without changing protected state.
 - **Non-elevated** — `testing/check-docs.ps1` validates repository-local Markdown link targets, prompt
   frontmatter and diff whitespace.
+- **Elevated** — `testing/run-clean-child-qualification.ps1` recreates only the enrolled
+  disposable child through the fixed Rust runner, invokes Rust full staging/reapply,
+  settings/readback, public validation and graceful shutdown, and retains a combined
+  report under configured test output. Guest credentials are entered only at local
+  Rust prompts; `-KeepOpen` retains the interactive terminal after completion/failure.
+  `-PreparedRun <report.json>` resumes a matching successful reset/start that has no
+  staging receipt, with fresh enrolled-target inspection and Rust staging guards;
+  uncertain/partial staging still requires child recreation. The preparation report
+  and executing harness are archived with hashes, and native staging/validation
+  stderr is retained without capturing console password input or feedback.
 - **Non-elevated** — `testing/build-probe-shaders.ps1` deterministically rebuilds the pinned D3D11
   DXBC and D3D12 DXIL offscreen shaders from the reviewed HLSL source.
 - **Non-elevated** — `setup/prepare-cuda-probe.ps1` downloads and hash-verifies only the versions,

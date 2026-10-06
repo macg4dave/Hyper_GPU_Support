@@ -10,7 +10,9 @@ Normal Generation 2 Hyper-V / VMMS GPU-PV works on the Windows 11 x64 host and
 guest with an NVIDIA RTX 5060 8 GB. The [measured baseline](evidence/GPU-PV-BASELINE.md)
 passed sustained Code 0, `nvidia-smi`, checked D3D11/D3D12 hardware rendering and
 CUDA allocation, transfer and kernel computation. Native Rust discovery matches
-the complete 271-file driver/runtime manifest for that measured driver.
+the discovered driver/runtime manifest for that measured driver. The product
+contract is complete host-matched discovery, placement and verification, with
+manifest size reported as data rather than used as a fixed acceptance condition.
 
 The complete bounded Rust guest writer passed live full-manifest apply and
 verified reapply on a clean child. The fixed Rust runner applies the validated
@@ -104,6 +106,26 @@ It never changes the host partition count or security devices.
 
 ### Driver/runtime manifest and guest placement
 
+The Code 43 investigation exposed incomplete payload discovery: copying the main
+DriverStore package and a few manually chosen runtimes omitted associated files
+outside that package. The working full-payload approach enumerated the installed
+GPU driver's associations, expanded its packages and placed external files at
+their corresponding guest Windows locations. Package-only staging cannot safely
+assume it has the complete runtime. Files and VM settings changed together in the
+successful baseline; that run does not prove every individual file is necessary.
+
+The provisioning contract is:
+
+```text
+selected GPU -> installed signed driver -> package trees + associated files
+  -> classify sources -> calculate guest destinations -> discovered manifest
+  -> copy -> verify every destination
+```
+
+GPU, driver, Windows or packaging revisions may change paths, lengths, hashes and
+the number of destinations. Discover all supported associations rather than use
+a static NVIDIA file list, expected baseline count or per-file hash table in code.
+
 `src/driver_environment.rs` expands the kernel-service package and every associated
 DriverStore package into complete trees, and includes every associated external
 file. Sources must be regular files within the discovered Windows directory, with
@@ -113,27 +135,45 @@ and changed pinned package inputs fail before guest writes.
 The deterministic manifest records selected device/driver/INF/service, association
 count, package roots and each source, logical destination, byte length and SHA-256.
 Files are sorted case-insensitively by destination; the encoded contract has its
-own digest. No hand-maintained NVIDIA DLL list determines the closure. 271 is a
-measured count rather than a future fixed limit.
+own digest. No hand-maintained NVIDIA DLL list determines the closure. Count and
+aggregate bytes describe that discovered manifest; completeness follows from
+successful enumeration, package expansion and verification, not numeric parity
+with an older environment. Reject incomplete enumeration, missing sources and
+conflicting destinations even when their count happens to match an older run.
 
 | Discovered host path relative to Windows | Guest path relative to Windows |
 |---|---|
 | `System32\DriverStore\FileRepository\<package>\...` | `System32\HostDriverStore\FileRepository\<package>\...` |
 | Every associated external Windows path | Same Windows-relative path |
 
-The measured manifest contains 217 expanded package files and 54 external files,
-including System32/SysWOW64 loader/runtime files and other installed driver paths.
+External associations include System32/SysWOW64 loader/runtime files and other
+installed driver paths. The initial RTX 5060 / NVIDIA 616.92 working baseline
+produced 271 guest copy destinations; this is environment-specific historical
+data, not an implementation requirement. Exact records remain in
+[baseline evidence](evidence/GPU-PV-BASELINE.md).
 Use ordinary byte-preserving copies. The guest binds the inbox virtual-render
 driver (`vrd.inf` / VirtualRender); the working recipe did not install a conventional
 NVIDIA INF or import NVIDIA registry state.
+
+After a host-driver change, rediscover the selected signed driver, package roots
+and complete associated payload; construct a new manifest and compare its identity
+and entries with the guest's verified receipt. Do not reuse old paths, hashes,
+versions or counts as the new payload. CORE-015 owns regeneration, comparison,
+explicit restaging and essential workload requalification. Current package pins
+still block unreviewed drift; their regeneration is unfinished, not an instruction
+to make an updated driver match the historical payload. See
+[configuration limitations](CONFIGURATION.md#implemented-schema-and-remaining-integration).
 
 ### Staging and guest startup
 
 The baseline copied and verified the full manifest offline before any GPU-attached
 boot. The Rust writer must establish the same complete bytes and destinations
-before an attached start. Reusing the existing PowerShell Direct transport is
-acceptable if it provides that contract; a second storage/backend abstraction is
-not required merely to imitate the experimental transport.
+before an attached start. The current writer uses PowerShell Direct and substantive
+embedded guest file logic. CORE-026 moves that logic into a Rust guest writer and
+investigates the smallest supported session/transfer bridge. Retaining that bridge
+for v1 requires a specific interface limitation under DEC-027; current qualification
+does not establish such an exception. A generalized storage/backend abstraction
+is not required merely to imitate the experimental transport.
 
 Staging verifies source identity/signatures/hashes, target VM/disk/guest identity,
 permitted logical destinations, transfer results and final guest length/hash for
@@ -274,13 +314,16 @@ migration, checkpoints and host sleep/hibernate are outside v1.
 
 ## Native Windows boundaries
 
-Use Windows Hyper-V management for configuration, assignment and lifecycle; native
-WMI for discovery; supported PowerShell Direct for guest sessions; PnP/DXGI/D3DKMT
-for status and identity. Rust owns intent, validation, orchestration, supervision,
-integrity checks and reporting. Existing fixed cmdlet adapters remain where they
-provide a measured, bounded Windows interface. Rewriting working transports is
-not required for release. New non-Rust application logic requires the technical
-exception process in [ENGINEERING.md](ENGINEERING.md#rust-and-native-windows).
+Use native Windows/Hyper-V interfaces for configuration, assignment and lifecycle;
+native WMI and Windows identity facilities for discovery; PnP/DXGI/D3DKMT for
+status and identity. Rust owns intent, validation, orchestration, supervision,
+guest writer operations, integrity checks and reporting. Current inventory and
+runner cmdlet adapters are CORE-024/025 debt; guest backend logic is CORE-026 and
+scripted runner setup/recovery is CORE-027. Preserve working implementations until
+replacements are demonstrated. Any retained external session/utility call must
+establish the narrow technical exception in DEC-027 and
+[ENGINEERING.md](ENGINEERING.md#rust-and-native-windows), including investigated
+native alternatives, exact invocation, validated results and bounded errors.
 
 ## Validation contract
 

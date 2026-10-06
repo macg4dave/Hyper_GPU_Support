@@ -139,7 +139,7 @@ pub struct DriverManifestConfiguration {
     pub host_build: String,
     /// Signed catalog filename within the package.
     pub catalog_name: String,
-    /// Expected number of regular files in the complete package tree.
+    /// Observed integrity pin for this qualified package tree, not a payload limit.
     pub file_count: u32,
     /// Expected aggregate byte length of all package files.
     pub byte_count: u64,

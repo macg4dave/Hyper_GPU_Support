@@ -551,13 +551,25 @@ pub fn validate_command() -> Result<ValidationReport, String> {
         report.block("PowerShell Direct validation requires an elevated development token");
         return Ok(report);
     }
-    eprint!("Guest username: ");
-    std::io::stderr().flush().map_err(|e| e.to_string())?;
+    // Same console channel as rpassword, independent of retained stderr diagnostics.
+    let mut console = std::fs::OpenOptions::new()
+        .write(true)
+        .open("CONOUT$")
+        .map_err(|e| e.to_string())?;
+    console
+        .write_all(b"Guest username: ")
+        .map_err(|e| e.to_string())?;
     let mut username = String::new();
     std::io::stdin()
         .read_line(&mut username)
         .map_err(|e| e.to_string())?;
-    let password = rpassword::prompt_password("Guest password: ").map_err(|e| e.to_string())?;
+    let password = rpassword::prompt_password_with_config(
+        "Guest password: ",
+        rpassword::ConfigBuilder::new()
+            .password_feedback_mask('*')
+            .build(),
+    )
+    .map_err(|e| e.to_string())?;
     let credential =
         GuestCredential::new(username.trim_end_matches(['\r', '\n']).to_owned(), password)
             .map_err(|e| e.to_string())?;

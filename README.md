@@ -3,7 +3,9 @@
 Rust CLI/core for one Windows 11 x64 Generation 2 Hyper-V guest and an NVIDIA
 RTX 5060 8 GB. Normal Hyper-V GPU-PV has passed sustained Code 0, `nvidia-smi`,
 checked D3D11/D3D12 rendering and CUDA computation. Native Rust discovery matches
-the complete 271-file driver/runtime inventory for the measured baseline.
+the discovered driver/runtime inventory for the measured baseline. Provisioning
+derives the complete associated payload and guest destinations from the selected
+GPU and installed host driver; no fixed file count defines success.
 
 The complete Rust guest writer passed live full-manifest apply and verified reapply
 on a clean child. The fixed Rust runner applies and independently verifies the
@@ -112,6 +114,17 @@ three app-local Microsoft x64 CRT DLLs from `[validation.crt_directory]`. CUDA
 sample preparation/build commands remain in [the probe manifest](probes/MANIFEST.md).
 Guest copies and the worker use protected paths; the transport shares the runner's
 operation lock. It changes only validation artifacts and runs fixed workloads.
+
+For combined clean-child qualification, run from an elevated interactive terminal:
+
+```powershell
+.\scripts\testing\run-clean-child-qualification.ps1
+```
+
+This explicitly recreates the enrolled disposable child, invokes the Rust staging,
+settings and validation entry points, verifies reapply and graceful shutdown, and
+retains a combined report under `[paths.test_output]`. Enter guest credentials only
+at the local Rust prompts. A failed run retains its results for reconciliation.
 
 The JSON report distinguishes pass, fail, blocked and untested for input integrity,
 sustained Code 0, nvidia-smi, D3D11, D3D12, CUDA selection and vector addition.

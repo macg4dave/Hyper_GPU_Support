@@ -43,6 +43,15 @@ and the full encoded environment. [CORE-022](BACKLOG.md#core-022) implements bou
 guest writing, receipts and apply verification, qualified by live fresh apply and
 matching reapply on a clean child. The package pins continue to guard the selected service package.
 
+The configured package count/bytes/digests are observed integrity pins for the
+currently qualified development driver, not universal payload requirements or
+operator intent about how many files a GPU needs. Discovery has no fixed total
+destination count. Current package-pin validation deliberately rejects driver
+drift; automatic regeneration is not implemented. CORE-015 must regenerate these
+integrity artifacts from the newly discovered signed host environment, compare
+with the prior receipt, restage and requalify. An updated driver must not be made
+to match old file counts, paths or hashes, nor may drift checks simply be disabled.
+
 Current `[resources]` fields accept `provider-default` or exact
 `minimum,maximum,optimal` triples in opaque provider units. The checked-in
 development configuration requests the validated explicit triples. The fixed

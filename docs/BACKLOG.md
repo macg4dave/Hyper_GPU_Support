@@ -12,6 +12,11 @@ CORE-023 settings apply and verified no-op reapply passed on that existing child
 CORE-003 automated readiness/workloads is implemented and behavior-tested.
 Next work is **GPU-006**, exercising their combined Rust workflow on a clean child.
 The public CLI/config cleanup and reusable lifecycle/diagnostics work are also actionable.
+Native migration is now explicit: **CORE-024** is the next read-only replacement,
+followed by CORE-025 Hyper-V adapters, CORE-026 guest writer/transport and CORE-027
+runner setup/recovery. GPU-006 retains its current owner and qualification work;
+its result does not discharge these production PowerShell dependencies. See the
+[complete script/backend audit](../scripts/PRODUCT-MIGRATION.md).
 Current starting evidence: [project baseline](evidence/GPU-PV-BASELINE.md).
 Do not assume the preserved experimental guest is a production Rust reproduction.
 
@@ -27,15 +32,19 @@ M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the 
 | [CORE-022](#core-022) | M1 | P0 | completed | CORE-009 |
 | [CORE-023](#core-023) | M1 | P0 | completed | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | completed | CORE-020 |
-| [GPU-006](#gpu-006) | M1 | P0 | planned | CORE-022, CORE-023, CORE-003 |
+| [GPU-006](#gpu-006) | M1 | P0 | in progress | CORE-022, CORE-023, CORE-003 |
+| [CORE-024](#core-024) | M1 | P0 | ready | CORE-020 |
+| [CORE-025](#core-025) | M1 | P0 | planned | CORE-024, CORE-023 |
+| [CORE-026](#core-026) | M1 | P0 | ready | CORE-022, CORE-003 |
+| [CORE-027](#core-027) | M2 | P1 | ready | CORE-005 |
 | [CORE-006](#core-006) | M2 | P1 | planned | CORE-022, CORE-023 |
 | [CORE-011](#core-011) | M2 | P1 | ready | CORE-005 |
 | [CORE-010](#core-010) | M2 | P1 | ready | CORE-005 |
 | [CORE-012](#core-012) | M2 | P1 | ready | CORE-020 |
 | [CORE-021](#core-021) | M2 | P1 | ready | CORE-004 |
 | [CORE-015](#core-015) | M2 | P1 | planned | CORE-022, CORE-006 |
-| [GPU-012](#gpu-012) | M2 | P1 | planned | GPU-006, CORE-006, CORE-010, CORE-011, CORE-012, CORE-015, CORE-021 |
-| [CORE-017](#core-017) | M3 | P1 | planned | CORE-006, CORE-010, CORE-011, CORE-012, CORE-015, CORE-021 |
+| [GPU-012](#gpu-012) | M2 | P1 | planned | GPU-006, CORE-024, CORE-025, CORE-026, CORE-027, CORE-006, CORE-010, CORE-011, CORE-012, CORE-015, CORE-021 |
+| [CORE-017](#core-017) | M3 | P1 | planned | CORE-027, CORE-006, CORE-010, CORE-011, CORE-012, CORE-015, CORE-021 |
 | [DOC-003](#doc-003) | M3 | P1 | planned | CORE-006, CORE-010, CORE-011, CORE-015, CORE-021 |
 | [GPU-014](#gpu-014) | M3 | P1 | planned | GPU-012, CORE-017, DOC-003 |
 | [GPU-010](#gpu-010) | post-v1 | P2 | deferred | GPU-006 |
@@ -135,7 +144,7 @@ development blocker.
 
 - Objective: extend the existing Rust guest writer from package/alias staging to every DriverEnvironmentManifest destination.
 - Read: src/driver_environment.rs, src/staging.rs, src/guest.rs, src/windows_guest.rs and [validated placement](ARCHITECTURE.md#driverruntime-manifest-and-guest-placement).
-- Acceptance: consume the complete typed manifest; preserve ordinary byte copies, discovered destination mapping and deterministic hashes. Validate roots, source identity, collisions and unsafe/reparse paths before effects. Verify every written length/hash and matching reapply; report partial or uncertain staging as requiring child recreation. Test meaningful new mapping/write/no-op/interruption behavior; compare output with the measured [inventory](evidence/GPU-PV-BASELINE-INVENTORY.tsv). The current 271 count is a fixture, never a future discovery limit.
+- Acceptance: consume the complete dynamically discovered driver/runtime manifest; preserve ordinary byte copies, discovered destination mapping and deterministic hashes. Validate roots, source identity, collisions and unsafe/reparse paths before effects. Verify every written length/hash and matching reapply; report partial or uncertain staging as requiring child recreation. Test mapping/write/no-op/interruption and different manifest lengths with artificial fixtures; compare historical mapping behavior with the [isolated inventory fixture](evidence/GPU-PV-BASELINE-INVENTORY.tsv). No fixed file count defines completeness or success.
 - Reuse existing credential, receipt and target guards. Review the changed privileged writer boundary before deploying it. No new arbitrary guest-command transport.
 - Owner: Codex; completed 2026-10-06.
 - Result: complete Rust writer and CLI integration; native source/destination/digest authorization, protected ordinary copies, full receipt, verified no-op and retained-lock interruption recovery. Focused tests cover all 271 baseline mappings, real local publication, tampering and interrupted-copy refusal. Independent review closed the volume-root defect and has no remaining blockers.
@@ -179,6 +188,7 @@ development blocker.
 - Objective: exercise the three implemented pieces as one configured Rust workflow.
 - Acceptance: verify the enrolled disposable target and protected parent; recreate its child, apply the full manifest, read back settings/adapter, start and reach sustained Code 0, nvidia-smi and checked D3D11/D3D12/CUDA passes. Verify reapply and graceful shutdown; retain one concise run report with configuration/manifest identity, effective settings, versions and outputs. Temporary experimental provisioning scripts must not supply missing application behavior.
 - Obtain independent M1 implementation review using the actual diff and test results. Recipe minimality and interop are outside this gate.
+- Owner: Codex; started 2026-10-06. Combined clean-child qualification through existing Rust staging, fixed-runner settings/lifecycle and public validation entry points.
 - Result: pending; the experimental baseline and native discovery parity are established, full Rust reproduction has not passed.
 
 ## CORE-006
@@ -190,7 +200,51 @@ development blocker.
 - Acceptance: plan shows exact target, settings, manifest changes and prerequisites without effects; apply rejects stale assumptions and wrong targets, orders staging/settings/start safely, and reports verified success or no-op. Status distinguishes VM state, staging, assignment and GPU readiness. Bind mutation to rechecked identities and existing locks/receipts. Test stale plans, concurrent/replayed requests and external state changes.
 - Run full native manifest discovery behind the existing bounded process supervision: synchronous COM setup/object resolution can otherwise escape its enumeration deadline. Test timeout, child termination/reaping and bounded failure reporting; CORE-015 reuses this supervised path. No new resident worker or arbitrary privileged command interface.
 - CORE-007 is absorbed here; no general transaction engine or second privilege channel.
+- Own the ordinary staging/settings/start order currently exercised by `run-clean-child-qualification.ps1`; keep that script only as an optional acceptance harness. Integrate CORE-024/025/026 replacements as they land, never launch the harness from apply. Existing helpers allow integration to start before all backend ports finish; GPU-012 requires the native replacements.
 - Result: pending; operational helpers exist, most public commands currently return exit 70.
+
+## CORE-024
+
+**Replace PowerShell inventory with bounded native Rust discovery**
+
+- Objective: remove the fixed script in `src/windows_inventory.rs` from public inventory, preflight and state comparison without rewriting native driver discovery.
+- Priority: next native implementation slice; ready, unclaimed. Read `src/inventory.rs`, `src/windows_inventory.rs`, existing native WMI/identity helpers and the [audit](../scripts/PRODUCT-MIGRATION.md).
+- Replacement: Windows registry/system APIs for host facts; reuse native GPU/driver discovery and query registered VM/partitionable GPU state through native management interfaces. Preserve typed known/missing/denied/unavailable distinctions and configured exact-target selection. PowerShell module availability may remain a diagnostic fact, never a product prerequisite.
+- Tests: missing providers, access denial, multiple/wrong identities, absent GPU, malformed provider values, timeout/output bounds and native-worker termination. Compare affected facts with current adapter output on the configured host; read-only parity does not claim workload support.
+- Acceptance: public inventory does not launch PowerShell; potentially blocking COM/provider calls remain in a bounded fixed Rust worker. Errors retain useful native details and secret-free reports. Remove the production script only after demonstrated parity.
+- Result: pending.
+
+## CORE-025
+
+**Port fixed Hyper-V and GPU-PV operations to native Rust**
+
+- Objective: replace product cmdlet bodies in `hyper-gpu-runner.rs` and `hyper_gpu_runner/settings_adapter.rs`, retaining the enrolled fixed-operation protocol and existing Rust policy/settings contracts.
+- Replacement: investigate/use Hyper-V WMI/COM for VM/GPU discovery, attachment/removal, resource triples, MMIO/cache/memory/CPU settings and guest lifecycle; native Virtual Disk APIs for child/parent chain and differencing-disk work; Rust/native filesystem/security/hash checks for reset guards. Reuse provider bindings rather than recreate Hyper-V or reopen HCS-owned guests.
+- Deliver incrementally: read/inspect first, adapter/settings next, lifecycle/reset last. Preserve VM-Off requirements, exact GPU/VM/disk identity, other-VM assignment checks, golden-parent protection, Secure Boot/vTPM, snapshots refusal, durable preimages, independent readback and uncertain-state reconciliation.
+- Tests: provider errors/job completion, denied access, stale preimages, wrong target/parent/adapter, resource limits including u64 values, no-op, partial mutations and bounded timeout/reconciliation. Run affected live apply/readback/reapply and child recovery on the verified disposable target; essential workloads qualify the changed configuration path.
+- Acceptance: fixed operations no longer launch PowerShell for these capabilities; independent architecture review of changed privileged boundaries and actual tests passes before deployment. Any capability lacking a practical native interface gets a specific DECISIONS exception with alternatives and exact bounded command; no broad Hyper-V exemption.
+- Result: pending; CORE-002/023 establish working cmdlet-backed behavior, not completion of this port.
+
+## CORE-026
+
+**Move guest provisioning into a Rust writer and narrow remoting glue**
+
+- Objective: replace product guest-side PowerShell in `windows_guest.rs`, `windows_environment_staging.rs` and `validation_transport.ps1`; reuse complete native manifest and Rust validation worker.
+- Replacement: fixed Rust guest writer/bootstrap owns Windows-root destination calculation, filesystem/security/reparse/servicing validation, locks, byte copies, lengths/hashes/versions, atomic receipts and verified no-op; Rust owns fixed validation input preparation and launch supervision. Preserve current credential, guest-identity and restricted destination/source contracts.
+- Investigate the supported session/transfer interface separately from writer logic. Prefer a practical native API; if PowerShell Direct is essential for authenticated bootstrap/transport, document the exact remaining session/transfer/launch calls and why investigated COM/WMI/Win32 routes cannot provide them. DEC-020 is historical rationale, not approval for retaining file/receipt/security logic in PowerShell. No arbitrary guest command channel or resident service.
+- Tests: clean copy and discovered source/destination mapping with variable-size artificial manifests, tampered/missing files, ACL/reparse escapes, destination collisions, wrong guest, servicing, stale receipts, partial publication, lost remoting and timeouts. Retain the historical mapping fixture separately; no fixed file count is a general acceptance condition. Never infer cancellation from a killed host transport; retain uncertain-state recovery.
+- Acceptance: complete fresh provisioning and verified reapply pass against the working baseline; Rust readiness/nvidia-smi/D3D11/D3D12/CUDA passes through the changed boundary. Preserve scripts until demonstrated. Independent security/architecture review passes; remove migrated embedded logic and keep only a specifically justified interface exception, if required.
+- Result: pending; CORE-022 qualified the full recipe through a substantial PowerShell guest backend.
+
+## CORE-027
+
+**Provide Rust runner installation, enrollment and recovery**
+
+- Objective: remove ordinary setup/recovery dependence on `install-runner-v1.ps1`, `restore-runner-v1.ps1` and the policy-generation portion of `update-project-pins.ps1`.
+- Replacement: typed Rust installation/policy generation with native account/security and Task Scheduler interfaces, pinned artifact validation, administrator ACLs, exact-SID rights via the existing LSA helper, task quiescence and captured preimage restoration. Artifact pin maintenance may remain development tooling. CORE-021 owns runtime configuration integration; CORE-017 owns packaging/prerequisites.
+- Tests: bad pins/config, non-elevated refusal before effects, unrelated account/SID/task/path rejection, ACL escapes, in-flight runner, partial installation and interrupted restore. Demonstrate install/update/recovery through a bounded authorized elevation path with retained audit/preimages; no arbitrary elevated command input or host lifecycle.
+- Acceptance: packaged Rust setup and recovery require no manual PowerShell; old scripts are optional developer recovery only after demonstrated replacement. Independent review of changed privileged/security boundaries passes. Do not redesign the runner or broaden its one-slot policy.
+- Result: pending.
 
 ## CORE-011
 
@@ -232,6 +286,7 @@ development blocker.
 **Regenerate and restage after driver/environment drift**
 
 - Objective: support an explicit driver update/re-stage workflow without installing or downgrading host drivers.
+- Rediscover the current selected signed driver's packages and associated external files after updates. Generate fresh paths, lengths, hashes and manifest identity; the old manifest/count is comparison data, never the source for a new payload. Replace baseline package pins with generated per-environment integrity artifacts rather than silently bypass their checks or require an updated package to reproduce their old extent/digest. Keep operator target intent and signature validation separate from discovered inventory.
 - Acceptance: detect changed driver/package/signature/manifest before apply/start; invalidate stale receipts and explain requalification. Regenerate the complete discovered inventory and create a reviewed fresh-child restaging plan; apply, verify and rerun essential probes. Report host/guest build drift as qualification context under DEC-022, not an invented build-equality prohibition. Active/unknown servicing still fails closed.
 - Test changed-driver/build fixtures, stale/partial manifests and identity drift; rehearse regeneration/re-stage on the current signed host driver. A real different host-driver transition is optional GPU-013, not required to prove the workflow.
 - Result: pending.

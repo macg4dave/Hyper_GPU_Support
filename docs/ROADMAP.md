@@ -17,6 +17,20 @@ work is retained as compact results; its old research dependencies do not gate d
 One TOML-configured Windows 11 x64 Generation 2 Hyper-V VM, one RTX 5060 8 GB,
 Rust CLI, native Hyper-V GPU-PV and the complete discovered driver/runtime recipe.
 Configure and validate Windows facilities; do not recreate a VM platform.
+Discover the complete associated driver/runtime payload for the selected GPU and
+installed signed driver, derive guest destinations and verify every copy. Manifest
+size is discovered data; no baseline file count, static NVIDIA list or historical
+per-file hash table defines product success. Driver changes require rediscovery
+and a new manifest, with explicit restaging and requalification under CORE-015.
+
+Normal product operation, installation and recovery belong in Rust. No manual
+PowerShell sequence is required for v1. Development/diagnostic scripts remain
+optional. Existing embedded cmdlet/file adapters are migration debt, not a native
+implementation merely because Rust launches them. Any retained external interface
+needs a narrow technical exception with investigated alternatives, exact calls,
+typed validation, bounded execution and error/recovery behavior.
+The [script/backend audit](../scripts/PRODUCT-MIGRATION.md) maps every maintained
+script and remaining production PowerShell operation to its owner.
 
 Required behavior: runtime configuration and clear preflight/plan/apply/status;
 verified staging/settings/assignment, start/shutdown/restart, stable GPU readiness,
@@ -52,14 +66,21 @@ Read a specific foundation result only when the selected implementation needs it
 
 Independent implementation tasks:
 
-- CORE-022 completed: complete native-manifest staging and verified reapply passed on a clean child.
-- CORE-023 completed: validated VM settings and explicit GPU resources passed live apply and independent verified no-op reapply.
-- CORE-003 completed: public validate orchestrates sustained readiness, nvidia-smi and checked essential probes with verified inputs and bounded execution; combined live qualification remains GPU-006.
+- CORE-022 completed: complete native-manifest staging and verified reapply passed on a clean child; guest file operations still use embedded PowerShell (CORE-026).
+- CORE-023 completed: validated VM settings and explicit GPU resources passed live apply and independent verified no-op reapply; Hyper-V read/mutation still uses cmdlets (CORE-025).
+- CORE-003 completed: public validate and its Rust worker own readiness and essential workload checks; transfer/launch debt remains CORE-026 and combined live qualification remains GPU-006.
+- CORE-024 is the next native slice: replace PowerShell host/GPU/VM inventory with bounded native discovery, reusing existing Rust driver queries.
+- CORE-025 ports fixed Hyper-V attachment/resources/settings/lifecycle/reset incrementally while preserving enrollment, readback and reconciliation.
+- CORE-026 moves guest file/security/hash/receipt operations to a Rust writer and establishes the smallest justified session/transfer interface, if one is necessary.
 
-GPU-006 then runs the combined Rust workflow on a clean child.
+GPU-006 runs the combined current workflow on a clean child; its in-progress
+qualification remains useful while backend migration proceeds.
 **Exit:** verified full files/settings/adapter, sustained Code 0, nvidia-smi,
 checked D3D11/D3D12/CUDA, verified reapply and graceful shutdown. Preserve exact
 inputs/results in one concise report and independently review implementation.
+CORE-024/025/026 must also demonstrate their replacements and remove production
+PowerShell logic; repeat affected qualification after changed boundaries. A
+successful cmdlet-backed GPU-006 run alone does not close the native migration gate.
 Read-only discovery parity and experimental shell provisioning do not complete M1.
 
 Do not reduce the working recipe or demand CUDA/graphics LUID equality.
@@ -71,6 +92,8 @@ reuse existing identity, credential, receipt and recovery safeguards.
 CORE-006 connects public plan/apply/status; CORE-011 lifecycle and CORE-010 removal/
 recovery expose existing operations; CORE-012 gives useful diagnostics; CORE-021
 finishes runtime TOML/help/report contracts; CORE-015 regenerates/restages after drift.
+CORE-027 supplies native Rust runner installation, enrollment and recovery,
+replacing product setup scripts while retaining the existing privilege boundary.
 Tasks with independent foundations can start alongside M1; no blanket milestone
 dependency postpones work that does not need the clean-child result.
 
@@ -79,6 +102,8 @@ lifecycle cycles, representative interruption/recovery, explicit re-stage and bo
 sustained checked workloads. Reuse the existing Windows CI and foundation results.
 **Exit:** the integrated CLI performs these workflows repeatably; no unresolved
 essential failure, wrong-target/data-loss/credential defect or blocking review finding.
+Include demonstrated native inventory/Hyper-V/guest writer and setup replacements;
+optional test harnesses cannot provide missing public command behavior.
 
 There is no mandatory host reboot, manufactured host-driver transition, general
 transaction engine, resource-fairness investigation or review-of-review task.
@@ -100,14 +125,20 @@ authorized destination. Local reviewable packaging does not need publication app
 ## Critical path
 
 ```text
-complete Rust writer + validated settings + automated probes
-  -> clean-child Rust reproduction (GPU-006 / M1)
-  -> usable CLI/config + lifecycle/recovery + diagnostics/re-stage
+proven baseline + qualified current staging/settings/worker
+  -> native inventory + Hyper-V adapters + Rust guest writer (CORE-024/025/026)
+  -> clean-child reproduction + affected replacement qualification (GPU-006 / M1)
+  -> one CLI/config + lifecycle/recovery + diagnostics/re-stage + Rust setup
   -> integrated repeatability and implementation review (GPU-012 / M2)
   -> package and guide in parallel
   -> packaged clean-child acceptance, final review and handover (GPU-014 / M3)
   -> v1.0
 ```
+
+Public CLI integration and the current GPU-006 run can proceed alongside backend
+ports. Remove each production script dependency only after its replacement is
+demonstrated. Final packaged acceptance must use the Rust CLI with no manual
+PowerShell and only specifically justified external Windows interface exceptions.
 
 Ordinary tasks follow read â†’ implement â†’ test â†’ update status. Keep documentation
 changes proportional to behavior. Immediately verify target identities before effects;

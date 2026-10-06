@@ -140,8 +140,9 @@ fn apply(_username: &str) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(windows)]
 fn prompt_username() -> io::Result<String> {
-    eprint!("Guest username: ");
-    io::stderr().flush()?;
+    // Keep interactive prompts visible when a harness retains stderr diagnostics.
+    let mut console = std::fs::OpenOptions::new().write(true).open("CONOUT$")?;
+    console.write_all(b"Guest username: ")?;
     let mut username = String::new();
     io::stdin().read_line(&mut username)?;
     Ok(username.trim_end_matches(['\r', '\n']).to_owned())

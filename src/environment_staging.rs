@@ -374,6 +374,60 @@ mod tests {
         }
     }
     #[test]
+    fn accepts_variable_payload_lengths_and_rejects_stale_receipt_extent() {
+        for count in [1, 2, 5] {
+            let mut f = Fixture::new();
+            for index in f.manifest.files.len()..count {
+                let relative = format!(r"System32\synthetic-runtime-{index}.dll");
+                let source = f.root.join(&relative);
+                let contents = format!("artificial runtime {index}");
+                fs::write(&source, &contents).unwrap();
+                f.manifest.files.push(EnvironmentFile {
+                    source,
+                    windows_relative_destination: relative,
+                    driver_store: false,
+                    associated: true,
+                    bytes: contents.len() as u64,
+                    sha256: crate::probe::sha256_hex(contents.as_bytes()),
+                });
+            }
+            f.manifest.files.truncate(count);
+            f.manifest
+                .files
+                .sort_by_key(|file| file.windows_relative_destination.to_ascii_lowercase());
+            f.manifest.associated_file_count = count;
+            for already_applied in [false, true] {
+                let result = EnvironmentStageResult {
+                    already_applied,
+                    receipt: f.receipt(),
+                };
+                let adapter = fake(Ok(result.clone()));
+                assert_eq!(f.stage(&adapter), Ok(result));
+                assert_eq!(adapter.calls.get(), 1);
+            }
+            let mut stale = f.receipt();
+            stale.files += 1;
+            assert_eq!(
+                f.stage(&fake(Ok(EnvironmentStageResult {
+                    already_applied: true,
+                    receipt: stale,
+                }))),
+                Err(StagingError::GuestStateUncertain)
+            );
+        }
+    }
+    #[test]
+    fn rejects_missing_associated_source_before_transport() {
+        let f = Fixture::new();
+        fs::remove_file(&f.manifest.files[1].source).unwrap();
+        let adapter = fake(Ok(EnvironmentStageResult {
+            already_applied: false,
+            receipt: f.receipt(),
+        }));
+        assert!(f.stage(&adapter).is_err());
+        assert_eq!(adapter.calls.get(), 0);
+    }
+    #[test]
     fn rejects_changed_external_bytes_before_transport() {
         let f = Fixture::new();
         fs::write(&f.manifest.files[1].source, b"changed").unwrap();

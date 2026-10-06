@@ -8,8 +8,11 @@ Use native Windows/Hyper-V facilities and the
 [engineering standards](docs/ENGINEERING.md); do not recreate Hyper-V.
 
 The working baseline is authoritative: sustained Code 0, `nvidia-smi`, D3D11,
-D3D12 and CUDA computation passed with the complete 271-file driver/runtime
-recipe. Native Rust discovery matches that inventory. Finish Rust staging,
+D3D12 and CUDA computation passed with the discovered driver/runtime payload.
+Reproduce the validated provisioning behavior by dynamically discovering the
+complete associated payload for the selected GPU and installed signed host driver.
+Do not assume a fixed file count or static runtime list. Native Rust discovery
+matches the historical inventory. Finish Rust staging,
 settings integration and clean-child reproduction. Our source and
 [architecture](docs/ARCHITECTURE.md) specify behavior; no external reference
 research or renewed feasibility analysis is required. Keep inventory minimisation
@@ -18,6 +21,18 @@ them. HCS-owned-guest work stays paused. No GUI, background service, multi-VM/
 multi-GPU orchestration or cross-platform layer is required.
 
 ## Read only what the task needs
+
+Normal product operation, installation and recovery must be implemented in Rust.
+Launching embedded PowerShell or a `.ps1` from Rust does not satisfy this rule.
+The [migration audit](scripts/PRODUCT-MIGRATION.md) maps current debt to
+CORE-024/025/026/027; read its affected row when porting or reviewing that boundary.
+Preserve working Rust and replace adapters incrementally, with focused tests and
+affected baseline qualification before removing production dependencies. Keep
+scripts optional for development/manual diagnostics. Do not improve product
+PowerShell except for necessary correctness/safety fixes or a bounded comparison
+needed for the port. Any retained external interface requires DEC-027's concrete
+native-alternative, exact-command, validation, timeout and error/recovery rationale.
+Existing adapter decisions are historical context, not blanket v1 exemptions.
 
 | File | Owns / read when |
 |---|---|

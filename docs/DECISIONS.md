@@ -131,9 +131,9 @@ and Codex tool approval never supplies a Windows elevated token.
 The initial inventory adapter uses a fixed parameter-free Windows query process.
 Rust owns deadlines, bounded output, termination/reaping, protocol validation,
 target selection and reporting. Synchronous in-process provider calls did not
-provide that cancellation boundary without additional FFI. Retain this working
-transport unless a concrete requirement warrants replacement; native full-driver
-discovery is a separate implemented read-only path.
+provide that cancellation boundary without additional FFI. This records the
+initial transport, not a v1 PowerShell exemption: CORE-024 replaces it using
+bounded native Rust discovery. Native full-driver discovery is already implemented.
 
 ## DEC-014
 
@@ -165,6 +165,9 @@ and supervised cancellation without recreating Hyper-V. Rust owns authentication
 exact policy verification, locking, request validation and audit/results. Callers
 cannot supply commands, scripts, targets or paths. Wider command/target surfaces
 require security review; normal installed-runner updates/testing are authorized.
+CORE-025 replaces the cmdlet bodies incrementally while retaining this fixed
+Rust trust boundary. Measured behavior and cancellation needs do not establish
+that Hyper-V lacks a practical native management interface.
 
 ## DEC-017
 
@@ -202,7 +205,11 @@ settings; retain installed privileged enrollment as a distinct trust boundary.
 **Implemented | 2026-10-02 | Bounded PowerShell Direct transport**
 
 Existing PowerShell Direct provides supported registered-VM sessions/file transfer;
-reimplementing its remoting internals would enlarge the security surface. Rust owns
+reimplementing its remoting internals would enlarge the security surface. This is
+the historical implementation rationale, not a blanket v1 exception. CORE-026
+moves substantive guest file/security/hash/receipt behavior into Rust and evaluates
+the smallest supported bootstrap/transfer/launch interface. Any retained command
+needs the specific limitation/alternatives/validation/error record below. Rust owns
 target/source/path/hash validation, structured requests and process supervision.
 Load/verify protected system modules before accepting credentials, keep credentials
 off command lines/reports, and zero password buffers. Killing the host process
@@ -216,6 +223,30 @@ terminates blocked calls after remoting loss. Existing/copy destination ACLs are
 checked before elevated execution. Workload processes start suspended and enter
 their kill job before any instructions can create descendants. No general guest
 command API or additional implementation language is introduced.
+
+## DEC-027
+
+**Accepted | 2026-10-06 | Native Rust production path**
+
+The proven baseline is the implementation specification. Functionality required
+for normal CLI operation, installation or recovery belongs in Rust, including
+Windows management and guest writer behavior. Embedded PowerShell is production
+debt just as an external `.ps1` dependency is. Reuse working Rust logic; replace
+adapters incrementally, test equivalent behavior and qualify changed boundaries
+before removing them. Development/manual diagnostic scripts remain optional.
+
+CORE-024/025/026/027 own the remaining native replacements; CORE-006 and the existing
+operation/configuration cards integrate one CLI. The
+[maintained-script/backend audit](../scripts/PRODUCT-MIGRATION.md) records ownership.
+DEC-013/016/020 retain historical rationale without exempting those adapters from v1.
+
+Before accepting any remaining external interface, record the missing capability,
+investigated Rust/Win32/COM/WMI alternatives and why they are impractical, exact
+executable/arguments, typed input/result checks, bounds, error propagation and
+uncertain-state recovery. Convenience or a process cancellation boundary alone
+is insufficient: a bounded Rust native worker is an alternative. No such new
+exception is established by this audit. Preserve enrollment, isolation, parent
+protection, credentials and physical-host lifecycle policy throughout migration.
 
 ## DEC-021
 
@@ -261,8 +292,11 @@ boundary requires an explicit user scope change.
 Sustained Code 0, `nvidia-smi`, checked D3D11/D3D12 and CUDA computation passed.
 Use the complete ordinary-copy environment and measured VM/resource settings in
 [ARCHITECTURE.md](ARCHITECTURE.md#working-recipe). Native Rust discovery matches
-all 271 measured source/destination/length/hash records; the older 217-file
-package/alias subset is incomplete.
+the measured source/destination/length/hash records; the older primary-package
+and manually selected alias subset was incomplete. Reproduce the discovery and
+placement behavior dynamically for the currently selected signed host driver,
+including associated external files. No historical count or static list defines
+the payload; rediscover and regenerate manifest identity after driver changes.
 
 Files and settings changed together. Reproduce the supported complete recipe
 without claiming isolated necessity or minimizing it before v1. CUDA computation
