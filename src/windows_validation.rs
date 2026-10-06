@@ -191,7 +191,41 @@ impl Drop for KillJob {
     }
 }
 
-fn drain(mut reader: impl Read) -> Result<Vec<u8>, String> {
+pub(crate) enum BoundedProcessError {
+    Launch {
+        kind: std::io::ErrorKind,
+        code: Option<i32>,
+    },
+    Timeout,
+    OutputTooLarge,
+    Execution(String),
+}
+impl std::fmt::Display for BoundedProcessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Launch { kind, code } => {
+                write!(f, "process launch failed: {kind} (OS code {code:?})")
+            }
+            Self::Timeout => {
+                f.write_str("process deadline expired; process and descendants terminated")
+            }
+            Self::OutputTooLarge => f.write_str("process output limit exceeded"),
+            Self::Execution(message) => f.write_str(message),
+        }
+    }
+}
+impl From<String> for BoundedProcessError {
+    fn from(message: String) -> Self {
+        Self::Execution(message)
+    }
+}
+impl From<&str> for BoundedProcessError {
+    fn from(message: &str) -> Self {
+        Self::Execution(message.into())
+    }
+}
+
+fn drain(mut reader: impl Read, limit: usize) -> Result<Vec<u8>, BoundedProcessError> {
     let mut bytes = Vec::new();
     let mut buf = [0; 1024];
     loop {
@@ -199,8 +233,8 @@ fn drain(mut reader: impl Read) -> Result<Vec<u8>, String> {
         if count == 0 {
             return Ok(bytes);
         }
-        if bytes.len() + count > PROCESS_OUTPUT_LIMIT {
-            return Err("process output limit exceeded".into());
+        if bytes.len() + count > limit {
+            return Err(BoundedProcessError::OutputTooLarge);
         }
         bytes.extend_from_slice(&buf[..count]);
     }
@@ -209,9 +243,18 @@ fn drain(mut reader: impl Read) -> Result<Vec<u8>, String> {
 /// # Errors
 /// Launch, timeout, output overflow and malformed UTF-8 remain explicit failures.
 pub(crate) fn bounded_process(
-    mut command: Command,
+    command: Command,
     timeout: Duration,
 ) -> Result<ProcessOutput, String> {
+    bounded_process_with_limit(command, timeout, PROCESS_OUTPUT_LIMIT).map_err(|e| e.to_string())
+}
+
+/// Same suspended launch/kill-job supervisor with a caller's fixed stream limit.
+pub(crate) fn bounded_process_with_limit(
+    mut command: Command,
+    timeout: Duration,
+    limit: usize,
+) -> Result<ProcessOutput, BoundedProcessError> {
     let end = Instant::now() + timeout;
     use std::os::windows::process::CommandExt;
     command.creation_flags(
@@ -223,31 +266,34 @@ pub(crate) fn bounded_process(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| BoundedProcessError::Launch {
+            kind: e.kind(),
+            code: e.raw_os_error(),
+        })?;
     let job = match KillJob::attach(&child) {
         Ok(job) => job,
         Err(e) => {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(e);
+            return Err(e.into());
         }
     };
     if let Err(error) = resume_suspended_child(child.id()) {
         drop(job);
         let _ = child.kill();
         let _ = child.wait();
-        return Err(error);
+        return Err(error.into());
     }
     let out = child.stdout.take().ok_or("missing stdout")?;
     let err = child.stderr.take().ok_or("missing stderr")?;
     let (sender, receiver) = std::sync::mpsc::channel();
     let sender2 = sender.clone();
     let output_thread = thread::spawn(move || {
-        let result = drain(out);
+        let result = drain(out, limit);
         let _ = sender.send((true, result));
     });
     let error_thread = thread::spawn(move || {
-        let result = drain(err);
+        let result = drain(err, limit);
         let _ = sender2.send((false, result));
     });
     let mut stdout = None;
@@ -273,7 +319,7 @@ pub(crate) fn bounded_process(
             Ok(Some(s)) => break Some(s),
             Ok(None) => thread::sleep(Duration::from_millis(10)),
             Err(e) => {
-                failure = Some(e.to_string());
+                failure = Some(BoundedProcessError::Execution(e.to_string()));
                 break None;
             }
         }
@@ -301,7 +347,7 @@ pub(crate) fn bounded_process(
     if let Some(e) = failure {
         return Err(e);
     }
-    let status = status.ok_or("process deadline expired; process and descendants terminated")?;
+    let status = status.ok_or(BoundedProcessError::Timeout)?;
     Ok(ProcessOutput {
         exit_code: status.code(),
         stdout: String::from_utf8(stdout.ok_or("missing stdout result")?)

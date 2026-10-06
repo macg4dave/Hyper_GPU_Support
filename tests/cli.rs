@@ -3,6 +3,17 @@
 use std::process::Command;
 
 #[test]
+fn inventory_worker_rejects_arguments_before_native_queries() {
+    let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-inventory-worker"))
+        .arg("SELECT * FROM arbitrary")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("accepts no arguments"));
+}
+
+#[test]
 fn driver_environment_inspector_rejects_arguments_before_native_discovery() {
     let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-driver-environment"))
         .arg("--target")

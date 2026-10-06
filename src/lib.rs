@@ -30,6 +30,8 @@ pub mod windows_guest;
 #[cfg(windows)]
 pub mod windows_inventory;
 #[cfg(windows)]
+pub mod windows_native_inventory;
+#[cfg(windows)]
 pub mod windows_paths;
 #[cfg(windows)]
 pub mod windows_probe;

@@ -109,6 +109,20 @@ impl InventoryReport {
         &self.facts
     }
 
+    /// Encode the bounded worker's tab-separated key/status/UTF-8-hex protocol.
+    pub fn encode_protocol(&self) -> String {
+        use std::fmt::Write as _;
+        let mut output = String::new();
+        for fact in &self.facts {
+            let _ = write!(output, "{}\t{}\t", fact.key(), fact.status().as_str());
+            for byte in fact.value().bytes() {
+                let _ = write!(output, "{byte:02X}");
+            }
+            output.push('\n');
+        }
+        output
+    }
+
     /// Render a deterministic, line-oriented report.
     pub fn render(&self) -> String {
         let mut output = String::from("inventory.schema=1\n");
@@ -286,4 +300,14 @@ mod tests {
             "inventory.schema=1\ntest.value=known:one%25%0D%0Atwo\n"
         );
     }
+}
+#[cfg(test)]
+#[test]
+fn worker_protocol_round_trips_delimiters_unicode_and_availability() {
+    let report = InventoryReport::new(vec![
+        Fact::new("host.build", FactStatus::Known, "test\t\n%日本語").unwrap(),
+        Fact::new("vm.selection", FactStatus::Denied, "0x80041003").unwrap(),
+    ])
+    .unwrap();
+    assert_eq!(parse_protocol(&report.encode_protocol()), Ok(report));
 }

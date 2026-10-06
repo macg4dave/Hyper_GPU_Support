@@ -33,7 +33,7 @@ M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the 
 | [CORE-023](#core-023) | M1 | P0 | completed | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | completed | CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | in progress | CORE-022, CORE-023, CORE-003 |
-| [CORE-024](#core-024) | M1 | P0 | ready | CORE-020 |
+| [CORE-024](#core-024) | M1 | P0 | in progress | CORE-020 |
 | [CORE-025](#core-025) | M1 | P0 | planned | CORE-024, CORE-023 |
 | [CORE-026](#core-026) | M1 | P0 | ready | CORE-022, CORE-003 |
 | [CORE-027](#core-027) | M2 | P1 | ready | CORE-005 |
@@ -208,7 +208,8 @@ development blocker.
 **Replace PowerShell inventory with bounded native Rust discovery**
 
 - Objective: remove the fixed script in `src/windows_inventory.rs` from public inventory, preflight and state comparison without rewriting native driver discovery.
-- Priority: next native implementation slice; ready, unclaimed. Read `src/inventory.rs`, `src/windows_inventory.rs`, existing native WMI/identity helpers and the [audit](../scripts/PRODUCT-MIGRATION.md).
+- Owner: Codex; started 2026-10-06. Native read-only inventory and fixed worker supervision; existing GPU-006 ownership is preserved.
+- Priority: next native implementation slice. Read `src/inventory.rs`, `src/windows_inventory.rs`, existing native WMI/identity helpers and the [audit](../scripts/PRODUCT-MIGRATION.md).
 - Replacement: Windows registry/system APIs for host facts; reuse native GPU/driver discovery and query registered VM/partitionable GPU state through native management interfaces. Preserve typed known/missing/denied/unavailable distinctions and configured exact-target selection. PowerShell module availability may remain a diagnostic fact, never a product prerequisite.
 - Tests: missing providers, access denial, multiple/wrong identities, absent GPU, malformed provider values, timeout/output bounds and native-worker termination. Compare affected facts with current adapter output on the configured host; read-only parity does not claim workload support.
 - Acceptance: public inventory does not launch PowerShell; potentially blocking COM/provider calls remain in a bounded fixed Rust worker. Errors retain useful native details and secret-free reports. Remove the production script only after demonstrated parity.

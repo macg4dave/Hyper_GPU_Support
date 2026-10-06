@@ -132,8 +132,12 @@ The initial inventory adapter uses a fixed parameter-free Windows query process.
 Rust owns deadlines, bounded output, termination/reaping, protocol validation,
 target selection and reporting. Synchronous in-process provider calls did not
 provide that cancellation boundary without additional FFI. This records the
-initial transport, not a v1 PowerShell exemption: CORE-024 replaces it using
-bounded native Rust discovery. Native full-driver discovery is already implemented.
+initial transport, not a v1 PowerShell exemption. CORE-024 replaced the inventory
+script on 2026-10-06 with a fixed native Rust worker, retaining a process deadline,
+suspended launch/job containment and an independent worker watchdog for synchronous
+COM/provider calls. Native registry/system APIs supply host facts and the existing
+WMI bindings supply GPU/VM facts. Read-only parity passed; no external inventory
+interface exception remains. Native full-driver discovery is already implemented.
 
 ## DEC-014
 

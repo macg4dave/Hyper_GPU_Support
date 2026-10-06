@@ -317,8 +317,25 @@ migration, checkpoints and host sleep/hibernate are outside v1.
 Use native Windows/Hyper-V interfaces for configuration, assignment and lifecycle;
 native WMI and Windows identity facilities for discovery; PnP/DXGI/D3DKMT for
 status and identity. Rust owns intent, validation, orchestration, supervision,
-guest writer operations, integrity checks and reporting. Current inventory and
-runner cmdlet adapters are CORE-024/025 debt; guest backend logic is CORE-026 and
+guest writer operations, integrity checks and reporting. Inventory uses native
+registry/system APIs and the existing read-only WMI bindings in a fixed Rust
+worker. The sibling worker accepts no query/path/target arguments and has its own
+hard deadline; its parent launches suspended, assigns a kill-on-close job, then
+resumes and bounds both streams, termination and reaping. The parent validates the
+worker's compiled configuration digest, required fact keys and known target identities
+before publishing its report; a stale sibling worker fails with rebuild guidance.
+Detail queries select exact full identities before decoding provider properties,
+so unrelated null driver/VM settings fields cannot poison target facts. Registered
+VM count enumerates only identity keys separately. Selection uses the
+configured full GPU interface/PnP identity and VM GUID/name, including among
+unrelated VMs. Enabled effective Administrators or Hyper-V Administrators membership
+is required before management queries because UAC-filtered WMI can silently return
+an empty VM list. Missing, denied and unavailable facts remain distinct; module
+discovery is unnecessary. VM generation/version come from realized
+[Msvm_VirtualSystemSettingData](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-virtualsystemsettingdata)
+and state from
+[Msvm_ComputerSystem](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-computersystem).
+Runner cmdlet adapters remain CORE-025 debt; guest backend logic is CORE-026 and
 scripted runner setup/recovery is CORE-027. Preserve working implementations until
 replacements are demonstrated. Any retained external session/utility call must
 establish the narrow technical exception in DEC-027 and

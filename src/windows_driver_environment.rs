@@ -91,10 +91,10 @@ fn native(operation: impl Into<String>, source: windows::core::Error) -> DriverD
     }
 }
 
-struct Apartment;
+pub(crate) struct Apartment;
 #[allow(unsafe_code)]
 impl Apartment {
-    fn initialize() -> Result<Self, DriverDiscoveryError> {
+    pub(crate) fn initialize() -> Result<Self, DriverDiscoveryError> {
         // SAFETY: initialize COM on this calling thread. On success this guard
         // remains alive until all WMI interfaces/variants have been released.
         unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
@@ -112,7 +112,7 @@ impl Drop for Apartment {
 }
 
 #[allow(unsafe_code)]
-fn connect(namespace: &str) -> Result<IWbemServices, DriverDiscoveryError> {
+pub(crate) fn connect(namespace: &str) -> Result<IWbemServices, DriverDiscoveryError> {
     // SAFETY: COM apartment is initialized; COM owns/refcounts the returned interface.
     let locator: IWbemLocator =
         unsafe { CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER) }
@@ -161,7 +161,9 @@ fn property(object: &IWbemClassObject, name: &str) -> Result<String, DriverDisco
     } else {
         // SAFETY: Get initialized the VARIANT; inspect its tag before its BSTR arm.
         let inner = unsafe { &value.Anonymous.Anonymous };
-        if name == "ConfigManagerErrorCode" && inner.vt == windows::Win32::System::Variant::VT_I4 {
+        if matches!(name, "ConfigManagerErrorCode" | "EnabledState")
+            && inner.vt == windows::Win32::System::Variant::VT_I4
+        {
             // SAFETY: VT_I4 selects this signed 32-bit arm. WMI uint32 uses VT_I4.
             let code = unsafe { inner.Anonymous.lVal } as u32;
             Ok(code.to_string())
@@ -186,7 +188,7 @@ fn property(object: &IWbemClassObject, name: &str) -> Result<String, DriverDisco
 }
 
 #[allow(unsafe_code)]
-fn query(
+pub(crate) fn query(
     services: &IWbemServices,
     wql: &str,
     properties: &[&str],
@@ -245,7 +247,7 @@ fn query(
     Ok(rows)
 }
 
-fn quoted(value: &str) -> String {
+pub(crate) fn quoted(value: &str) -> String {
     value.replace('\\', "\\\\").replace('\'', "\\'")
 }
 

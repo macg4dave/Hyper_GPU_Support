@@ -46,6 +46,14 @@ integrated. Errors go to stderr; normal output goes to stdout. Inventory reports
 known/missing/denied/unavailable facts; denied protected facts can appear in an
 otherwise successful read-only report.
 
+Inventory uses native registry/system and WMI queries through the fixed sibling
+`hyper-gpu-inventory-worker.exe`; build/deploy it alongside the CLI. It selects the
+configured VM GUID/name and complete GPU interface, bounds provider calls and
+output, and reports filtered management access as denied. Worker reports must match
+the CLI's compiled configuration digest and target identities; rebuild both binaries
+after configuration edits. PowerShell module
+availability is no longer an inventory prerequisite or report field.
+
 ## Current development executables
 
 These are implemented development entry points, not a completed v1 workflow:

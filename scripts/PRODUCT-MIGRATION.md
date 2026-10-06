@@ -35,7 +35,7 @@ maintained inventory. No script is removed by this audit.
 
 | Capability and current source | Already Rust-owned | Remaining replacement |
 |---|---|---|
-| Host/GPU/VM inventory: `src/windows_inventory.rs` | Fact validation, correlation, errors, reporting and process bounds | CORE-024: replace fixed registry/CIM/Hyper-V script with native reads and bounded provider worker. Reuse native driver discovery and Windows identity helpers. |
+| Host/GPU/VM inventory: `src/windows_inventory.rs`, `src/windows_native_inventory.rs` | Native registry/system/WMI facts, exact configured identities, typed availability and contained fixed Rust worker | CORE-024 replacement demonstrated against all 14 existing host/GPU/VM facts; production inventory no longer invokes PowerShell. Full payload discovery remains the existing native implementation. |
 | GPU attach/detach, disk chain, inspect/reset/start/shutdown: `src/bin/hyper-gpu-runner.rs` | Enrolled identity, authorization, serialization, audit, result checks and supervision | CORE-025: native Hyper-V WMI/COM management, Virtual Disk APIs and Rust filesystem/hash/security guards, behind the same fixed operation protocol. |
 | VM profile/resource read/apply: `src/bin/hyper_gpu_runner/settings_adapter.rs` | Typed profile/resource validation, desired/observed comparison, preimages and reconciliation | CORE-025: native settings/resource read and mutation, retaining independent fresh readback and all isolation guards. CORE-023 remains a tested cmdlet-backed implementation result. |
 | Guest copy/provisioning: `src/windows_guest.rs`, `src/windows_environment_staging.rs` | Complete manifest generation, host signatures/hashes, destination validation and receipt contract | CORE-026: Rust guest writer owns destination calculation, ACL/reparse/servicing checks, exclusive locks, copies, hashes, versions and atomic receipt publication. Current scripts perform substantial guest-side logic, beyond session glue. |
@@ -50,7 +50,7 @@ validation worker and existing Rust contract modules should be reused, not rewri
 
 ## Order and acceptance
 
-Next native slice: CORE-024 read-only inventory; CORE-025 then replaces privileged
+CORE-024 read-only inventory is native; the next slice is CORE-025, replacing privileged
 Hyper-V adapters incrementally. CORE-026 replaces guest writer logic and narrows or
 eliminates the remoting bridge. CORE-027 covers product setup/recovery. Public CLI
 integration can proceed alongside these bounded migrations. Existing GPU-006 work
