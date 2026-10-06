@@ -159,6 +159,24 @@ pub fn parse_success_report(
     if report.schema != 1 || report.probe != expected_probe || report.status != "pass" {
         return Err(ProbeContractError::Malformed);
     }
+    let shaders_valid = match expected_probe {
+        "d3d11-offscreen" => report.shader_profiles == "vs_5_0,ps_5_0",
+        "d3d12-offscreen" => report
+            .shader_profiles
+            .strip_prefix("vs_6_0,ps_6_0,max_")
+            .is_some_and(|model| {
+                model.len() == 3 && model.starts_with("6_") && model.as_bytes()[2].is_ascii_digit()
+            }),
+        _ => false,
+    };
+    if !shaders_valid
+        || !matches!(
+            report.feature_level.as_str(),
+            "11_0" | "11_1" | "12_0" | "12_1" | "12_2"
+        )
+    {
+        return Err(ProbeContractError::Malformed);
+    }
     if report.width != WIDTH
         || report.height != HEIGHT
         || report.output_sha256 != EXPECTED_IMAGE_SHA256
@@ -180,7 +198,7 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     output
 }
 
-fn is_luid(value: &str) -> bool {
+pub(crate) fn is_luid(value: &str) -> bool {
     value.len() == 17
         && value.bytes().enumerate().all(|(index, byte)| {
             if index == 8 {
@@ -262,6 +280,20 @@ mod tests {
 
     #[test]
     fn rejects_malformed_unknown_and_incorrect_output() {
+        for mutate in [
+            |candidate: &mut ProbeReport| candidate.shader_profiles.clear(),
+            |candidate: &mut ProbeReport| candidate.feature_level = "unknown".into(),
+        ] {
+            let mut candidate = report();
+            mutate(&mut candidate);
+            assert_eq!(
+                parse_success_report(
+                    &serde_json::to_string(&candidate).unwrap(),
+                    "d3d11-offscreen"
+                ),
+                Err(ProbeContractError::Malformed)
+            );
+        }
         assert_eq!(
             parse_success_report("{}", "d3d11-offscreen"),
             Err(ProbeContractError::Malformed)

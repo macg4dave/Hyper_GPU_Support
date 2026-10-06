@@ -18,6 +18,9 @@ fn main() -> ExitCode {
     let output = match command {
         Command::Help => cli::HELP.to_owned(),
         Command::Version => cli::VERSION.to_owned(),
+        Command::Validate => {
+            return dispatch_validation(&mut io::stdout().lock(), validation_report());
+        }
         Command::Inventory => match inventory_output() {
             Ok(output) => output,
             Err(error) => return report_error(&mut io::stderr().lock(), &error, 1),
@@ -38,6 +41,30 @@ fn main() -> ExitCode {
             1,
         ),
     }
+}
+
+fn dispatch_validation(
+    writer: &mut impl Write,
+    report: Result<hyper_gpu_support::validation::ValidationReport, String>,
+) -> ExitCode {
+    match report {
+        Ok(report) => match serde_json::to_string_pretty(&report) {
+            Ok(json) => match write_output(writer, &json) {
+                Ok(()) => ExitCode::from(report.exit_code()),
+                Err(error) => report_error(&mut io::stderr().lock(), &error, 1),
+            },
+            Err(error) => report_error(&mut io::stderr().lock(), &error, 1),
+        },
+        Err(error) => report_error(&mut io::stderr().lock(), &error, 1),
+    }
+}
+#[cfg(windows)]
+fn validation_report() -> Result<hyper_gpu_support::validation::ValidationReport, String> {
+    hyper_gpu_support::windows_validation::validate_command()
+}
+#[cfg(not(windows))]
+fn validation_report() -> Result<hyper_gpu_support::validation::ValidationReport, String> {
+    Err("guest validation requires Windows x64".into())
 }
 
 #[cfg(windows)]
@@ -78,6 +105,30 @@ mod tests {
     use super::{report_error, write_output};
     use std::io::{self, Write};
     use std::process::ExitCode;
+
+    #[test]
+    fn validation_dispatch_publishes_report_and_propagates_outcome() {
+        let project = hyper_gpu_support::config::ProjectConfiguration::embedded().unwrap();
+        let mut report = hyper_gpu_support::validation::ValidationReport::new(&project);
+        report.block("missing runtime");
+        let mut output = Vec::new();
+        assert_eq!(
+            super::dispatch_validation(&mut output, Ok(report.clone())),
+            ExitCode::from(1)
+        );
+        assert_eq!(
+            serde_json::from_slice::<hyper_gpu_support::validation::ValidationReport>(&output)
+                .unwrap(),
+            report
+        );
+        for check in &mut report.checks {
+            check.status = hyper_gpu_support::validation::CheckStatus::Pass;
+        }
+        assert_eq!(
+            super::dispatch_validation(&mut Vec::new(), Ok(report)),
+            ExitCode::SUCCESS
+        );
+    }
 
     struct FailedWriter {
         fail_flush: bool,

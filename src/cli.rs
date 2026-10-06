@@ -15,7 +15,7 @@ Commands:
   plan             Produce a read-only change plan
   apply            Apply a reviewed current plan
   status           Show effective project-owned state
-  validate         Validate configuration and prerequisites
+  validate         Check guest GPU readiness and essential workloads
   remove           Remove project-owned GPU assignment/settings
   recover          Recreate the disposable child after uncertain state
   start            Start the configured disposable VM
@@ -26,7 +26,9 @@ Options:
   -h, --help       Display help
   -V, --version    Display version
 
-Only inventory is implemented; other commands currently return exit code 70.
+Inventory and validate are implemented; other commands currently return exit code 70.
+Validate requires the running enrolled guest, local artifacts, an elevated
+development token and an interactive guest credential prompt.
 ";
 
 /// Application version, taken from the package metadata.
@@ -41,6 +43,8 @@ pub enum Command {
     Version,
     /// Report read-only inventory facts.
     Inventory,
+    /// Run the fixed guest readiness and essential-workload validation.
+    Validate,
     /// A stable declared operation whose implementation belongs to a later M1 task.
     Declared(CliOperation),
 }
@@ -77,6 +81,7 @@ pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Command, U
         Some("--help" | "-h") => Command::Help,
         Some("--version" | "-V") => Command::Version,
         Some("inventory") => Command::Inventory,
+        Some("validate") => Command::Validate,
         Some(value) => Command::Declared(CliOperation::parse(value).ok_or(UsageError)?),
         None => return Err(UsageError),
     };
@@ -103,6 +108,7 @@ mod tests {
             ("--version", Command::Version),
             ("-V", Command::Version),
             ("inventory", Command::Inventory),
+            ("validate", Command::Validate),
         ] {
             assert_eq!(parse([argument.into()]), Ok(expected));
         }

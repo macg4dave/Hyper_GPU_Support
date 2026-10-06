@@ -534,7 +534,7 @@ fn read_bounded(mut reader: impl Read) -> Result<BoundedBytes, GuestError> {
     Ok(BoundedBytes { bytes, truncated })
 }
 
-const ACL_VALIDATOR: &str = r#"
+pub(crate) const ACL_VALIDATOR: &str = r#"
 function Assert-ProtectedTree([string]$FullPath, [string]$Anchor = [Environment]::GetFolderPath('ProgramFiles')) {
     $full = [IO.Path]::GetFullPath($FullPath).TrimEnd('\')
     $anchorFull = [IO.Path]::GetFullPath($Anchor).TrimEnd('\')

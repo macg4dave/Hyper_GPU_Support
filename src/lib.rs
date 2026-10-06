@@ -11,6 +11,7 @@ pub mod inventory;
 pub mod probe;
 pub mod runner;
 pub mod staging;
+pub mod validation;
 pub mod vm_settings;
 
 #[cfg(windows)]
@@ -34,3 +35,5 @@ pub mod windows_paths;
 pub mod windows_probe;
 #[cfg(windows)]
 pub mod windows_runner;
+#[cfg(windows)]
+pub mod windows_validation;

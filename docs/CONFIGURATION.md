@@ -60,6 +60,16 @@ enumeration separately from short product inventory and guest transfers. COM
 connection and individual object resolution remain synchronous and are not
 cancelled by that enumeration deadline.
 
+`[validation]` owns the guest readiness window, sampling interval, process and
+independent worker deadlines, expected NVIDIA query version, retained CUDA input
+directory and operator-owned x64 CRT source root. Rust validates these bounds once.
+The nine flat validation filenames are a fixed software allowlist; fresh host
+lengths/hashes authorize transfer, and the guest verifies every input before and
+after workloads. Shaders are embedded in the D3D binaries. The worker starts no
+caller-selected program or command, and its hard watchdog remains active if the
+host/session disconnects. Public `validate` requires an elevated development token
+until the final public operation integration; credentials stay in local prompts.
+
 Runner inspection and reset limits are inactivity watchdogs: native process read
 byte activity restarts the idle clock, allowing parent verification to finish
 under slow storage. This is activity evidence, not an integrity or success claim;

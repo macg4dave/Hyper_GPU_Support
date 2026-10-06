@@ -35,6 +35,8 @@ pub struct Configuration {
 /// structure after parsing and validation and do not need to know TOML syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectConfiguration {
+    /// Fixed guest readiness/workload inputs and finite execution budgets.
+    pub validation: ValidationConfiguration,
     /// Desired off-state Hyper-V settings; security devices are retained.
     pub vm_profile: VmProfile,
     /// Exact disposable slot and its pinned storage/GPU identities.
@@ -265,6 +267,7 @@ pub struct HostProbeConfiguration {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawProjectConfiguration {
+    validation: ValidationConfiguration,
     vm_profile: VmProfile,
     schema: u32,
     slot: RawSlotConfiguration,
@@ -276,6 +279,28 @@ struct RawProjectConfiguration {
     runner: RawRunnerConfiguration,
     tooling: RawToolingConfiguration,
     tests: RawTestConfiguration,
+}
+
+/// Guest-validation configuration, shared by host transport and Rust worker.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ValidationConfiguration {
+    /// NVIDIA runtime version expected from nvidia-smi for this driver recipe.
+    pub nvidia_driver_version: String,
+    /// App-local Microsoft x64 CRT source directory for the retained CUDA sample.
+    pub crt_directory: PathBuf,
+    /// Retained CUDA sample/FATBIN directory, relative to the repository.
+    pub cuda_directory: PathBuf,
+    /// Time allowed to obtain sustained readiness.
+    pub readiness_timeout_seconds: u64,
+    /// Consecutive Code 0 observation duration.
+    pub stable_seconds: u64,
+    /// PnP sampling interval.
+    pub sample_milliseconds: u64,
+    /// Bound on each workload and identity process.
+    pub process_timeout_seconds: u64,
+    /// Total worker execution bound, including readiness.
+    pub worker_timeout_seconds: u64,
 }
 
 /// Project-owned Hyper-V settings, applied only while the enrolled VM is off.
@@ -952,7 +977,31 @@ impl ProjectConfiguration {
             compute: parse_resource(Some(&raw.resources.compute))?,
         };
         raw.vm_profile.validate()?;
+        validate_absolute_windows_path(&raw.validation.crt_directory)?;
+        validate_relative_path(&raw.validation.cuda_directory)?;
+        if !(1..=600).contains(&raw.validation.readiness_timeout_seconds)
+            || raw.validation.nvidia_driver_version.is_empty()
+            || !raw
+                .validation
+                .nvidia_driver_version
+                .bytes()
+                .all(|b| b.is_ascii_digit() || b == b'.')
+            || !(1..=raw.validation.readiness_timeout_seconds)
+                .contains(&raw.validation.stable_seconds)
+            || !(100..=5000).contains(&raw.validation.sample_milliseconds)
+            || raw.validation.sample_milliseconds > raw.validation.stable_seconds * 1000
+            || raw.validation.readiness_timeout_seconds * 1000 / raw.validation.sample_milliseconds
+                > 180
+            || !(1..=60).contains(&raw.validation.process_timeout_seconds)
+            || raw.validation.worker_timeout_seconds
+                < raw.validation.readiness_timeout_seconds
+                    + 5 * raw.validation.process_timeout_seconds
+            || raw.validation.worker_timeout_seconds > 900
+        {
+            return Err(ConfigError::InvalidProjectSetting);
+        }
         Ok(Self {
+            validation: raw.validation,
             vm_profile: raw.vm_profile,
             slot: SlotConfiguration {
                 name: raw.slot.name,

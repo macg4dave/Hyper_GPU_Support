@@ -79,6 +79,20 @@ preserve the identity diagnostic separately from the computation result and fail
 if the intended CUDA device cannot be selected safely. See the
 [measured baseline](../docs/evidence/GPU-PV-BASELINE.md).
 
+`cuda-identity --guest-compute` implements that guest contract: one CUDA device,
+explicit ordinal 0, correct model/capability and a strictly selected GPU-PV graphics
+adapter. It reports both LUIDs and CUDA UUID/driver version without making LUID
+equality a computation gate. The default host control retains LUID equality.
+
+Public `validate` builds/transfers the Rust validation worker and the fixed probes,
+the unchanged retained vector-add sample/FATBIN, and `vcruntime140.dll`,
+`vcruntime140_1.dll`, `msvcp140.dll` from the configured operator-owned Microsoft
+x64 CRT directory. Every input is hashed on the host and guest; CRT sources require
+valid Microsoft signatures. This is disposable development validation, with no
+new runtime binaries committed or release redistribution package. CORE-017 owns
+release runtime packaging/notices. Rebuild probes after configuration changes;
+the older hashes above are immutable host-control evidence, not new-build pins.
+
 ## Bounded execution
 
 `scripts/testing/run-host-probe-controls.ps1` builds the Rust release binaries

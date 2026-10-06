@@ -208,6 +208,15 @@ Load/verify protected system modules before accepting credentials, keep credenti
 off command lines/reports, and zero password buffers. Killing the host process
 does not establish guest-copy cancellation; interruption makes guest state uncertain.
 
+CORE-003 reuses this transport only to verify/copy the fixed validation inputs and
+launch one Rust worker in the enrolled guest. Native Rust WMI, clocks, bounded
+processes, kill jobs and parsers own readiness and workload decisions. The remote
+launch watchdog is minimal transport glue; a worker-owned hard deadline independently
+terminates blocked calls after remoting loss. Existing/copy destination ACLs are
+checked before elevated execution. Workload processes start suspended and enter
+their kill job before any instructions can create descendants. No general guest
+command API or additional implementation language is introduced.
+
 ## DEC-021
 
 **Package implementation retained; full recipe superseded by DEC-025 | 2026-10-03**

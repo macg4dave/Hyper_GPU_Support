@@ -54,7 +54,7 @@ Independent implementation tasks:
 
 - CORE-022 completed: complete native-manifest staging and verified reapply passed on a clean child.
 - CORE-023 completed: validated VM settings and explicit GPU resources passed live apply and independent verified no-op reapply.
-- CORE-003: automate readiness, nvidia-smi and existing checked essential probes.
+- CORE-003 completed: public validate orchestrates sustained readiness, nvidia-smi and checked essential probes with verified inputs and bounded execution; combined live qualification remains GPU-006.
 
 GPU-006 then runs the combined Rust workflow on a clean child.
 **Exit:** verified full files/settings/adapter, sustained Code 0, nvidia-smi,

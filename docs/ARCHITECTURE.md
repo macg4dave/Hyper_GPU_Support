@@ -15,7 +15,8 @@ the complete 271-file driver/runtime manifest for that measured driver.
 The complete bounded Rust guest writer passed live full-manifest apply and
 verified reapply on a clean child. The fixed Rust runner applies the validated
 VM/resource settings with independent process readback. Composition with
-readiness/workload checks remains implementation work; product automation is incomplete.
+readiness/workload checks is implemented through the fixed Rust validation worker;
+combined clean-child qualification remains GPU-006. Product automation is incomplete.
 
 The v1 product is a Rust CLI and TOML configuration for one configured Windows 11
 VM and one RTX 5060. Windows owns virtualization, disk management and GPU-PV.
@@ -184,6 +185,7 @@ platform or transaction engine is required.
 | Guest transfer, integrity and receipt | `src/guest.rs`, `src/staging.rs`, `src/windows_guest.rs` |
 | Fixed privileged protocol/native operations | `src/runner.rs`, `src/windows_runner.rs`, `src/bin/hyper-gpu-runner.rs`, `src/bin/hyper-gpu-client.rs` |
 | Hardware selection and checked workloads | `src/probe.rs`, `src/windows_probe.rs`, probe binaries |
+| Fixed guest readiness/workload orchestration | `src/validation.rs`, `src/windows_validation.rs`, `src/bin/hyper-gpu-validation-worker.rs` |
 
 `src/environment_staging.rs` binds all source mappings and receipt evidence;
 `src/windows_environment_staging.rs` independently repeats native discovery before
@@ -197,6 +199,23 @@ Live staging qualification passed in [CORE-022](BACKLOG.md#core-022); validated 
 [CORE-023](BACKLOG.md#core-023), and probe integration is
 [CORE-003](BACKLOG.md#core-003). [GPU-006](BACKLOG.md#gpu-006) composes these into
 clean-child Rust reproduction.
+
+Public `validate` transfers only the fixed worker, graphics/CUDA workloads and
+measured CRT prerequisites. Host and guest independently verify file lengths and
+hashes; protected guest files and Microsoft-signed CRT inputs are checked before
+execution. The native Rust worker observes a configured sustained Code 0 window,
+then runs bounded nvidia-smi, D3D11, D3D12, CUDA identity and CUDA computation.
+Each check records pass/fail/blocked/untested with bounded raw output and exact
+identities. The host revalidates successful evidence before publishing it.
+Graphics must select the configured hardware partition; standalone CUDA requires
+the intended sole device but does not require CUDA/DXGI LUID equality.
+
+The elevated development adapter uses the existing operation lock and exact
+configured target checks. PowerShell Direct is fixed transfer/launch glue, not an
+arbitrary command interface. A worker-owned hard deadline survives remoting loss;
+native workload children enter a kill-on-close job before they execute. Credentials
+are prompted locally and are absent from command lines and reports. This path is
+implemented and behavior-tested; GPU-006 owns combined live qualification.
 
 ## Configuration and recovery contract
 

@@ -130,3 +130,13 @@ process_timeout_seconds = 15
 cuda_timeout_seconds = 30
 suite_timeout_seconds = 90
 repetitions = 3
+
+[validation]
+nvidia_driver_version = "616.92"
+crt_directory = '''C:\Program Files\Microsoft Visual Studio\18\Community\VC\Redist\MSVC\14.51.36231\x64\Microsoft.VC145.CRT'''
+cuda_directory = '''probes\cuda\compiled'''
+readiness_timeout_seconds = 180
+stable_seconds = 120
+sample_milliseconds = 1000
+process_timeout_seconds = 30
+worker_timeout_seconds = 360

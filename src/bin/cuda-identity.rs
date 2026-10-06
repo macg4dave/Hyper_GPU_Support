@@ -61,6 +61,7 @@ struct IdentityReport {
     probe: &'static str,
     status: &'static str,
     ordinal: i32,
+    device_count: i32,
     name: String,
     uuid: String,
     compute_capability: String,
@@ -105,6 +106,17 @@ fn main() -> ExitCode {
 
 #[allow(unsafe_code)]
 fn run() -> Result<IdentityReport, Failure> {
+    let arguments: Vec<_> = std::env::args().skip(1).collect();
+    let guest_compute = match arguments.as_slice() {
+        [] => false,
+        [mode] if mode == "--guest-compute" => true,
+        _ => {
+            return Err(Failure::new(
+                ExitClass::Internal,
+                "usage: cuda-identity [--guest-compute]",
+            ));
+        }
+    };
     let project = ProjectConfiguration::embedded().map_err(|error| {
         Failure::new(
             ExitClass::Adapter,
@@ -188,8 +200,8 @@ fn run() -> Result<IdentityReport, Failure> {
                 project.slot.cuda_compute_capability_major,
                 project.slot.cuda_compute_capability_minor,
             )
-        || luid == "00000000:00000000"
-        || luid != adapter.luid
+        || (!guest_compute && (luid == "00000000:00000000" || luid != adapter.luid))
+        || (guest_compute && (count != 1 || !adapter.paravirtualized))
     {
         return Err(Failure::new(
             ExitClass::Adapter,
@@ -205,6 +217,7 @@ fn run() -> Result<IdentityReport, Failure> {
         probe: "cuda-identity",
         status: "pass",
         ordinal,
+        device_count: count,
         name,
         uuid: format_uuid(uuid.bytes),
         compute_capability: format!("{major}.{minor}"),

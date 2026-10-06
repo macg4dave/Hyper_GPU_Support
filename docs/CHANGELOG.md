@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## 2026-10-06 - Automated guest validation
+
+- CORE-003 completed: public `validate` now verifies transferred runtime inputs, observes sustained Code 0 and runs fixed nvidia-smi/D3D11/D3D12/CUDA checks through a Rust guest worker, with per-check evidence and exit propagation.
+- Added protected transfer/launch boundaries, independent deadlines and native child containment. Standalone CUDA safely selects the sole configured GPU without making CUDA/DXGI LUID equality a computation gate.
+- Independent review and 166-test quality gate passed. Combined clean-child live qualification remains GPU-006.
+
 ## 2026-10-06 - Validated Hyper-V settings
 
 - CORE-023 completed: typed VM profile and all GPU resource triples applied through the bounded, policy-pinned Rust runner; live apply and matching reapply passed on the existing staged child.

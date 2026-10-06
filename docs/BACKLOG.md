@@ -9,8 +9,8 @@ usable operation and release; no feasibility or external-reference task remains.
 
 CORE-022 complete-manifest staging and verified reapply passed on a clean child;
 CORE-023 settings apply and verified no-op reapply passed on that existing child.
-Next work is **CORE-003 automated readiness/workloads**. GPU-006 then exercises
-their combined Rust workflow on a clean child.
+CORE-003 automated readiness/workloads is implemented and behavior-tested.
+Next work is **GPU-006**, exercising their combined Rust workflow on a clean child.
 The public CLI/config cleanup and reusable lifecycle/diagnostics work are also actionable.
 Current starting evidence: [project baseline](evidence/GPU-PV-BASELINE.md).
 Do not assume the preserved experimental guest is a production Rust reproduction.
@@ -26,7 +26,7 @@ M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the 
 |---|---|---|---|---|
 | [CORE-022](#core-022) | M1 | P0 | completed | CORE-009 |
 | [CORE-023](#core-023) | M1 | P0 | completed | CORE-002 |
-| [CORE-003](#core-003) | M1 | P0 | ready | CORE-020 |
+| [CORE-003](#core-003) | M1 | P0 | completed | CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | CORE-022, CORE-023, CORE-003 |
 | [CORE-006](#core-006) | M2 | P1 | planned | CORE-022, CORE-023 |
 | [CORE-011](#core-011) | M2 | P1 | ready | CORE-005 |
@@ -167,7 +167,10 @@ development blocker.
 - Keep CUDA identity diagnostics separate: host/guest LUID equality and graphics/compute interop are not standalone computation gates. Verify the intended one-GPU CUDA device safely; do not weaken graphics identity checks.
 - Use fixed project workloads, not an arbitrary privileged execution API. A live integration run belongs to GPU-006; no new feasibility investigation.
 - Test public validate dispatch, result/exit propagation and missing prerequisites; the command must execute checks rather than remain an advertised stub.
-- Result: pending; standalone workloads already pass.
+- Owner: Codex; completed 2026-10-06.
+- Result: public `validate` executes fixed Rust guest readiness and workloads, independently verifies all nine transferred inputs and successful report evidence, and returns per-check states with native identities and bounded output. CRT prerequisites are explicit; graphics partition identity remains strict while standalone CUDA safely accepts a distinct LUID on the sole configured device.
+- Protection: exact compiled configuration/target, protected input ACLs, exclusive host/guest locks, finite remoting and independent worker deadlines, suspended children assigned to kill-on-close jobs before execution. Local credentials are excluded from command lines/reports. Independent architecture review closed unsafe-existing-file ACL, worker deadline and child containment findings.
+- Validation: Windows x64 `scripts/testing/check.ps1` passed 166 tests, strict Clippy/compiler warnings, formatting, build, rustdoc and configuration drift checks. Tests include public dispatch/exit propagation, absent/tampered prerequisites, sustained/nonzero readiness, wrong hardware/CUDA selection, malformed reports, timeouts/output bounds, permissive ACL refusal and native worker/descendant termination. Release worker/CLI/probe builds, documentation checks and all four artifact pins passed. Public release `validate` preflight returned structured blocked/untested evidence and exit 1 for an unelevated token before privileged calls. No guest workload qualification is claimed here; GPU-006 owns that combined live run.
 
 ## GPU-006
 

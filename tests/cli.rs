@@ -24,7 +24,7 @@ fn help_and_default_invocation_succeed() {
         assert!(output.stderr.is_empty());
         let stdout = String::from_utf8(output.stdout).unwrap();
         assert!(stdout.contains("Usage: hyper-gpu-support"));
-        assert!(stdout.contains("Only inventory is implemented"));
+        assert!(stdout.contains("Inventory and validate are implemented"));
     }
 }
 
@@ -81,7 +81,7 @@ fn invalid_usage_has_consistent_exit_code_and_no_stdout() {
 #[test]
 fn declared_operations_have_stable_not_implemented_exit() {
     for operation in [
-        "plan", "apply", "status", "validate", "remove", "recover", "start", "shutdown", "restart",
+        "plan", "apply", "status", "remove", "recover", "start", "shutdown", "restart",
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
             .arg(operation)
@@ -94,6 +94,29 @@ fn declared_operations_have_stable_not_implemented_exit() {
             format!("error: {operation} is declared but not implemented")
         );
     }
+}
+
+#[test]
+fn public_validate_reports_missing_prerequisites_without_credentials_or_effects() {
+    // This directory deliberately lacks the configured relative CUDA artifacts.
+    let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
+        .arg("validate")
+        .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/config"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let report: hyper_gpu_support::validation::ValidationReport =
+        serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        report.checks[0].status,
+        hyper_gpu_support::validation::CheckStatus::Blocked
+    );
+    assert!(
+        report.checks[1..]
+            .iter()
+            .all(|c| c.status == hyper_gpu_support::validation::CheckStatus::Untested)
+    );
 }
 
 #[test]

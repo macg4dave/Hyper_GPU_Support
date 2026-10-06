@@ -164,7 +164,7 @@ pub fn transfer_verified(
     Ok(receipt)
 }
 
-fn hash_file(path: &Path) -> Result<String, GuestError> {
+pub(crate) fn hash_file(path: &Path) -> Result<String, GuestError> {
     let mut file = File::open(path).map_err(source_error)?;
     let mut digest = Sha256::new();
     let mut buffer = [0_u8; 128 * 1024];

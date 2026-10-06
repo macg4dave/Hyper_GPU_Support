@@ -147,7 +147,11 @@ fn property(object: &IWbemClassObject, name: &str) -> Result<String, DriverDisco
     } else {
         // SAFETY: Get initialized the VARIANT; inspect its tag before its BSTR arm.
         let inner = unsafe { &value.Anonymous.Anonymous };
-        if inner.vt != VT_BSTR {
+        if name == "ConfigManagerErrorCode" && inner.vt == windows::Win32::System::Variant::VT_I4 {
+            // SAFETY: VT_I4 selects this signed 32-bit arm. WMI uint32 uses VT_I4.
+            let code = unsafe { inner.Anonymous.lVal } as u32;
+            Ok(code.to_string())
+        } else if inner.vt != VT_BSTR {
             Err(DriverDiscoveryError::Property {
                 name: name.to_owned(),
                 variant_type: inner.vt.0,
@@ -227,6 +231,48 @@ fn query(
 
 fn quoted(value: &str) -> String {
     value.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+/// Read the single virtual-render devnode. The worker's outer process watchdog
+/// bounds synchronous COM setup in addition to WMI enumeration.
+pub(crate) fn virtual_render_sample(
+    deadline: Instant,
+) -> Result<(String, String, u32), DriverDiscoveryError> {
+    let _apartment = Apartment::initialize()?;
+    let services = connect("ROOT\\CIMV2")?;
+    let mut driver = exactly_one(query(
+        &services,
+        "SELECT DeviceName,DeviceID FROM Win32_PnPSignedDriver WHERE InfName='vrd.inf' AND DeviceClass='DISPLAY'",
+        &["DeviceName", "DeviceID"],
+        deadline,
+    )?)?;
+    let name = take(&mut driver, "DeviceName")?;
+    let id = take(&mut driver, "DeviceID")?;
+    let mut device = exactly_one(query(
+        &services,
+        &format!(
+            "SELECT ConfigManagerErrorCode FROM Win32_PnPEntity WHERE DeviceID='{}'",
+            quoted(&id)
+        ),
+        &["ConfigManagerErrorCode"],
+        deadline,
+    )?)?;
+    let code = take(&mut device, "ConfigManagerErrorCode")?
+        .parse()
+        .map_err(|_| DriverDiscoveryError::Invalid("invalid PnP problem code"))?;
+    Ok((id, name, code))
+}
+
+pub(crate) fn operating_system_version() -> Result<String, DriverDiscoveryError> {
+    let _apartment = Apartment::initialize()?;
+    let services = connect("ROOT\\CIMV2")?;
+    let mut row = exactly_one(query(
+        &services,
+        "SELECT Version FROM Win32_OperatingSystem",
+        &["Version"],
+        Instant::now() + std::time::Duration::from_secs(5),
+    )?)?;
+    take(&mut row, "Version")
 }
 fn exactly_one(
     mut rows: Vec<BTreeMap<String, String>>,

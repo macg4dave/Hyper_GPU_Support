@@ -7,8 +7,9 @@ the complete 271-file driver/runtime inventory for the measured baseline.
 
 The complete Rust guest writer passed live full-manifest apply and verified reapply
 on a clean child. The fixed Rust runner applies and independently verifies the
-validated VM/resource settings. Automated workloads and combined clean-child
-reproduction remain implementation work. The
+validated VM/resource settings. `validate` now orchestrates the fixed guest
+readiness and workload checks; combined clean-child live qualification belongs
+to GPU-006. The
 [architecture](docs/ARCHITECTURE.md) defines our recipe; the
 [baseline](docs/evidence/GPU-PV-BASELINE.md) records measured results. Start work at
 [AGENTS.md](AGENTS.md) and the relevant [backlog card](docs/BACKLOG.md).
@@ -36,8 +37,8 @@ elevation, Hyper-V or a GPU and do not establish GPU support. For documentation
 changes, run `.\scripts\testing\check-docs.ps1`. See
 [scripts/README.md](scripts/README.md) for maintained tooling and required privilege.
 
-The main CLI currently implements help, version and read-only inventory. Declared
-`plan`, `apply`, `status`, `validate`, `remove`, `recover`, `start`, `shutdown`
+The main CLI currently implements help, version, read-only inventory and guest
+`validate`. Declared `plan`, `apply`, `status`, `remove`, `recover`, `start`, `shutdown`
 and `restart` commands explicitly return implementation exit code 70 until
 integrated. Errors go to stderr; normal output goes to stdout. Inventory reports
 known/missing/denied/unavailable facts; denied protected facts can appear in an
@@ -52,7 +53,8 @@ These are implemented development entry points, not a completed v1 workflow:
 | `hyper-gpu-driver-environment` | Native read-only complete source/destination/length/hash manifest discovery |
 | `hyper-gpu-stage` | Discover, inspect and apply the complete driver/runtime manifest; verify every destination on reapply |
 | `hyper-gpu-client` | Enrolled fixed-runner inspection, guest lifecycle/reset, exact GPU attach/detach and complete profile application |
-| D3D11/D3D12/CUDA probe artifacts | Checked workloads; automated guest execution/reporting remains integration work |
+| `hyper-gpu-support validate` | Verified runtime transfer, sustained readiness and bounded checked guest workloads |
+| D3D11/D3D12/CUDA probe artifacts | Fixed checked workloads used by validation |
 
 Read-only inspectors:
 
@@ -94,6 +96,28 @@ Assignment alone does not establish staging/readiness. Additional fixed operatio
 are defined in the runner protocol; callers cannot supply targets, paths or scripts.
 
 ## Configuration and testing target
+
+Run guest validation from an elevated development terminal after staging, settings
+and start have completed on the enrolled disposable VM:
+
+```powershell
+cargo build --locked --release --bin hyper-gpu-support --bin hyper-gpu-validation-worker `
+  --bin d3d11-probe --bin d3d12-probe --bin cuda-identity
+cargo run --locked --release -- validate
+```
+
+The command first checks local prerequisites, then prompts locally for guest
+credentials. It transfers and hashes the fixed probe/sample/FATBIN inputs plus
+three app-local Microsoft x64 CRT DLLs from `[validation.crt_directory]`. CUDA
+sample preparation/build commands remain in [the probe manifest](probes/MANIFEST.md).
+Guest copies and the worker use protected paths; the transport shares the runner's
+operation lock. It changes only validation artifacts and runs fixed workloads.
+
+The JSON report distinguishes pass, fail, blocked and untested for input integrity,
+sustained Code 0, nvidia-smi, D3D11, D3D12, CUDA selection and vector addition.
+Exit 0 requires every essential check to pass. CUDA/DXGI LUID comparison remains
+a diagnostic; safe single-device selection is required for computation. Readiness,
+sampling and process/worker deadlines are configured under `[validation]`.
 
 [`config/project.toml`](config/project.toml) is the sole hand-edited, non-secret
 configuration. It owns mutable VM/GPU/image/runner/tool/test identities, paths,
