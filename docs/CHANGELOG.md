@@ -1,5 +1,22 @@
 ﻿# Changelog
 
+## 2026-10-06 - Product and laboratory boundary
+
+- Clarified the existing-VM v1 workflow, product recovery and separate contributor golden-image/disposable strategy across roadmap, backlog, engineering and prompts. Qualification gates remain; implementing laboratory management does not gate product delivery.
+- Preserved disposable reset effects under `tools/test-harness/` behind the non-default `dev-harness` feature; default runner builds reject reset. Recorded remaining golden-parent/configuration coupling for CORE-021/027 and existing-VM recovery for CORE-010.
+
+
+## 2026-10-06 - Native Hyper-V read slice
+
+- CORE-025 adds exact VM identity/state/generation/version and host GPU capability reads through native WMI in the fixed Rust runner. The contained worker preserves unsigned resource values and rejects stale configurations, ambiguous identities and unsafe state.
+- Runner inspection removes host GPU cmdlet discovery, retaining disk/snapshot/guest-adapter guards and comparing observations. All 18 read fields passed live cmdlet parity; the updated installed runner passed integrated inspection and audit/result publication. Rust quality checks and independent review passed. Remaining inspection/settings/mutations still require migration.
+
+## 2026-10-06 - Native inventory
+
+- CORE-024 replaced production PowerShell inventory with native registry/system/WMI queries and a fixed, contained Rust worker. Exact configured identities and configuration binding reject ambiguous targets and stale workers; filtered management access remains denied.
+- Restricted detailed provider queries to the configured targets, preserving unrelated-device isolation. Host/GPU/VM parity passed for all 14 facts on the configured Windows x64 host; full Rust quality/documentation checks and independent implementation review passed.
+- CORE-025 Hyper-V read/inspect is the next native slice. Inventory parity does not qualify guest workloads.
+
 ## 2026-10-06 - Dynamic driver payload contract
 
 - Clarified dynamic discovery of the selected signed driver's complete package/associated payload, derived guest mapping and per-run integrity; no fixed file count or static NVIDIA list defines success.

@@ -20,6 +20,17 @@ and CUDA LUID/interop compatibility post-v1 unless essential functionality requi
 them. HCS-owned-guest work stays paused. No GUI, background service, multi-VM/
 multi-GPU orchestration or cross-platform layer is required.
 
+## Product and development boundary
+
+We are past GPU-PV feasibility testing; implement the product for an existing
+user-selected Hyper-V VM. Golden images, disposable cloning/reset, test disks
+and laboratory setup are contributor infrastructure. Reuse existing helpers when
+testing; do not add these capabilities to the production CLI without an explicit
+user-facing roadmap requirement. Rust test utilities belong outside the default
+production library/application path.
+
+**Test-environment automation may support development but must not become production application functionality unless it is explicitly required by the user-facing product. Production code may be used by test tooling; production code must not depend on test tooling.**
+
 ## Read only what the task needs
 
 Normal product operation, installation and recovery must be implemented in Rust.

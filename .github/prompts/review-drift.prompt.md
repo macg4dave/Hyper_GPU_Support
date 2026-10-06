@@ -29,3 +29,9 @@ runner trust boundary and uncertainty/recovery behavior through the port.
 Flag fixed payload counts, static NVIDIA file/hash lists and reuse of old driver
 entries as current inventory. Manifest/receipt comparisons must bind the freshly
 discovered run; exact historical fixture assertions remain legitimate when labelled.
+
+GPU-PV feasibility is established; implement and validate the product for an
+existing selected VM. Reuse disposable-VM tooling for tests. Golden-image copying,
+cloning, disk reset and laboratory setup stay outside the production path unless
+an explicit user-facing roadmap task requires them. Test tooling may depend on
+product code; product code must not depend on test tooling.

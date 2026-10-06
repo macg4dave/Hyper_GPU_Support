@@ -34,7 +34,7 @@ script and remaining production PowerShell operation to its owner.
 
 Required behavior: runtime configuration and clear preflight/plan/apply/status;
 verified staging/settings/assignment, start/shutdown/restart, stable GPU readiness,
-automated checked D3D11/D3D12/CUDA, safe removal and disposable-child recovery,
+automated checked D3D11/D3D12/CUDA, safe removal and recovery of product-owned changes,
 explicit driver re-stage, useful bounded diagnostics, repeatability and a traceable
 package with tested instructions. The approved on-demand runner is reused;
 no GUI, resident application service, multi-VM scheduler or multi-GPU orchestration.
@@ -55,6 +55,20 @@ live migration, checkpoints/saved state or graphics/compute interoperability.
 GUI, automatic host updates, general OS installation, custom display/streaming,
 remote control plane and an HCS VM platform are outside this product plan.
 
+## Development/test support (outside shipped functionality)
+
+The user workflow is **existing Hyper-V VM -> configuration -> inspect/plan ->
+apply GPU-PV and driver provisioning -> verify**. No golden image is required.
+Golden-parent copies, disposable VM creation, test-disk preparation/reset, clean
+environment rebuilding and cleanup support contributors only. Reuse the existing
+fixed laboratory and acceptance harness; do not implement laboratory management
+as a v1 product task. Test tooling may use the product, never the reverse.
+
+GPU-006/012/014 remain product qualification gates. Preparing their clean targets
+is external test support, not a CLI capability or a native product migration gate.
+CORE-025 covers product management; optional native reset helpers are test-only.
+CORE-010 covers safe removal and reconciliation on an existing VM, not disk replacement.
+
 ## M0 â€” Established foundation
 
 Inventory, protected golden parent/disposable child, strict types, bounded guest
@@ -69,8 +83,8 @@ Independent implementation tasks:
 - CORE-022 completed: complete native-manifest staging and verified reapply passed on a clean child; guest file operations still use embedded PowerShell (CORE-026).
 - CORE-023 completed: validated VM settings and explicit GPU resources passed live apply and independent verified no-op reapply; Hyper-V read/mutation still uses cmdlets (CORE-025).
 - CORE-003 completed: public validate and its Rust worker own readiness and essential workload checks; transfer/launch debt remains CORE-026 and combined live qualification remains GPU-006.
-- CORE-024 is the next native slice: replace PowerShell host/GPU/VM inventory with bounded native discovery, reusing existing Rust driver queries.
-- CORE-025 ports fixed Hyper-V attachment/resources/settings/lifecycle/reset incrementally while preserving enrollment, readback and reconciliation.
+- CORE-024 completed: native registry/system/WMI inventory, exact-target/configuration-bound Rust worker and all 14 read-only parity facts passed. CORE-025's first exact-VM/host-GPU native read slice passed 18-field parity; guest-adapter/profile reads and disk guards continue before mutations.
+- CORE-025 ports fixed Hyper-V attachment/resources/settings/lifecycle incrementally while preserving enrollment, readback and reconciliation.
 - CORE-026 moves guest file/security/hash/receipt operations to a Rust writer and establishes the smallest justified session/transfer interface, if one is necessary.
 
 GPU-006 runs the combined current workflow on a clean child; its in-progress

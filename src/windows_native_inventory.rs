@@ -467,6 +467,10 @@ fn management_access() -> Observation<()> {
     Err(Failure { status: FactStatus::Denied, detail: "effective token lacks enabled Administrators/Hyper-V Administrators membership; VM enumeration may be filtered".into() })
 }
 
+pub(crate) fn require_management_access() -> Result<(), String> {
+    management_access().map_err(|error| error.detail)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

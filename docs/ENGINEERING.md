@@ -13,6 +13,17 @@ Actual commands are in [README.md](../README.md); results belong on task cards.
 Routine repository edits, dependency changes, development commands and targeted
 cleanup are normal task execution and do not require separate approval.
 
+## Product and development boundary
+
+**Test-environment automation may support development but must not become production application functionality unless it is explicitly required by the user-facing product. Production code may be used by test tooling; production code must not depend on test tooling.**
+
+`src/` owns the product and reusable product contracts; `tests/` owns Rust tests.
+Use existing `scripts/testing/`, `scripts/setup/` and `scripts/diagnostics/` for
+contributor infrastructure. Rust disposable-reset helpers are under
+`tools/test-harness/`, compiled only with the non-default `dev-harness` feature.
+Do not package that feature. Product installation is distinct from laboratory
+setup; product recovery must preserve the user's existing VM and disk.
+
 ## Shell commands and development scripts
 
 Run short, straightforward commands directly. When a procedure needs multiple

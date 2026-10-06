@@ -2,33 +2,57 @@
 
 use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
+#[cfg(test)]
+use std::io::Read;
+use std::io::Write;
 use std::os::windows::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode, Stdio};
+use std::process::ExitCode;
+#[cfg(test)]
+use std::process::{Command, Stdio};
+#[cfg(test)]
 use std::sync::Arc;
+#[cfg(test)]
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(test)]
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use hyper_gpu_support::config::{ConfigError, ProjectConfiguration};
+#[cfg(feature = "dev-harness")]
+use hyper_gpu_support::runner::parse_reset_result;
 use hyper_gpu_support::runner::{
     Enrollment, Operation, PIPE_NAME, Request, Response, authorize_request, consume_nonce,
     embedded_policy, parse_enrollment, parse_gpu_assignment_result, parse_inspect_result,
-    parse_lifecycle_result, parse_request, parse_reset_result, policy_allows, policy_fingerprint,
-    verify_policy,
+    parse_lifecycle_result, parse_request, policy_allows, policy_fingerprint, verify_policy,
 };
+use hyper_gpu_support::windows_hyperv::{NativeAction, run_worker};
 use hyper_gpu_support::windows_runner::serve_one;
 
 #[path = "hyper_gpu_runner/settings_adapter.rs"]
+#[cfg(test)]
 mod settings_adapter;
 #[path = "hyper_gpu_runner/supervision.rs"]
+#[cfg(test)]
 mod supervision;
 
 const RECONCILIATION_MARKER: &str = "reconciliation-required-v1";
+#[cfg(test)]
 const OUTPUT_LIMIT: usize = 64 * 1024;
 
 fn main() -> ExitCode {
+    // Fixed read-only worker has no caller-selected query, target or path and
+    // must not touch installed enrollment/audit files. The parent launches this
+    // same pinned executable suspended into a kill-on-close job.
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if arguments.len() == 1 && arguments[0] == "read-hyperv" {
+        return native_read_worker();
+    }
+    if arguments.len() == 1
+        && let Some(action) = arguments[0].to_str().and_then(NativeAction::parse)
+    {
+        return native_operation_worker(action);
+    }
     let started = Instant::now();
     let startup_failure_path =
         data_directory().map(|path| path.join("audit").join("runner-startup-failure-v1.txt"));
@@ -55,6 +79,91 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn native_operation_worker(action: NativeAction) -> ExitCode {
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let p = project_configuration()?;
+        let _watchdog = hyper_gpu_support::windows_validation::WorkerDeadline::start(
+            p.runner.task_execution_timeout,
+        );
+        if let Some(operation) = action.operation() {
+            let enrollment = prepare_install_state()?;
+            if hyper_gpu_support::windows_runner::current_user_sid_string()?
+                != enrollment.runner_sid()
+            {
+                return Err(
+                    "native mutations require the enrolled noninteractive runner token".into(),
+                );
+            }
+            let marker = fs::read_to_string(
+                p.runner
+                    .data_directory
+                    .join("state")
+                    .join(RECONCILIATION_MARKER),
+            )?;
+            let fields: Vec<_> = marker.split_whitespace().collect();
+            if fields.len() != 2
+                || fields[0] != operation.as_str()
+                || fields[1].is_empty()
+                || !policy_allows(operation)
+            {
+                return Err(
+                    "native operation lacks matching protected reconciliation marker".into(),
+                );
+            }
+            if operation == Operation::ConfigureSlot && !embedded_policy()?.settings_match(&p) {
+                return Err("native settings policy mismatch".into());
+            }
+        }
+        let output = hyper_gpu_support::windows_hyperv::execute(
+            &p,
+            action,
+            p.runner.task_execution_timeout,
+        )?;
+        std::io::stdout().lock().write_all(output.as_bytes())?;
+        Ok(())
+    })();
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("native Hyper-V operation: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn native_read_worker() -> ExitCode {
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let project = project_configuration()?;
+        let _watchdog = hyper_gpu_support::windows_validation::WorkerDeadline::start(
+            project.runner.inspect_timeout,
+        );
+        let observation = hyper_gpu_support::windows_hyperv_read::collect(&project)?;
+        std::io::stdout()
+            .lock()
+            .write_all(serde_json::to_string(&observation)?.as_bytes())?;
+        Ok(())
+    })();
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("native Hyper-V read: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(test)]
+fn remaining_inspect_script() -> Result<String, Box<dyn std::error::Error>> {
+    let remaining = INSPECT_SCRIPT.replace(
+        "$hostGpu = Get-VMHostPartitionableGpu -Name $gpuPath\nif ($hostGpu.Name -ine $gpuPath) { throw 'partitionable GPU identity mismatch' }",
+        "",
+    ).replace("$hostGpu.Name)", "$gpuPath)");
+    if remaining.contains("Get-VMHostPartitionableGpu") || remaining.contains("$hostGpu") {
+        return Err("remaining inspection still depends on migrated host GPU read".into());
+    }
+    Ok(fixed_script(&remaining)?)
 }
 
 fn project_configuration() -> Result<ProjectConfiguration, ConfigError> {
@@ -258,32 +367,33 @@ fn execute_request(request: &Request, started: Instant) -> Result<String, Execut
         Operation::Inspect => {
             run_inspect(request, started).map_err(|_| before_effect("operation-failed"))
         }
+        #[cfg(feature = "dev-harness")]
         Operation::ResetSlot => execute_reset_request(request, started),
         Operation::ConfigureSlot => execute_settings_request(request, started),
         Operation::StartSlot => execute_lifecycle_request(
             request,
             Operation::StartSlot,
-            START_SCRIPT,
+            NativeAction::Start,
             project.runner.start_timeout,
             started,
         ),
         Operation::ShutdownSlot => execute_lifecycle_request(
             request,
             Operation::ShutdownSlot,
-            SHUTDOWN_SCRIPT,
+            NativeAction::Shutdown,
             project.runner.shutdown_timeout,
             started,
         ),
         Operation::AssignGpu => execute_gpu_assignment_request(
             request,
             Operation::AssignGpu,
-            ASSIGN_GPU_SCRIPT,
+            NativeAction::Attach,
             started,
         ),
         Operation::RemoveGpu => execute_gpu_assignment_request(
             request,
             Operation::RemoveGpu,
-            REMOVE_GPU_SCRIPT,
+            NativeAction::Remove,
             started,
         ),
         _ => Err(before_effect("operation-denied")),
@@ -314,7 +424,7 @@ fn begin_reconciliation(
 fn execute_lifecycle_request(
     request: &Request,
     operation: Operation,
-    script: &str,
+    action: NativeAction,
     timeout: Duration,
     started: Instant,
 ) -> Result<String, ExecutionFailure> {
@@ -322,7 +432,7 @@ fn execute_lifecycle_request(
         diagnostic: "operation-id-failed",
         operation_id: None,
     })?;
-    match run_lifecycle(request, operation, &operation_id, script, timeout, started) {
+    match run_lifecycle(request, operation, &operation_id, action, timeout, started) {
         Ok(()) => Ok(operation_id),
         Err(_) => Err(ExecutionFailure {
             diagnostic: "operation-failed-reconciliation-required",
@@ -331,31 +441,23 @@ fn execute_lifecycle_request(
     }
 }
 
-fn execute_reset_request(request: &Request, started: Instant) -> Result<String, ExecutionFailure> {
-    let operation_id = operation_id().map_err(|_| ExecutionFailure {
-        diagnostic: "operation-id-failed",
-        operation_id: None,
-    })?;
-    match run_reset(request, &operation_id, started) {
-        Ok(()) => Ok(operation_id),
-        Err(_) => Err(ExecutionFailure {
-            diagnostic: "operation-failed-reconciliation-required",
-            operation_id: Some(operation_id),
-        }),
-    }
-}
+#[cfg(feature = "dev-harness")]
+include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tools/test-harness/reset_request.rs"
+));
 
 fn execute_gpu_assignment_request(
     request: &Request,
     operation: Operation,
-    script: &str,
+    action: NativeAction,
     started: Instant,
 ) -> Result<String, ExecutionFailure> {
     let operation_id = operation_id().map_err(|_| ExecutionFailure {
         diagnostic: "operation-id-failed",
         operation_id: None,
     })?;
-    match run_gpu_assignment(request, operation, &operation_id, script, started) {
+    match run_gpu_assignment(request, operation, &operation_id, action, started) {
         Ok(()) => Ok(operation_id),
         Err(_) => Err(ExecutionFailure {
             diagnostic: "operation-failed-reconciliation-required",
@@ -364,58 +466,11 @@ fn execute_gpu_assignment_request(
     }
 }
 
-fn run_reset(
-    request: &Request,
-    operation_id: &str,
-    started: Instant,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let _enrollment = prepare_install_state()?;
-    let project = project_configuration()?;
-    let state_directory = project.runner.data_directory.join("state");
-    let result_directory = project.runner.data_directory.join("results");
-    let audit_directory = project.runner.data_directory.join("audit");
-    let lock_path = state_directory.join("operation.lock");
-    let _lock = LockFile::acquire(&lock_path)?;
-    ensure_reconciled(&state_directory, Operation::ResetSlot).map_err(std::io::Error::other)?;
-    run_reconciled_operation(
-        &state_directory,
-        &result_directory,
-        &audit_directory,
-        request,
-        Operation::ResetSlot,
-        operation_id,
-        || {
-            let script = fixed_script(RESET_SCRIPT)?;
-            let output = run_supervised(
-                &script,
-                project.runner.reset_timeout,
-                adapter_budget(
-                    project.runner.task_execution_timeout,
-                    Duration::ZERO,
-                    started.elapsed(),
-                ),
-                &project.guest.powershell_path,
-                "reset-slot adapter",
-            )
-            .map_err(std::io::Error::other)?;
-            let result = parse_reset_result(&output)?;
-            Ok(format!(
-                concat!(
-                    "{{\n  \"schema\": 1,\n  \"request_id\": \"{}\",\n  \"operation_id\": \"{}\",\n",
-                    "  \"operation\": \"reset-slot\",\n  \"status\": \"succeeded\",\n",
-                    "  \"vm_id\": \"{}\",\n  \"child\": \"{}\",\n",
-                    "  \"parent\": \"{}\",\n  \"parent_sha256\": \"{}\"\n}}\n"
-                ),
-                request.request_id,
-                operation_id,
-                result.vm_id,
-                json_escape(&result.child),
-                json_escape(&result.parent),
-                result.parent_sha256
-            ))
-        },
-    )
-}
+#[cfg(feature = "dev-harness")]
+include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tools/test-harness/reset_runner.rs"
+));
 
 fn run_reconciled_operation(
     state_directory: &Path,
@@ -493,6 +548,7 @@ fn execute_settings_request(
         })
 }
 
+#[cfg(test)]
 fn settings_guard() -> Result<String, Box<dyn std::error::Error>> {
     // Reuse the exact attachment's immediate identity, child-chain and parent guards.
     ASSIGN_GPU_SCRIPT
@@ -527,38 +583,28 @@ fn run_settings(
         Operation::ConfigureSlot,
         id,
         || {
-            let inspection = run_supervised(
-                &fixed_script(&INSPECT_SCRIPT.replace("$vm.AutomaticCheckpointsEnabled -or ", ""))?,
-                project.runner.inspect_timeout,
+            let inspection = run_worker(
+                NativeAction::SettingsInspect,
                 adapter_budget(
                     project.runner.task_execution_timeout,
                     project.runner.gpu_assignment_timeout * 3,
                     started.elapsed(),
                 ),
-                &project.guest.powershell_path,
-                "settings preflight",
             )
             .map_err(std::io::Error::other)?;
             let inspection = parse_inspect_result(&inspection)?;
             if inspection.state != "Off" || inspection.gpu_adapters != 1 {
                 return Err("settings require off VM with exact attached GPU".into());
             }
-            let read_body = format!(
-                "{}\n{}\n[Console]::Out.WriteLine((Read-Profile))",
-                settings_guard()?,
-                settings_adapter::READ
-            );
-            let read_script = fixed_script(&read_body)?;
             let read = || -> Result<String, Box<dyn std::error::Error>> {
                 require_transition_budget(
                     project.runner.task_execution_timeout,
                     project.runner.gpu_assignment_timeout,
                     started.elapsed(),
                 )?;
-                run_bounded_with_powershell(
-                    &read_script,
+                run_worker(
+                    NativeAction::ReadProfile,
                     project.runner.gpu_assignment_timeout,
-                    &project.guest.powershell_path,
                 )
                 .map_err(|error| std::io::Error::other(error).into())
             };
@@ -572,22 +618,15 @@ fn run_settings(
                 &serde_json::to_string_pretty(&before)?,
             )?;
             if !already {
-                let body = format!(
-                    "{}\n{}\nif ((Read-Profile) -cne {}) {{ throw 'stale settings preimage rejected' }}\n{}",
-                    settings_guard()?,
-                    settings_adapter::READ,
-                    powershell_literal(before_json.trim()),
-                    settings_adapter::apply(&project)?,
-                );
+                publish_native_preimage(&state, id, &serde_json::to_string(&before)?)?;
                 require_transition_budget(
                     project.runner.task_execution_timeout,
                     project.runner.gpu_assignment_timeout * 2,
                     started.elapsed(),
                 )?;
-                let output = run_bounded_with_powershell(
-                    &fixed_script(&body)?,
+                let output = run_worker(
+                    NativeAction::ApplySettings,
                     project.runner.gpu_assignment_timeout,
-                    &project.guest.powershell_path,
                 )
                 .map_err(std::io::Error::other)?;
                 if !output.trim().is_empty() {
@@ -624,18 +663,15 @@ fn run_inspect(request: &Request, started: Instant) -> Result<String, Box<dyn st
         "started",
         "",
     )?;
-    let script = fixed_script(INSPECT_SCRIPT)?;
-    let output = match run_supervised(
-        &script,
-        project.runner.inspect_timeout,
+    let output = run_worker(
+        NativeAction::Inspect,
         adapter_budget(
             project.runner.task_execution_timeout,
             Duration::ZERO,
             started.elapsed(),
         ),
-        &project.guest.powershell_path,
-        "inspect adapter",
-    ) {
+    );
+    let output = match output {
         Ok(output) => output,
         Err(error) => {
             append_audit(
@@ -685,7 +721,7 @@ fn run_lifecycle(
     request: &Request,
     operation: Operation,
     operation_id: &str,
-    script: &str,
+    action: NativeAction,
     timeout: Duration,
     started: Instant,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -707,17 +743,13 @@ fn run_lifecycle(
     begin_reconciliation(&reconciliation_path, operation, operation_id)?;
 
     let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
-        let inspection_script = fixed_script(INSPECT_SCRIPT)?;
-        let inspection_output = run_supervised(
-            &inspection_script,
-            project.runner.inspect_timeout,
+        let inspection_output = run_worker(
+            NativeAction::Inspect,
             adapter_budget(
                 project.runner.task_execution_timeout,
                 timeout,
                 started.elapsed(),
             ),
-            &project.guest.powershell_path,
-            "lifecycle preflight adapter",
         )
         .map_err(std::io::Error::other)?;
         let inspection = parse_inspect_result(&inspection_output)?;
@@ -729,15 +761,12 @@ fn run_lifecycle(
         if inspection.state != expected_state {
             return Err("lifecycle preflight state mismatch".into());
         }
-        let operation_script = fixed_script(script)?;
         require_transition_budget(
             project.runner.task_execution_timeout,
             timeout,
             started.elapsed(),
         )?;
-        let output =
-            run_bounded_with_powershell(&operation_script, timeout, &project.guest.powershell_path)
-                .map_err(std::io::Error::other)?;
+        let output = run_worker(action, timeout).map_err(std::io::Error::other)?;
         let result = parse_lifecycle_result(&output, operation)?;
         let result_json = format!(
             concat!(
@@ -802,7 +831,7 @@ fn run_gpu_assignment(
     request: &Request,
     operation: Operation,
     operation_id: &str,
-    script: &str,
+    action: NativeAction,
     started: Instant,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let _enrollment = prepare_install_state()?;
@@ -823,17 +852,13 @@ fn run_gpu_assignment(
     begin_reconciliation(&reconciliation_path, operation, operation_id)?;
 
     let operation_result = (|| -> Result<(), Box<dyn std::error::Error>> {
-        let inspection_script = fixed_script(INSPECT_SCRIPT)?;
-        let inspection_output = run_supervised(
-            &inspection_script,
-            project.runner.inspect_timeout,
+        let inspection_output = run_worker(
+            NativeAction::Inspect,
             adapter_budget(
                 project.runner.task_execution_timeout,
                 project.runner.gpu_assignment_timeout,
                 started.elapsed(),
             ),
-            &project.guest.powershell_path,
-            "GPU assignment preflight adapter",
         )
         .map_err(std::io::Error::other)?;
         let inspection = parse_inspect_result(&inspection_output)?;
@@ -845,18 +870,13 @@ fn run_gpu_assignment(
         if inspection.state != "Off" || inspection.gpu_adapters != expected_count {
             return Err("GPU assignment preflight state mismatch".into());
         }
-        let operation_script = fixed_script(script)?;
         require_transition_budget(
             project.runner.task_execution_timeout,
             project.runner.gpu_assignment_timeout,
             started.elapsed(),
         )?;
-        let output = run_bounded_with_powershell(
-            &operation_script,
-            project.runner.gpu_assignment_timeout,
-            &project.guest.powershell_path,
-        )
-        .map_err(std::io::Error::other)?;
+        let output = run_worker(action, project.runner.gpu_assignment_timeout)
+            .map_err(std::io::Error::other)?;
         let result = parse_gpu_assignment_result(&output, operation)?;
         let result_json = format!(
             concat!(
@@ -980,6 +1000,21 @@ fn write_atomic(directory: &Path, operation_id: &str, contents: &str) -> std::io
     fs::rename(temporary, final_path)
 }
 
+fn publish_native_preimage(
+    directory: &Path,
+    operation_id: &str,
+    contents: &str,
+) -> std::io::Result<()> {
+    // Each interrupted publication keeps its own evidence without blocking a later
+    // reconciled operation. Rename replaces the single worker-visible preimage.
+    let name = format!("{operation_id}-settings-worker-preimage");
+    write_atomic(directory, &name, contents)?;
+    fs::rename(
+        directory.join(format!("{name}.json")),
+        directory.join("native-settings-preimage-v1.json"),
+    )
+}
+
 fn json_escape(value: &str) -> String {
     value
         .replace('\\', "\\\\")
@@ -988,10 +1023,12 @@ fn json_escape(value: &str) -> String {
         .replace('\n', "\\n")
 }
 
+#[cfg(test)]
 fn powershell_literal(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 
+#[cfg(test)]
 fn fixed_script(body: &str) -> Result<String, hyper_gpu_support::runner::RunnerError> {
     let policy = embedded_policy()?;
     Ok(format!(
@@ -1011,6 +1048,7 @@ fn fixed_script(body: &str) -> Result<String, hyper_gpu_support::runner::RunnerE
     ))
 }
 
+#[cfg(test)]
 fn run_bounded_with_powershell(
     script: &str,
     timeout: Duration,
@@ -1041,6 +1079,7 @@ fn require_transition_budget(
     Ok(())
 }
 
+#[cfg(test)]
 fn run_supervised(
     script: &str,
     idle_limit: Duration,
@@ -1125,6 +1164,7 @@ fn run_bounded(script: &str, timeout: Duration) -> Result<String, String> {
     run_bounded_with_powershell(script, timeout, &project.guest.powershell_path)
 }
 
+#[cfg(test)]
 fn read_bounded(mut reader: impl Read, overflow: &AtomicBool) -> std::io::Result<Vec<u8>> {
     let mut output = Vec::new();
     let mut buffer = [0_u8; 4096];
@@ -1141,6 +1181,7 @@ fn read_bounded(mut reader: impl Read, overflow: &AtomicBool) -> std::io::Result
     }
 }
 
+#[cfg(test)]
 const RESET_SCRIPT: &str = r#"
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 $hyperVAdministrators = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-578')
@@ -1178,6 +1219,7 @@ if ($verifiedDrive.Path -ine $childPath -or $verifiedChild.ParentPath -ine $pare
 [Console]::Out.WriteLine('parent_sha256' + "`t" + $hash)
 "#;
 
+#[cfg(test)]
 const INSPECT_SCRIPT: &str = r#"
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 $hyperVAdministrators = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-578')
@@ -1208,6 +1250,7 @@ if ($gpuAdapters.Count -gt 1 -or ($gpuAdapters.Count -eq 1 -and $gpuAdapters[0].
 [Console]::Out.WriteLine('gpu_interface' + "`t" + $hostGpu.Name)
 "#;
 
+#[cfg(test)]
 const START_SCRIPT: &str = r#"
 $vm = Get-VM -Id $vmId -ErrorAction Stop
 if ($vm.Name -ne $vmName -or $vm.State -ne 'Off' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or start state mismatch' }
@@ -1242,6 +1285,7 @@ if ($verifiedVm.Name -ne $vmName -or $verifiedVm.State -ne 'Running' -or $verifi
 [Console]::Out.WriteLine('parent_sha256' + "`t" + $hash)
 "#;
 
+#[cfg(test)]
 const SHUTDOWN_SCRIPT: &str = r#"
 $vm = Get-VM -Id $vmId -ErrorAction Stop
 if ($vm.Name -ne $vmName -or $vm.State -ne 'Running' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or shutdown state mismatch' }
@@ -1272,6 +1316,7 @@ if ($verifiedVm.Name -ne $vmName -or $verifiedVm.State -ne 'Off' -or $verifiedDr
 [Console]::Out.WriteLine('parent_sha256' + "`t" + $hash)
 "#;
 
+#[cfg(test)]
 const ASSIGN_GPU_SCRIPT: &str = r#"
 $vm = Get-VM -Id $vmId -ErrorAction Stop
 if ($vm.Name -ne $vmName -or $vm.State -ne 'Off' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or GPU assignment state mismatch' }
@@ -1305,6 +1350,7 @@ if ($verifiedVm.State -ne 'Off' -or $verifiedAdapters.Count -ne 1 -or $verifiedA
 [Console]::Out.WriteLine('gpu_interface' + "`t" + $verifiedAdapters[0].InstancePath)
 "#;
 
+#[cfg(test)]
 const REMOVE_GPU_SCRIPT: &str = r#"
 $vm = Get-VM -Id $vmId -ErrorAction Stop
 if ($vm.Name -ne $vmName -or $vm.State -ne 'Off' -or $vm.Generation -ne 2 -or [string]$vm.Version -ne '12.0') { throw 'enrolled VM identity or GPU removal state mismatch' }
@@ -1336,6 +1382,26 @@ if ($verifiedVm.State -ne 'Off' -or $verifiedAdapters.Count -ne 0) { throw 'GPU 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn interrupted_preimage_publication_does_not_block_later_operation() {
+        let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("local/test-output")
+            .join(format!("native-preimage-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let interrupted = directory.join("old-settings-worker-preimage.tmp");
+        std::fs::write(&interrupted, "interrupted").unwrap();
+        super::publish_native_preimage(&directory, "new", "first").unwrap();
+        super::publish_native_preimage(&directory, "later", "second").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(directory.join("native-settings-preimage-v1.json")).unwrap(),
+            "second"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&interrupted).unwrap(),
+            "interrupted"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
     use std::fs;
     use std::time::{Duration, Instant};
 
@@ -1693,6 +1759,21 @@ function Remove-VMGpuPartitionAdapter { [CmdletBinding()] param($VMGpuPartitionA
         let remove_script = fixed_script(REMOVE_GPU_SCRIPT).unwrap();
         let (_, inspect_after_token_check) = INSPECT_SCRIPT.split_once("$vm =").unwrap();
         let inspect_script = fixed_script(&format!("$vm ={inspect_after_token_check}")).unwrap();
+        let remaining = super::remaining_inspect_script().unwrap();
+        let (_, remaining) = remaining.split_once("$vm =").unwrap();
+        let remaining = fixed_script(&format!("$vm ={remaining}")).unwrap();
+        let no_host_gpu =
+            "function Get-VMHostPartitionableGpu { throw 'migrated cmdlet must not execute' }";
+        let native_inspect_output = run_bounded(
+            &format!("{fakes}\n{no_host_gpu}\n{remaining}"),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        hyper_gpu_support::runner::parse_inspect_result(&native_inspect_output).unwrap();
+        assert!(run_bounded(
+            &format!("{fakes}\n{no_host_gpu}\n$script:adapterCount = 1\n$script:adapterPath = 'wrong'\n{remaining}"),
+            Duration::from_secs(5),
+        ).unwrap_err().contains("GPU adapter identity rejected"));
         let start_output =
             run_bounded(&format!("{fakes}\n{start_script}"), Duration::from_secs(5)).unwrap();
         hyper_gpu_support::runner::parse_lifecycle_result(&start_output, Operation::StartSlot)

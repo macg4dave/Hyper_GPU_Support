@@ -20,6 +20,11 @@ incremental = false
 unsafe_code = "deny"
 missing_docs = "warn"
 
+[features]
+default = []
+# Explicit opt-in for the enrolled disposable laboratory; exclude from release packages.
+dev-harness = []
+
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
@@ -40,6 +45,7 @@ windows = { version = "0.62.2", features = [
     "Win32_Security_Authentication_Identity",
     "Win32_Security_Authorization",
     "Win32_Storage_FileSystem",
+    "Win32_Storage_Vhd",
     "Win32_System_Com",
     "Win32_System_LibraryLoader",
     "Win32_System_IO",

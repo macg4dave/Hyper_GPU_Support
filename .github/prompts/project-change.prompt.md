@@ -19,3 +19,9 @@ Follow [AGENTS.md](../../AGENTS.md) and relevant
   affected [migration audit](../../scripts/PRODUCT-MIGRATION.md) row; a Rust shell
   wrapper does not finish the port. Keep the working adapter until equivalent
   tests and affected baseline qualification demonstrate its replacement.
+
+GPU-PV feasibility is established; implement and validate the product for an
+existing selected VM. Reuse disposable-VM tooling for tests. Golden-image copying,
+cloning, disk reset and laboratory setup stay outside the production path unless
+an explicit user-facing roadmap task requires them. Test tooling may depend on
+product code; product code must not depend on test tooling.

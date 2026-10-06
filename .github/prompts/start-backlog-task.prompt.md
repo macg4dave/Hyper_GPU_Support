@@ -21,3 +21,9 @@ native backend port. Implement the smallest replacement, not a broad rewrite.
 Provisioning tasks reproduce dynamic associated driver/runtime discovery and guest
 mapping/verification. No historical file count is a general acceptance condition;
 driver updates generate a new host-matched manifest rather than reuse old entries.
+
+GPU-PV feasibility is established; implement and validate the product for an
+existing selected VM. Reuse disposable-VM tooling for tests. Golden-image copying,
+cloning, disk reset and laboratory setup stay outside the production path unless
+an explicit user-facing roadmap task requires them. Test tooling may depend on
+product code; product code must not depend on test tooling.

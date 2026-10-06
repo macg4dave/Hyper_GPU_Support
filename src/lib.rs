@@ -28,6 +28,14 @@ pub mod windows_driver_environment;
 #[cfg(windows)]
 pub mod windows_guest;
 #[cfg(windows)]
+pub mod windows_hyperv;
+#[cfg(windows)]
+mod windows_hyperv_disk;
+#[cfg(windows)]
+pub mod windows_hyperv_read;
+#[cfg(windows)]
+mod windows_hyperv_wmi;
+#[cfg(windows)]
 pub mod windows_inventory;
 #[cfg(windows)]
 pub mod windows_native_inventory;

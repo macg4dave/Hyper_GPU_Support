@@ -34,6 +34,12 @@ Provisioning/qualification scripts consume the dynamically discovered manifest
 and compare receipts for that run. Do not gate them on a historical file count
 or supply a static NVIDIA runtime list; driver updates require rediscovery.
 
+Disposable reset is compiled only with `cargo build --locked --release --features
+dev-harness`. Rebuild/re-pin the runner using the existing reviewed setup flow
+before clean-child qualification; a default runner denies `reset-slot`. Never
+ship a `dev-harness` artifact. Product guest lifecycle and GPU management remain
+available in default builds.
+
 Current maintained entry points and their required privilege:
 
 - **Non-elevated** — `common/project-config.ps1` reads the supported scalar subset of the authoritative

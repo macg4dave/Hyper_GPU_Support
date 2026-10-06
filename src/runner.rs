@@ -331,10 +331,12 @@ impl Operation {
 /// This is intentionally explicit rather than inferred from protocol parsing.
 #[must_use]
 pub const fn policy_allows(operation: Operation) -> bool {
+    if matches!(operation, Operation::ResetSlot) {
+        return cfg!(feature = "dev-harness");
+    }
     matches!(
         operation,
         Operation::Inspect
-            | Operation::ResetSlot
             | Operation::StartSlot
             | Operation::ShutdownSlot
             | Operation::AssignGpu
@@ -956,7 +958,10 @@ mod tests {
         assert_eq!(policy.vm_id(), project.slot.vm_id);
         assert_eq!(policy.parent(), project.slot.parent_path.to_string_lossy());
         assert_eq!(policy_fingerprint().len(), 64);
-        assert!(policy_allows(Operation::ResetSlot));
+        assert_eq!(
+            policy_allows(Operation::ResetSlot),
+            cfg!(feature = "dev-harness")
+        );
         assert!(policy_allows(Operation::Inspect));
         assert!(policy_allows(Operation::StartSlot));
         assert!(policy_allows(Operation::ShutdownSlot));

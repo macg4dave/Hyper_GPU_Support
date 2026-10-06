@@ -62,7 +62,7 @@ These are implemented development entry points, not a completed v1 workflow:
 |---|---|
 | `hyper-gpu-driver-environment` | Native read-only complete source/destination/length/hash manifest discovery |
 | `hyper-gpu-stage` | Discover, inspect and apply the complete driver/runtime manifest; verify every destination on reapply |
-| `hyper-gpu-client` | Enrolled fixed-runner inspection, guest lifecycle/reset, exact GPU attach/detach and complete profile application |
+| `hyper-gpu-client` | Enrolled fixed-runner inspection, guest lifecycle (disposable reset only in `dev-harness` builds), exact GPU attach/detach and complete profile application |
 | `hyper-gpu-support validate` | Verified runtime transfer, sustained readiness and bounded checked guest workloads |
 | D3D11/D3D12/CUDA probe artifacts | Fixed checked workloads used by validation |
 
@@ -122,6 +122,10 @@ three app-local Microsoft x64 CRT DLLs from `[validation.crt_directory]`. CUDA
 sample preparation/build commands remain in [the probe manifest](probes/MANIFEST.md).
 Guest copies and the worker use protected paths; the transport shares the runner's
 operation lock. It changes only validation artifacts and runs fixed workloads.
+
+Disposable reset requires an explicitly built/re-pinned development runner
+(`cargo build --locked --release --features dev-harness`); exclude these artifacts
+from product packages. The default build refuses reset.
 
 For combined clean-child qualification, run from an elevated interactive terminal:
 

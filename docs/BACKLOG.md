@@ -12,8 +12,10 @@ CORE-023 settings apply and verified no-op reapply passed on that existing child
 CORE-003 automated readiness/workloads is implemented and behavior-tested.
 Next work is **GPU-006**, exercising their combined Rust workflow on a clean child.
 The public CLI/config cleanup and reusable lifecycle/diagnostics work are also actionable.
-Native migration is now explicit: **CORE-024** is the next read-only replacement,
-followed by CORE-025 Hyper-V adapters, CORE-026 guest writer/transport and CORE-027
+**CORE-024** native inventory is complete with exact-target binding and read-only
+parity. **CORE-025** has delivered its first exact-VM/host-GPU native read slice;
+continue guest-adapter/profile reads and disk guards before native mutations,
+followed by CORE-026 guest writer/transport and CORE-027
 runner setup/recovery. GPU-006 retains its current owner and qualification work;
 its result does not discharge these production PowerShell dependencies. See the
 [complete script/backend audit](../scripts/PRODUCT-MIGRATION.md).
@@ -25,7 +27,10 @@ Do not assume the preserved experimental guest is a production Rust reproduction
 This register alone owns current status, priority, milestone and dependencies.
 Dependencies are real completion prerequisites, not an instruction to reread all
 prior research. The completed foundation below already satisfies its dependencies.
-M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the gate.
+M1/M2/M3 product tasks and qualification gates are required for v1; deferred classes
+are outside the gate. Golden-image/disposable-target preparation is development
+support, not shipped functionality. Qualification may reuse existing tooling.
+Do not port laboratory setup merely to satisfy the Rust product migration gate.
 
 | ID | Milestone/class | Priority | Status | Depends on |
 |---|---|---|---|---|
@@ -33,8 +38,8 @@ M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the 
 | [CORE-023](#core-023) | M1 | P0 | completed | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | completed | CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | in progress | CORE-022, CORE-023, CORE-003 |
-| [CORE-024](#core-024) | M1 | P0 | in progress | CORE-020 |
-| [CORE-025](#core-025) | M1 | P0 | planned | CORE-024, CORE-023 |
+| [CORE-024](#core-024) | M1 | P0 | completed | CORE-020 |
+| [CORE-025](#core-025) | M1 | P0 | in progress | CORE-024, CORE-023 |
 | [CORE-026](#core-026) | M1 | P0 | ready | CORE-022, CORE-003 |
 | [CORE-027](#core-027) | M2 | P1 | ready | CORE-005 |
 | [CORE-006](#core-006) | M2 | P1 | planned | CORE-022, CORE-023 |
@@ -208,23 +213,29 @@ development blocker.
 **Replace PowerShell inventory with bounded native Rust discovery**
 
 - Objective: remove the fixed script in `src/windows_inventory.rs` from public inventory, preflight and state comparison without rewriting native driver discovery.
-- Owner: Codex; started 2026-10-06. Native read-only inventory and fixed worker supervision; existing GPU-006 ownership is preserved.
+- Owner: Codex; completed 2026-10-06. Existing GPU-006 qualification ownership is preserved.
 - Priority: next native implementation slice. Read `src/inventory.rs`, `src/windows_inventory.rs`, existing native WMI/identity helpers and the [audit](../scripts/PRODUCT-MIGRATION.md).
 - Replacement: Windows registry/system APIs for host facts; reuse native GPU/driver discovery and query registered VM/partitionable GPU state through native management interfaces. Preserve typed known/missing/denied/unavailable distinctions and configured exact-target selection. PowerShell module availability may remain a diagnostic fact, never a product prerequisite.
 - Tests: missing providers, access denial, multiple/wrong identities, absent GPU, malformed provider values, timeout/output bounds and native-worker termination. Compare affected facts with current adapter output on the configured host; read-only parity does not claim workload support.
 - Acceptance: public inventory does not launch PowerShell; potentially blocking COM/provider calls remain in a bounded fixed Rust worker. Errors retain useful native details and secret-free reports. Remove the production script only after demonstrated parity.
-- Result: pending.
+- Result: replaced the embedded inventory script with native registry/system APIs and reused WMI bindings under a fixed sibling Rust worker. Exact full GPU interface/PnP and VM GUID/name selection, effective management-rights checks, structured availability/native errors, bounded streams, suspended launch/job containment and independent watchdog preserve trustworthy read-only reporting. Parent checks the worker's compiled configuration digest, required fact keys and known identities; a stale worker fails with rebuild guidance. Exact detail queries isolate unrelated null provider properties; VM counting is separate. Removed the PowerShell-module diagnostic dependency.
+- Windows x64 read-only parity passed for all 14 host/GPU/VM facts on host 26300.9457, RTX 5060 / driver 32.0.16.1692 (oem59.inf), configured running Gen2 VM / configuration version 12.0. Corrected run: `local/evidence/core024-parity.json`, 2026-10-06T16:24:57Z, retaining outputs and artifact/config hashes. No guest workload qualification is claimed by inventory parity.
+- Validation: focused native identity/provider/selection, stale-worker, malformed-protocol, launch/exit/timeout/overflow/watchdog tests and public worker-argument rejection pass. Full `scripts/testing/check.ps1` passed formatting, strict Clippy/compiler warnings, all workspace tests/doc-tests, build, rustdoc and configuration/policy drift with `RUST_TEST_THREADS=4`; the initial default-concurrency run exhausted existing PowerShell fixture deadlines. Documentation checks passed. Independent architecture review closed stale-worker and unrelated-provider-field findings and reported no remaining blockers in implementation commit `5f4e514`.
 
 ## CORE-025
 
 **Port fixed Hyper-V and GPU-PV operations to native Rust**
 
+- Owner: Codex; first native read slice delivered 2026-10-06; remaining port in progress.
 - Objective: replace product cmdlet bodies in `hyper-gpu-runner.rs` and `hyper_gpu_runner/settings_adapter.rs`, retaining the enrolled fixed-operation protocol and existing Rust policy/settings contracts.
-- Replacement: investigate/use Hyper-V WMI/COM for VM/GPU discovery, attachment/removal, resource triples, MMIO/cache/memory/CPU settings and guest lifecycle; native Virtual Disk APIs for child/parent chain and differencing-disk work; Rust/native filesystem/security/hash checks for reset guards. Reuse provider bindings rather than recreate Hyper-V or reopen HCS-owned guests.
-- Deliver incrementally: read/inspect first, adapter/settings next, lifecycle/reset last. Preserve VM-Off requirements, exact GPU/VM/disk identity, other-VM assignment checks, golden-parent protection, Secure Boot/vTPM, snapshots refusal, durable preimages, independent readback and uncertain-state reconciliation.
+- Replacement: investigate/use Hyper-V WMI/COM for VM/GPU discovery, attachment/removal, resource triples, MMIO/cache/memory/CPU settings and guest lifecycle; native Virtual Disk APIs for read-only disk identity/chain safety where applicable. Differencing-disk creation/deletion and laboratory reset are development-only and do not gate this product port. Reuse provider bindings rather than recreate Hyper-V or reopen HCS-owned guests.
+- Deliver incrementally: read/inspect first, adapter/settings next, product lifecycle last; disposable reset is optional test support. Preserve VM-Off requirements, exact GPU/VM/disk identity, other-VM assignment checks, golden-parent protection, Secure Boot/vTPM, snapshots refusal, durable preimages, independent readback and uncertain-state reconciliation.
 - Tests: provider errors/job completion, denied access, stale preimages, wrong target/parent/adapter, resource limits including u64 values, no-op, partial mutations and bounded timeout/reconciliation. Run affected live apply/readback/reapply and child recovery on the verified disposable target; essential workloads qualify the changed configuration path.
 - Acceptance: fixed operations no longer launch PowerShell for these capabilities; independent architecture review of changed privileged boundaries and actual tests passes before deployment. Any capability lacking a practical native interface gets a specific DECISIONS exception with alternatives and exact bounded command; no broad Hyper-V exemption.
-- Result: pending; CORE-002/023 establish working cmdlet-backed behavior, not completion of this port.
+- Result: first native read slice implements exact VM identity/state/generation/version and all twelve host GPU capability values in the same pinned runner's fixed `read-hyperv` mode. A contained subprocess plus independent watchdog bounds COM; configuration/identity/unsigned-range validation fails closed. Runner `inspect` uses this native observation and omits the host GPU cmdlet, comparing it with the retained disk/snapshot/guest-adapter guard results. Full native inspection/settings/mutations remain pending; CORE-002/023 remain cmdlet-backed.
+- Read-only release Windows x64 parity passed all 18 fields on the exact configured Off Gen2 VM (version 12.0), host build 26300.9457, RTX 5060 / driver 32.0.16.1692. Evidence: `local/evidence/core025-read-parity.json`. This is management-read parity, not guest workload qualification.
+- After review, the existing maintained restore/install paths updated the controlled runner and artifact pins. Installed-runner `inspect` passed (`1791320566-017033300`), including contained native worker launch, observation comparison, protected parent hash/chain checks and successful audit/result publication; the exact Off VM had zero guest GPU adapters. Installed runner hash matched its release pin. Evidence: `local/evidence/core025-installed-inspect.json` and `core025-installed-inspect.log`; setup result in `core025-runner-update.json`.
+- Validation: `scripts/testing/check.ps1` passed formatting, strict Clippy/compiler warnings, all workspace tests/doc-tests, build, rustdoc and configuration/policy drift (`RUST_TEST_THREADS=4`). Focused tests cover exact/wrong/missing/duplicate identities, unsafe states, missing/malformed/overflowing resource values, stale configuration, and retained inspection with host GPU cmdlets deliberately unavailable. Independent architecture review reported no blockers; release runner/client/rights build, four artifact-pin checks and documentation checks passed.
 
 ## CORE-026
 
@@ -242,7 +253,7 @@ development blocker.
 **Provide Rust runner installation, enrollment and recovery**
 
 - Objective: remove ordinary setup/recovery dependence on `install-runner-v1.ps1`, `restore-runner-v1.ps1` and the policy-generation portion of `update-project-pins.ps1`.
-- Replacement: typed Rust installation/policy generation with native account/security and Task Scheduler interfaces, pinned artifact validation, administrator ACLs, exact-SID rights via the existing LSA helper, task quiescence and captured preimage restoration. Artifact pin maintenance may remain development tooling. CORE-021 owns runtime configuration integration; CORE-017 owns packaging/prerequisites.
+- Replacement: typed Rust installation/policy generation with native account/security and Task Scheduler interfaces, pinned artifact validation, administrator ACLs, exact-SID rights via the existing LSA helper, task quiescence and captured preimage restoration. Artifact pin maintenance and golden-image/disposable enrollment remain development tooling. Product enrollment pins an existing selected VM/GPU without requiring a golden image; preserve laboratory protections only in development setup. CORE-021 owns runtime configuration integration; CORE-017 owns packaging/prerequisites.
 - Tests: bad pins/config, non-elevated refusal before effects, unrelated account/SID/task/path rejection, ACL escapes, in-flight runner, partial installation and interrupted restore. Demonstrate install/update/recovery through a bounded authorized elevation path with retained audit/preimages; no arbitrary elevated command input or host lifecycle.
 - Acceptance: packaged Rust setup and recovery require no manual PowerShell; old scripts are optional developer recovery only after demonstrated replacement. Independent review of changed privileged/security boundaries passes. Do not redesign the runner or broaden its one-slot policy.
 - Result: pending.
@@ -257,12 +268,12 @@ development blocker.
 
 ## CORE-010
 
-**Expose safe removal and disposable-child recovery**
+**Expose safe removal and existing-VM recovery**
 
-- Objective: integrate existing detach/reset and explicit uncertain-state recovery.
-- Acceptance: remove only the exact project adapter in a safe state; recovery discards/recreates only the enrolled child after parent/chain checks. Make repeated removal a verified no-op. Test wrong identity, partial assignment/staging, denied cleanup and representative interruption before/after effects; reconcile rather than report false success. Preserve useful recovery instructions when automatic completion is impossible.
+- Objective: integrate exact GPU detach and reconciliation/restaging of product-owned changes on the selected existing VM. Do not expose disposable disk reset as product recovery.
+- Acceptance: remove only the exact project adapter in a safe state; recovery preserves the user VM/disk and reconciles observed state before retrying; uncertain guest provisioning requires explicit recovery guidance, not automatic disk replacement. Make repeated removal a verified no-op. Test wrong identity, partial assignment/staging, denied cleanup and representative interruption before/after effects; reconcile rather than report false success. Preserve useful recovery instructions when automatic completion is impossible.
 - CORE-014 failure tests are incorporated here and in CORE-022; do not rebuild rollback machinery for the guest.
-- Result: pending; fixed detach/reset operations and the child recovery foundation already exist.
+- Result: pending; fixed detach exists. Disposable reset remains reusable development tooling, excluded from the default build. Remove mandatory golden-parent/child configuration from ordinary use under CORE-021/027 without weakening the enrolled laboratory guards.
 
 ## CORE-012
 

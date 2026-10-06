@@ -31,6 +31,21 @@ Historical: the initial provisioning recipe was developed during reference
 research and subsequently validated independently on the target system. External
 project research is not an implementation prerequisite.
 
+## Product versus development tooling
+
+The v1 operator supplies an existing Hyper-V VM and configuration, then inspects,
+plans, applies GPU-PV/driver provisioning and verifies it. Golden images and
+disposable rebuilds are our development strategy, not product APIs. Test tooling
+may consume product contracts; default product builds do not compile or invoke
+`tools/test-harness/` disposable-reset effects. Explicit `dev-harness` builds
+retain the enrolled laboratory workflow and must not be shipped.
+
+Current configuration, receipts and runner guards still assume the enrolled child
+and protected parent. This is remaining coupling, not a v1 requirement: CORE-021
+and CORE-027 must separate product VM selection/enrollment from laboratory pins;
+CORE-010 must provide recovery without destroying a user disk. Preserve current
+safety guards while implementing those replacements incrementally.
+
 ## Working recipe
 
 ### GPU discovery and VM identification
@@ -284,13 +299,22 @@ for the outer limit. Activity never substitutes for the parent hash or native
 readback. A failed or uncertain mutation retains reconciliation state.
 Guest credentials exist only at runtime, never in TOML, command lines or reports.
 
+CORE-025's first native read slice runs the same pinned runner executable in fixed
+`read-hyperv` mode, with no caller-selected arguments. Native WMI reads exact VM
+identity/state/generation/version and host GPU capability triples; a suspended
+launch into a kill-on-close job and an independent worker deadline contain COM.
+The parent validates configuration binding and identities, then compares the VM
+state with the retained disk/snapshot/guest-adapter inspection. Host GPU cmdlet
+discovery is removed from runner `inspect`; remaining reads and mutations are
+still migration debt. Read parity alone does not qualify GPU workloads.
+
 Approved disposable-guest and non-rebooting runner work is normal testing. Physical
 host restart, shutdown, logout or session termination requires explicit user
 permission immediately beforehand. Detailed execution rules live in
 [ENGINEERING.md](ENGINEERING.md#windows-elevation-and-uac) and
 [AGENTS.md](../AGENTS.md#development-and-test-authorization).
 
-## Guest image and disposable VM
+## Development strategy: guest image and disposable VM
 
 The clean parent is shut down, versioned, access-controlled and never writable by
 an experiment. One persistent Generation 2 VM shell retains VM GUID, firmware/vTPM
