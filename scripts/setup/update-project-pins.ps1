@@ -30,6 +30,7 @@ $allowedOperations = @(
     'shutdown-slot',
     'assign-gpu',
     'remove-gpu'
+    'configure-slot'
 )
 $operationJson = ($allowedOperations | ForEach-Object { ConvertTo-JsonString $_ }) -join ', '
 $policyText = @(
@@ -42,6 +43,24 @@ $policyText = @(
     ('  "parent_sha256": {0},' -f (ConvertTo-JsonString ([string](Get-ProjectConfigurationValue $configuration 'slot.parent_sha256'))))
     ('  "child": {0},' -f (ConvertTo-JsonString ([string](Get-ProjectConfigurationValue $configuration 'slot.child_path'))))
     ('  "gpu_interface": {0},' -f (ConvertTo-JsonString ([string](Get-ProjectConfigurationValue $configuration 'slot.gpu_interface'))))
+    '  "vm_profile": {'
+    ('    "memory_bytes": {0},' -f (Get-ProjectConfigurationValue $configuration 'vm_profile.memory_bytes'))
+    ('    "processors": {0},' -f (Get-ProjectConfigurationValue $configuration 'vm_profile.processors'))
+    ('    "low_mmio_bytes": {0},' -f (Get-ProjectConfigurationValue $configuration 'vm_profile.low_mmio_bytes'))
+    ('    "high_mmio_bytes": {0},' -f (Get-ProjectConfigurationValue $configuration 'vm_profile.high_mmio_bytes'))
+    ('    "guest_controlled_cache_types": {0},' -f ([string](Get-ProjectConfigurationValue $configuration 'vm_profile.guest_controlled_cache_types')).ToLowerInvariant())
+    ('    "expose_virtualization_extensions": {0},' -f ([string](Get-ProjectConfigurationValue $configuration 'vm_profile.expose_virtualization_extensions')).ToLowerInvariant())
+    ('    "checkpoints_disabled": {0},' -f ([string](Get-ProjectConfigurationValue $configuration 'vm_profile.checkpoints_disabled')).ToLowerInvariant())
+    ('    "automatic_stop_guest_shutdown": {0}' -f ([string](Get-ProjectConfigurationValue $configuration 'vm_profile.automatic_stop_guest_shutdown')).ToLowerInvariant())
+    '  },'
+    '  "resources": {'
+    foreach ($resource in @('vram', 'encode', 'decode', 'compute')) {
+        $triple = ([string](Get-ProjectConfigurationValue $configuration "resources.$resource")).Split(',')
+        if ($triple.Count -ne 3 -or @($triple | Where-Object { $_ -notmatch '^\d+$' }).Count -ne 0) { throw 'Explicit integer resource triples required.' }
+        $suffix = if ($resource -eq 'compute') { '' } else { ',' }
+        '    "{0}": {{"minimum": {1}, "maximum": {2}, "optimal": {3}}}{4}' -f $resource, $triple[0], $triple[1], $triple[2], $suffix
+    }
+    '  },'
     ('  "allowed_operations": [{0}]' -f $operationJson)
     '}'
 ) -join "`n"

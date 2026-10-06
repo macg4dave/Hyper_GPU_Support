@@ -9,7 +9,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Current configuration schema.
 pub const SCHEMA_VERSION: u32 = 1;
@@ -35,6 +35,8 @@ pub struct Configuration {
 /// structure after parsing and validation and do not need to know TOML syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectConfiguration {
+    /// Desired off-state Hyper-V settings; security devices are retained.
+    pub vm_profile: VmProfile,
     /// Exact disposable slot and its pinned storage/GPU identities.
     pub slot: SlotConfiguration,
     /// Desired driver/runtime manifest.
@@ -263,6 +265,7 @@ pub struct HostProbeConfiguration {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawProjectConfiguration {
+    vm_profile: VmProfile,
     schema: u32,
     slot: RawSlotConfiguration,
     driver_manifest: RawDriverManifestConfiguration,
@@ -273,6 +276,50 @@ struct RawProjectConfiguration {
     runner: RawRunnerConfiguration,
     tooling: RawToolingConfiguration,
     tests: RawTestConfiguration,
+}
+
+/// Project-owned Hyper-V settings, applied only while the enrolled VM is off.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VmProfile {
+    /// Static guest memory in bytes.
+    pub memory_bytes: u64,
+    /// Virtual processor count.
+    pub processors: u32,
+    /// Low MMIO aperture in bytes.
+    pub low_mmio_bytes: u64,
+    /// High MMIO aperture in bytes.
+    pub high_mmio_bytes: u64,
+    /// Permit guest-controlled cache types.
+    pub guest_controlled_cache_types: bool,
+    /// Expose virtualization extensions to the guest.
+    pub expose_virtualization_extensions: bool,
+    /// Disable Hyper-V checkpoints.
+    pub checkpoints_disabled: bool,
+    /// Request guest shutdown when the host stops this VM.
+    pub automatic_stop_guest_shutdown: bool,
+}
+
+impl VmProfile {
+    /// Validate bounded project settings without weakening the checkpoint/stop contract.
+    ///
+    /// # Errors
+    /// Rejects zero, unaligned or excessive allocations and unsupported policies.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if !(1 << 30..=1 << 40).contains(&self.memory_bytes)
+            || !self.memory_bytes.is_multiple_of(1 << 20)
+            || !(1..=64).contains(&self.processors)
+            || self.low_mmio_bytes > 4 << 30
+            || self.high_mmio_bytes > 1 << 40
+            || !self.low_mmio_bytes.is_multiple_of(1 << 20)
+            || !self.high_mmio_bytes.is_multiple_of(1 << 20)
+            || !self.checkpoints_disabled
+            || !self.automatic_stop_guest_shutdown
+        {
+            return Err(ConfigError::InvalidProjectSetting);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -904,7 +951,9 @@ impl ProjectConfiguration {
             decode: parse_resource(Some(&raw.resources.decode))?,
             compute: parse_resource(Some(&raw.resources.compute))?,
         };
+        raw.vm_profile.validate()?;
         Ok(Self {
+            vm_profile: raw.vm_profile,
             slot: SlotConfiguration {
                 name: raw.slot.name,
                 vm_id: raw.slot.vm_id,

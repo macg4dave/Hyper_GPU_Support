@@ -50,7 +50,7 @@ These are implemented development entry points, not a completed v1 workflow:
 |---|---|
 | `hyper-gpu-driver-environment` | Native read-only complete source/destination/length/hash manifest discovery |
 | `hyper-gpu-stage` | Discover, inspect and apply the complete driver/runtime manifest; verify every destination on reapply |
-| `hyper-gpu-client` | Enrolled fixed-runner inspection, guest lifecycle/reset and exact GPU attach/detach |
+| `hyper-gpu-client` | Enrolled fixed-runner inspection, guest lifecycle/reset, exact GPU attach/detach and complete profile application |
 | D3D11/D3D12/CUDA probe artifacts | Checked workloads; automated guest execution/reporting remains integration work |
 
 Read-only inspectors:
@@ -79,9 +79,16 @@ With the controlled runner installed and the configured VM off:
 
 ```powershell
 cargo run --locked --bin hyper-gpu-client -- ensure-gpu
+cargo run --locked --bin hyper-gpu-client -- configure-slot
 ```
 
-This verifies an existing exact assignment or attaches the configured GPU.
+`ensure-gpu` verifies an existing exact assignment or attaches the configured GPU.
+`configure-slot` requires that exact adapter and an off VM, applies the typed
+`[vm_profile]` and all `[resources]` triples, then verifies fresh effective values.
+Matching reapply reports `already-applied` after independent readback. Existing
+Microsoft Windows Secure Boot and vTPM are required and retained. A partial or
+uncertain update keeps the runner reconciliation marker and durable settings preimage;
+inspect and reconcile the actual state before another mutation.
 Assignment alone does not establish staging/readiness. Additional fixed operations
 are defined in the runner protocol; callers cannot supply targets, paths or scripts.
 

@@ -90,8 +90,14 @@ Set and independently verify all four resource triples:
 
 These are opaque provider units, not physical VRAM quantities or performance
 percentages. Preserve integer precision through serialization and comparison.
-`provider-default` is not equivalent to this profile. The current runner attaches
-the adapter but does not apply these settings or resource triples.
+`provider-default` is not equivalent to this profile. The fixed `configure-slot`
+operation requires an exact existing attachment, checks fresh provider resource
+limits and existing Microsoft Windows Secure Boot/vTPM, and applies the typed
+`[vm_profile]` and explicit `[resources]` values pinned in its installed policy.
+It stores a durable settings preimage, rejects stale effective observations before
+effects, and independently reads fresh provider objects before reporting applied
+or already-applied. Failed or uncertain operations retain the reconciliation marker
+and preimage. It never changes the host partition count or security devices.
 
 ### Driver/runtime manifest and guest placement
 

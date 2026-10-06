@@ -11,6 +11,7 @@ pub mod inventory;
 pub mod probe;
 pub mod runner;
 pub mod staging;
+pub mod vm_settings;
 
 #[cfg(windows)]
 pub mod driver_environment;

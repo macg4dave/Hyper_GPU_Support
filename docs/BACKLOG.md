@@ -25,7 +25,7 @@ M1/M2/M3 tasks are required for v1; deferred classes are explicitly outside the 
 | ID | Milestone/class | Priority | Status | Depends on |
 |---|---|---|---|---|
 | [CORE-022](#core-022) | M1 | P0 | completed | CORE-009 |
-| [CORE-023](#core-023) | M1 | P0 | ready | CORE-002 |
+| [CORE-023](#core-023) | M1 | P0 | in-progress | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | ready | CORE-020 |
 | [GPU-006](#gpu-006) | M1 | P0 | planned | CORE-022, CORE-023, CORE-003 |
 | [CORE-006](#core-006) | M2 | P1 | planned | CORE-022, CORE-023 |
@@ -151,7 +151,8 @@ development blocker.
 - Read: config/project.toml, src/config.rs, src/runner.rs, src/windows_runner.rs and [validated settings](ARCHITECTURE.md#hyper-v-settings-and-gpu-partition-resources).
 - Acceptance: configure MMIO, cache types, static memory, CPU/virtualization, checkpoint policy and all four GPU resource triples; retain Secure Boot/vTPM. Reuse exact attachment, require the safe VM state and read fresh effective values before reporting success or no-op. Refuse unsupported resource ranges and wrong/duplicate adapters. Test mismatch, partial update, stale readback and malformed configuration. Never change host partition count or reinterpret opaque resource units as physical percentages.
 - Add the bounded operation and policy pins required for these settings; review that changed privileged boundary before deployment. Leave unrelated Hyper-V configuration to Windows.
-- Result: pending; current assignment succeeds but does not apply this complete profile. Checked-in resources still use provider defaults.
+- Owner: Codex; started 2026-10-06. Use the existing fresh child; no reinstall or reset for this task.
+- Result: in progress; implementing typed settings and bounded fixed-runner application/readback.
 
 ## CORE-003
 

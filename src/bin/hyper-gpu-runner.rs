@@ -20,6 +20,8 @@ use hyper_gpu_support::runner::{
 };
 use hyper_gpu_support::windows_runner::serve_one;
 
+#[path = "hyper_gpu_runner/settings_adapter.rs"]
+mod settings_adapter;
 #[path = "hyper_gpu_runner/supervision.rs"]
 mod supervision;
 
@@ -257,6 +259,7 @@ fn execute_request(request: &Request, started: Instant) -> Result<String, Execut
             run_inspect(request, started).map_err(|_| before_effect("operation-failed"))
         }
         Operation::ResetSlot => execute_reset_request(request, started),
+        Operation::ConfigureSlot => execute_settings_request(request, started),
         Operation::StartSlot => execute_lifecycle_request(
             request,
             Operation::StartSlot,
@@ -472,6 +475,133 @@ fn run_reconciled_operation(
     )?;
     fs::remove_file(reconciliation_path)?;
     Ok(())
+}
+
+fn execute_settings_request(
+    request: &Request,
+    started: Instant,
+) -> Result<String, ExecutionFailure> {
+    let id = operation_id().map_err(|_| ExecutionFailure {
+        diagnostic: "operation-id-failed",
+        operation_id: None,
+    })?;
+    run_settings(request, &id, started)
+        .map(|()| id.clone())
+        .map_err(|_| ExecutionFailure {
+            diagnostic: "operation-failed-reconciliation-required",
+            operation_id: Some(id),
+        })
+}
+
+fn settings_guard() -> Result<&'static str, Box<dyn std::error::Error>> {
+    // Reuse the exact attachment's immediate identity, child-chain and parent guards.
+    ASSIGN_GPU_SCRIPT
+        .split_once("$gpuAdapters =")
+        .map(|(guard, _)| guard)
+        .ok_or_else(|| "fixed settings guard unavailable".into())
+}
+
+fn run_settings(
+    request: &Request,
+    id: &str,
+    started: Instant,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use hyper_gpu_support::vm_settings::SettingsSnapshot;
+    let _enrollment = prepare_install_state()?;
+    let project = project_configuration()?;
+    if !embedded_policy()?.settings_match(&project) {
+        return Err("settings policy pins mismatch".into());
+    }
+    let state = project.runner.data_directory.join("state");
+    let results = project.runner.data_directory.join("results");
+    let audit = project.runner.data_directory.join("audit");
+    let _lock = LockFile::acquire(&state.join("operation.lock"))?;
+    ensure_reconciled(&state, Operation::ConfigureSlot)?;
+    run_reconciled_operation(
+        &state,
+        &results,
+        &audit,
+        request,
+        Operation::ConfigureSlot,
+        id,
+        || {
+            let inspection = run_supervised(
+                &fixed_script(INSPECT_SCRIPT)?,
+                project.runner.inspect_timeout,
+                adapter_budget(
+                    project.runner.task_execution_timeout,
+                    project.runner.gpu_assignment_timeout * 3,
+                    started.elapsed(),
+                ),
+                &project.guest.powershell_path,
+                "settings preflight",
+            )
+            .map_err(std::io::Error::other)?;
+            let inspection = parse_inspect_result(&inspection)?;
+            if inspection.state != "Off" || inspection.gpu_adapters != 1 {
+                return Err("settings require off VM with exact attached GPU".into());
+            }
+            let read_body = format!(
+                "{}\n{}\n[Console]::Out.WriteLine((Read-Profile))",
+                settings_guard()?,
+                settings_adapter::READ
+            );
+            let read_script = fixed_script(&read_body)?;
+            let read = || -> Result<String, Box<dyn std::error::Error>> {
+                require_transition_budget(
+                    project.runner.task_execution_timeout,
+                    project.runner.gpu_assignment_timeout,
+                    started.elapsed(),
+                )?;
+                run_bounded_with_powershell(
+                    &read_script,
+                    project.runner.gpu_assignment_timeout,
+                    &project.guest.powershell_path,
+                )
+                .map_err(|error| std::io::Error::other(error).into())
+            };
+            let before_json = read()?;
+            let before: SettingsSnapshot = serde_json::from_str(before_json.trim())?;
+            let already = before.matches(&project)?;
+            // Durable preimage is retained even when an interrupted mutation has no result.
+            write_atomic(
+                &results,
+                &format!("{id}-preimage"),
+                &serde_json::to_string_pretty(&before)?,
+            )?;
+            if !already {
+                let body = format!(
+                    "{}\n{}\nif ((Read-Profile) -cne {}) {{ throw 'stale settings preimage rejected' }}\n{}",
+                    settings_guard()?,
+                    settings_adapter::READ,
+                    powershell_literal(before_json.trim()),
+                    settings_adapter::apply(&project)?,
+                );
+                require_transition_budget(
+                    project.runner.task_execution_timeout,
+                    project.runner.gpu_assignment_timeout * 2,
+                    started.elapsed(),
+                )?;
+                let output = run_bounded_with_powershell(
+                    &fixed_script(&body)?,
+                    project.runner.gpu_assignment_timeout,
+                    &project.guest.powershell_path,
+                )
+                .map_err(std::io::Error::other)?;
+                let effective: SettingsSnapshot = serde_json::from_str(output.trim())?;
+                effective.verify(&before, &project)?;
+            }
+            // Independent process/provider objects verify effective values for apply and no-op.
+            let effective: SettingsSnapshot = serde_json::from_str(read()?.trim())?;
+            effective.verify(&before, &project)?;
+            Ok(serde_json::to_string_pretty(&serde_json::json!({
+                "schema": 1, "request_id": request.request_id, "operation_id": id,
+                "operation": "configure-slot", "status": "succeeded",
+                "settings_status": if already { "already-applied" } else { "applied" },
+                "effective": effective,
+            }))?)
+        },
+    )
 }
 
 fn run_inspect(request: &Request, started: Instant) -> Result<String, Box<dyn std::error::Error>> {

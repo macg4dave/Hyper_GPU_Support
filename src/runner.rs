@@ -82,10 +82,19 @@ pub struct RunnerPolicy {
     parent_sha256: String,
     child: String,
     gpu_interface: String,
+    vm_profile: crate::config::VmProfile,
+    resources: crate::vm_settings::GpuResources,
     allowed_operations: Vec<String>,
 }
 
 impl RunnerPolicy {
+    /// Verify settings pins against the compiled validated project configuration.
+    #[must_use]
+    pub fn settings_match(&self, project: &crate::config::ProjectConfiguration) -> bool {
+        self.vm_profile == project.vm_profile
+            && crate::vm_settings::GpuResources::desired(project)
+                .is_ok_and(|value| value == self.resources)
+    }
     /// Logical disposable-slot identifier.
     #[must_use]
     pub fn slot(&self) -> &str {
@@ -137,6 +146,14 @@ impl RunnerPolicy {
 pub fn parse_policy(input: &str) -> Result<RunnerPolicy, RunnerError> {
     let policy: RunnerPolicy =
         serde_json::from_str(input).map_err(|_| RunnerError::InvalidProtocol)?;
+    policy
+        .vm_profile
+        .validate()
+        .map_err(|_| RunnerError::InvalidProtocol)?;
+    policy
+        .resources
+        .supported_by(&policy.resources)
+        .map_err(|_| RunnerError::InvalidProtocol)?;
     if policy.schema != 1
         || policy.slot.is_empty()
         || policy.slot.len() > 128
@@ -156,7 +173,7 @@ pub fn parse_policy(input: &str) -> Result<RunnerPolicy, RunnerError> {
             return Err(RunnerError::InvalidProtocol);
         }
     }
-    if operations.len() != 6 {
+    if operations.len() != 7 {
         return Err(RunnerError::InvalidProtocol);
     }
     Ok(policy)
@@ -262,6 +279,8 @@ pub enum Operation {
     AssignGpu,
     /// Remove the enrolled VM's GPU partition adapter.
     RemoveGpu,
+    /// Apply and freshly verify the pinned complete Hyper-V/GPU profile.
+    ConfigureSlot,
     /// Stage the policy-pinned runtime manifest.
     StageRuntimeV1,
     /// Run one policy-pinned probe manifest.
@@ -281,6 +300,7 @@ impl Operation {
             "shutdown-slot" => Some(Self::ShutdownSlot),
             "assign-gpu" => Some(Self::AssignGpu),
             "remove-gpu" => Some(Self::RemoveGpu),
+            "configure-slot" => Some(Self::ConfigureSlot),
             "stage-runtime-v1" => Some(Self::StageRuntimeV1),
             "run-probe-v1" => Some(Self::RunProbeV1),
             "read-result" => Some(Self::ReadResult),
@@ -298,6 +318,7 @@ impl Operation {
             Self::ShutdownSlot => "shutdown-slot",
             Self::AssignGpu => "assign-gpu",
             Self::RemoveGpu => "remove-gpu",
+            Self::ConfigureSlot => "configure-slot",
             Self::StageRuntimeV1 => "stage-runtime-v1",
             Self::RunProbeV1 => "run-probe-v1",
             Self::ReadResult => "read-result",
@@ -318,6 +339,7 @@ pub const fn policy_allows(operation: Operation) -> bool {
             | Operation::ShutdownSlot
             | Operation::AssignGpu
             | Operation::RemoveGpu
+            | Operation::ConfigureSlot
     )
 }
 

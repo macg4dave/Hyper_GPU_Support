@@ -39,10 +39,20 @@ package_tree_sha256 = "3662d618d9fb95d02a354077337d58dbc4c3ccf9db14714b1c5fbc4a6
 catalog_sha256 = "9c2ada986e2eee73be0b496d809c847c809ccf0e52ba970a9834dbeaf2afff34"
 
 [resources]
-vram = "provider-default"
-encode = "provider-default"
-decode = "provider-default"
-compute = "provider-default"
+vram = "500000000,500000000,500000000"
+encode = "9223372036854775808,9223372036854775808,9223372036854775808"
+decode = "500000000,500000000,500000000"
+compute = "500000000,500000000,500000000"
+
+[vm_profile]
+memory_bytes = 8589934592
+processors = 4
+low_mmio_bytes = 3221225472
+high_mmio_bytes = 34359738368
+guest_controlled_cache_types = true
+expose_virtualization_extensions = true
+checkpoints_disabled = true
+automatic_stop_guest_shutdown = true
 
 [paths]
 data_root = '''Z:\HyperGpuSupport'''

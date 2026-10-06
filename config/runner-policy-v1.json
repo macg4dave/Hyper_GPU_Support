@@ -7,5 +7,21 @@
   "parent_sha256": "0fb4dfe6dd51eed64d36e482e4f58d67c19922802e34aa6ae2d1f4ccd5daeb07",
   "child": "Z:\\HyperGpuSupport\\images\\disposable\\gpu-pv-slot-01\\child.vhdx",
   "gpu_interface": "\\\\?\\PCI#VEN_10DE\u0026DEV_2D05\u0026SUBSYS_8A151043\u0026REV_A1#95B0EB63032DB04800#{064092b3-625e-43bf-9eb5-dc845897dd59}\\GPUPARAV",
-  "allowed_operations": ["inspect", "reset-slot", "start-slot", "shutdown-slot", "assign-gpu", "remove-gpu"]
+  "vm_profile": {
+    "memory_bytes": 8589934592,
+    "processors": 4,
+    "low_mmio_bytes": 3221225472,
+    "high_mmio_bytes": 34359738368,
+    "guest_controlled_cache_types": true,
+    "expose_virtualization_extensions": true,
+    "checkpoints_disabled": true,
+    "automatic_stop_guest_shutdown": true
+  },
+  "resources": {
+    "vram": {"minimum": 500000000, "maximum": 500000000, "optimal": 500000000},
+    "encode": {"minimum": 9223372036854775808, "maximum": 9223372036854775808, "optimal": 9223372036854775808},
+    "decode": {"minimum": 500000000, "maximum": 500000000, "optimal": 500000000},
+    "compute": {"minimum": 500000000, "maximum": 500000000, "optimal": 500000000}
+  },
+  "allowed_operations": ["inspect", "reset-slot", "start-slot", "shutdown-slot", "assign-gpu", "remove-gpu", "configure-slot"]
 }

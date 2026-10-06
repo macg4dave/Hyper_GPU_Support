@@ -45,10 +45,57 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         return ensure_gpu(&project.runner, enrollment.runner_sid());
     }
     let operation = Operation::parse(&command).ok_or("unknown fixed runner operation")?;
-    let (_, response) = submit_operation(operation, &project.runner, enrollment.runner_sid())?;
+    let (request, response) =
+        submit_operation(operation, &project.runner, enrollment.runner_sid())?;
     println!("{}", response.encode().trim_end());
     require_succeeded(&response)?;
+    if operation == Operation::ConfigureSlot {
+        let id = response
+            .operation_id
+            .as_deref()
+            .ok_or("missing settings operation ID")?;
+        let text = read_result(&project.runner, id)?;
+        let record = parse_published_settings(&text, &request.request_id, id, &project)?;
+        println!("settings_status={}", record.settings_status);
+        println!("effective={}", serde_json::to_string(&record.effective)?);
+    }
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PublishedSettingsResult {
+    schema: u32,
+    request_id: String,
+    operation_id: String,
+    operation: String,
+    status: String,
+    settings_status: String,
+    effective: hyper_gpu_support::vm_settings::SettingsSnapshot,
+}
+
+fn parse_published_settings(
+    input: &str,
+    request: &str,
+    operation: &str,
+    project: &ProjectConfiguration,
+) -> Result<PublishedSettingsResult, &'static str> {
+    let record: PublishedSettingsResult =
+        serde_json::from_str(input).map_err(|_| "invalid settings result")?;
+    if record.schema != 1
+        || record.request_id != request
+        || record.operation_id != operation
+        || record.operation != "configure-slot"
+        || record.status != "succeeded"
+        || !matches!(
+            record.settings_status.as_str(),
+            "applied" | "already-applied"
+        )
+        || !record.effective.matches(project)?
+    {
+        return Err("published settings result mismatch");
+    }
+    Ok(record)
 }
 
 fn submit_operation(
@@ -279,7 +326,8 @@ fn response_timeout(operation: Operation, runner: &RunnerConfiguration) -> Durat
         | Operation::StartSlot
         | Operation::ShutdownSlot
         | Operation::AssignGpu
-        | Operation::RemoveGpu => runner.task_execution_timeout + transport_allowance,
+        | Operation::RemoveGpu
+        | Operation::ConfigureSlot => runner.task_execution_timeout + transport_allowance,
         _ => Duration::from_secs(15),
     }
 }
@@ -325,6 +373,50 @@ fn trigger_runner(runner: &RunnerConfiguration) -> Result<(), Box<dyn std::error
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn settings_result_rejects_unbound_or_partial_success() {
+        let project = ProjectConfiguration::embedded().unwrap();
+        let resources = hyper_gpu_support::vm_settings::GpuResources::desired(&project).unwrap();
+        let good = serde_json::json!({
+            "schema":1, "request_id":"request", "operation_id":"operation",
+            "operation":"configure-slot", "status":"succeeded", "settings_status":"applied",
+            "effective": {
+                "vm_id":project.slot.vm_id, "state":"Off", "gpu_interface":project.slot.gpu_interface,
+                "gpu_adapters":1, "secure_boot":true, "secure_boot_template":"MicrosoftWindows",
+                "tpm_enabled":true, "dynamic_memory":false, "profile":project.vm_profile,
+                "checkpoint_type":"Disabled", "automatic_checkpoints":false, "automatic_stop_action":"ShutDown",
+                "resources":resources, "limits":resources,
+            }
+        });
+        assert!(
+            super::parse_published_settings(&good.to_string(), "request", "operation", &project)
+                .is_ok()
+        );
+        for (key, value) in [
+            ("request_id", "wrong"),
+            ("operation_id", "wrong"),
+            ("operation", "inspect"),
+            ("status", "failed"),
+            ("settings_status", "unknown"),
+        ] {
+            let mut bad = good.clone();
+            bad[key] = value.into();
+            assert!(
+                super::parse_published_settings(&bad.to_string(), "request", "operation", &project)
+                    .is_err()
+            );
+        }
+        let mut bad = good;
+        bad["effective"]["profile"]["processors"] = 2.into();
+        assert!(
+            super::parse_published_settings(&bad.to_string(), "request", "operation", &project)
+                .is_err()
+        );
+        assert_eq!(
+            response_timeout(Operation::ConfigureSlot, &project.runner),
+            project.runner.task_execution_timeout + Duration::from_secs(30)
+        );
+    }
     use std::time::Duration;
 
     use hyper_gpu_support::config::ProjectConfiguration;
