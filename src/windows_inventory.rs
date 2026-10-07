@@ -17,15 +17,22 @@ impl InventorySource for WindowsInventory {
     fn collect(&self) -> Result<InventoryReport, InventoryError> {
         let project =
             ProjectConfiguration::embedded().map_err(|_| InventoryError::InvalidProtocol)?;
+        Self::collect_for(&project)
+    }
+}
+
+impl WindowsInventory {
+    /// Collect using the caller's already parsed, validated configuration.
+    ///
+    /// # Errors
+    /// Preserves bounded-worker failures and rejects mismatched configuration or identities.
+    pub fn collect_for(project: &ProjectConfiguration) -> Result<InventoryReport, InventoryError> {
         let executable = std::env::current_exe().map_err(|e| InventoryError::AdapterLaunch {
             kind: e.kind(),
             code: e.raw_os_error(),
         })?;
         let worker = executable.with_file_name("hyper-gpu-inventory-worker.exe");
-        validate_worker(
-            collect_worker(&worker, project.inventory.timeout)?,
-            &project,
-        )
+        validate_worker(collect_worker(&worker, project.inventory.timeout)?, project)
     }
 }
 

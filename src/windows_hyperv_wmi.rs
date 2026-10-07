@@ -41,6 +41,29 @@ impl Drop for OwnedVariant {
 
 #[derive(Clone)]
 pub(crate) struct Object(IWbemClassObject);
+
+#[cfg(test)]
+#[allow(unsafe_code)]
+pub(crate) fn fixture(properties: &[(&str, i32)]) -> Object {
+    use windows::Win32::System::Wmi::WbemClassObject;
+    // SAFETY: caller holds an initialized apartment; this in-memory CIM class
+    // never connects to a provider or performs a host/guest operation.
+    let class: IWbemClassObject =
+        unsafe { CoCreateInstance(&WbemClassObject, None, CLSCTX_INPROC_SERVER) }.unwrap();
+    let name = OwnedVariant(VARIANT::from(BSTR::from("NativeFixture")));
+    // SAFETY: live class and owned initialized name; Put copies the input.
+    unsafe { class.Put(PCWSTR(wide("__CLASS").as_ptr()), 0, &name.0, 0) }.unwrap();
+    let mut absent = VARIANT::default();
+    // SAFETY: VT_NULL has no allocated union member and defines an absent value
+    // for the explicitly typed CIM property; VT_EMPTY cannot define a property.
+    unsafe { (*absent.Anonymous.Anonymous).vt = VT_NULL };
+    for (name, kind) in properties {
+        // SAFETY: fixed fixture property definitions; class owns each copy.
+        unsafe { class.Put(PCWSTR(wide(name).as_ptr()), 0, &absent, *kind) }.unwrap();
+    }
+    // SAFETY: completed in-memory class; returned instance owns its reference.
+    Object(unsafe { class.SpawnInstance(0) }.unwrap())
+}
 #[allow(unsafe_code)]
 impl Object {
     fn value(&self, name: &str) -> Result<OwnedVariant> {
@@ -278,6 +301,7 @@ impl Session {
         .map_err(win)?;
         Ok(Object(object.ok_or("missing WMI object")?))
     }
+    #[cfg(feature = "dev-harness")]
     pub(crate) fn template(&self, class: &str) -> Result<Object> {
         let class = self.get(class)?;
         // SAFETY: class definition from provider; returned instance owns ref.

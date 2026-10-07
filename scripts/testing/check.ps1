@@ -31,6 +31,9 @@ try {
     $env:RUSTDOCFLAGS = '-Dwarnings'
 
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('fmt', '--all', '--', '--check')
+    # Check the shipped feature set independently from development helpers.
+    Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('clippy', '--locked', '--workspace', '--all-targets', '--', '-D', 'warnings')
+    Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('test', '--locked', '--workspace')
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('clippy', '--locked', '--workspace', '--all-targets', '--all-features', '--', '-D', 'warnings')
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('test', '--locked', '--workspace', '--all-features')
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('build', '--locked', '--workspace', '--all-features')

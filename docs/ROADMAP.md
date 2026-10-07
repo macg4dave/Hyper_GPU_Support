@@ -81,9 +81,9 @@ Read a specific foundation result only when the selected implementation needs it
 Independent implementation tasks:
 
 - CORE-022 completed: complete native-manifest staging and verified reapply passed on a clean child; guest file operations still use embedded PowerShell (CORE-026).
-- CORE-023 completed: validated VM settings and explicit GPU resources passed live apply and independent verified no-op reapply; Hyper-V read/mutation still uses cmdlets (CORE-025).
+- CORE-023 completed: validated VM settings and explicit GPU resources passed live apply and independent verified no-op reapply through the original cmdlet adapter; its native replacement requires CORE-025 qualification.
 - CORE-003 completed: public validate and its Rust worker own readiness and essential workload checks; transfer/launch debt remains CORE-026 and combined live qualification remains GPU-006.
-- CORE-024 completed: native registry/system/WMI inventory, exact-target/configuration-bound Rust worker and all 14 read-only parity facts passed. CORE-025's first exact-VM/host-GPU native read slice passed 18-field parity; guest-adapter/profile reads and disk guards continue before mutations.
+- CORE-024 completed: native registry/system/WMI inventory, exact-target/configuration-bound Rust worker and all 14 read-only parity facts passed. CORE-025's first exact-VM/host-GPU native read slice passed 18-field parity; the full native inspection/settings/attachment/lifecycle implementation now requires live mutation and workload qualification.
 - CORE-025 ports fixed Hyper-V attachment/resources/settings/lifecycle incrementally while preserving enrollment, readback and reconciliation.
 - CORE-026 moves guest file/security/hash/receipt operations to a Rust writer and establishes the smallest justified session/transfer interface, if one is necessary.
 

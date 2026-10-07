@@ -12,21 +12,23 @@ Usage: hyper-gpu-support [COMMAND] [OPTIONS]
 
 Commands:
   inventory        Report read-only host, GPU and Hyper-V facts
-  plan             Produce a read-only change plan
+  plan             Preview setup intent and prerequisites
   apply            Apply a reviewed current plan
   status           Show effective project-owned state
   validate         Check guest GPU readiness and essential workloads
   remove           Remove project-owned GPU assignment/settings
-  recover          Recreate the disposable child after uncertain state
-  start            Start the configured disposable VM
-  shutdown         Gracefully shut down the configured disposable VM
-  restart          Gracefully restart the configured disposable VM
+  recover          Recover an interrupted operation
+  start            Start the configured VM
+  shutdown         Gracefully shut down the configured VM
+  restart          Gracefully restart the configured VM
 
 Options:
   -h, --help       Display help
   -V, --version    Display version
 
-Inventory and validate are implemented; other commands currently return exit code 70.
+Inventory, plan, status and validate are implemented; other commands return exit code 70.
+Plan previews setup intent and initial prerequisites; apply is not yet integrated.
+Status reports unknown assignment/staging/readiness when they have not been observed.
 Validate requires the running enrolled guest, local artifacts, an elevated
 development token and an interactive guest credential prompt.
 ";
@@ -43,6 +45,10 @@ pub enum Command {
     Version,
     /// Report read-only inventory facts.
     Inventory,
+    /// Preview configured setup intent and initial prerequisites without effects.
+    Plan,
+    /// Show native observations and explicit unknown guest state.
+    Status,
     /// Run the fixed guest readiness and essential-workload validation.
     Validate,
     /// A stable declared operation whose implementation belongs to a later M1 task.
@@ -81,6 +87,8 @@ pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Command, U
         Some("--help" | "-h") => Command::Help,
         Some("--version" | "-V") => Command::Version,
         Some("inventory") => Command::Inventory,
+        Some("plan") => Command::Plan,
+        Some("status") => Command::Status,
         Some("validate") => Command::Validate,
         Some(value) => Command::Declared(CliOperation::parse(value).ok_or(UsageError)?),
         None => return Err(UsageError),
@@ -108,6 +116,8 @@ mod tests {
             ("--version", Command::Version),
             ("-V", Command::Version),
             ("inventory", Command::Inventory),
+            ("plan", Command::Plan),
+            ("status", Command::Status),
             ("validate", Command::Validate),
         ] {
             assert_eq!(parse([argument.into()]), Ok(expected));

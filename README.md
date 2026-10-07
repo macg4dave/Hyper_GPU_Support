@@ -30,6 +30,8 @@ From PowerShell at the repository root:
 cargo build --locked --workspace --all-features
 cargo run --locked -- --help
 cargo run --locked -- inventory
+cargo run --locked -- plan
+cargo run --locked -- status
 .\scripts\testing\check.ps1
 ```
 
@@ -39,12 +41,19 @@ elevation, Hyper-V or a GPU and do not establish GPU support. For documentation
 changes, run `.\scripts\testing\check-docs.ps1`. See
 [scripts/README.md](scripts/README.md) for maintained tooling and required privilege.
 
-The main CLI currently implements help, version, read-only inventory and guest
-`validate`. Declared `plan`, `apply`, `status`, `remove`, `recover`, `start`, `shutdown`
+The main CLI currently implements help, version, read-only `inventory`, `plan`,
+`status` and guest `validate`. Declared `apply`, `remove`, `recover`, `start`, `shutdown`
 and `restart` commands explicitly return implementation exit code 70 until
 integrated. Errors go to stderr; normal output goes to stdout. Inventory reports
 known/missing/denied/unavailable facts; denied protected facts can appear in an
 otherwise successful read-only report.
+
+`plan` previews the configured existing VM/GPU, desired settings and initial
+native inventory prerequisites. It does not discover or copy driver files, authorize
+changes or recreate a VM. `status` reports current VM/host-driver observations;
+GPU assignment, guest driver staging and guest readiness remain explicitly
+unobserved until their readers are integrated. Both commands emit versioned JSON
+and avoid disk inspection and laboratory baseline hash checks.
 
 Inventory uses native registry/system and WMI queries through the fixed sibling
 `hyper-gpu-inventory-worker.exe`; build/deploy it alongside the CLI. It selects the

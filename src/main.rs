@@ -25,6 +25,10 @@ fn main() -> ExitCode {
             Ok(output) => output,
             Err(error) => return report_error(&mut io::stderr().lock(), &error, 1),
         },
+        Command::Plan | Command::Status => match operator_output(command) {
+            Ok(output) => output,
+            Err(error) => return report_error(&mut io::stderr().lock(), &error, 1),
+        },
         Command::Declared(operation) => {
             return report_error(
                 &mut io::stderr().lock(),
@@ -41,6 +45,28 @@ fn main() -> ExitCode {
             1,
         ),
     }
+}
+
+#[cfg(windows)]
+fn operator_output(command: Command) -> Result<String, String> {
+    let project = hyper_gpu_support::config::ProjectConfiguration::embedded()
+        .map_err(|error| error.to_string())?;
+    let inventory = hyper_gpu_support::windows_inventory::WindowsInventory::collect_for(&project)
+        .map_err(|error| error.to_string())?;
+    match command {
+        Command::Plan => serde_json::to_string_pretty(
+            &hyper_gpu_support::operator::plan(&project, &inventory).map_err(|e| e.to_string())?,
+        ),
+        Command::Status => {
+            serde_json::to_string_pretty(&hyper_gpu_support::operator::status(&project, &inventory))
+        }
+        _ => return Err("invalid operator report command".into()),
+    }
+    .map_err(|error| error.to_string())
+}
+#[cfg(not(windows))]
+fn operator_output(_command: Command) -> Result<String, String> {
+    Err("GPU-PV operation requires Windows x64".into())
 }
 
 fn dispatch_validation(

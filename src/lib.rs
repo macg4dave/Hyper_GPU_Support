@@ -8,6 +8,7 @@ pub mod cli;
 pub mod config;
 pub mod guest;
 pub mod inventory;
+pub mod operator;
 pub mod probe;
 pub mod runner;
 pub mod staging;

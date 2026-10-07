@@ -142,7 +142,8 @@ impl RunnerPolicy {
 ///
 /// # Errors
 /// Rejects schema drift, malformed identities/hashes, duplicate operations or
-/// any operation not compiled into the fixed version-one allowlist.
+/// any operation outside the fixed version-one protocol allowlist. Parsing the
+/// legacy reset entry does not authorize it; execution also checks the build gate.
 pub fn parse_policy(input: &str) -> Result<RunnerPolicy, RunnerError> {
     let policy: RunnerPolicy =
         serde_json::from_str(input).map_err(|_| RunnerError::InvalidProtocol)?;
@@ -169,7 +170,11 @@ pub fn parse_policy(input: &str) -> Result<RunnerPolicy, RunnerError> {
     let mut operations = BTreeSet::new();
     for value in &policy.allowed_operations {
         let operation = Operation::parse(value).ok_or(RunnerError::InvalidProtocol)?;
-        if !policy_allows(operation) || !operations.insert(operation.as_str()) {
+        // The enrolled laboratory policy retains its reset entry for compatibility.
+        // Executable authorization additionally checks the build's dev-harness gate.
+        if !(policy_allows(operation) || operation == Operation::ResetSlot)
+            || !operations.insert(operation.as_str())
+        {
             return Err(RunnerError::InvalidProtocol);
         }
     }
@@ -326,9 +331,10 @@ impl Operation {
     }
 }
 
-/// Return whether the immutable version-one policy authorizes an operation.
+/// Return whether the reviewed policy and build authorize an operation.
 ///
 /// This is intentionally explicit rather than inferred from protocol parsing.
+/// Disposable reset additionally requires the non-default dev-harness feature.
 #[must_use]
 pub const fn policy_allows(operation: Operation) -> bool {
     if matches!(operation, Operation::ResetSlot) {

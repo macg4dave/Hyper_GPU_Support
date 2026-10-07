@@ -38,7 +38,7 @@ pub enum NativeAction {
     Start,
     /// Graceful guest shutdown through its integration component.
     Shutdown,
-    /// Recreate only the configured disposable differencing child.
+    /// Reserved development reset; accepted only in explicit dev-harness builds.
     Reset,
 }
 impl NativeAction {
@@ -92,6 +92,7 @@ struct State {
     settings: Object,
     service: Object,
     adapters: Vec<Object>,
+    #[cfg(feature = "dev-harness")]
     drives: Vec<Object>,
     state: String,
     // Drop every provider proxy before Session balances this thread's COM init.
@@ -168,6 +169,7 @@ impl State {
             settings,
             service,
             adapters,
+            #[cfg(feature = "dev-harness")]
             drives,
             state,
         })
@@ -176,70 +178,22 @@ impl State {
         one(self.session.related(&self.settings, class)?)
     }
     fn profile(&self, p: &ProjectConfiguration) -> Result<SettingsSnapshot> {
-        if self.state != "Off" || self.adapters.len() != 1 {
-            return Err("settings require Off VM with exactly one adapter".into());
-        }
+        let adapter = profile_adapter(&self.state, &self.adapters)?;
         let memory = self.related_one("Msvm_MemorySettingData")?;
         let cpu = self.related_one("Msvm_ProcessorSettingData")?;
         let security = self.related_one("Msvm_SecuritySettingData")?;
-        let checkpoint_type = match self.settings.number("UserSnapshotType")? {
-            2 => "Disabled",
-            3 => "Production",
-            4 => "ProductionOnly",
-            5 => "Standard",
-            _ => return Err("unknown checkpoint policy".into()),
-        }
-        .to_owned();
-        let automatic_stop_action = match self.settings.number("AutomaticShutdownAction")? {
-            2 => "TurnOff",
-            3 => "Save",
-            4 => "ShutDown",
-            _ => return Err("unknown automatic stop policy".into()),
-        }
-        .to_owned();
-        let automatic_checkpoints = self.settings.boolean("AutomaticSnapshotsEnabled")?;
-        let secure_boot_template = if self
-            .settings
-            .string("SecureBootTemplateId")?
-            .eq_ignore_ascii_case("1734C6E8-3154-4DDA-BA5F-A874CC483422")
-        {
-            "MicrosoftWindows".into()
-        } else {
-            self.settings.string("SecureBootTemplateId")?
-        };
-        let mib = |o: &Object, n: &str| {
-            o.number(n)?
-                .checked_mul(1024 * 1024)
-                .ok_or_else(|| format!("{n}: byte conversion overflow"))
-        };
-        let result = SettingsSnapshot {
-            vm_id: p.slot.vm_id.clone(),
-            state: self.state.clone(),
-            gpu_interface: p.slot.gpu_interface.clone(),
-            gpu_adapters: 1,
-            secure_boot: self.settings.boolean("SecureBootEnabled")?,
-            secure_boot_template,
-            tpm_enabled: security.boolean("TpmEnabled")?,
-            dynamic_memory: memory.boolean("DynamicMemoryEnabled")?,
-            profile: VmProfile {
-                memory_bytes: mib(&memory, "VirtualQuantity")?,
-                processors: u32::try_from(cpu.number("VirtualQuantity")?)
-                    .map_err(|_| "CPU count overflow")?,
-                low_mmio_bytes: mib(&self.settings, "LowMmioGapSize")?,
-                high_mmio_bytes: mib(&self.settings, "HighMmioGapSize")?,
-                guest_controlled_cache_types: self.settings.boolean("GuestControlledCacheTypes")?,
-                expose_virtualization_extensions: cpu.boolean("ExposeVirtualizationExtensions")?,
-                checkpoints_disabled: checkpoint_type == "Disabled" && !automatic_checkpoints,
-                automatic_stop_guest_shutdown: automatic_stop_action == "ShutDown",
+        decode_profile(
+            p,
+            &self.state,
+            &ProfileObjects {
+                settings: &self.settings,
+                memory: &memory,
+                cpu: &cpu,
+                security: &security,
+                adapter,
             },
-            checkpoint_type,
-            automatic_checkpoints,
-            automatic_stop_action,
-            resources: resources(&self.adapters[0])?,
-            limits: crate::windows_hyperv_read::collect(p)?.limits,
-        };
-        result.validate(p).map_err(str::to_owned)?;
-        Ok(result)
+            crate::windows_hyperv_read::collect(p)?.limits,
+        )
     }
     fn reject_other_assignments(&self, p: &ProjectConfiguration) -> Result<()> {
         for vm in self
@@ -271,6 +225,88 @@ impl State {
         }
         verify_child(p, false)
     }
+}
+// The same provider objects feed decoding and writing, so fixtures exercise
+// native property names and representations without a privileged provider.
+struct ProfileObjects<'a> {
+    settings: &'a Object,
+    memory: &'a Object,
+    cpu: &'a Object,
+    security: &'a Object,
+    adapter: &'a Object,
+}
+fn profile_adapter<'a>(state: &str, adapters: &'a [Object]) -> Result<&'a Object> {
+    if state != "Off" || adapters.len() != 1 {
+        return Err("settings require Off VM with exactly one adapter".into());
+    }
+    adapters
+        .first()
+        .ok_or_else(|| "settings require Off VM with exactly one adapter".into())
+}
+fn decode_profile(
+    p: &ProjectConfiguration,
+    state: &str,
+    o: &ProfileObjects<'_>,
+    limits: GpuResources,
+) -> Result<SettingsSnapshot> {
+    let checkpoint_type = match o.settings.number("UserSnapshotType")? {
+        2 => "Disabled",
+        3 => "Production",
+        4 => "ProductionOnly",
+        5 => "Standard",
+        _ => return Err("unknown checkpoint policy".into()),
+    }
+    .to_owned();
+    let automatic_stop_action = match o.settings.number("AutomaticShutdownAction")? {
+        2 => "TurnOff",
+        3 => "Save",
+        4 => "ShutDown",
+        _ => return Err("unknown automatic stop policy".into()),
+    }
+    .to_owned();
+    let automatic_checkpoints = o.settings.boolean("AutomaticSnapshotsEnabled")?;
+    let secure_boot_template = if o
+        .settings
+        .string("SecureBootTemplateId")?
+        .eq_ignore_ascii_case("1734C6E8-3154-4DDA-BA5F-A874CC483422")
+    {
+        "MicrosoftWindows".into()
+    } else {
+        o.settings.string("SecureBootTemplateId")?
+    };
+    let mib = |o: &Object, n: &str| {
+        o.number(n)?
+            .checked_mul(1024 * 1024)
+            .ok_or_else(|| format!("{n}: byte conversion overflow"))
+    };
+    let result = SettingsSnapshot {
+        vm_id: p.slot.vm_id.clone(),
+        state: state.to_owned(),
+        gpu_interface: p.slot.gpu_interface.clone(),
+        gpu_adapters: 1,
+        secure_boot: o.settings.boolean("SecureBootEnabled")?,
+        secure_boot_template,
+        tpm_enabled: o.security.boolean("TpmEnabled")?,
+        dynamic_memory: o.memory.boolean("DynamicMemoryEnabled")?,
+        profile: VmProfile {
+            memory_bytes: mib(o.memory, "VirtualQuantity")?,
+            processors: u32::try_from(o.cpu.number("VirtualQuantity")?)
+                .map_err(|_| "CPU count overflow")?,
+            low_mmio_bytes: mib(o.settings, "LowMmioGapSize")?,
+            high_mmio_bytes: mib(o.settings, "HighMmioGapSize")?,
+            guest_controlled_cache_types: o.settings.boolean("GuestControlledCacheTypes")?,
+            expose_virtualization_extensions: o.cpu.boolean("ExposeVirtualizationExtensions")?,
+            checkpoints_disabled: checkpoint_type == "Disabled" && !automatic_checkpoints,
+            automatic_stop_guest_shutdown: automatic_stop_action == "ShutDown",
+        },
+        checkpoint_type,
+        automatic_checkpoints,
+        automatic_stop_action,
+        resources: resources(o.adapter)?,
+        limits,
+    };
+    result.validate(p).map_err(str::to_owned)?;
+    Ok(result)
 }
 fn resources(o: &Object) -> Result<GpuResources> {
     let t = |n: &str| -> Result<Triple> {
@@ -363,35 +399,67 @@ fn apply_settings(p: &ProjectConfiguration) -> Result<String> {
     .map_err(|e| format!("parse protected settings preimage: {e}"))?;
     expected.validate(p).map_err(str::to_owned)?;
     let fresh = State::read(p, p.runner.gpu_assignment_timeout, true, false)?;
-    if fresh.profile(p)? != expected {
+    let adapter = profile_adapter(&fresh.state, &fresh.adapters)?;
+    let memory = fresh.related_one("Msvm_MemorySettingData")?;
+    let cpu = fresh.related_one("Msvm_ProcessorSettingData")?;
+    let security = fresh.related_one("Msvm_SecuritySettingData")?;
+    let objects = ProfileObjects {
+        settings: &fresh.settings,
+        memory: &memory,
+        cpu: &cpu,
+        security: &security,
+        adapter,
+    };
+    let observed = decode_profile(
+        p,
+        &fresh.state,
+        &objects,
+        crate::windows_hyperv_read::collect(p)?.limits,
+    )?;
+    apply_profile(p, &expected, &observed, &objects, |object, system| {
+        fresh.session.modify(&fresh.service, object, system)
+    })?;
+    // Success belongs to the independent parent reader, never cached setters.
+    Ok(String::new())
+}
+fn apply_profile(
+    p: &ProjectConfiguration,
+    expected: &SettingsSnapshot,
+    observed: &SettingsSnapshot,
+    o: &ProfileObjects<'_>,
+    mut publish: impl FnMut(&Object, bool) -> Result<()>,
+) -> Result<()> {
+    p.vm_profile.validate().map_err(|e| e.to_string())?;
+    expected.validate(p).map_err(str::to_owned)?;
+    observed.validate(p).map_err(str::to_owned)?;
+    if observed != expected {
         return Err("stale settings preimage rejected".into());
     }
-    let s = &fresh;
     let profile = &p.vm_profile;
-    s.settings
+    o.settings
         .set_number("LowMmioGapSize", profile.low_mmio_bytes / (1024 * 1024))?;
-    s.settings
+    o.settings
         .set_number("HighMmioGapSize", profile.high_mmio_bytes / (1024 * 1024))?;
-    s.settings.set(
+    o.settings.set(
         "GuestControlledCacheTypes",
         VARIANT::from(profile.guest_controlled_cache_types),
     )?;
-    s.settings.set_number("UserSnapshotType", 2)?;
-    s.settings
+    o.settings.set_number("UserSnapshotType", 2)?;
+    o.settings
         .set("AutomaticSnapshotsEnabled", VARIANT::from(false))?;
-    s.settings.set_number("AutomaticShutdownAction", 4)?;
-    s.session.modify(&s.service, &s.settings, true)?;
-    let memory = s.related_one("Msvm_MemorySettingData")?;
-    memory.set("DynamicMemoryEnabled", VARIANT::from(false))?;
-    memory.set_number("VirtualQuantity", profile.memory_bytes / (1024 * 1024))?;
-    s.session.modify(&s.service, &memory, false)?;
-    let cpu = s.related_one("Msvm_ProcessorSettingData")?;
-    cpu.set_number("VirtualQuantity", u64::from(profile.processors))?;
-    cpu.set(
+    o.settings.set_number("AutomaticShutdownAction", 4)?;
+    publish(o.settings, true)?;
+    o.memory.set("DynamicMemoryEnabled", VARIANT::from(false))?;
+    o.memory
+        .set_number("VirtualQuantity", profile.memory_bytes / (1024 * 1024))?;
+    publish(o.memory, false)?;
+    o.cpu
+        .set_number("VirtualQuantity", u64::from(profile.processors))?;
+    o.cpu.set(
         "ExposeVirtualizationExtensions",
         VARIANT::from(profile.expose_virtualization_extensions),
     )?;
-    s.session.modify(&s.service, &cpu, false)?;
+    publish(o.cpu, false)?;
     let r = GpuResources::desired(p).map_err(|e| e.to_string())?;
     for (name, t) in [
         ("VRAM", r.vram),
@@ -404,13 +472,17 @@ fn apply_settings(p: &ProjectConfiguration) -> Result<String> {
             ("Max", t.maximum),
             ("Optimal", t.optimal),
         ] {
-            s.adapters[0].set_number(&format!("{prefix}Partition{name}"), n)?;
+            o.adapter
+                .set_number(&format!("{prefix}Partition{name}"), n)?;
         }
     }
-    s.session.modify(&s.service, &s.adapters[0], false)?;
-    // Success belongs to the independent parent reader, never cached setters.
-    Ok(String::new())
+    publish(o.adapter, false)?;
+    Ok(())
 }
+
+#[cfg(test)]
+#[path = "windows_hyperv_settings_tests.rs"]
+mod settings_tests;
 fn assignment(
     p: &ProjectConfiguration,
     s: State,
@@ -578,4 +650,33 @@ pub fn run_worker(action: NativeAction, timeout: Duration) -> Result<String> {
 /// Fixed protected settings preimage file used only under the parent's operation lock.
 pub fn preimage_path(data: &Path) -> std::path::PathBuf {
     data.join("state/native-settings-preimage-v1.json")
+}
+
+#[cfg(test)]
+mod boundary_tests {
+    use super::*;
+
+    #[test]
+    fn reset_mode_requires_explicit_development_build() {
+        assert_eq!(
+            NativeAction::parse("native-reset"),
+            cfg!(feature = "dev-harness").then_some(NativeAction::Reset)
+        );
+        assert_eq!(
+            NativeAction::parse("native-inspect"),
+            Some(NativeAction::Inspect)
+        );
+    }
+
+    #[cfg(not(feature = "dev-harness"))]
+    #[test]
+    fn direct_reset_is_rejected_before_any_target_access() {
+        let mut project = ProjectConfiguration::embedded().unwrap();
+        project.slot.parent_path = "invalid\0parent".into();
+        project.slot.child_path = "invalid\0child".into();
+        assert_eq!(
+            execute(&project, NativeAction::Reset, Duration::ZERO),
+            Err("disposable reset requires a development harness build".into())
+        );
+    }
 }

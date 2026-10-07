@@ -1,4 +1,4 @@
-//! Fixed native Hyper-V cmdlet glue (DEC-016). Rust owns profile decisions.
+//! Historical Hyper-V cmdlet comparison fixtures, compiled only in runner tests.
 
 use hyper_gpu_support::config::ProjectConfiguration;
 use hyper_gpu_support::vm_settings::GpuResources;
@@ -92,7 +92,7 @@ mod tests {
     }
 
     #[test]
-    fn native_mapping_applies_every_field_and_preserves_unsigned_encode() {
+    fn historical_cmdlet_mapping_applies_every_field_and_preserves_unsigned_encode() {
         let project = ProjectConfiguration::embedded().unwrap();
         let output = run(&format!(
             "{}\n{READ}\n[Console]::Out.WriteLine((Read-Profile))\n{}\n[Console]::Out.WriteLine((Read-Profile))",
@@ -112,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn native_partial_update_and_stale_preimage_never_succeed() {
+    fn historical_cmdlet_partial_update_and_stale_preimage_never_succeed() {
         let project = ProjectConfiguration::embedded().unwrap();
         let partial = run(&format!(
             "{}\n{READ}\n$script:failGpu=$true\n{}",
@@ -136,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn native_settings_guard_still_refuses_existing_snapshots() {
+    fn historical_cmdlet_settings_guard_still_refuses_existing_snapshots() {
         let error = run(&format!(
             "function Get-VMSnapshot {{ param($VM,$ErrorAction) [pscustomobject]@{{Id='existing'}} }}\n{}",
             settings_guard().unwrap()

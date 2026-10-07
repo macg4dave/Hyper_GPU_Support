@@ -35,7 +35,7 @@ fn help_and_default_invocation_succeed() {
         assert!(output.stderr.is_empty());
         let stdout = String::from_utf8(output.stdout).unwrap();
         assert!(stdout.contains("Usage: hyper-gpu-support"));
-        assert!(stdout.contains("Inventory and validate are implemented"));
+        assert!(stdout.contains("Inventory, plan, status and validate are implemented"));
     }
 }
 
@@ -91,9 +91,7 @@ fn invalid_usage_has_consistent_exit_code_and_no_stdout() {
 
 #[test]
 fn declared_operations_have_stable_not_implemented_exit() {
-    for operation in [
-        "plan", "apply", "status", "remove", "recover", "start", "shutdown", "restart",
-    ] {
+    for operation in ["apply", "remove", "recover", "start", "shutdown", "restart"] {
         let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
             .arg(operation)
             .output()
@@ -104,6 +102,31 @@ fn declared_operations_have_stable_not_implemented_exit() {
             String::from_utf8(output.stderr).unwrap().trim(),
             format!("error: {operation} is declared but not implemented")
         );
+    }
+}
+
+#[test]
+fn public_operator_reports_are_read_only_and_distinguish_unobserved_guest_state() {
+    for command in ["plan", "status"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
+            .arg(command)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["schema"], 1);
+        if command == "status" {
+            assert!(report["guest_readiness"]["value"].is_null());
+            assert_eq!(report["gpu_assignment"]["detail"], "not observed");
+        } else {
+            assert!(report["prerequisites"].is_array());
+            assert!(report["setup_steps"].is_array());
+        }
     }
 }
 

@@ -1,5 +1,16 @@
 ﻿# Changelog
 
+## 2026-10-07 - Public Rust plan and status
+
+- Implemented read-only `plan` and `status` using bounded native inventory. The CLI shows the configured existing VM/GPU, desired settings and initial prerequisites, with denied/unavailable observations kept explicit.
+- Guest assignment, staging and readiness remain unobserved until their readers are integrated. These commands do not inspect or hash VM disks; ordinary apply integration remains in progress.
+
+## 2026-10-07 - Product boundary verification
+
+- Completed module classification and documented preserved development reset helpers. Default builds deny reset while retaining legacy policy compatibility; quality gates exercise default and development feature sets.
+- Added mode exclusion and pre-effect reset refusal tests. Disk-guard tests now run outside checkout junction ancestry and enforce directory rename exclusion with a read-access handle.
+- `scripts/testing/check.ps1` passed formatting, strict Clippy/compiler warnings, default and development-feature workspace tests/doc-tests, build, rustdoc and configuration drift (`RUST_TEST_THREADS=4`). Documentation checks and independent boundary review passed. Enrolled-runner access with the stronger directory handle remains unqualified; no live GPU qualification is claimed.
+
 ## 2026-10-06 - Product and laboratory boundary
 
 - Clarified the existing-VM v1 workflow, product recovery and separate contributor golden-image/disposable strategy across roadmap, backlog, engineering and prompts. Qualification gates remain; implementing laboratory management does not gate product delivery.

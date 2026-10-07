@@ -10,13 +10,14 @@ usable operation and release; no feasibility or external-reference task remains.
 CORE-022 complete-manifest staging and verified reapply passed on a clean child;
 CORE-023 settings apply and verified no-op reapply passed on that existing child.
 CORE-003 automated readiness/workloads is implemented and behavior-tested.
-Next work is **GPU-006**, exercising their combined Rust workflow on a clean child.
-The public CLI/config cleanup and reusable lifecycle/diagnostics work are also actionable.
+Active product work is **CORE-006**, connecting the ordinary existing-VM Rust CLI.
+Read-only plan/status are implemented; apply and effective guest observations follow.
+GPU-006 clean-child qualification remains pending development acceptance work.
 **CORE-024** native inventory is complete with exact-target binding and read-only
-parity. **CORE-025** has delivered its first exact-VM/host-GPU native read slice;
-continue guest-adapter/profile reads and disk guards before native mutations,
-followed by CORE-026 guest writer/transport and CORE-027
-runner setup/recovery. GPU-006 retains its current owner and qualification work;
+parity. **CORE-025** now implements native inspection, disk guards, attachment,
+settings and lifecycle; its native mutation qualification remains incomplete.
+CORE-026 guest writer/transport and CORE-027 runner setup/recovery remain required.
+GPU-006 retains its current owner and qualification work;
 its result does not discharge these production PowerShell dependencies. See the
 [complete script/backend audit](../scripts/PRODUCT-MIGRATION.md).
 Current starting evidence: [project baseline](evidence/GPU-PV-BASELINE.md).
@@ -42,7 +43,7 @@ Do not port laboratory setup merely to satisfy the Rust product migration gate.
 | [CORE-025](#core-025) | M1 | P0 | in progress | CORE-024, CORE-023 |
 | [CORE-026](#core-026) | M1 | P0 | ready | CORE-022, CORE-003 |
 | [CORE-027](#core-027) | M2 | P1 | ready | CORE-005 |
-| [CORE-006](#core-006) | M2 | P1 | planned | CORE-022, CORE-023 |
+| [CORE-006](#core-006) | M2 | P1 | in progress | CORE-022, CORE-023 |
 | [CORE-011](#core-011) | M2 | P1 | ready | CORE-005 |
 | [CORE-010](#core-010) | M2 | P1 | ready | CORE-005 |
 | [CORE-012](#core-012) | M2 | P1 | ready | CORE-020 |
@@ -195,18 +196,22 @@ development blocker.
 - Obtain independent M1 implementation review using the actual diff and test results. Recipe minimality and interop are outside this gate.
 - Owner: Codex; started 2026-10-06. Combined clean-child qualification through existing Rust staging, fixed-runner settings/lifecycle and public validation entry points.
 - Result: pending; the experimental baseline and native discovery parity are established, full Rust reproduction has not passed.
+- 2026-10-07 continuation: development-feature release build, default/development quality gates (`RUST_TEST_THREADS=4`), documentation checks and independent boundary review passed. Updated generated artifact pins and installed the reviewed development runner; enrolled-token `inspect` passed (`1791339041-828647900`), qualifying the stronger directory read/rename guard on the configured Off child with zero adapters. Preparation evidence: `local/evidence/gpu006-runner-preparation.json` and `gpu006-enrolled-inspect.log`. Combined qualification is running in the local interactive console; guest credentials and staging/workload results remain pending. Run report: `local/evidence/gpu006-20261007T021240630Z/report.json`. The initial default-concurrency test attempt hit six existing PowerShell fixture timeouts; the four-thread retry passed.
+- Follow-up: that console exited before staging; `remove-gpu` failed preflight because the inspected target already had zero adapters (`1791340800-892922100`). No reset/staging/workload ran. Fresh native inspection (`1791340907-617321700`) confirmed the exact Off/zero-adapter target; quiescent, locked reconciliation archived and cleared only that failed preflight marker (`local/evidence/gpu006-preflight-reconciliation.json`). Combined qualification remains pending. User selected CORE-025 native backend migration as the active implementation step.
 
 ## CORE-006
 
 **Connect public plan/apply/status to the proven Rust operations**
 
 - Objective: replace public CLI stubs with one reviewable operator workflow; reuse the fixed runner's audit, serialization and reconciliation.
+- Owner: Codex; started 2026-10-07. User narrowed active delivery to the existing-VM Rust CLI; laboratory qualification is not the operator workflow.
 - Read: src/cli.rs, src/config.rs and existing client/runner operation contracts.
 - Acceptance: plan shows exact target, settings, manifest changes and prerequisites without effects; apply rejects stale assumptions and wrong targets, orders staging/settings/start safely, and reports verified success or no-op. Status distinguishes VM state, staging, assignment and GPU readiness. Bind mutation to rechecked identities and existing locks/receipts. Test stale plans, concurrent/replayed requests and external state changes.
 - Run full native manifest discovery behind the existing bounded process supervision: synchronous COM setup/object resolution can otherwise escape its enumeration deadline. Test timeout, child termination/reaping and bounded failure reporting; CORE-015 reuses this supervised path. No new resident worker or arbitrary privileged command interface.
 - CORE-007 is absorbed here; no general transaction engine or second privilege channel.
 - Own the ordinary staging/settings/start order currently exercised by `run-clean-child-qualification.ps1`; keep that script only as an optional acceptance harness. Integrate CORE-024/025/026 replacements as they land, never launch the harness from apply. Existing helpers allow integration to start before all backend ports finish; GPU-012 requires the native replacements.
-- Result: pending; operational helpers exist, most public commands currently return exit 70.
+- First implementation slice: `plan` and `status` now consume bounded native inventory and emit versioned operator JSON. Plan shows the selected VM/GPU, desired settings and initial prerequisites, preserving unknown versus failed checks. Status distinguishes configured intent from provider observations and leaves unqueried assignment/staging/readiness explicitly unknown. Neither command inspects/hashes VM disks or launches the qualification harness. `apply` remains pending, as do exact manifest changes, assignment/guest observations and integration of ordinary existing-VM mutation paths.
+- Validation: focused operator tests and public command integration passed; formatting, strict all-target/all-feature Clippy, workspace all-feature tests/doc-tests and rustdoc passed with warnings denied and `RUST_TEST_THREADS=4`. Public report tests exercised native inventory on Windows x64 and verified explicit unobserved guest state. Initial command tests found a stale help expectation, corrected before the passing run. Documentation checks passed.
 
 ## CORE-024
 
@@ -227,12 +232,13 @@ development blocker.
 **Port fixed Hyper-V and GPU-PV operations to native Rust**
 
 - Owner: Codex; first native read slice delivered 2026-10-06; remaining port in progress.
+- Active continuation 2026-10-07: qualify the native settings/attachment/lifecycle implementation already present in source, with independent milestone review before live mutations. Existing PowerShell bodies are now compiled only as test references; previous first-read-slice results do not qualify the full native mutation path.
 - Objective: replace product cmdlet bodies in `hyper-gpu-runner.rs` and `hyper_gpu_runner/settings_adapter.rs`, retaining the enrolled fixed-operation protocol and existing Rust policy/settings contracts.
 - Replacement: investigate/use Hyper-V WMI/COM for VM/GPU discovery, attachment/removal, resource triples, MMIO/cache/memory/CPU settings and guest lifecycle; native Virtual Disk APIs for read-only disk identity/chain safety where applicable. Differencing-disk creation/deletion and laboratory reset are development-only and do not gate this product port. Reuse provider bindings rather than recreate Hyper-V or reopen HCS-owned guests.
 - Deliver incrementally: read/inspect first, adapter/settings next, product lifecycle last; disposable reset is optional test support. Preserve VM-Off requirements, exact GPU/VM/disk identity, other-VM assignment checks, golden-parent protection, Secure Boot/vTPM, snapshots refusal, durable preimages, independent readback and uncertain-state reconciliation.
 - Tests: provider errors/job completion, denied access, stale preimages, wrong target/parent/adapter, resource limits including u64 values, no-op, partial mutations and bounded timeout/reconciliation. Run affected live apply/readback/reapply and child recovery on the verified disposable target; essential workloads qualify the changed configuration path.
 - Acceptance: fixed operations no longer launch PowerShell for these capabilities; independent architecture review of changed privileged boundaries and actual tests passes before deployment. Any capability lacking a practical native interface gets a specific DECISIONS exception with alternatives and exact bounded command; no broad Hyper-V exemption.
-- Result: first native read slice implements exact VM identity/state/generation/version and all twelve host GPU capability values in the same pinned runner's fixed `read-hyperv` mode. A contained subprocess plus independent watchdog bounds COM; configuration/identity/unsigned-range validation fails closed. Runner `inspect` uses this native observation and omits the host GPU cmdlet, comparing it with the retained disk/snapshot/guest-adapter guard results. Full native inspection/settings/mutations remain pending; CORE-002/023 remain cmdlet-backed.
+- Implementation: fixed native Rust workers now own inspection, adapter/resource/profile reads and writes and guest lifecycle; Virtual Disk APIs guard the protected chain. Historical cmdlet bodies remain only in test compilation. Contained subprocesses and independent watchdogs bound COM, with configuration/enrollment/policy/identity guards, durable preimages, stale-state refusal and independent effective readback. CORE-002/023 retain their original cmdlet-backed evidence; full native mutation/workload qualification remains pending.
 - Read-only release Windows x64 parity passed all 18 fields on the exact configured Off Gen2 VM (version 12.0), host build 26300.9457, RTX 5060 / driver 32.0.16.1692. Evidence: `local/evidence/core025-read-parity.json`. This is management-read parity, not guest workload qualification.
 - After review, the existing maintained restore/install paths updated the controlled runner and artifact pins. Installed-runner `inspect` passed (`1791320566-017033300`), including contained native worker launch, observation comparison, protected parent hash/chain checks and successful audit/result publication; the exact Off VM had zero guest GPU adapters. Installed runner hash matched its release pin. Evidence: `local/evidence/core025-installed-inspect.json` and `core025-installed-inspect.log`; setup result in `core025-runner-update.json`.
 - Validation: `scripts/testing/check.ps1` passed formatting, strict Clippy/compiler warnings, all workspace tests/doc-tests, build, rustdoc and configuration/policy drift (`RUST_TEST_THREADS=4`). Focused tests cover exact/wrong/missing/duplicate identities, unsafe states, missing/malformed/overflowing resource values, stale configuration, and retained inspection with host GPU cmdlets deliberately unavailable. Independent architecture review reported no blockers; release runner/client/rights build, four artifact-pin checks and documentation checks passed.
@@ -287,7 +293,7 @@ development blocker.
 
 **Finish runtime TOML configuration and the public CLI contract**
 
-- Objective: make one operator-selected TOML file drive application behavior and stabilize help/config/report semantics.
+- Objective: make one operator-selected TOML file drive application behavior and stabilize help/config/report semantics. Separate existing-VM product configuration from golden-image/disposable laboratory pins; ordinary users require no golden image.
 - Read: docs/CONFIGURATION.md, src/config.rs, src/cli.rs and maintained script configuration readers.
 - Acceptance: deserialize/validate once and pass typed values; discover Windows inventory and derive paths. Remove embedded development-machine target/path assumptions; avoid a second settings authority. Clarify installed runner policy regeneration/enrollment after configuration changes. Test examples, unknown fields/schema, missing inputs, exit codes and report redaction; help describes implemented commands accurately.
 - CORE-018 schema/help stabilization is absorbed here. Fixtures, protocol values and fixed safety bounds stay in code. Finish affected command checks as those commands land.
@@ -317,7 +323,7 @@ development blocker.
 
 **Build a traceable Windows x64 release package**
 
-- Objective: produce a candidate from a clean locked Windows build with the tested CLI, examples and verification prerequisites.
+- Objective: produce a candidate from a clean locked Windows build with the tested CLI, examples and verification prerequisites. Build with default features; exclude `dev-harness` and laboratory helpers, and verify the candidate refuses disposable reset.
 - Acceptance: include revision/version, checksums, applicable project/dependency/probe notices and documented runtime requirements; test unpack/help and absent prerequisites. Exclude drivers, Windows images/disks, credentials and keys. Review actual CRT/probe redistribution rights or document legitimate local prerequisites; do not assume the developer runtime is installed.
 - DOC-004 release/license/signing choices and REF-003 payload notice review are absorbed here. Prepare concrete local artifacts first; obtain owner choices only for unresolved licensing/signing/publication actions when they are actually needed. No installer or background service is required. Packaging and DOC-003 guide work may proceed together once commands are stable.
 - Result: pending. Final acceptance/delivery belongs to GPU-014; packaging does not publish anything.

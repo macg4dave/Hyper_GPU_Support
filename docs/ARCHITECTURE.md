@@ -291,7 +291,7 @@ administrator-installed exact-policy runner or the authorized elevated developme
 adapter where the runner does not yet expose that operation. Protected executable/
 policy pin the slot, VM GUID, GPU, paths, operations and audit output. Mutual pipe
 authentication verifies runner owner/client SID before dispatch. Fixed Windows
-cmdlet transports are supervised and bounded; callers cannot supply scripts.
+native workers are supervised and bounded; callers cannot supply queries or commands.
 Inspection/reset supervision observes native process read-byte activity, with an
 inactivity watchdog inside a shared finite runner budget. Startup/request time
 and transition/publication reserves count against that budget; the client waits
@@ -299,14 +299,16 @@ for the outer limit. Activity never substitutes for the parent hash or native
 readback. A failed or uncertain mutation retains reconciliation state.
 Guest credentials exist only at runtime, never in TOML, command lines or reports.
 
-CORE-025's first native read slice runs the same pinned runner executable in fixed
-`read-hyperv` mode, with no caller-selected arguments. Native WMI reads exact VM
-identity/state/generation/version and host GPU capability triples; a suspended
-launch into a kill-on-close job and an independent worker deadline contain COM.
-The parent validates configuration binding and identities, then compares the VM
-state with the retained disk/snapshot/guest-adapter inspection. Host GPU cmdlet
-discovery is removed from runner `inspect`; remaining reads and mutations are
-still migration debt. Read parity alone does not qualify GPU workloads.
+CORE-025 uses the same pinned runner executable in fixed native operation modes,
+with no caller-selected query or target. Native WMI handles VM/GPU identity,
+adapter/profile reads and writes and guest lifecycle; Virtual Disk APIs validate
+the protected disk chain. Suspended launch into a kill-on-close job and an
+independent worker deadline contain COM. Mutations require the enrolled token and
+a matching protected reconciliation marker. Native settings decode and validate
+the exact provider objects used for writing before the first modification;
+fresh independent worker readback determines success. Historical cmdlet bodies
+compile only in comparison tests. Read parity and unit tests do not qualify live
+mutations or GPU workloads; CORE-025 retains those qualification gates.
 
 Approved disposable-guest and non-rebooting runner work is normal testing. Physical
 host restart, shutdown, logout or session termination requires explicit user

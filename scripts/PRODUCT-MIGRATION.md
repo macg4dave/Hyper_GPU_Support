@@ -7,6 +7,31 @@ and recovery. Completed Rust orchestration does not imply a native Windows backe
 Keep working adapters until their replacements pass equivalent tests and affected
 live qualification; no feasibility investigation or recipe minimisation is needed.
 
+## Product/development boundary audit
+
+GPU-PV feasibility is established. Users supply an existing VM; golden images,
+disposable clones and laboratory rebuilds are development infrastructure.
+
+| Sources | Classification | Boundary and remaining work |
+|---|---|---|
+| `src/main.rs`, `cli.rs`, `config.rs` | Product functionality | Configuration and dispatch. Mandatory golden-parent/child pins, reset deadlines and recreate-only recovery remain laboratory coupling; CORE-021 separates them. CORE-010 recovery must preserve user disks. |
+| `inventory.rs`, `driver_environment.rs`, `environment_staging.rs`, `staging.rs`, `guest.rs`, `vm_settings.rs`, `validation.rs`, `probe.rs`, `account_rights.rs`, `runner.rs` | Reusable library functionality | Product contracts and orchestration. Reset protocol records remain compatibility data; default `policy_allows` denies reset. |
+| `windows_inventory.rs`, `windows_native_inventory.rs`, `windows_driver_environment.rs`, `windows_environment_staging.rs`, `windows_guest.rs`, `windows_validation.rs`, `windows_probe.rs`, `windows_paths.rs`, `windows_account_rights.rs`, `windows_runner.rs`, `validation_transport.ps1` | Product functionality | Windows adapters and bounded workers. Preserve working code during native migration. Recreate-only staging uncertainty needs existing-VM recovery integration, not automatic disk destruction. |
+| `windows_hyperv.rs`, `windows_hyperv_read.rs`, `windows_hyperv_wmi.rs`, `windows_hyperv_disk.rs` | Reusable library functionality | Native management/provider and read-only disk guards. Reset effects, reset-only provider templates and retained drive state compile only with `dev-harness`. Mandatory parent guards remain coupling for CORE-021/027. |
+| `src/bin/hyper-gpu-runner.rs`, `hyper-gpu-client.rs`, `hyper-gpu-rights.rs`, `hyper-gpu-inventory-worker.rs`, `hyper-gpu-validation-worker.rs`, `hyper-gpu-stage.rs`, `hyper-gpu-guest-copy.rs` | Product functionality | Privileged boundary and product helpers. Reset dispatch/body is development-only. CORE-027 must enroll an existing VM without requiring a golden parent. |
+| `src/bin/d3d11-probe.rs`, `d3d12-probe.rs`, `cuda-identity.rs` | Product functionality | Checked workload verification where appropriate; compilation/enumeration alone is not GPU proof. |
+| `src/bin/dxgi-inventory.rs`, `hyper-gpu-driver-environment.rs` | Development tooling | Standalone inspection/comparison front ends; underlying discovery is reusable product code. |
+| `src/bin/hyper_gpu_runner/settings_adapter.rs`, `settings_fakes.ps1`, `supervision.rs`, inline parser/process fixtures and module unit tests | Test-only | Historical adapter/oracle and supervision fixtures are `cfg(test)`, outside product execution. |
+| `tools/test-harness/reset_*.rs` | Development tooling | Preserved fixed-runner reset, child deletion/recreation and reattachment; explicit `dev-harness` only, excluded from shipped functionality. |
+| Maintained scripts listed below | Development tooling or product debt as specified | Target preparation, artifact building, comparisons and manual diagnostics remain outside product execution. Runner account/ACL/task installation is product debt; golden-image enrollment is laboratory support. |
+| Ignored `local/scripts/` and historical HCS/reference procedures | Task-local development tooling or obsolete experiment | Not shipped. Preserve useful helpers/evidence; HCS work stays paused. No maintained automation is deleted by this audit. |
+
+Qualification may use development reset to prepare targets and then exercise the
+product. Target preparation does not gate native product migration or substitute
+for public CLI behavior. Default release builds exclude the harness. Remaining
+configuration/enrollment separation proceeds incrementally under CORE-021/027,
+preserving the current laboratory's enrolled safety checks.
+
 ## Every maintained script
 
 | Script | Classification | Retention or Rust replacement |
@@ -33,11 +58,16 @@ maintained inventory. No script is removed by this audit.
 
 ## Embedded PowerShell is also product debt
 
+The rows below describe migration ownership and earlier qualification, not a new
+requirement to port development reset. Disposable reset is excluded from CORE-025's
+product gate and retained only in the opt-in development harness. Current native
+Hyper-V implementation must be qualified before changing installed artifact pins.
+
 | Capability and current source | Already Rust-owned | Remaining replacement |
 |---|---|---|
 | Host/GPU/VM inventory: `src/windows_inventory.rs`, `src/windows_native_inventory.rs` | Native registry/system/WMI facts, exact configured identities, typed availability and contained fixed Rust worker | CORE-024 replacement demonstrated against all 14 existing host/GPU/VM facts; production inventory no longer invokes PowerShell. Full payload discovery remains the existing native implementation. |
-| GPU attach/detach, disk chain, inspect/reset/start/shutdown: `src/bin/hyper-gpu-runner.rs` | Enrolled identity, authorization, serialization, audit, result checks and supervision; native exact VM identity/state/version and host GPU capability reads in `src/windows_hyperv_read.rs` | CORE-025: finish native guest-adapter/settings reads, disk guards and mutations. Runner inspect no longer calls the host GPU cmdlet; remaining disk/snapshot/adapter guards still use PowerShell behind the same fixed operation protocol. |
-| VM profile/resource read/apply: `src/bin/hyper_gpu_runner/settings_adapter.rs` | Typed profile/resource validation, desired/observed comparison, preimages and reconciliation | CORE-025: native settings/resource read and mutation, retaining independent fresh readback and all isolation guards. CORE-023 remains a tested cmdlet-backed implementation result. |
+| GPU attach/detach, disk chain, inspect/start/shutdown: `src/bin/hyper-gpu-runner.rs`, `src/windows_hyperv.rs`, `src/windows_hyperv_disk.rs` | Enrolled identity, authorization, serialization, audit, contained fixed native WMI workers, Virtual Disk chain guards and independent provider readback. Reset effects are non-default development helpers. Historical cmdlet bodies compile only as test references. | CORE-025: demonstrate live native attachment/removal, settings and lifecycle qualification and affected essential workloads; inspection alone does not qualify mutations. |
+| VM profile/resource read/apply: `src/windows_hyperv.rs` | Native provider field reads/writes, typed validation, stale-preimage refusal, durable preimages, reconciliation and independent readback; in-memory CIM fixtures exercise production decoding and the native publication sequence | CORE-025: live apply/readback/reapply and affected workload qualification. `src/bin/hyper_gpu_runner/settings_adapter.rs` is now only a historical cmdlet comparison fixture; CORE-023 remains its original tested result. |
 | Guest copy/provisioning: `src/windows_guest.rs`, `src/windows_environment_staging.rs` | Complete manifest generation, host signatures/hashes, destination validation and receipt contract | CORE-026: Rust guest writer owns destination calculation, ACL/reparse/servicing checks, exclusive locks, copies, hashes, versions and atomic receipt publication. Current scripts perform substantial guest-side logic, beyond session glue. |
 | Guest verification launch: `src/validation_transport.ps1`, `src/windows_validation.rs` | Rust worker owns sustained Code 0/device health, nvidia-smi and D3D11/D3D12/CUDA correctness, deadlines and report parsing | CORE-026: move remaining remote ACL/path/hash/file and launch supervision logic to fixed Rust worker/bootstrap. Investigate the smallest supported session/transfer bridge; PowerShell Direct is not a blanket exemption. |
 | Plan/apply/status/remove/recover/lifecycle and re-stage | Contracts, staging/settings helpers and worker exist; most public commands are stubs | CORE-006/010/011/015/021: integrate typed native operations into one configured CLI. CORE-012 supplies Rust diagnostics. No shell qualification harness in the ordinary flow. |

@@ -15,8 +15,7 @@ use windows::{
         Storage::{
             FileSystem::{
                 FILE_ATTRIBUTE_READONLY, FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS,
-                FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FILE_SHARE_READ,
-                FILE_SHARE_WRITE,
+                FILE_FLAG_OPEN_REPARSE_POINT, FILE_GENERIC_READ, FILE_SHARE_READ, FILE_SHARE_WRITE,
             },
             Vhd::*,
         },
@@ -51,7 +50,9 @@ impl DirectoryGuard {
                     continue;
                 }
                 let file = OpenOptions::new()
-                    .access_mode(FILE_READ_ATTRIBUTES.0)
+                    // Attribute-only handles do not enforce delete-sharing exclusion.
+                    // Read access makes the held directory handle prevent rename.
+                    .access_mode(FILE_GENERIC_READ.0)
                     .share_mode(FILE_SHARE_READ.0 | FILE_SHARE_WRITE.0)
                     .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0 | FILE_FLAG_OPEN_REPARSE_POINT.0)
                     .open(&prefix)
@@ -290,9 +291,7 @@ mod tests {
 
     #[test]
     fn ancestor_guards_hold_identity_and_missing_leaf_does_not_hide_missing_ancestor() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("local/test-output")
-            .join(format!("disk-guard-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("disk-guard-{}", std::process::id()));
         let directory = root.join("original");
         std::fs::create_dir_all(&directory).unwrap();
         // The developer checkout itself may be reached through a junction. Test
