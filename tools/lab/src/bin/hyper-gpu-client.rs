@@ -471,7 +471,7 @@ mod tests {
         );
         let installer = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/scripts/setup/install-runner-v1.ps1"
+            "/../../scripts/setup/install-runner-v1.ps1"
         ));
         assert!(installer.contains("runner.task_execution_timeout_seconds"));
         assert!(response_timeout(Operation::StartSlot, runner) > runner.task_execution_timeout);

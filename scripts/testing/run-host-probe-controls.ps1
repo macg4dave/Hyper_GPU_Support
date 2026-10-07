@@ -377,14 +377,14 @@ $status = 'failed'
 $diagnostic = ''
 try {
 Invoke-Native -Executable 'cargo.exe' -Arguments @(
-    'build', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc',
+    'build', '--manifest-path', 'tools/lab/Cargo.toml', '--target-dir', 'local/lab-target', '--release', '--locked', '--target', 'x86_64-pc-windows-msvc',
     '--bin', 'd3d11-probe', '--bin', 'd3d12-probe', '--bin', 'cuda-identity'
 )
-$metadata = cargo.exe metadata --no-deps --format-version 1 | ConvertFrom-Json
+$metadata = cargo.exe metadata --manifest-path tools/lab/Cargo.toml --no-deps --format-version 1 | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) {
     throw 'cargo metadata failed.'
 }
-$binaryRoot = Join-Path $metadata.target_directory 'x86_64-pc-windows-msvc\release'
+$binaryRoot = Join-Path (Join-Path $repositoryRoot 'local\lab-target') 'x86_64-pc-windows-msvc\release'
 $d3d11 = Join-Path $binaryRoot 'd3d11-probe.exe'
 $d3d12 = Join-Path $binaryRoot 'd3d12-probe.exe'
 $cudaIdentity = Join-Path $binaryRoot 'cuda-identity.exe'

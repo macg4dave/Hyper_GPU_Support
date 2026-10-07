@@ -86,7 +86,7 @@ pub fn collect_native(project: &ProjectConfiguration) -> Result<InventoryReport,
         &mut facts,
         "worker.configuration",
         Ok(crate::probe::sha256_hex(include_bytes!(
-            "../config/project.toml"
+            "../../../config/project.toml"
         ))),
     )?;
     for (key, name) in [

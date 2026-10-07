@@ -13,3 +13,10 @@ Follow [AGENTS.md](../../AGENTS.md) and
   speculative traits, crates, cross-platform layers or unrelated modernization.
 - Preserve meaningful test coverage and run affected checks. Update architecture
   only when component ownership or boundaries change.
+
+The user-approved architecture rebase takes precedence over historical task scope.
+Use runtime existing-VM identities and the revised core → native GUI → allocation/
+vendor roadmap. Old fixed-slot code is research/contributor tooling in `tools/lab/`.
+Do not preserve laboratory coupling, baseline driver pins or repeated diagnosis as
+product architecture. Default operation verifies health plus checked graphics;
+extended CUDA/stress remain optional. The core never imports the laboratory.

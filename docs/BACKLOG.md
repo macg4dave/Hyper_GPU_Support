@@ -2,39 +2,28 @@
 
 ## Resume
 
-The normal Generation 2 Windows 11 RTX 5060 GPU-PV baseline is proven: sustained
-Code 0, nvidia-smi, checked D3D11/D3D12 and CUDA computation. Native Rust discovery
-matches the complete measured inventory. The product work remaining is integration,
-usable operation and release; no feasibility or external-reference task remains.
-
-CORE-022 complete-manifest staging and verified reapply passed on a clean child;
-CORE-023 settings apply and verified no-op reapply passed on that existing child.
-CORE-003 automated readiness/workloads is implemented and behavior-tested.
-Active product work is **CORE-006**, connecting the ordinary existing-VM Rust CLI.
-Read-only plan/status are implemented; apply and effective guest observations follow.
-GPU-006 clean-child qualification remains pending development acceptance work.
-**CORE-024** native inventory is complete with exact-target binding and read-only
-parity. **CORE-025** now implements native inspection, disk guards, attachment,
-settings and lifecycle; its native mutation qualification remains incomplete.
-CORE-026 guest writer/transport and CORE-027 runner setup/recovery remain required.
-GPU-006 retains its current owner and qualification work;
-its result does not discharge these production PowerShell dependencies. See the
-[complete script/backend audit](../scripts/PRODUCT-MIGRATION.md).
-Current starting evidence: [project baseline](evidence/GPU-PV-BASELINE.md).
-Do not assume the preserved experimental guest is a production Rust reproduction.
+Active work is **ARCH-001**, implementing the user-approved architectural rebase.
+Product configuration and native operations no longer require laboratory identities.
+The old fixed-slot application is retained under `tools/lab/`, outside production.
+The roadmap now orders contract separation → working core → native GUI → allocation
+and vendors. Prior implementation cards/results remain historical; their old
+dependency ordering does not override the new product goal. Native source changes
+require independent review and affected hardware qualification before deployment.
 
 ## Task register
 
 This register alone owns current status, priority, milestone and dependencies.
 Dependencies are real completion prerequisites, not an instruction to reread all
 prior research. The completed foundation below already satisfies its dependencies.
-M1/M2/M3 product tasks and qualification gates are required for v1; deferred classes
-are outside the gate. Golden-image/disposable-target preparation is development
+The revised M1–M4 roadmap and ARCH-001 own product sequencing. Existing card
+results are retained as research and reusable implementation history. Golden-image/disposable-target preparation is development
 support, not shipped functionality. Qualification may reuse existing tooling.
 Do not port laboratory setup merely to satisfy the Rust product migration gate.
 
 | ID | Milestone/class | Priority | Status | Depends on |
 |---|---|---|---|---|
+| [ARCH-001](#arch-001) | M1/M2 | P0 | in progress | proven baseline |
+| [GUI-001](#gui-001) | M3 | P1 | in progress | ARCH-001 working-core acceptance |
 | [CORE-022](#core-022) | M1 | P0 | completed | CORE-009 |
 | [CORE-023](#core-023) | M1 | P0 | completed | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | completed | CORE-020 |
@@ -546,3 +535,39 @@ Merged: Final checklist belongs to the packaged acceptance run. Owner: GPU-014.
 ### DOC-006
 
 Merged: Final artifacts and handover belong to the same acceptance/delivery result. Owner: GPU-014.
+
+## ARCH-001
+
+Runtime existing-VM architecture and small GPU-PV core.
+
+- Owner: Codex; claimed 2026-10-07 for the explicit user-approved refactoring plan.
+- Replace laboratory-bound product contracts, runtime enrollment, current-driver
+  preparation, workflow/recovery and ordinary health-plus-graphics verification.
+- Preserve the previous application as standalone contributor tooling. Production
+  must not depend on its configuration, golden disks, reset or extended probe suite.
+- Acceptance: default product checks; independent privilege-boundary review; live
+  discovery/enrollment and NVIDIA/default-resource preparation, rendering, reapply,
+  disable/restoration. Two disposable VMs must qualify sharing before it is advertised.
+- Implementation result: runtime schema 2, native discovery/management, typed
+  installed runner, per-VM journal, Rust guest writer, catalog-member trust and
+  fixed transport bridge are implemented. Independent reviews cleared corrected
+  boundaries for controlled qualification. Root strict checks passed; current
+  focused library tests pass (29), CLI tests pass (3). Standalone lab compiled and
+  its library/bin tests passed; the relocated CLI test path was corrected and all
+  11 CLI tests passed. Native installation, enrollment, status and current-driver
+  trust/preview passed on the designated existing VM (host 10.0.26300.0, RTX 5060,
+  driver 32.0.16.1692). Initial apply retained pending state after WMI 0x8004101E;
+  corrected GetMethod to read class metadata instead of an instance. Controlled
+  guest retry is in progress; no new rendering/support claim yet. Host lifecycle
+  remains outside authorization.
+
+## GUI-001
+
+Native Windows controls over the shared core, following working-core acceptance.
+
+- Owner: Codex; prototype implementation in progress 2026-10-07.
+- VM list, GPU selection, on/off, effective details, background apply and guest
+  credential prompts use the same discovery/runner/workflow contracts as CLI.
+- Acceptance: native UI usability and actual shared-core workflow validation.
+  Use the supplied mockup as reference, not an OS/capacity support claim. Keep GiB
+  sliders absent until GPU-010 establishes truthful provider units.

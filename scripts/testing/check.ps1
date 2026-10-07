@@ -31,16 +31,14 @@ try {
     $env:RUSTDOCFLAGS = '-Dwarnings'
 
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('fmt', '--all', '--', '--check')
-    # Check the shipped feature set independently from development helpers.
+    # Root workspace contains only the product. The laboratory has separate gates.
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('clippy', '--locked', '--workspace', '--all-targets', '--', '-D', 'warnings')
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('test', '--locked', '--workspace')
-    Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('clippy', '--locked', '--workspace', '--all-targets', '--all-features', '--', '-D', 'warnings')
-    Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('test', '--locked', '--workspace', '--all-features')
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('build', '--locked', '--workspace', '--all-features')
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('doc', '--locked', '--workspace', '--all-features', '--no-deps')
-    & (Join-Path $repositoryRoot 'scripts\testing\check-project-config.ps1')
+    & (Join-Path $repositoryRoot 'scripts\testing\check-docs.ps1')
     if ($LASTEXITCODE -ne 0) {
-        throw "Project configuration check failed with exit code $LASTEXITCODE."
+        throw "Documentation check failed with exit code $LASTEXITCODE."
     }
 }
 catch {

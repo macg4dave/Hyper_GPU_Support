@@ -801,7 +801,7 @@ mod tests {
                 .iter()
                 .all(|c| c.status == CheckStatus::Untested)
         );
-        let text = include_str!("../config/project.toml");
+        let text = include_str!("../../../config/project.toml");
         for (from, to) in [
             ("stable_seconds = 120", "stable_seconds = 181"),
             ("sample_milliseconds = 1000", "sample_milliseconds = 100"),

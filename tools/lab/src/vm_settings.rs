@@ -284,7 +284,7 @@ mod tests {
         assert!(project.vm_profile.validate().is_err());
         project.resources.compute = ResourceRequest::ProviderDefault;
         assert!(GpuResources::desired(&project).is_err());
-        let text = include_str!("../config/project.toml");
+        let text = include_str!("../../../config/project.toml");
         for (from, to) in [
             ("processors = 4", "processors = 0"),
             (

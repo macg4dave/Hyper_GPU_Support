@@ -63,7 +63,7 @@ impl HypervRead {
     /// # Errors
     /// Rejects stale workers, wrong identities, unsafe states and invalid ranges.
     pub fn validate(&self, project: &ProjectConfiguration) -> Result<(), String> {
-        if self.configuration != crate::probe::sha256_hex(include_bytes!("../config/project.toml"))
+        if self.configuration != crate::probe::sha256_hex(include_bytes!("../../../config/project.toml"))
             || self.vm_id != project.slot.vm_id
             || self.vm_name != project.slot.vm_name
             || self.generation != 2
@@ -139,7 +139,7 @@ fn decode(
         return Err("realized settings belong to another VM".into());
     }
     let result = HypervRead {
-        configuration: crate::probe::sha256_hex(include_bytes!("../config/project.toml")),
+        configuration: crate::probe::sha256_hex(include_bytes!("../../../config/project.toml")),
         vm_id: field(&vm, "Name")?.to_ascii_lowercase(),
         vm_name: field(&vm, "ElementName")?.into(),
         state: match field(&vm, "EnabledState")? {

@@ -1,0 +1,229 @@
+//! Operator intent and fresh observations; no laboratory or driver integrity pins.
+use serde::{Deserialize, Serialize};
+
+/// Runtime operator configuration. Enrollment is separately administrator protected.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Configuration {
+    /// Configuration format version.
+    pub schema: u32,
+    /// Independently selected existing VMs, with one GPU each.
+    pub targets: Vec<Target>,
+}
+/// Desired state for one existing VM.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Target {
+    /// Stable Hyper-V VM GUID, independent of its display name.
+    pub vm_id: String,
+    /// Exact provider partitionable GPU interface.
+    pub gpu_interface: String,
+    /// Whether to enable GPU-PV.
+    pub enabled: bool,
+    /// Optional provider-defined VRAM triple; absent preserves provider defaults.
+    #[serde(default)]
+    pub vram: Option<Allocation>,
+}
+/// Provider-defined values, not a claim of bytes, percentages or a hard limit.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Allocation {
+    /// Requested minimum.
+    pub minimum: u64,
+    /// Requested maximum.
+    pub maximum: u64,
+    /// Requested optimal value.
+    pub optimal: u64,
+}
+impl Allocation {
+    /// Validate ordering and the currently reported provider range.
+    pub fn validate(&self, limits: &Self) -> Result<(), String> {
+        if self.minimum > self.optimal
+            || self.optimal > self.maximum
+            || self.minimum < limits.minimum
+            || self.maximum > limits.maximum
+        {
+            return Err("VRAM request is outside the provider's reported range".into());
+        }
+        Ok(())
+    }
+}
+impl Configuration {
+    /// Parse and validate exactly once at the application boundary.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let mut value: Self = toml::from_str(text).map_err(|e| format!("configuration: {e}"))?;
+        if value.schema != 2 || value.targets.is_empty() || value.targets.len() > 128 {
+            return Err("configuration requires schema 2 and 1..128 targets".into());
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for target in &mut value.targets {
+            target.validate()?;
+            target.vm_id.make_ascii_lowercase();
+            if !ids.insert(target.vm_id.to_ascii_lowercase()) {
+                return Err("each VM may occur only once".into());
+            }
+        }
+        Ok(value)
+    }
+}
+impl Target {
+    /// Validate target syntax before queries or privileged effects.
+    pub fn validate(&self) -> Result<(), String> {
+        let id = self.vm_id.as_bytes();
+        if id.len() != 36
+            || id.iter().enumerate().any(|(i, b)| {
+                if [8, 13, 18, 23].contains(&i) {
+                    *b != b'-'
+                } else {
+                    !b.is_ascii_hexdigit()
+                }
+            })
+            || !self.gpu_interface.starts_with(r"\\?\PCI#")
+            || !self.gpu_interface.ends_with(r"\GPUPARAV")
+            || self.gpu_interface.len() > 512
+            || self
+                .gpu_interface
+                .chars()
+                .any(|c| c.is_control() || ['\'', '"'].contains(&c))
+        {
+            return Err("invalid VM GUID or GPU partition interface".into());
+        }
+        if self
+            .vram
+            .as_ref()
+            .is_some_and(|v| v.minimum > v.optimal || v.optimal > v.maximum)
+        {
+            return Err("invalid VRAM allocation ordering".into());
+        }
+        Ok(())
+    }
+}
+/// Current VM power state. Transitional/saved states are rejected before mutation.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub enum Power {
+    /// Powered off.
+    Off,
+    /// Running.
+    Running,
+    /// Saved or transitional provider state; refused for mutations.
+    Other(u64),
+}
+/// Product-owned compatibility settings; CPU and RAM quantities are never changed.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub struct Settings {
+    /// Low MMIO gap in provider MiB units.
+    pub low_mmio: u64,
+    /// High MMIO gap in provider MiB units.
+    pub high_mmio: u64,
+    /// Guest cache types.
+    pub cache_types: bool,
+    /// Existing automatic-checkpoint policy.
+    pub automatic_checkpoints: bool,
+}
+impl Settings {
+    /// Conservative NVIDIA compatibility changes derived from the proven recipe.
+    pub fn for_gpu(&self) -> Self {
+        Self {
+            low_mmio: self.low_mmio.max(3072),
+            high_mmio: self.high_mmio.max(32768),
+            cache_types: true,
+            automatic_checkpoints: false,
+        }
+    }
+}
+/// Fresh independent Hyper-V state.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct VmState {
+    /// Stable identity.
+    pub vm_id: String,
+    /// Display name for users, never an authorization key.
+    pub name: String,
+    /// Current power state.
+    pub power: Power,
+    /// Generation supported by this product.
+    pub generation: u32,
+    /// Currently attached GPU interfaces.
+    pub gpus: Vec<String>,
+    /// Current compatibility settings.
+    pub settings: Settings,
+    /// Effective partition VRAM settings if assigned.
+    pub vram: Option<Allocation>,
+}
+/// Partitionable host GPU discovery.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Gpu {
+    /// Provider interface.
+    pub interface: String,
+    /// Installed PnP display name.
+    pub name: String,
+    /// PCI vendor ID.
+    pub vendor: u32,
+    /// PCI device ID.
+    pub device: u32,
+    /// Current driver version.
+    pub driver_version: String,
+    /// Reported VRAM allocation range.
+    pub vram: Allocation,
+    /// Whether automatic guest preparation is implemented for this vendor.
+    pub preparation_supported: bool,
+}
+/// Discovery data used identically by CLI and GUI.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Discovery {
+    /// Existing VMs; discovery itself does not enroll them.
+    pub vms: Vec<VmState>,
+    /// Partitionable GPUs, including vendors awaiting preparation adapters.
+    pub gpus: Vec<Gpu>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn accepts_shared_gpu_without_lab_or_driver_inputs() {
+        let t = r#"schema = 2
+[[targets]]
+vm_id = "11111111-1111-1111-1111-111111111111"
+gpu_interface = '\\?\PCI#VEN_10DE&DEV_2D05#test\GPUPARAV'
+enabled = true
+[[targets]]
+vm_id = "22222222-2222-2222-2222-222222222222"
+gpu_interface = '\\?\PCI#VEN_10DE&DEV_2D05#test\GPUPARAV'
+enabled = false
+"#;
+        assert_eq!(Configuration::parse(t).unwrap().targets.len(), 2);
+        assert!(
+            Configuration::parse(&t.replace(
+                "22222222-2222-2222-2222-222222222222",
+                "11111111-1111-1111-1111-111111111111"
+            ))
+            .is_err()
+        );
+        assert!(Configuration::parse(&format!("{t}\nparent_path = 'golden'\n")).is_err());
+    }
+    #[test]
+    fn rejects_allocation_outside_actual_provider_range() {
+        let range = Allocation {
+            minimum: 10,
+            optimal: 20,
+            maximum: 30,
+        };
+        assert!(range.validate(&range).is_ok());
+        assert!(
+            Allocation {
+                minimum: 1,
+                ..range.clone()
+            }
+            .validate(&range)
+            .is_err()
+        );
+        assert!(
+            Allocation {
+                optimal: 40,
+                ..range.clone()
+            }
+            .validate(&range)
+            .is_err()
+        );
+    }
+}

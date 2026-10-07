@@ -402,7 +402,7 @@ mod tests {
     }
     #[test]
     fn maps_historical_nvidia_616_92_baseline_destinations() {
-        let inventory = include_str!("../docs/evidence/GPU-PV-BASELINE-INVENTORY.tsv");
+        let inventory = include_str!("../../../docs/evidence/GPU-PV-BASELINE-INVENTORY.tsv");
         let header = inventory
             .trim_start_matches('\u{feff}')
             .lines()

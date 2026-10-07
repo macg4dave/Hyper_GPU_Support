@@ -1,50 +1,31 @@
-//! Core library for the Windows GPU-PV CLI.
-//!
-//! The inventory boundary is read-only and keeps Windows process access behind a
-//! replaceable source so report logic can be tested without Hyper-V or a GPU.
-
-pub mod account_rights;
-pub mod cli;
-pub mod config;
+//! Runtime-configured GPU-PV management, independent of contributor laboratory tooling.
+#[cfg(windows)]
+pub mod credentials;
+#[cfg(windows)]
 pub mod guest;
-pub mod inventory;
-pub mod operator;
+pub mod model;
+pub mod payload;
 pub mod probe;
+#[cfg(windows)]
+pub mod process;
+#[cfg(windows)]
 pub mod runner;
-pub mod staging;
-pub mod validation;
-pub mod vm_settings;
-
 #[cfg(windows)]
-pub mod driver_environment;
+mod security;
 #[cfg(windows)]
-pub mod environment_staging;
+mod trust;
 #[cfg(windows)]
-pub mod windows_environment_staging;
-
+mod windows_com;
 #[cfg(windows)]
-pub mod windows_account_rights;
-#[cfg(windows)]
-pub mod windows_driver_environment;
-#[cfg(windows)]
-pub mod windows_guest;
+pub mod windows_driver;
 #[cfg(windows)]
 pub mod windows_hyperv;
 #[cfg(windows)]
-mod windows_hyperv_disk;
-#[cfg(windows)]
-pub mod windows_hyperv_read;
-#[cfg(windows)]
-mod windows_hyperv_wmi;
-#[cfg(windows)]
-pub mod windows_inventory;
-#[cfg(windows)]
-pub mod windows_native_inventory;
-#[cfg(windows)]
 pub mod windows_paths;
+#[cfg(windows)]
+mod windows_pipe;
 #[cfg(windows)]
 pub mod windows_probe;
 #[cfg(windows)]
-pub mod windows_runner;
-#[cfg(windows)]
-pub mod windows_validation;
+mod windows_wmi;
+pub mod workflow;

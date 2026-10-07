@@ -88,7 +88,7 @@ gpu_assignment_timeout_seconds = 60
 task_execution_timeout_seconds = 600
 
 [runner.artifacts]
-directory = '''C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\release'''
+directory = '''C:\Users\dave\github\Hyper_GPU_Support\local\lab-target\x86_64-pc-windows-msvc\release'''
 
 [tooling]
 staging_directory = '''data\staging'''

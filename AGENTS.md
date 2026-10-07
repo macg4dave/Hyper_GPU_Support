@@ -2,23 +2,19 @@
 
 ## Project
 
-Ship a Rust-first, config-driven CLI for one configured normal Generation 2
-Hyper-V Windows 11 x64 VM and one NVIDIA RTX 5060 8 GB on Windows 11 x64.
-Use native Windows/Hyper-V facilities and the
-[engineering standards](docs/ENGINEERING.md); do not recreate Hyper-V.
+Build a Rust GPU-PV management core for existing Windows Hyper-V Generation 2 VMs,
+with a thin CLI and native Windows GUI. Manage multiple selected VMs with one GPU
+each; GPU sharing requires qualification. Deliver NVIDIA preparation first, then
+incremental vendor adapters. GUI follows the working core; VRAM controls follow
+with truthful provider units/readback. See the revised [roadmap](docs/ROADMAP.md).
 
-The working baseline is authoritative: sustained Code 0, `nvidia-smi`, D3D11,
-D3D12 and CUDA computation passed with the discovered driver/runtime payload.
-Reproduce the validated provisioning behavior by dynamically discovering the
-complete associated payload for the selected GPU and installed signed host driver.
-Do not assume a fixed file count or static runtime list. Native Rust discovery
-matches the historical inventory. Finish Rust staging,
-settings integration and clean-child reproduction. Our source and
-[architecture](docs/ARCHITECTURE.md) specify behavior; no external reference
-research or renewed feasibility analysis is required. Keep inventory minimisation
-and CUDA LUID/interop compatibility post-v1 unless essential functionality requires
-them. HCS-owned-guest work stays paused. No GUI, background service, multi-VM/
-multi-GPU orchestration or cross-platform layer is required.
+Feasibility is established on the RTX 5060/Windows 11 baseline. Treat old code and
+experiments as research material, not contracts that must be preserved. Discover
+current signed driver payloads dynamically; do not require laboratory paths, VM
+names, driver versions or fixed counts/hashes in operator configuration. Preserve
+disks, CPU/RAM quantities, Secure Boot and privilege boundaries. HCS remains paused.
+The standalone `tools/lab/` package retains useful contributor automation and is
+outside the production dependency graph. Do not extend it as the product.
 
 ## Product and development boundary
 
@@ -34,7 +30,8 @@ production library/application path.
 ## Read only what the task needs
 
 Normal product operation, installation and recovery must be implemented in Rust.
-Launching embedded PowerShell or a `.ps1` from Rust does not satisfy this rule.
+The user-approved DEC-028 exception permits only a fixed PowerShell Direct session,
+transfer, bootstrap-integrity and worker-launch bridge; application logic remains Rust.
 The [migration audit](scripts/PRODUCT-MIGRATION.md) maps current debt to
 CORE-024/025/026/027; read its affected row when porting or reviewing that boundary.
 Preserve working Rust and replace adapters incrementally, with focused tests and
@@ -93,7 +90,7 @@ card. Historical evidence is outside normal startup reading. Prompts in
   Calling an existing Windows utility does not itself introduce another language.
 - Discover values through reliable Windows facilities when they are inventory rather
   than operator intent. Put remaining values expected to change between machines,
-  VM/image/driver revisions or test runs in the authoritative `config/project.toml`;
+  product intent in runtime schema 2 and contributor/test values in `config/project.toml`;
   deserialize and validate once at the boundary, then pass typed values. Scripts
   consume the shared configuration or accept explicit overrides. Keep protocol/API
   constants and fixed safety limits in code; never store secrets in configuration. See

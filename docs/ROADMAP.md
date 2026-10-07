@@ -1,161 +1,93 @@
-﻿# Roadmap to v1.0
+# Roadmap: GPU-PV management
 
-**Current milestone: M1 â€” Rust reproduces the proven baseline.**
+Build an understandable Windows application that enables GPU-PV on existing
+Hyper-V VMs, then provides GPU on/off and allocation controls through a native GUI.
+The NVIDIA RTX 5060 / Windows 11 baseline proves feasibility; it is research
+evidence, not an architecture or configuration users must reproduce.
+See [architecture](ARCHITECTURE.md) and [backlog](BACKLOG.md#arch-001).
 
-Normal Generation 2 Hyper-V GPU-PV already works on the Windows 11 RTX 5060 target.
-Sustained Code 0, nvidia-smi, checked D3D11/D3D12 and CUDA computation, complete
-driver/runtime provisioning and native Rust manifest discovery are established.
-The [project baseline](evidence/GPU-PV-BASELINE.md) records measured facts; the
-[architecture](ARCHITECTURE.md) specifies our behavior. No external project lookup
-or new feasibility proof is required.
+## Product workflow
 
-[BACKLOG](BACKLOG.md#task-register) owns task status/dependencies. Completed foundation
-work is retained as compact results; its old research dependencies do not gate delivery.
+Host/Hyper-V discovery → VM selection → GPU discovery → GPU-PV configuration →
+automatic guest driver preparation → necessary VM settings → verification.
 
-## Version 1.0 contract
+Select multiple existing Generation 2 VMs, one GPU per VM; several VMs may share
+the same GPU after qualification. Discover partitionable vendors, implement NVIDIA
+preparation first, and add vendors incrementally. GUI example names and operating
+systems do not establish support; initial hardware qualification remains Windows 11 x64.
 
-One TOML-configured Windows 11 x64 Generation 2 Hyper-V VM, one RTX 5060 8 GB,
-Rust CLI, native Hyper-V GPU-PV and the complete discovered driver/runtime recipe.
-Configure and validate Windows facilities; do not recreate a VM platform.
-Discover the complete associated driver/runtime payload for the selected GPU and
-installed signed driver, derive guest destinations and verify every copy. Manifest
-size is discovered data; no baseline file count, static NVIDIA list or historical
-per-file hash table defines product success. Driver changes require rediscovery
-and a new manifest, with explicit restaging and requalification under CORE-015.
+## M1 — Separate product contracts from the laboratory
 
-Normal product operation, installation and recovery belong in Rust. No manual
-PowerShell sequence is required for v1. Development/diagnostic scripts remain
-optional. Existing embedded cmdlet/file adapters are migration debt, not a native
-implementation merely because Rust launches them. Any retained external interface
-needs a narrow technical exception with investigated alternatives, exact calls,
-typed validation, bounded execution and error/recovery behavior.
-The [script/backend audit](../scripts/PRODUCT-MIGRATION.md) maps every maintained
-script and remaining production PowerShell operation to its owner.
+- Runtime intent contains VM/GPU identities and desired state. Discover driver
+  versions, package paths, file counts and hashes at operation time.
+- Administrator-protected runner enrollment selects existing VMs without a golden
+  image, prescribed disk chain or exact display name.
+- Reuse native provider, discovery and rendering primitives. Remove laboratory
+  reset and the superseded package-only/CUDA alias path from the production graph.
+- Preserve the previous application in the standalone [laboratory](../tools/lab/README.md).
+  Production never imports it; its artifacts/installation stay separate.
 
-Required behavior: runtime configuration and clear preflight/plan/apply/status;
-verified staging/settings/assignment, start/shutdown/restart, stable GPU readiness,
-automated checked D3D11/D3D12/CUDA, safe removal and recovery of product-owned changes,
-explicit driver re-stage, useful bounded diagnostics, repeatability and a traceable
-package with tested instructions. The approved on-demand runner is reused;
-no GUI, resident application service, multi-VM scheduler or multi-GPU orchestration.
+**Exit:** default builds have no laboratory dependency; runtime discovery and
+enrollment work on an existing VM without golden-parent configuration. Independently
+review and qualify the rewritten privilege boundary before deployment.
 
-Report exact project-tested host/guest builds, driver/runtime/probe versions and
-limitations. Build differences alone are qualification context, not proof of failure.
-An essential failure or unsafe operation blocks release; optional capability failures
-do not. No promise of vendor certification, resource fairness, every NVIDIA API,
-live migration, checkpoints/saved state or graphics/compute interoperability.
+## M2 — Small working GPU-PV core
 
-| Class | Scope |
-|---|---|
-| Required for v1 | M1â€“M3 below: full recipe, essential workloads, usable safe operation/maintenance and delivery. |
-| Useful if cheap | A specifically requested optional API check (GPU-007), or qualification during an actual safe driver update (GPU-013). Neither gates v1. |
-| Post-v1 | Recipe/settings minimisation (GPU-017), resource enforcement/presets (GPU-010), CUDA/D3D LUID correlation/interop (GPU-016), broader GPU/OS support. |
-| Experimental | Multi-guest contention (GPU-015), advanced optional GPU workloads and any future compatibility hooks, only for an explicit measured requirement. |
+- Implement discovery, preview, enable/apply, disable, status and health-plus-graphics
+  verification through one reusable Rust core and thin CLI.
+- Automatically discover, authenticate and prepare the complete current host-driver
+  payload. Per-run hashes/receipts are internal integrity data, not operator inputs.
+- Use Hyper-V resource defaults first. Preserve CPU/RAM quantities, disks, Secure
+  Boot and security devices; change only necessary GPU compatibility settings.
+- Gracefully restart guests when needed, restore initial power state and avoid
+  restarting a running no-op target. Never force power-off after shutdown failure.
+- Reconcile partial preparation and settings through durable state. Disable keeps
+  prepared guest files; refresh stale preparation on the next apply.
+- Prompt for credentials or explicitly store them in the current user's Windows
+  Credential Manager, scoped by selected VM.
 
-GUI, automatic host updates, general OS installation, custom display/streaming,
-remote control plane and an HCS VM platform are outside this product plan.
+**Exit:** one NVIDIA VM completes current preparation, attachment and checked
+rendering; reapply and disable pass. Qualify two VMs sharing a GPU before advertising
+sharing. Failed default-allocation qualification is a blocker, not permission to
+silently substitute the experimental 50% resource profile.
 
-## Development/test support (outside shipped functionality)
+## M3 — Native Windows GUI
 
-The user workflow is **existing Hyper-V VM -> configuration -> inspect/plan ->
-apply GPU-PV and driver provisioning -> verify**. No golden image is required.
-Golden-parent copies, disposable VM creation, test-disk preparation/reset, clean
-environment rebuilding and cleanup support contributors only. Reuse the existing
-fixed laboratory and acceptance harness; do not implement laboratory management
-as a v1 product task. Test tooling may use the product, never the reverse.
+- Native controls use the same core for VM listing, GPU selection, per-VM on/off,
+  effective status, preparation/verification results and credential prompts.
+- Keep management off the UI thread. Display actual failures and pending operations.
+- Use the supplied VM-table mockup as a design reference; its OS names, capacities
+  and slider ranges are not discovered data or compatibility promises.
+- Build the GUI immediately after the working core, before expanding allocation.
 
-GPU-006/012/014 remain product qualification gates. Preparing their clean targets
-is external test support, not a CLI capability or a native product migration gate.
-CORE-025 covers product management; optional native reset helpers are test-only.
-CORE-010 covers safe removal and reconciliation on an existing VM, not disk replacement.
+**Exit:** GUI/CLI exercise the same qualified operations. Initial controls expose
+provider defaults, without a fictional GiB slider. Validate native UI usability and
+real management behavior; compilation alone is insufficient.
 
-## M0 â€” Established foundation
+## M4 — VRAM controls and additional vendors
 
-Inventory, protected golden parent/disposable child, strict types, bounded guest
-transfer, fixed runner, exact attachment, standalone probes and the complete working
-recipe are available. This is completed history, not an active investigation milestone.
-Read a specific foundation result only when the selected implementation needs it.
+- Expose supported provider allocation values with effective readback. Translate
+  into GiB/percent only when that provider mapping is established for the GPU.
+- A requested allocation is not a proven hard VRAM limit or fairness guarantee.
+- Add AMD/Intel preparation adapters independently with hardware validation;
+  refuse unsupported preparation explicitly.
+- Keep encode/decode/compute controls and additional GPUs per VM deferred.
 
-## M1 â€” Rust reproduces the baseline
+**Exit:** qualified allocation behavior, truthful GUI units and independently
+validated preparation for each newly supported vendor. Raw-value validation is
+groundwork, not completion of this milestone.
 
-Independent implementation tasks:
+## Development support and deferred work
 
-- CORE-022 completed: complete native-manifest staging and verified reapply passed on a clean child; guest file operations still use embedded PowerShell (CORE-026).
-- CORE-023 completed: validated VM settings and explicit GPU resources passed live apply and independent verified no-op reapply through the original cmdlet adapter; its native replacement requires CORE-025 qualification.
-- CORE-003 completed: public validate and its Rust worker own readiness and essential workload checks; transfer/launch debt remains CORE-026 and combined live qualification remains GPU-006.
-- CORE-024 completed: native registry/system/WMI inventory, exact-target/configuration-bound Rust worker and all 14 read-only parity facts passed. CORE-025's first exact-VM/host-GPU native read slice passed 18-field parity; the full native inspection/settings/attachment/lifecycle implementation now requires live mutation and workload qualification.
-- CORE-025 ports fixed Hyper-V attachment/resources/settings/lifecycle incrementally while preserving enrollment, readback and reconciliation.
-- CORE-026 moves guest file/security/hash/receipt operations to a Rust writer and establishes the smallest justified session/transfer interface, if one is necessary.
+Golden parents, disposable cloning/reset, test disks, clean-target preparation,
+CUDA SDK acquisition and repeated stress/control experiments belong to contributors.
+Reuse these tools for affected qualification; do not make laboratory implementation
+a product task. Product code must not depend on the harness.
 
-GPU-006 runs the combined current workflow on a clean child; its in-progress
-qualification remains useful while backend migration proceeds.
-**Exit:** verified full files/settings/adapter, sustained Code 0, nvidia-smi,
-checked D3D11/D3D12/CUDA, verified reapply and graceful shutdown. Preserve exact
-inputs/results in one concise report and independently review implementation.
-CORE-024/025/026 must also demonstrate their replacements and remove production
-PowerShell logic; repeat affected qualification after changed boundaries. A
-successful cmdlet-backed GPU-006 run alone does not close the native migration gate.
-Read-only discovery parity and experimental shell provisioning do not complete M1.
+Defer mandatory CUDA, sustained stress, CUDA/D3D interoperability, hard-limit/fairness
+guarantees, scheduling, fleet-wide automatic driver updates, VM creation, custom
+display/streaming and HCS. GUI and incremental vendor support are planned milestones.
 
-Do not reduce the working recipe or demand CUDA/graphics LUID equality.
-Changed privileged writer/settings boundaries receive review before deployment;
-reuse existing identity, credential, receipt and recovery safeguards.
-
-## M2 â€” Usable operation and maintenance
-
-CORE-006 connects public plan/apply/status; CORE-011 lifecycle and CORE-010 removal/
-recovery expose existing operations; CORE-012 gives useful diagnostics; CORE-021
-finishes runtime TOML/help/report contracts; CORE-015 regenerates/restages after drift.
-CORE-027 supplies native Rust runner installation, enrollment and recovery,
-replacing product setup scripts while retaining the existing privilege boundary.
-Tasks with independent foundations can start alongside M1; no blanket milestone
-dependency postpones work that does not need the clean-child result.
-
-GPU-012 qualifies two independently recreated children, verified no-op, a few guest
-lifecycle cycles, representative interruption/recovery, explicit re-stage and bounded
-sustained checked workloads. Reuse the existing Windows CI and foundation results.
-**Exit:** the integrated CLI performs these workflows repeatably; no unresolved
-essential failure, wrong-target/data-loss/credential defect or blocking review finding.
-Include demonstrated native inventory/Hyper-V/guest writer and setup replacements;
-optional test harnesses cannot provide missing public command behavior.
-
-There is no mandatory host reboot, manufactured host-driver transition, general
-transaction engine, resource-fairness investigation or review-of-review task.
-
-## M3 â€” Package and tested delivery
-
-CORE-017 builds a traceable Windows x64 candidate including actual notices and
-runtime prerequisites. DOC-003 writes tested operating/recovery instructions;
-package and guide work can proceed together after commands stabilize.
-GPU-014 follows only those artifacts/instructions on a fresh child, checks required
-behavior, incorporates final review and provides release artifacts/handover.
-
-**Exit:** candidate hashes/revision, tested clean workflow, actual compatibility/
-limitations and recovery instructions agree; required checks pass and no essential
-blocker remains. Exclude proprietary drivers, OS images/disks, secrets and keys.
-Resolve actual license/signing/distribution choices at packaging; publish only to an
-authorized destination. Local reviewable packaging does not need publication approval.
-
-## Critical path
-
-```text
-proven baseline + qualified current staging/settings/worker
-  -> native inventory + Hyper-V adapters + Rust guest writer (CORE-024/025/026)
-  -> clean-child reproduction + affected replacement qualification (GPU-006 / M1)
-  -> one CLI/config + lifecycle/recovery + diagnostics/re-stage + Rust setup
-  -> integrated repeatability and implementation review (GPU-012 / M2)
-  -> package and guide in parallel
-  -> packaged clean-child acceptance, final review and handover (GPU-014 / M3)
-  -> v1.0
-```
-
-Public CLI integration and the current GPU-006 run can proceed alongside backend
-ports. Remove each production script dependency only after its replacement is
-demonstrated. Final packaged acceptance must use the Rust CLI with no manual
-PowerShell and only specifically justified external Windows interface exceptions.
-
-Ordinary tasks follow read â†’ implement â†’ test â†’ update status. Keep documentation
-changes proportional to behavior. Immediately verify target identities before effects;
-protect the parent, signing, Secure Boot and isolation. Disposable guest development/
-testing is authorized; physical-host restart/shutdown/logout/session termination always
-requires explicit permission immediately beforehand.
+Package the actual product with prerequisites, notices and tested operating/recovery
+instructions. Never distribute proprietary drivers, VM disks, OS media or secrets.
+Historical hardware results do not qualify rewritten product boundaries.

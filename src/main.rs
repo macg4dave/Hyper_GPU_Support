@@ -1,200 +1,170 @@
-//! Windows GPU-PV foundation executable.
-
-use std::io::{self, Write};
+//! Thin CLI over the runtime product core.
 use std::process::ExitCode;
-
-use hyper_gpu_support::cli::{self, Command};
-use hyper_gpu_support::config::ErrorCategory;
-#[cfg(windows)]
-use hyper_gpu_support::inventory::InventorySource;
-
+const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n\nOptions:\n  --config FILE   Runtime TOML schema 2 (required except inventory/help/version)\n  --vm GUID       Select one target from the configuration\n  --help          Show this help\n  --version       Show version\n\nGUI: hyper-gpu-gui --config FILE\nVRAM values are provider-defined units, not proven hard memory limits.\n";
 fn main() -> ExitCode {
-    let command = match cli::parse(std::env::args_os().skip(1)) {
-        Ok(command) => command,
-        Err(error) => {
-            return report_error(&mut io::stderr().lock(), &error, 2);
-        }
-    };
-    let output = match command {
-        Command::Help => cli::HELP.to_owned(),
-        Command::Version => cli::VERSION.to_owned(),
-        Command::Validate => {
-            return dispatch_validation(&mut io::stdout().lock(), validation_report());
-        }
-        Command::Inventory => match inventory_output() {
-            Ok(output) => output,
-            Err(error) => return report_error(&mut io::stderr().lock(), &error, 1),
-        },
-        Command::Plan | Command::Status => match operator_output(command) {
-            Ok(output) => output,
-            Err(error) => return report_error(&mut io::stderr().lock(), &error, 1),
-        },
-        Command::Declared(operation) => {
-            return report_error(
-                &mut io::stderr().lock(),
-                &format_args!("{} is declared but not implemented", operation.as_str()),
-                ErrorCategory::Implementation.exit_code(),
-            );
-        }
-    };
-    match write_output(&mut io::stdout().lock(), &output) {
+    match run() {
         Ok(()) => ExitCode::SUCCESS,
-        Err(error) => report_error(
-            &mut io::stderr().lock(),
-            &format_args!("cannot write output: {error}"),
-            1,
-        ),
-    }
-}
-
-#[cfg(windows)]
-fn operator_output(command: Command) -> Result<String, String> {
-    let project = hyper_gpu_support::config::ProjectConfiguration::embedded()
-        .map_err(|error| error.to_string())?;
-    let inventory = hyper_gpu_support::windows_inventory::WindowsInventory::collect_for(&project)
-        .map_err(|error| error.to_string())?;
-    match command {
-        Command::Plan => serde_json::to_string_pretty(
-            &hyper_gpu_support::operator::plan(&project, &inventory).map_err(|e| e.to_string())?,
-        ),
-        Command::Status => {
-            serde_json::to_string_pretty(&hyper_gpu_support::operator::status(&project, &inventory))
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
         }
-        _ => return Err("invalid operator report command".into()),
-    }
-    .map_err(|error| error.to_string())
-}
-#[cfg(not(windows))]
-fn operator_output(_command: Command) -> Result<String, String> {
-    Err("GPU-PV operation requires Windows x64".into())
-}
-
-fn dispatch_validation(
-    writer: &mut impl Write,
-    report: Result<hyper_gpu_support::validation::ValidationReport, String>,
-) -> ExitCode {
-    match report {
-        Ok(report) => match serde_json::to_string_pretty(&report) {
-            Ok(json) => match write_output(writer, &json) {
-                Ok(()) => ExitCode::from(report.exit_code()),
-                Err(error) => report_error(&mut io::stderr().lock(), &error, 1),
-            },
-            Err(error) => report_error(&mut io::stderr().lock(), &error, 1),
-        },
-        Err(error) => report_error(&mut io::stderr().lock(), &error, 1),
     }
 }
-#[cfg(windows)]
-fn validation_report() -> Result<hyper_gpu_support::validation::ValidationReport, String> {
-    hyper_gpu_support::windows_validation::validate_command()
-}
-#[cfg(not(windows))]
-fn validation_report() -> Result<hyper_gpu_support::validation::ValidationReport, String> {
-    Err("guest validation requires Windows x64".into())
-}
-
-#[cfg(windows)]
-fn inventory_output() -> Result<String, hyper_gpu_support::inventory::InventoryError> {
-    hyper_gpu_support::windows_inventory::WindowsInventory
-        .collect()
-        .map(|report| report.render())
-}
-
-#[cfg(not(windows))]
-fn inventory_output() -> Result<String, hyper_gpu_support::inventory::InventoryError> {
-    Err(
-        hyper_gpu_support::inventory::InventoryError::AdapterLaunch {
-            kind: std::io::ErrorKind::Unsupported,
-            code: None,
-        },
-    )
-}
-
-fn write_output(writer: &mut impl Write, output: &str) -> io::Result<()> {
-    writeln!(writer, "{output}")?;
-    writer.flush()
-}
-
-fn report_error(writer: &mut impl Write, error: &dyn std::fmt::Display, code: u8) -> ExitCode {
-    // If stderr is unavailable, the failure exit code is the remaining signal.
-    if writeln!(writer, "error: {error}")
-        .and_then(|()| writer.flush())
-        .is_err()
+fn run() -> Result<(), String> {
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.is_empty() || matches!(args.as_slice(),[v]if v=="--help"||v=="-h") {
+        print!("{HELP}");
+        return Ok(());
+    }
+    if matches!(args.as_slice(),[v]if v=="--version"||v=="-V") {
+        println!("hyper-gpu-support {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    #[cfg(windows)]
     {
-        return ExitCode::FAILURE;
+        execute(&args)
     }
-    ExitCode::from(code)
+    #[cfg(not(windows))]
+    {
+        Err("Hyper-V GPU-PV requires Windows x64".into())
+    }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{report_error, write_output};
-    use std::io::{self, Write};
-    use std::process::ExitCode;
-
-    #[test]
-    fn validation_dispatch_publishes_report_and_propagates_outcome() {
-        let project = hyper_gpu_support::config::ProjectConfiguration::embedded().unwrap();
-        let mut report = hyper_gpu_support::validation::ValidationReport::new(&project);
-        report.block("missing runtime");
-        let mut output = Vec::new();
-        assert_eq!(
-            super::dispatch_validation(&mut output, Ok(report.clone())),
-            ExitCode::from(1)
+#[cfg(windows)]
+fn execute(args: &[String]) -> Result<(), String> {
+    use hyper_gpu_support::{
+        credentials,
+        model::Configuration,
+        runner::{self, Operation},
+    };
+    let command = args.first().ok_or("command required")?;
+    if ![
+        "inventory",
+        "plan",
+        "install",
+        "apply",
+        "enable",
+        "disable",
+        "status",
+        "verify",
+        "credentials",
+        "forget",
+    ]
+    .contains(&command.as_str())
+    {
+        return Err("unknown command; use --help".into());
+    }
+    let mut config_path = None;
+    let mut vm = None;
+    let mut iter = args[1..].iter();
+    while let Some(option) = iter.next() {
+        let value = iter.next().ok_or("option value missing")?;
+        match option.as_str() {
+            "--config" if config_path.is_none() => config_path = Some(value),
+            "--vm" if vm.is_none() => vm = Some(value),
+            _ => return Err("unknown or repeated option".into()),
+        }
+    }
+    if command == "inventory" {
+        if config_path.is_some() || vm.is_some() {
+            return Err("inventory takes no target options".into());
+        }
+        let result = if hyper_gpu_support::process::is_elevated()? {
+            serde_json::to_value(hyper_gpu_support::windows_hyperv::discover()?)
+                .map_err(|e| e.to_string())?
+        } else {
+            runner::submit(runner::request(Operation::Discover, None, None))?
+        };
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
         );
-        assert_eq!(
-            serde_json::from_slice::<hyper_gpu_support::validation::ValidationReport>(&output)
-                .unwrap(),
-            report
+        return Ok(());
+    }
+    let text = std::fs::read_to_string(config_path.ok_or("--config FILE is required")?)
+        .map_err(|e| e.to_string())?;
+    let config = Configuration::parse(&text)?;
+    if command == "install" {
+        if vm.is_some() {
+            return Err("install enrolls the complete configuration".into());
+        }
+        runner::install(&config)?;
+        println!("Product runner installed and existing targets enrolled.");
+        return Ok(());
+    }
+    let mut targets: Vec<_> = config
+        .targets
+        .into_iter()
+        .filter(|t| vm.is_none_or(|id| t.vm_id.eq_ignore_ascii_case(id)))
+        .collect();
+    if targets.is_empty() {
+        return Err("selected VM is not in the runtime configuration".into());
+    }
+    if ["credentials", "forget", "enable", "disable"].contains(&command.as_str())
+        && targets.len() != 1
+    {
+        return Err("this command requires --vm selecting exactly one target".into());
+    }
+    for t in &mut targets {
+        if command == "enable" {
+            t.enabled = true;
+        }
+        if command == "disable" {
+            t.enabled = false;
+        }
+        if command == "forget" {
+            credentials::forget(&t.vm_id)?;
+            println!("Stored credential removed.");
+            continue;
+        }
+        if command == "credentials" {
+            let credential = prompt(&t.vm_id)?;
+            credentials::store(&t.vm_id, &credential)?;
+            println!("Credential stored in the current user's Windows vault.");
+            continue;
+        }
+        let status = command == "status" || command == "plan";
+        let operation = if command == "plan" {
+            Operation::Plan
+        } else if status {
+            Operation::Status
+        } else if command == "verify" {
+            Operation::Verify
+        } else {
+            Operation::Apply
+        };
+        let credential = if !status && (t.enabled || command == "verify") {
+            Some(credentials::read(&t.vm_id)?.map_or_else(|| prompt(&t.vm_id), Ok)?)
+        } else {
+            None
+        };
+        let result = runner::submit(runner::request(operation, Some(t.clone()), credential))?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
         );
-        for check in &mut report.checks {
-            check.status = hyper_gpu_support::validation::CheckStatus::Pass;
-        }
-        assert_eq!(
-            super::dispatch_validation(&mut Vec::new(), Ok(report)),
-            ExitCode::SUCCESS
+    }
+    Ok(())
+}
+#[cfg(windows)]
+fn prompt(vm: &str) -> Result<hyper_gpu_support::credentials::Credential, String> {
+    use std::io::{IsTerminal, Write};
+    if !std::io::stdin().is_terminal() {
+        return hyper_gpu_support::credentials::prompt(
+            vm,
+            windows::Win32::Foundation::HWND::default(),
         );
     }
-
-    struct FailedWriter {
-        fail_flush: bool,
+    eprint!("Guest username: ");
+    std::io::stderr().flush().map_err(|e| e.to_string())?;
+    let mut username = String::new();
+    std::io::stdin()
+        .read_line(&mut username)
+        .map_err(|e| e.to_string())?;
+    let password = rpassword::prompt_password("Guest password: ")
+        .map_err(|_| "credential prompt unavailable")?;
+    let username = username.trim().to_owned();
+    if username.is_empty() || username.contains('\0') {
+        return Err("invalid guest username".into());
     }
-
-    impl Write for FailedWriter {
-        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-            if self.fail_flush {
-                Ok(bytes.len())
-            } else {
-                Err(io::ErrorKind::BrokenPipe.into())
-            }
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Err(io::ErrorKind::BrokenPipe.into())
-        }
-    }
-
-    #[test]
-    fn output_propagates_write_and_flush_failures() {
-        for fail_flush in [false, true] {
-            let error = write_output(&mut FailedWriter { fail_flush }, "version").unwrap_err();
-            assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
-        }
-    }
-
-    #[test]
-    fn error_reporting_preserves_code_or_signals_unavailable_stderr() {
-        let mut output = Vec::new();
-        assert_eq!(
-            report_error(&mut output, &"invalid input", 2),
-            ExitCode::from(2)
-        );
-        assert_eq!(output, b"error: invalid input\n");
-        for fail_flush in [false, true] {
-            assert_eq!(
-                report_error(&mut FailedWriter { fail_flush }, &"invalid input", 2),
-                ExitCode::FAILURE
-            );
-        }
-    }
+    Ok(hyper_gpu_support::credentials::Credential { username, password })
 }

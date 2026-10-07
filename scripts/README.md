@@ -25,16 +25,15 @@ tree is for useful tooling that should be reviewed, debugged, modified and reuse
 PowerShell may support development, diagnostics and development-machine setup.
 Any functionality required by ordinary product operation, installation or recovery
 belongs in Rust unless a concrete interface limitation is documented narrowly.
-The [complete classification and migration audit](PRODUCT-MIGRATION.md) covers all
-14 maintained scripts and embedded product adapters. Runner installation/restore
-and policy generation still provide product functionality (CORE-027); keep them
-working until their Rust replacements are demonstrated. The clean-child harness
-is optional acceptance tooling; CORE-006 must own ordinary workflow orchestration.
+The [classification audit](PRODUCT-MIGRATION.md) separates the Rust product
+from the standalone `tools/lab` application. Runner-v1 setup/restore/pin scripts
+maintain the laboratory runner only; product installation and enrollment are native
+Rust. `testing/check.ps1` checks the root product without laboratory configuration.
 Provisioning/qualification scripts consume the dynamically discovered manifest
 and compare receipts for that run. Do not gate them on a historical file count
 or supply a static NVIDIA runtime list; driver updates require rediscovery.
 
-Disposable reset is compiled only with `cargo build --locked --release --features
+Disposable reset is compiled only with `cargo build --manifest-path tools/lab/Cargo.toml --target-dir local/lab-target --locked --release --features
 dev-harness`. Rebuild/re-pin the runner using the existing reviewed setup flow
 before clean-child qualification; a default runner denies `reset-slot`. Never
 ship a `dev-harness` artifact. Product guest lifecycle and GPU management remain

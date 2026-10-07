@@ -282,7 +282,7 @@ pub(crate) fn verify_child(project: &ProjectConfiguration, allow_missing: bool) 
 #[cfg(feature = "dev-harness")]
 include!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/tools/test-harness/reset_disk.rs"
+    "/../test-harness/reset_disk.rs"
 ));
 
 #[cfg(test)]

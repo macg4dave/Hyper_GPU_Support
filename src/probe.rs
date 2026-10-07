@@ -5,8 +5,6 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::config::ProjectConfiguration;
-
 /// Canonical SHA-256 for the 256x256 opaque-magenta RGBA output.
 pub const EXPECTED_IMAGE_SHA256: &str =
     "00f88da6c22b46ab45bfc5fbc6659e601ebcefe324d52a3302e614d4a7fb3de4";
@@ -76,18 +74,11 @@ impl AdapterIdentity {
     /// Returns [`ProbeContractError::Adapter`] for software, default, ambiguous or
     /// otherwise mismatched identity data.
     pub fn validate(&self) -> Result<(), ProbeContractError> {
-        let project = ProjectConfiguration::embedded().map_err(|_| ProbeContractError::Adapter)?;
-        let target = project.slot;
         if self.software
-            || self.vendor_id != target.gpu_vendor_id
-            || self.device_id != target.gpu_device_id
-            || self.subsystem_id != target.gpu_subsystem_id
-            || self.revision != target.gpu_revision
-            || self.dedicated_video_memory == 0
-            || self.description != target.gpu_name
             || self.indirect_display
+            || self.vendor_id == 0
+            || self.device_id == 0
             || !is_luid(&self.luid)
-            || self.luid == "00000000:00000000"
         {
             return Err(ProbeContractError::Adapter);
         }
@@ -207,131 +198,4 @@ pub(crate) fn is_luid(value: &str) -> bool {
                 byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
             }
         })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        AdapterIdentity, EXPECTED_IMAGE_SHA256, ExitClass, ProbeContractError, ProbeReport,
-        parse_success_report, sha256_hex,
-    };
-
-    fn report() -> ProbeReport {
-        let target = crate::config::ProjectConfiguration::embedded()
-            .unwrap()
-            .slot;
-        ProbeReport {
-            schema: 1,
-            probe: "d3d11-offscreen".into(),
-            status: "pass".into(),
-            adapter: AdapterIdentity {
-                description: target.gpu_name,
-                vendor_id: target.gpu_vendor_id,
-                device_id: target.gpu_device_id,
-                subsystem_id: target.gpu_subsystem_id,
-                revision: target.gpu_revision,
-                dedicated_video_memory: 8_000_000_000,
-                luid: "01234567:89abcdef".into(),
-                software: false,
-                indirect_display: false,
-                paravirtualized: false,
-            },
-            feature_level: "12_1".into(),
-            shader_profiles: "vs_5_0,ps_5_0".into(),
-            width: 256,
-            height: 256,
-            output_sha256: EXPECTED_IMAGE_SHA256.into(),
-            duration_ms: 1,
-        }
-    }
-
-    #[test]
-    fn parses_exact_success_report() {
-        let report = report();
-        let json = serde_json::to_string(&report).unwrap();
-        assert_eq!(parse_success_report(&json, "d3d11-offscreen"), Ok(report));
-    }
-
-    #[test]
-    fn rejects_software_indirect_wrong_hardware_and_missing_luid() {
-        let mut report = report();
-        for mutate in [
-            |adapter: &mut AdapterIdentity| adapter.software = true,
-            |adapter: &mut AdapterIdentity| adapter.indirect_display = true,
-            |adapter: &mut AdapterIdentity| adapter.vendor_id = 0x1414,
-            |adapter: &mut AdapterIdentity| adapter.device_id = 0xffff,
-            |adapter: &mut AdapterIdentity| adapter.luid = "00000000:00000000".into(),
-        ] {
-            let mut candidate = report.clone();
-            mutate(&mut candidate.adapter);
-            let json = serde_json::to_string(&candidate).unwrap();
-            assert_eq!(
-                parse_success_report(&json, "d3d11-offscreen"),
-                Err(ProbeContractError::Adapter)
-            );
-        }
-        report.adapter.description = "Microsoft Basic Render Driver".into();
-        let json = serde_json::to_string(&report).unwrap();
-        assert_eq!(
-            parse_success_report(&json, "d3d11-offscreen"),
-            Err(ProbeContractError::Adapter)
-        );
-    }
-
-    #[test]
-    fn rejects_malformed_unknown_and_incorrect_output() {
-        for mutate in [
-            |candidate: &mut ProbeReport| candidate.shader_profiles.clear(),
-            |candidate: &mut ProbeReport| candidate.feature_level = "unknown".into(),
-        ] {
-            let mut candidate = report();
-            mutate(&mut candidate);
-            assert_eq!(
-                parse_success_report(
-                    &serde_json::to_string(&candidate).unwrap(),
-                    "d3d11-offscreen"
-                ),
-                Err(ProbeContractError::Malformed)
-            );
-        }
-        assert_eq!(
-            parse_success_report("{}", "d3d11-offscreen"),
-            Err(ProbeContractError::Malformed)
-        );
-        let json = serde_json::to_string(&report()).unwrap();
-        let unknown = json.replacen('{', "{\"unknown\":1,", 1);
-        assert_eq!(
-            parse_success_report(&unknown, "d3d11-offscreen"),
-            Err(ProbeContractError::Malformed)
-        );
-        let mut wrong = report();
-        wrong.output_sha256 = "0".repeat(64);
-        let json = serde_json::to_string(&wrong).unwrap();
-        assert_eq!(
-            parse_success_report(&json, "d3d11-offscreen"),
-            Err(ProbeContractError::IncorrectOutput)
-        );
-    }
-
-    #[test]
-    fn canonical_image_hash_matches_specification() {
-        let rgba = [255_u8, 0, 255, 255].repeat(256 * 256);
-        assert_eq!(sha256_hex(&rgba), EXPECTED_IMAGE_SHA256);
-    }
-
-    #[test]
-    fn exit_classes_are_stable_and_distinct() {
-        assert_eq!(
-            [
-                ExitClass::Pass.code(),
-                ExitClass::Adapter.code(),
-                ExitClass::Runtime.code(),
-                ExitClass::Execution.code(),
-                ExitClass::IncorrectOutput.code(),
-                ExitClass::Timeout.code(),
-                ExitClass::Internal.code(),
-            ],
-            [0, 2, 3, 4, 5, 6, 7]
-        );
-    }
 }

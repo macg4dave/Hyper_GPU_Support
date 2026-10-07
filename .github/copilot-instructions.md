@@ -8,6 +8,9 @@ the result. Use a task prompt only when relevant.
 The normal Gen 2 Hyper-V RTX 5060 baseline already passes sustained Code 0,
 `nvidia-smi`, D3D11, D3D12 and CUDA computation. Implement our validated recipe;
 do not reopen feasibility or reference research. Keep mutable values in shared
-configuration. Approved-runner testing and disposable-guest lifecycle are
+runtime intent, and discover inventory. DEC-028 and the revised roadmap supersede
+the historical one-slot CLI-only scope: multiple enrolled VMs, NVIDIA preparation,
+then the native GUI and qualified VRAM/vendor extensions. The standalone laboratory
+is never a production dependency. Approved-runner testing and disposable-guest lifecycle are
 autonomous; physical-host restart, shutdown, logout or session termination require
 explicit permission immediately beforehand.

@@ -14,7 +14,7 @@ function Config([string]$Key) { Get-ProjectConfigurationValue $config $Key }
 $client = Join-Path (Config 'runner.install_directory') 'hyper-gpu-client.exe'
 $artifacts = Config 'runner.artifacts.directory'
 $stage = Join-Path $artifacts 'hyper-gpu-stage.exe'
-$cli = Join-Path $artifacts 'hyper-gpu-support.exe'
+$cli = Join-Path $artifacts 'hyper-gpu-lab.exe'
 $outputRoot = Join-Path $root (Config 'paths.test_output')
 $run = Join-Path $outputRoot ('gpu006-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ'))
 New-Item -ItemType Directory -Path $run | Out-Null

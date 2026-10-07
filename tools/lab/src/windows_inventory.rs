@@ -47,7 +47,7 @@ fn validate_worker(
         .find(|f| f.key() == "worker.configuration")
         .ok_or(InventoryError::InvalidProtocol)?;
     if binding.status() != FactStatus::Known
-        || binding.value() != crate::probe::sha256_hex(include_bytes!("../config/project.toml"))
+        || binding.value() != crate::probe::sha256_hex(include_bytes!("../../../config/project.toml"))
     {
         return Err(InventoryError::AdapterExit(
             None,
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn rejects_stale_configuration_and_wrong_target_worker_reports() {
         let project = ProjectConfiguration::embedded().unwrap();
-        let digest = crate::probe::sha256_hex(include_bytes!("../config/project.toml"));
+        let digest = crate::probe::sha256_hex(include_bytes!("../../../config/project.toml"));
         let current = worker_report(&digest, Some(("vm.selection", &project.slot.vm_id)));
         let decoded = parse_protocol(&current.encode_protocol()).unwrap();
         let report = validate_worker(decoded, &project).unwrap();

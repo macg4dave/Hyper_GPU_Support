@@ -19,9 +19,9 @@ cleanup are normal task execution and do not require separate approval.
 
 `src/` owns the product and reusable product contracts; `tests/` owns Rust tests.
 Use existing `scripts/testing/`, `scripts/setup/` and `scripts/diagnostics/` for
-contributor infrastructure. Rust disposable-reset helpers are under
-`tools/test-harness/`, compiled only with the non-default `dev-harness` feature.
-Do not package that feature. Product installation is distinct from laboratory
+contributor infrastructure. The standalone `tools/lab/` package preserves disposable-reset helpers under
+`tools/test-harness/`; it is excluded from the default product workspace.
+Do not package laboratory binaries or enable its development feature in the product. Product installation is distinct from laboratory
 setup; product recovery must preserve the user's existing VM and disk.
 
 ## Shell commands and development scripts
@@ -103,7 +103,8 @@ operation being performed.
 
 ## Configuration and mutable values
 
-Use [`config/project.toml`](../config/project.toml) as the single checked-in source
+Use runtime schema 2 for product intent. Laboratory tooling uses
+[`config/project.toml`](../config/project.toml) as its single checked-in source
 for non-secret values expected to change with a machine, disposable VM, GPU/driver,
 image, tool input or test run. This includes target identities, artifact paths and
 hashes, external roots, tunable deadlines/retries and experiment switches. Before

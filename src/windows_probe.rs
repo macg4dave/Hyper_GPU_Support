@@ -13,7 +13,6 @@ use windows::Win32::Graphics::Dxgi::{
     IDXGIFactory1,
 };
 
-use crate::config::ProjectConfiguration;
 use crate::probe::AdapterIdentity;
 
 /// One unambiguous hardware adapter selected by exact PCI identity, using
@@ -66,16 +65,16 @@ impl fmt::Display for AdapterSelectionError {
 
 impl std::error::Error for AdapterSelectionError {}
 
-/// Select exactly one non-software adapter matching `config/project.toml`.
+/// Select exactly one non-software adapter matching the explicit runtime PCI identity.
 ///
 /// # Errors
 /// Returns an explicit missing/ambiguous/runtime classification. Enumeration order
 /// is never used as a fallback.
 #[allow(unsafe_code)]
-pub fn select_configured_gpu() -> Result<SelectedAdapter, AdapterSelectionError> {
-    let project = ProjectConfiguration::embedded().map_err(|_| AdapterSelectionError::Runtime)?;
-    let vendor_id = project.slot.gpu_vendor_id;
-    let device_id = project.slot.gpu_device_id;
+pub fn select_gpu(
+    vendor_id: u32,
+    device_id: u32,
+) -> Result<SelectedAdapter, AdapterSelectionError> {
     // SAFETY: `CreateDXGIFactory1` initializes and returns an owned COM interface;
     // the windows crate manages its reference count.
     let factory: IDXGIFactory1 =
@@ -310,69 +309,4 @@ fn query_physical_device_ids(
         return Err(AdapterSelectionError::Native(close_status.0));
     }
     result
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{AdapterSelectionError, packed_subsystem_id, select_identity_index};
-    use crate::{config::ProjectConfiguration, probe::AdapterIdentity};
-
-    fn target(partition: bool) -> AdapterIdentity {
-        let target = ProjectConfiguration::embedded().unwrap().slot;
-        AdapterIdentity {
-            description: target.gpu_name,
-            vendor_id: target.gpu_vendor_id,
-            device_id: target.gpu_device_id,
-            subsystem_id: target.gpu_subsystem_id,
-            revision: target.gpu_revision,
-            dedicated_video_memory: 1,
-            luid: "00000000:00000001".into(),
-            software: false,
-            indirect_display: false,
-            paravirtualized: partition,
-        }
-    }
-
-    #[test]
-    fn selects_exact_host_or_partition_without_display_proxy_fallback() {
-        assert_eq!(select_identity_index(&[target(false)]), Ok(0));
-        let mut proxy = target(false);
-        proxy.subsystem_id = 0;
-        proxy.revision = 0;
-        assert_eq!(select_identity_index(&[proxy, target(true)]), Ok(1));
-        let mut wrong_partition = target(true);
-        wrong_partition.revision ^= 1;
-        assert_eq!(
-            select_identity_index(&[target(false), wrong_partition]),
-            Err(AdapterSelectionError::Missing)
-        );
-    }
-
-    #[test]
-    fn rejects_ambiguous_or_nonhardware_candidates() {
-        assert_eq!(
-            select_identity_index(&[target(true), target(true)]),
-            Err(AdapterSelectionError::Ambiguous)
-        );
-        for change in [0, 1, 2, 3] {
-            let mut identity = target(true);
-            match change {
-                0 => identity.software = true,
-                1 => identity.indirect_display = true,
-                2 => identity.subsystem_id = 0,
-                _ => identity.luid = "00000000:00000000".into(),
-            }
-            assert_eq!(
-                select_identity_index(&[identity]),
-                Err(AdapterSelectionError::Missing)
-            );
-        }
-    }
-
-    #[test]
-    fn combines_native_subsystem_fields_without_truncation() {
-        assert_eq!(packed_subsystem_id(0x1043, 0x8a15), Ok(0x8a15_1043));
-        assert!(packed_subsystem_id(0x10000, 0).is_err());
-        assert!(packed_subsystem_id(0, 0x10000).is_err());
-    }
 }

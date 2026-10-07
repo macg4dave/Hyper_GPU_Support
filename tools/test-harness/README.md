@@ -7,7 +7,7 @@ do not parse `native-reset` and contain no disk reset effects. The reserved
 protocol enum remains for compatibility; it grants no permission.
 
 ```powershell
-cargo build --locked --release --features dev-harness
+cargo build --manifest-path tools/lab/Cargo.toml --target-dir local/lab-target --locked --release --features dev-harness
 ```
 
 Use the existing reviewed pin/install workflow before running

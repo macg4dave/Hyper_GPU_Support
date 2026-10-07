@@ -334,3 +334,51 @@ review; routine changes use implement → test → update the existing card.
 Add a stable new ID only for a changed architectural/public/security contract,
 with choice, reason and concrete revisit condition. A task, code comment or concise
 correction is enough for ordinary implementation details.
+
+## DEC-028
+
+**Accepted | 2026-10-07 | Runtime management core and narrow guest transport**
+
+The user explicitly approved the architectural rebase: existing VM/GPU runtime
+selection, multiple managed VMs, incremental vendors, native GUI after the core,
+provider-default resources first and truthful later VRAM controls. Laboratory
+identities, fixed driver pins, reset and extended probes leave the product graph.
+Prior one-slot/no-GUI sequencing and adapter-preservation rules are superseded for
+this redesign; historical results remain evidence, not completion of new gates.
+
+The user chose Rust guest logic with a narrow PowerShell Direct bridge rather than
+requiring a new native transport before automatic preparation. Existing local
+WMI/COM controls Hyper-V but supplies no established equivalent of New-PSSession
+VMId / Copy-Item ToSession. Hyper-V sockets require a guest listener/setup protocol;
+reimplementing PSRP or introducing that guest-agent platform expands this core.
+Retain inbox Windows PowerShell solely for registered-VM session creation, transfer,
+protected bootstrap integrity and fixed worker launch. This is the concrete exception
+to DEC-027, not permission for application decisions in scripts.
+
+Exact invocation: discovered inbox powershell.exe with -NoLogo -NoProfile
+-NonInteractive -Command and the fixed `src/guest_transport.ps1` text. Pin module
+loading to the discovered system Hyper-V module. Pass typed input/credentials over
+stdin, never command arguments. Bootstrap protects paths/ownership and verifies
+fixed worker hashes before launch; Rust owns driver membership, destination mapping,
+copy/reapply logic, receipt validation and hardware checking. Supervised host process
+and guest-worker deadlines bound transport/worker lifetimes; failures retain pending
+state and never recreate disks. No source executable or arbitrary script is accepted
+from a caller. Artifact hashes are installed integrity data, not driver intent.
+
+Revisit this bridge if a supported native registered-VM session/transfer API becomes
+available. Do not introduce a guest-agent/remoting framework merely to remove glue.
+The installed runner is a fixed one-shot task, not a resident service. Its changed
+security boundary must pass independent review before deployment. Current hardware
+qualification, provider defaults and two-VM sharing remain pending.
+
+Product host artifacts/state use separate `HyperGpuSupportProduct` known-folder
+directories. Interrupted installation disables admission and requires rerunning
+administrator install; it never kills an active guest operation. Guest runtime
+files retain vetted Windows destination read/execute inheritance. Private worker
+bundles and state remain restricted to SYSTEM/Administrators.
+
+The selected installed driver includes Windows-generated `.PNF` caches which are
+not signed catalog members. Accept only protected native Windows DriverStore cache
+sources with a same-stem INF authenticated in the operation manifest. Their bytes
+rely on installed-Windows provenance and per-operation integrity. This exception
+does not extend to unrelated unsigned files or executable/runtime payloads.

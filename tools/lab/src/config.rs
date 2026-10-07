@@ -1113,7 +1113,7 @@ impl ProjectConfiguration {
     pub fn embedded() -> Result<Self, ConfigError> {
         static CONFIGURATION: OnceLock<Result<ProjectConfiguration, ConfigError>> = OnceLock::new();
         CONFIGURATION
-            .get_or_init(|| Self::parse(include_str!("../config/project.toml")))
+            .get_or_init(|| Self::parse(include_str!("../../../config/project.toml")))
             .clone()
     }
 
@@ -1475,7 +1475,7 @@ mod tests {
 
     #[test]
     fn project_toml_rejects_secrets_unsafe_paths_bad_pins_and_deadlines() {
-        let valid = include_str!("../config/project.toml");
+        let valid = include_str!("../../../config/project.toml");
         let project = ProjectConfiguration::embedded().unwrap();
         for invalid in [
             valid.replace("schema = 1", "schema = 2"),

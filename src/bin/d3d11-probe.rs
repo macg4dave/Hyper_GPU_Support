@@ -6,7 +6,7 @@ use std::time::Instant;
 use hyper_gpu_support::probe::{
     EXPECTED_IMAGE_SHA256, ExitClass, HEIGHT, ProbeReport, WIDTH, sha256_hex,
 };
-use hyper_gpu_support::windows_probe::{AdapterSelectionError, select_configured_gpu};
+use hyper_gpu_support::windows_probe::{AdapterSelectionError, select_gpu};
 use windows::Win32::Foundation::HMODULE;
 use windows::Win32::Graphics::Direct3D::{
     D3D_DRIVER_TYPE_UNKNOWN, D3D_FEATURE_LEVEL, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_11_1,
@@ -58,7 +58,18 @@ impl ProbeFailure {
 #[allow(unsafe_code)]
 fn run() -> Result<ProbeReport, ProbeFailure> {
     let started = Instant::now();
-    let selected = select_configured_gpu().map_err(|error| match error {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let ids = (|| {
+        if args.len() != 2 {
+            return None;
+        }
+        Some((args[0].parse::<u32>().ok()?, args[1].parse::<u32>().ok()?))
+    })()
+    .ok_or(ProbeFailure::new(
+        ExitClass::Adapter,
+        "vendor and device IDs are required",
+    ))?;
+    let selected = select_gpu(ids.0, ids.1).map_err(|error| match error {
         AdapterSelectionError::Runtime | AdapterSelectionError::Native(_) => {
             ProbeFailure::new(ExitClass::Runtime, "DXGI enumeration failed")
         }

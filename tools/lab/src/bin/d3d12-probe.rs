@@ -19,8 +19,8 @@ use windows::Win32::Graphics::Dxgi::IDXGIAdapter;
 use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
 use windows::core::Interface;
 
-const VERTEX_SHADER: &[u8] = include_bytes!("../../probes/shaders/compiled/d3d12-vs.dxil");
-const PIXEL_SHADER: &[u8] = include_bytes!("../../probes/shaders/compiled/d3d12-ps.dxil");
+const VERTEX_SHADER: &[u8] = include_bytes!("../../../../probes/shaders/compiled/d3d12-vs.dxil");
+const PIXEL_SHADER: &[u8] = include_bytes!("../../../../probes/shaders/compiled/d3d12-ps.dxil");
 
 fn main() -> ExitCode {
     match run() {

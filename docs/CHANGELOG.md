@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## 2026-10-07 - Runtime GPU-PV architecture rebase
+
+- Separated the previous fixed-slot application into standalone contributor tooling.
+- Introduced runtime VM/GPU contracts, a shared management workflow and native GUI boundary.
+- Rewrote roadmap/instructions around working core, GUI, allocation and incremental vendors.
+- Rewritten privileged/native workflows require their own review and hardware qualification; prior laboratory passes are not reused as acceptance.
+
 ## 2026-10-07 - Public Rust plan and status
 
 - Implemented read-only `plan` and `status` using bounded native inventory. The CLI shows the configured existing VM/GPU, desired settings and initial prerequisites, with denied/unavailable observations kept explicit.

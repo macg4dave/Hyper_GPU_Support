@@ -25,3 +25,10 @@ existing selected VM. Reuse disposable-VM tooling for tests. Golden-image copyin
 cloning, disk reset and laboratory setup stay outside the production path unless
 an explicit user-facing roadmap task requires them. Test tooling may depend on
 product code; product code must not depend on test tooling.
+
+The user-approved architecture rebase takes precedence over historical task scope.
+Use runtime existing-VM identities and the revised core → native GUI → allocation/
+vendor roadmap. Old fixed-slot code is research/contributor tooling in `tools/lab/`.
+Do not preserve laboratory coupling, baseline driver pins or repeated diagnosis as
+product architecture. Default operation verifies health plus checked graphics;
+extended CUDA/stress remain optional. The core never imports the laboratory.
