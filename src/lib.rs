@@ -3,6 +3,7 @@
 pub mod credentials;
 #[cfg(windows)]
 pub mod guest;
+pub mod gui_model;
 pub mod model;
 pub mod payload;
 pub mod probe;

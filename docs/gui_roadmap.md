@@ -7,19 +7,27 @@ specification for the native presentation and supported interactions.
 ## Reuse and actual prototype state
 
 `src/windows_gui.rs` already uses Win32 through existing `windows` bindings:
-window/message loop, listbox/combo/checkbox/buttons, runner discovery, one background
-request, credential prompt, JSON details and configuration save.
+window/message loop, sidebar/report table/native checkbox/buttons, runner discovery,
+one background request, credential prompt/vault and configuration save.
 Keep this foundation and `src/bin/hyper-gpu-gui.rs`; no toolkit replacement or
 duplicate Hyper-V implementation.
 
 It currently requires `--config FILE` plus separate runner installation/enrollment.
-Fixed coordinates lack DPI/resize handling and the planned sidebar/table. Selection
-uses desired enable state, not a clean observed/draft split; refresh loses selection.
-There is no fresh plan confirmation. Busy work disables Apply only; close/channel
-disconnect, safe persistence and CLI-equivalent vault reuse need work.
+The 8 October foundation implements sidebar/header/five-column table/panel/footer,
+DPI-scaled resizing and minimum sizing, independent one-VM draft and retained
+selection. Apply fetches the shared preview; Reapply / Update deliberately stages
+current driver preparation even for an enabled VM. Protected enrollment is read
+back from the runner. Historical inventory blocks actions until refresh succeeds.
+Busy requests disable conflicting controls; close waits for their final response.
+Save failures retain completed intent without replaying VM effects. Verification
+confirmation uses the core's pending recovery power intent.
 
-M2 functionally passed on one NVIDIA VM but host stability blocks qualification.
-Visual/read-only work can proceed; live GUI acceptance waits for M2.
+Native release smoke passed navigation, reapply staging, refresh retention,
+discard, resize and idle close without provider/journal/configuration changes.
+The selected-VM checkbox and native Details dialog are initial controls; per-row
+switches, in-window Details/GPU selection, styling, 150/200% DPI, accessibility and
+full GUI operation/recovery acceptance remain. The hang investigation is closed
+by user direction; live GUI acceptance follows M2's affected preparation gate.
 
 ## Written layout
 
@@ -152,7 +160,7 @@ runner, guest worker and D3D11 probe under CORE-017/GPU-014.
 
 ## Dependencies and proportional checks
 
-G1/G2 can proceed during diagnosis; G3 needs useful CORE-006 preview. G4 can use
+G1/G2 foundations and CORE-006 preview are available. G4 can use
 hardware-free checks before live M2 clearance. G5 reuses completed M1 enrollment.
 G6 closes M3 and feeds R1; M4 allocation/GPU-015 sharing stay separate.
 

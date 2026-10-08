@@ -748,4 +748,15 @@ Runtime existing-VM architecture and small GPU-PV core.
   operation, DPI/resize/keyboard/accessibility and CLI parity after M2 clearance.
 - Respect protected VM/GPU pair; no unqualified GiB sliders or implicit sharing.
   No toolkit replacement or duplicate backend.
-- Result: functional scaffolding exists; layout and integration gaps remain.
+- Result (2026-10-08): sidebar/header/report table/panel/footer and real secondary
+  pages implemented over the existing runner. One-VM drafts survive selection and
+  refresh; shared preview precedes Apply; explicit Reapply / Update stages driver
+  refresh. Protected enrollment, historical-readback gates, verification recovery
+  power, busy/close handling and save-failure retry prevent misleading replay.
+  Independent review cleared corrected edge cases. Strict gates passed (69 core
+  + 3 CLI tests), docs and release x64 build. Installed-runner native smoke passed
+  staging/navigation/refresh/discard/resize/idle close with provider/journal/config
+  unchanged; local evidence: `local/evidence/gui001/`.
+  Still in progress: per-row controls/in-window Details, DPI/accessibility and
+  full GUI live/recovery journey. Foundation uses a selected-VM checkbox and
+  native Details dialog; no GUI hardware-rendering qualification claimed.

@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+## 2026-10-08 - Native GUI foundation (GUI-001)
+
+- Added sidebar/header/five-column VM dashboard, information panel/footer, real
+  system/setup/about pages and DPI-scaled resizing over the existing Win32 core.
+- Drafts survive navigation/refresh; discard has no effects; explicit reapply
+  uses the shared preview. Protected enrollment and stale-readback gates constrain
+  actions. Verification reports pending recovery power rather than assuming it.
+- Busy/close/disconnected-response handling and separate configuration-save retry
+  prevent blind operation replay. Credential vault actions remain explicit.
+- Independent review cleared; 69 core and 3 CLI tests, strict gates/docs/release
+  passed. Native navigation/draft/refresh/discard/resize/idle-close smoke passed.
+  Row controls, broader DPI/accessibility and full GUI live acceptance remain.
+
 ## 2026-10-08 - Shared operator preview (CORE-006)
 
 - Plan and apply now share validation/decisions. Preview reports ordered effects,

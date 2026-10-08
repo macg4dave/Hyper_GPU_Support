@@ -692,6 +692,7 @@ fn execute_operation(
             managed.insert(target.vm_id.clone(), reader.journal(target)?);
         }
         inventory["managed"] = serde_json::to_value(managed).map_err(|e| e.to_string())?;
+        inventory["enrolled"] = serde_json::to_value(&e.targets).map_err(|e| e.to_string())?;
         return Ok(inventory);
     }
     let target = request

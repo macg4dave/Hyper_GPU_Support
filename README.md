@@ -73,6 +73,13 @@ Apply independently rechecks state and enrollment. Plan makes no VM/guest change
 but writes runner audit records; enabled plans authenticate the full current payload
 and should not be used for dashboard polling. Status does not verify guest graphics.
 
+The GUI dashboard retains one VM's staged change across selection and refresh.
+Use **Discard Changes** to clear it, or **Reapply / Update** to stage current driver
+preparation for an already enabled VM. Settings provides runner/enrollment guidance
+and explicit credential-vault actions. A failed refresh leaves historical rows with
+effects disabled. If a VM operation succeeds but saving configuration fails, use
+Settings to retry the save; the GUI does not repeat the VM operation for that error.
+
 ```powershell
 hyper-gpu-support plan --config my-vms.toml
 hyper-gpu-support apply --config my-vms.toml --vm VM-GUID

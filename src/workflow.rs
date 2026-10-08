@@ -545,9 +545,13 @@ pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationRes
 }
 
 /// Verify an enrolled assignment with durable lifecycle intent and graceful restoration.
-pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
+/// Validate verification recovery and report the final power intent used by all clients.
+pub fn verification_power(
+    target: &Target,
+    before: &VmState,
+    old: Option<&Journal>,
+) -> Result<Power, String> {
     target.validate()?;
-    let before = backend.inspect(target)?;
     if before.vm_id != target.vm_id
         || before.generation != 2
         || before.gpus != vec![target.gpu_interface.clone()]
@@ -555,8 +559,7 @@ pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationRe
     {
         return Err("verification requires the selected, stable GPU assignment".into());
     }
-    let old = backend.journal(target)?;
-    if old.as_ref().is_some_and(|j| {
+    if old.is_some_and(|j| {
         j.schema != 1
             || j.vm_id != target.vm_id
             || j.gpu_interface != target.gpu_interface
@@ -567,6 +570,20 @@ pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationRe
                 .into(),
         );
     }
+    let power = old
+        .filter(|j| j.pending)
+        .map_or(&before.power, |j| &j.restore_power);
+    if !matches!(power, Power::Off | Power::Running) {
+        return Err("verification recovery has an invalid power intent".into());
+    }
+    Ok(power.clone())
+}
+/// Check graphics and restore the independently validated recovery power intent.
+pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
+    target.validate()?;
+    let before = backend.inspect(target)?;
+    let old = backend.journal(target)?;
+    let restore_power = verification_power(target, &before, old.as_ref())?;
     let gpu = backend.gpu(target)?;
     if gpu.interface != target.gpu_interface {
         return Err("selected GPU identity changed".into());
@@ -583,9 +600,7 @@ pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationRe
         verification_only: true,
         last_verified: None,
     });
-    if !journal.pending {
-        journal.restore_power = before.power.clone();
-    }
+    journal.restore_power = restore_power;
     journal.pending = true;
     journal.verification_only = true;
     backend.save(target, &journal)?;
