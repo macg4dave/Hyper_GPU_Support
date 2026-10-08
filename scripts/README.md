@@ -55,8 +55,12 @@ Current maintained entry points and their required privilege:
   the captured executable, policy, task security and ACL preimages, removes only
   those rights from the persisted exact SID, and retains audit/results;
   `#Requires -RunAsAdministrator` fails before execution under the wrong token.
-- **Non-elevated** — `testing/check.ps1` runs the normal Rust quality gates and generated
-  configuration/policy drift check.
+- **Non-elevated** — `testing/check.ps1` runs the root product Rust quality and
+  documentation gates without laboratory configuration.
+- **Elevated** — `testing/qualify-product-enrollment.ps1` verifies the designated
+  disposable VM/GPU/disk identities, qualifies native product enrollment, failed
+  installation admission and reinstall recovery, and checks the fixed task and
+  artifact integrity. It invokes no guest mutation. Write results under `local/`.
 - **Non-elevated** — `testing/check-project-config.ps1` validates the shared
   configuration and generated runner policy without changing protected state.
 - **Non-elevated** — `testing/check-docs.ps1` validates repository-local Markdown link targets, prompt

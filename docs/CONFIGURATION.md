@@ -12,6 +12,10 @@ Discover names, disks, drivers, payloads, hashes/counts/catalogs and capabilitie
 Administrator installation generates protected VM/GPU enrollment. Caller config cannot
 broaden it; changing pairs requires administrator re-enrollment. Credentials belong
 only in ephemeral memory or explicit per-user/per-VM Windows Credential Manager entries.
+Installation validates schema, target bounds and unique VM identities even for native
+callers, then requires each selected VM to be discovered as Generation 2 and each GPU
+interface to match current discovery before changing installed artifacts or task state.
+VM display names and discovered driver versions do not bind enrollment.
 
 ## Contributor configuration
 

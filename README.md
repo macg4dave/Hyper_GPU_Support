@@ -22,6 +22,27 @@ cargo run --locked -- --help
 Hardware-free builds/tests do not establish GPU support. Do not install the new
 privileged artifacts until their independent review and affected checks pass.
 
+The explicit M1 installation/enrollment test is separate from ordinary checks.
+After independent boundary review, run the following in an administrator console,
+using the built product artifact directory:
+
+```powershell
+.\scripts\testing\qualify-product-enrollment.ps1 -ArtifactDirectory PRODUCT-BUILD-DIRECTORY -OutputDirectory "$PWD\local\m1-enrollment"
+```
+
+The harness checks contributor-configured disposable identities before effects and
+writes a schema-2 target with no laboratory inputs. It exercises installation,
+interrupted-install refusal/recovery and discovery/status/preview without guest
+mutations. Then run the installed-runner contract test with the ordinary user token:
+
+```powershell
+$env:HYPER_GPU_M1_CONFIG = "$PWD\local\m1-enrollment\target.toml"
+cargo test --locked --test m1_enrollment -- --ignored --test-threads=1
+```
+
+This tests authentication, replay and unenrolled-target refusal, durable audit
+outcomes and protected write denial. It does not qualify guest rendering or sharing.
+
 ## Runtime operation
 
 In an administrator console, read native inventory before initial enrollment:

@@ -52,18 +52,26 @@ impl Configuration {
     /// Parse and validate exactly once at the application boundary.
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut value: Self = toml::from_str(text).map_err(|e| format!("configuration: {e}"))?;
-        if value.schema != 2 || value.targets.is_empty() || value.targets.len() > 128 {
+        value.validate()?;
+        for target in &mut value.targets {
+            target.vm_id.make_ascii_lowercase();
+        }
+        Ok(value)
+    }
+
+    /// Validate runtime intent, including values constructed by native callers.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.schema != 2 || self.targets.is_empty() || self.targets.len() > 128 {
             return Err("configuration requires schema 2 and 1..128 targets".into());
         }
         let mut ids = std::collections::BTreeSet::new();
-        for target in &mut value.targets {
+        for target in &self.targets {
             target.validate()?;
-            target.vm_id.make_ascii_lowercase();
             if !ids.insert(target.vm_id.to_ascii_lowercase()) {
                 return Err("each VM may occur only once".into());
             }
         }
-        Ok(value)
+        Ok(())
     }
 }
 impl Target {
@@ -179,6 +187,76 @@ pub struct Discovery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    const CONFIG: &str = r#"schema = 2
+[[targets]]
+vm_id = "ABCDEF01-2345-6789-ABCD-EF0123456789"
+gpu_interface = '\\?\PCI#VEN_10DE&DEV_2D05#test\GPUPARAV'
+enabled = true
+"#;
+    #[test]
+    fn normalizes_vm_ids_and_rejects_case_insensitive_duplicates() {
+        let configuration = Configuration::parse(CONFIG).unwrap();
+        assert_eq!(
+            configuration.targets[0].vm_id,
+            "abcdef01-2345-6789-abcd-ef0123456789"
+        );
+        let duplicate = format!(
+            "{CONFIG}\n{}",
+            CONFIG.split_once('\n').unwrap().1.replace(
+                "ABCDEF01-2345-6789-ABCD-EF0123456789",
+                "abcdef01-2345-6789-abcd-ef0123456789"
+            )
+        );
+        assert!(
+            Configuration::parse(&duplicate)
+                .unwrap_err()
+                .contains("each VM")
+        );
+    }
+    #[test]
+    fn rejects_laboratory_and_discovered_inventory_inputs() {
+        for field in [
+            "parent_path",
+            "disk_path",
+            "vm_name",
+            "driver_version",
+            "package_path",
+            "file_count",
+            "sha256",
+            "password",
+        ] {
+            assert!(
+                Configuration::parse(&format!("{CONFIG}\n{field} = 'not operator intent'\n"))
+                    .is_err(),
+                "accepted {field}"
+            );
+        }
+        assert!(
+            Configuration::parse(&CONFIG.replacen(
+                "schema = 2",
+                "schema = 2\nparent_path = 'golden'",
+                1
+            ))
+            .is_err()
+        );
+    }
+    #[test]
+    fn validates_programmatically_constructed_configuration() {
+        let mut configuration = Configuration::parse(CONFIG).unwrap();
+        configuration.schema = 1;
+        assert!(configuration.validate().is_err());
+        configuration.schema = 2;
+        configuration.targets.clear();
+        assert!(configuration.validate().is_err());
+        let target = Configuration::parse(CONFIG).unwrap().targets.remove(0);
+        configuration.targets = vec![target.clone(); 129];
+        assert!(configuration.validate().is_err());
+        configuration.targets = vec![target.clone(), target];
+        assert!(configuration.validate().unwrap_err().contains("each VM"));
+        configuration.targets.truncate(1);
+        configuration.targets[0].vm_id = "invalid".into();
+        assert!(configuration.validate().is_err());
+    }
     #[test]
     fn accepts_shared_gpu_without_lab_or_driver_inputs() {
         let t = r#"schema = 2

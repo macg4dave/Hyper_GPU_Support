@@ -115,6 +115,61 @@ struct Reply {
     result: Option<serde_json::Value>,
     error: Option<String>,
 }
+#[derive(Serialize, Deserialize)]
+enum AuditOutcome {
+    Started,
+    Succeeded,
+    Failed,
+}
+// Deliberately excludes Request::credential, error text and response payloads.
+// Failures retain their full error in the authenticated reply, not persistent logs.
+#[derive(Serialize, Deserialize)]
+struct AuditRecord {
+    schema: u32,
+    nonce: String,
+    operation: Operation,
+    target: Option<Target>,
+    outcome: AuditOutcome,
+}
+impl AuditRecord {
+    fn admission(request: &Request) -> Self {
+        Self {
+            schema: 1,
+            nonce: request.nonce.clone(),
+            operation: request.operation,
+            target: request
+                .target
+                .as_ref()
+                .filter(|t| t.validate().is_ok())
+                .cloned(),
+            outcome: AuditOutcome::Started,
+        }
+    }
+}
+fn run_audited<T>(
+    mut record: AuditRecord,
+    mut publish: impl FnMut(&AuditRecord) -> Result<(), String>,
+    operation: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    publish(&record)?;
+    let result = operation();
+    record.outcome = if result.is_ok() {
+        AuditOutcome::Succeeded
+    } else {
+        AuditOutcome::Failed
+    };
+    if let Err(audit_error) = publish(&record) {
+        return Err(match result {
+            Ok(_) => format!(
+                "operation completed but terminal audit publication failed: {audit_error}; inspect state before retry"
+            ),
+            Err(error) => format!(
+                "{error}; terminal audit publication failed: {audit_error}; inspect state before retry"
+            ),
+        });
+    }
+    result
+}
 #[allow(unsafe_code)]
 pub(crate) fn folder(id: &windows::core::GUID) -> Result<PathBuf, String> {
     // SAFETY: known-folder GUID, current token, API-owned returned string.
@@ -219,28 +274,48 @@ fn xml(text: &str) -> String {
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
 }
+fn validate_enrollment(configuration: &Configuration, discovery: &Discovery) -> Result<(), String> {
+    configuration.validate()?;
+    for target in &configuration.targets {
+        let vm = discovery
+            .vms
+            .iter()
+            .find(|vm| vm.vm_id.eq_ignore_ascii_case(&target.vm_id))
+            .ok_or_else(|| {
+                format!(
+                    "enrollment VM {} is absent from current native discovery",
+                    target.vm_id
+                )
+            })?;
+        if vm.generation != 2 {
+            return Err(format!(
+                "enrollment VM {} must be Hyper-V Generation 2",
+                target.vm_id
+            ));
+        }
+        if !discovery
+            .gpus
+            .iter()
+            .any(|gpu| gpu.interface == target.gpu_interface)
+        {
+            return Err(format!(
+                "enrollment GPU for VM {} is absent from current native discovery",
+                target.vm_id
+            ));
+        }
+    }
+    Ok(())
+}
 /// Administrator-only native installation/enrollment of selected existing VMs.
 #[allow(unsafe_code)]
 pub fn install(configuration: &Configuration) -> Result<(), String> {
     if !process::is_elevated()? {
         return Err("runner installation requires an elevated administrator console".into());
     }
+    configuration.validate()?;
     let client = windows_pipe::current_user_sid_string().map_err(|e| e.to_string())?;
     let discovery = windows_hyperv::discover()?;
-    for t in &configuration.targets {
-        t.validate()?;
-        if !discovery
-            .vms
-            .iter()
-            .any(|v| v.vm_id.eq_ignore_ascii_case(&t.vm_id))
-            || !discovery
-                .gpus
-                .iter()
-                .any(|g| g.interface == t.gpu_interface)
-        {
-            return Err("enrollment target is absent from current native discovery".into());
-        }
-    }
+    validate_enrollment(configuration, &discovery)?;
     let install = install_directory()?;
     let data = data_directory()?;
     for p in [&install, &data] {
@@ -588,6 +663,21 @@ fn execute(e: &Enrollment, request: Request) -> Result<serde_json::Value, String
         .create_new(true)
         .open(nonces.join(&request.nonce))
         .map_err(|_| "replayed product request")?;
+    let audit = data.join("audit");
+    fs::create_dir_all(&audit).map_err(|e| e.to_string())?;
+    crate::security::verify(&audit)?;
+    let path = audit.join(format!("{}.json", request.nonce));
+    run_audited(
+        AuditRecord::admission(&request),
+        |record| atomic_json(&path, record),
+        || execute_operation(e, request, data),
+    )
+}
+fn execute_operation(
+    e: &Enrollment,
+    request: Request,
+    data: PathBuf,
+) -> Result<serde_json::Value, String> {
     if matches!(request.operation, Operation::Discover) {
         let mut inventory =
             serde_json::to_value(windows_hyperv::discover()?).map_err(|e| e.to_string())?;
@@ -722,5 +812,229 @@ impl Backend for NativeBackend {
                 .as_ref()
                 .ok_or("guest credentials required")?,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn audit_admission_precedes_work_and_terminal_outcome_excludes_secrets() {
+        for failed in [false, true] {
+            let (configuration, _) = fixture();
+            let request = request(
+                Operation::Status,
+                Some(configuration.targets[0].clone()),
+                Some(Credential {
+                    username: "private-user".into(),
+                    password: "private-password".into(),
+                }),
+            );
+            let published = std::cell::RefCell::new(Vec::new());
+            let result = run_audited(
+                AuditRecord::admission(&request),
+                |record| {
+                    published
+                        .borrow_mut()
+                        .push(serde_json::to_value(record).unwrap());
+                    Ok(())
+                },
+                || {
+                    assert_eq!(published.borrow()[0]["outcome"], "Started");
+                    if failed {
+                        Err("private-password provider error".into())
+                    } else {
+                        Ok("private-user response")
+                    }
+                },
+            );
+            assert_eq!(result.is_err(), failed);
+            let values = published.into_inner();
+            assert_eq!(values.len(), 2);
+            assert_eq!(
+                values[1]["outcome"],
+                if failed { "Failed" } else { "Succeeded" }
+            );
+            let bytes = serde_json::to_string(&values).unwrap();
+            assert!(!bytes.contains("private-"));
+            assert!(!bytes.contains("credential"));
+        }
+    }
+
+    #[test]
+    fn audit_publication_failure_never_runs_unrecorded_work_or_reports_false_success() {
+        let request = request(Operation::Discover, None, None);
+        let result: Result<(), String> = run_audited(
+            AuditRecord::admission(&request),
+            |_| Err("admission unavailable".into()),
+            || panic!("must not execute without durable admission"),
+        );
+        assert!(result.unwrap_err().contains("admission unavailable"));
+        for failed in [false, true] {
+            let published = std::cell::RefCell::new(Vec::new());
+            let result: Result<(), String> = run_audited(
+                AuditRecord::admission(&request),
+                |record| {
+                    if matches!(record.outcome, AuditOutcome::Started) {
+                        published
+                            .borrow_mut()
+                            .push(serde_json::to_value(record).unwrap());
+                        Ok(())
+                    } else {
+                        Err("disk failure".into())
+                    }
+                },
+                || {
+                    if failed {
+                        Err("provider failed".into())
+                    } else {
+                        Ok(())
+                    }
+                },
+            );
+            let error = result.unwrap_err();
+            assert!(error.contains("terminal audit publication failed"));
+            assert!(!failed || error.contains("provider failed"));
+            assert_eq!(published.borrow()[0]["outcome"], "Started");
+        }
+    }
+
+    #[test]
+    fn interrupted_operation_leaves_an_unfinished_admission() {
+        let request = request(Operation::Discover, None, None);
+        let published = std::cell::RefCell::new(Vec::new());
+        let interrupted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _: Result<(), String> = run_audited(
+                AuditRecord::admission(&request),
+                |record| {
+                    published
+                        .borrow_mut()
+                        .push(serde_json::to_value(record).unwrap());
+                    Ok(())
+                },
+                || panic!("simulated interruption before an operation returns"),
+            );
+        }));
+        assert!(interrupted.is_err());
+        let values = published.into_inner();
+        assert_eq!(values.len(), 1);
+        assert_eq!(values[0]["outcome"], "Started");
+    }
+
+    fn fixture() -> (Configuration, Discovery) {
+        let target = Target {
+            vm_id: "abcdef01-2345-6789-abcd-ef0123456789".into(),
+            gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#test\GPUPARAV".into(),
+            enabled: true,
+            vram: None,
+        };
+        let vm = VmState {
+            vm_id: target.vm_id.to_ascii_uppercase(),
+            name: "An existing user VM".into(),
+            power: Power::Off,
+            generation: 2,
+            gpus: vec![],
+            settings: Settings {
+                low_mmio: 0,
+                high_mmio: 0,
+                cache_types: false,
+                automatic_checkpoints: true,
+            },
+            vram: None,
+        };
+        let gpu = Gpu {
+            interface: target.gpu_interface.clone(),
+            name: "Discovered GPU".into(),
+            vendor: 0x10de,
+            device: 0x2d05,
+            driver_version: "current discovered version".into(),
+            vram: Allocation {
+                minimum: 0,
+                maximum: 100,
+                optimal: 50,
+            },
+            preparation_supported: true,
+        };
+        (
+            Configuration {
+                schema: 2,
+                targets: vec![target],
+            },
+            Discovery {
+                vms: vec![vm],
+                gpus: vec![gpu],
+            },
+        )
+    }
+
+    #[test]
+    fn enrollment_uses_existing_vm_identity_without_name_or_driver_pins() {
+        let (mut configuration, mut discovery) = fixture();
+        validate_enrollment(&configuration, &discovery).unwrap();
+        discovery.vms[0].name = "Renamed by the user".into();
+        discovery.vms[0].power = Power::Running;
+        discovery.gpus[0].driver_version = "updated discovered version".into();
+        let mut second = configuration.targets[0].clone();
+        second.vm_id = "22222222-2222-2222-2222-222222222222".into();
+        second.enabled = false;
+        let mut vm = discovery.vms[0].clone();
+        vm.vm_id = second.vm_id.clone();
+        configuration.targets.push(second);
+        discovery.vms.push(vm);
+        validate_enrollment(&configuration, &discovery).unwrap();
+    }
+
+    #[test]
+    fn enrollment_refuses_unsupported_generation_and_missing_identities() {
+        let (configuration, mut discovery) = fixture();
+        discovery.vms[0].generation = 1;
+        assert!(
+            validate_enrollment(&configuration, &discovery)
+                .unwrap_err()
+                .contains("Generation 2")
+        );
+        discovery.vms[0].generation = 2;
+        discovery.vms[0].vm_id = "22222222-2222-2222-2222-222222222222".into();
+        assert!(
+            validate_enrollment(&configuration, &discovery)
+                .unwrap_err()
+                .contains("enrollment VM")
+        );
+        discovery.vms[0].vm_id = configuration.targets[0].vm_id.clone();
+        discovery.gpus[0].interface.push_str("-different");
+        assert!(
+            validate_enrollment(&configuration, &discovery)
+                .unwrap_err()
+                .contains("enrollment GPU")
+        );
+    }
+
+    #[test]
+    fn enrollment_validates_native_callers_before_admission() {
+        let (mut configuration, discovery) = fixture();
+        configuration.schema = 1;
+        assert!(validate_enrollment(&configuration, &discovery).is_err());
+        configuration.schema = 2;
+        let mut duplicate = configuration.targets[0].clone();
+        duplicate.vm_id.make_ascii_uppercase();
+        configuration.targets.push(duplicate);
+        assert!(
+            validate_enrollment(&configuration, &discovery)
+                .unwrap_err()
+                .contains("each VM")
+        );
+        configuration.targets.clear();
+        assert!(validate_enrollment(&configuration, &discovery).is_err());
+    }
+
+    #[test]
+    fn enrollment_does_not_claim_preparation_support_for_other_vendors() {
+        let (mut configuration, mut discovery) = fixture();
+        discovery.gpus[0].interface = r"\\?\PCI#VEN_1002&DEV_0001#test\GPUPARAV".into();
+        discovery.gpus[0].vendor = 0x1002;
+        discovery.gpus[0].preparation_supported = false;
+        configuration.targets[0].gpu_interface = discovery.gpus[0].interface.clone();
+        validate_enrollment(&configuration, &discovery).unwrap();
     }
 }

@@ -3,6 +3,9 @@
 ## Resume
 
 Active work is **ARCH-001**, implementing the user-approved architectural rebase.
+**M1 is completed as of 2026-10-08**; its independent review and live
+[installation/enrollment qualification](evidence/M1.md) passed. Active milestone
+work is M2's small working GPU-PV core and affected guest qualification.
 Product configuration and native operations no longer require laboratory identities.
 The old fixed-slot application is retained under `tools/lab/`, outside production.
 The roadmap now orders contract separation → working core → native GUI → allocation
@@ -18,6 +21,15 @@ prior research. The completed foundation below already satisfies its dependencie
 The revised M1–M4 roadmap and ARCH-001 own product sequencing. Existing card
 results are retained as research and reusable implementation history. Golden-image/disposable-target preparation is development
 support, not shipped functionality. Qualification may reuse existing tooling.
+
+### Current milestone acceptance
+
+| Milestone | Status | Result |
+|---|---|---|
+| M1 | completed | Product/laboratory separation, existing-VM enrollment and rewritten privilege boundary reviewed and live-qualified on 2026-10-08; [acceptance](evidence/M1.md). |
+
+Legacy card milestone labels below retain implementation history; they do not
+reopen the current roadmap's completed M1 acceptance.
 Do not port laboratory setup merely to satisfy the Rust product migration gate.
 
 | ID | Milestone/class | Priority | Status | Depends on |
@@ -541,6 +553,8 @@ Merged: Final artifacts and handover belong to the same acceptance/delivery resu
 Runtime existing-VM architecture and small GPU-PV core.
 
 - Owner: Codex; claimed 2026-10-07 for the explicit user-approved refactoring plan.
+- M1: completed 2026-10-08; existing-VM enrollment, product/laboratory contracts
+  and full rewritten runner boundary independently reviewed and live-qualified.
 - Replace laboratory-bound product contracts, runtime enrollment, current-driver
   preparation, workflow/recovery and ordinary health-plus-graphics verification.
 - Preserve the previous application as standalone contributor tooling. Production
@@ -558,8 +572,17 @@ Runtime existing-VM architecture and small GPU-PV core.
   trust/preview passed on the designated existing VM (host 10.0.26300.0, RTX 5060,
   driver 32.0.16.1692). Initial apply retained pending state after WMI 0x8004101E;
   corrected GetMethod to read class metadata instead of an instance. Controlled
-  guest retry is in progress; no new rendering/support claim yet. Host lifecycle
+  guest retry remains M2 work; no new rendering/support claim yet. Host lifecycle
   remains outside authorization.
+- M1 result (2026-10-08): installation validates runtime intent and Generation 2
+  before effects; durable credential-free runner auditing closes the independent
+  review finding. Product gate passed (39 library tests, 3 CLI tests, strict Clippy,
+  formatting, build, rustdoc and documentation); production graph excludes the lab,
+  which builds separately. Live native install/discovery/status/current-driver plan,
+  invalid enrollment refusal, interrupted-install denial/recovery, task/artifact
+  checks and ordinary-token authorization/audit/write-denial qualification passed.
+  The independent reviewer cleared M1 closure. Exact environment and commands are
+  in [M1 acceptance](evidence/M1.md). Pending preparation remains M2 work.
 
 ## GUI-001
 

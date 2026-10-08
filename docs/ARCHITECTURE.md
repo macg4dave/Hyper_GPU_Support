@@ -85,6 +85,14 @@ authorizes VM/GPU pairs. The runner accepts fixed typed operations; no arbitrary
 commands, caller file sources or host lifecycle operations are exposed.
 Global mutation serialization and per-VM journals retain original/applied settings,
 prepared digest and pending state. Publish before effects with atomic replacement.
+The protected runner writes `audit/<nonce>.json` under product state before
+dispatch and publishes `Succeeded` or `Failed` before replying. `Started` without
+a terminal outcome means the operation needs inspection and reconciliation, not
+that it failed before effects. Records contain operation/target intent and exclude
+credentials, raw errors and response payloads; detailed errors stay in the
+authenticated reply. Admission publication failure prevents dispatch; terminal
+publication failure reports uncertainty and preserves the unfinished admission.
+Audit records are retained for administrator inspection.
 Reconcile fresh state before retry; preserve externally changed settings. Recovery
 never replaces a user disk. Disable retains guest driver files; stale preparation
 refreshes on apply. Credentials are ephemeral or explicitly stored per-user/per-VM.

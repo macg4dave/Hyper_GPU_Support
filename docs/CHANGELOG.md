@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+## 2026-10-08 - M1 product boundary qualification
+
+- Validate runtime intent from both TOML and native installation callers; reject
+  unsupported VM generations and missing VM/GPU identities before installation effects.
+- Added focused tests for enrollment independent of VM names, driver pins and
+  laboratory inputs, with case-insensitive VM uniqueness and multiple selected VMs.
+- Added protected durable runner admission/outcome records that exclude credentials,
+  retain unfinished operations and fail explicitly if publication cannot complete.
+- Closed M1 after independent full-boundary review, native enrollment and
+  interrupted-install recovery, ordinary-token authorization/audit/write-denial
+  qualification and separate laboratory build. Product checks pass 39 library
+  and 3 CLI tests; [acceptance](evidence/M1.md) records the live environment and results.
+
 ## 2026-10-07 - Runtime GPU-PV architecture rebase
 
 - Separated the previous fixed-slot application into standalone contributor tooling.

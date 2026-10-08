@@ -31,6 +31,9 @@ systems do not establish support; initial hardware qualification remains Windows
 enrollment work on an existing VM without golden-parent configuration. Independently
 review and qualify the rewritten privilege boundary before deployment.
 
+Acceptance and current milestone status are recorded in the
+[backlog](BACKLOG.md#current-milestone-acceptance) with [M1 results](evidence/M1.md).
+
 ## M2 — Small working GPU-PV core
 
 - Implement discovery, preview, enable/apply, disable, status and health-plus-graphics
