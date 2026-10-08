@@ -30,6 +30,9 @@ const DETAILS: usize = 106;
 const DISCARD: usize = 107;
 const VERIFY: usize = 108;
 const REAPPLY: usize = 112;
+const BACK: usize = 113;
+const GPU: usize = 114;
+const RENDER: u32 = WM_APP + 1;
 const SAVE: usize = 109;
 const STORE: usize = 110;
 const FORGET: usize = 111;
@@ -62,6 +65,9 @@ struct State {
     details: HWND,
     verify: HWND,
     reapply: HWND,
+    back: HWND,
+    gpu: HWND,
+    gpu_label: HWND,
     discard: HWND,
     apply: HWND,
     save: HWND,
@@ -71,6 +77,7 @@ struct State {
     status: HWND,
     progress: HWND,
     page: usize,
+    details_open: bool,
     fonts: Vec<HFONT>,
     work: Option<Work>,
     receiver: Option<Receiver<Result<serde_json::Value, String>>>,
@@ -225,7 +232,10 @@ pub(super) fn run() -> Result<(), String> {
         list,
         LVM_SETEXTENDEDLISTVIEWSTYLE,
         WPARAM(0),
-        LPARAM((LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES) as isize),
+        LPARAM(
+            (LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES | LVS_EX_CHECKBOXES)
+                as isize,
+        ),
     );
     for (i, name) in [
         "Virtual Machine",
@@ -254,7 +264,7 @@ pub(super) fn run() -> Result<(), String> {
     let info = control(
         window,
         w!("STATIC"),
-        "GPU Support\nEnable prepares the current signed NVIDIA driver, attaches the enrolled GPU and checks graphics. Disable retains driver files. Attachment and the last graphics check are separate. Concurrent sharing is not yet qualified.",
+        "GPU Support\nCheck a VM row (or press Space) to stage support; Apply previews effects. Enable prepares the current signed NVIDIA driver and checks graphics. Disable retains files. Attachment is separate from graphics health; sharing is unqualified.",
         0,
         WS_BORDER,
     )?;
@@ -275,6 +285,27 @@ pub(super) fn run() -> Result<(), String> {
         WS_TABSTOP,
     )?;
     let discard = control(window, w!("BUTTON"), "Discard Changes", DISCARD, WS_TABSTOP)?;
+    let back = control(
+        window,
+        w!("BUTTON"),
+        "Back to Virtual Machines",
+        BACK,
+        WS_TABSTOP,
+    )?;
+    let gpu_label = control(
+        window,
+        w!("STATIC"),
+        "Enrolled GPU (change configuration and re-enroll to replace)",
+        0,
+        WINDOW_STYLE(0),
+    )?;
+    let gpu = control(
+        window,
+        w!("COMBOBOX"),
+        "Enrolled GPU",
+        GPU,
+        WS_TABSTOP | WS_VSCROLL | WINDOW_STYLE(CBS_DROPDOWNLIST as u32),
+    )?;
     let apply = control(
         window,
         w!("BUTTON"),
@@ -311,14 +342,15 @@ pub(super) fn run() -> Result<(), String> {
         WS_TABSTOP
             | WS_BORDER
             | WS_VSCROLL
+            | WS_HSCROLL
             | WINDOW_STYLE(ES_MULTILINE as u32 | ES_READONLY as u32),
     )?;
     let status = control(
         window,
-        w!("STATIC"),
+        w!("EDIT"),
         "Reading provider state...",
         0,
-        WINDOW_STYLE(0),
+        WS_TABSTOP | WS_VSCROLL | WINDOW_STYLE(ES_MULTILINE as u32 | ES_READONLY as u32),
     )?;
     let progress = control(
         window,
@@ -343,6 +375,9 @@ pub(super) fn run() -> Result<(), String> {
             details,
             verify,
             reapply,
+            back,
+            gpu,
+            gpu_label,
             discard,
             apply,
             save,
@@ -352,6 +387,7 @@ pub(super) fn run() -> Result<(), String> {
             status,
             progress,
             page: 0,
+            details_open: false,
             fonts: Vec::new(),
             work: None,
             receiver: None,
@@ -435,6 +471,9 @@ fn fonts() {
             s.details,
             s.verify,
             s.reapply,
+            s.back,
+            s.gpu,
+            s.gpu_label,
             s.discard,
             s.apply,
             s.save,
@@ -492,7 +531,7 @@ fn layout() {
         place(s.title, x, 26, width - 140, 40);
         place(s.subtitle, x, 74, width, 50);
         place(s.refresh, x + width - 118, 28, 118, 36);
-        let table_height = (h - 360).max(160);
+        let table_height = (h - 410).max(140);
         place(s.list, x, 132, width, table_height);
         for (i, portion) in [28, 12, 26, 22, 12].iter().enumerate() {
             send(
@@ -508,14 +547,23 @@ fn layout() {
         place(s.details, x + width - 300, bottom + 16, 142, 36);
         place(s.verify, x + width - 148, bottom + 16, 148, 36);
         place(s.info, x, bottom + 64, width, 96);
-        place(s.discard, x + width - 344, h - 74, 164, 40);
-        place(s.apply, x + width - 164, h - 74, 164, 40);
-        place(s.status, x, h - 28, width, 24);
-        place(s.progress, x, h - 82, (width - 374).max(40), 6);
+        place(s.discard, x + width - 344, h - 116, 164, 40);
+        place(s.apply, x + width - 164, h - 116, 164, 40);
+        place(s.status, x, h - 66, width, 56);
+        place(s.progress, x, h - 124, (width - 374).max(40), 6);
         place(s.page_text, x, 132, width, (h - 260).max(160));
-        place(s.store, x, h - 114, 218, 36);
-        place(s.forget, x + 230, h - 114, 218, 36);
-        place(s.save, x + width - 238, h - 74, 238, 40);
+        place(s.store, x, h - 166, 218, 36);
+        place(s.forget, x + 230, h - 166, 218, 36);
+        place(s.save, x + width - 238, h - 116, 238, 40);
+        place(s.back, x, 126, 234, 36);
+        place(s.gpu_label, x, 174, width, 24);
+        place(s.gpu, x, 202, width, 180);
+        if s.page == 0 && s.details_open {
+            place(s.page_text, x, 250, width, (h - 434).max(140));
+            place(s.toggle, x, h - 172, (width - 340).max(200), 36);
+            place(s.reapply, x + width - 320, h - 172, 165, 36);
+            place(s.verify, x + width - 148, h - 172, 148, 36);
+        }
     });
 }
 fn selected(s: &State) -> Option<Target> {
@@ -548,8 +596,16 @@ fn render() {
             return;
         };
         let active = busy(s);
-        let dashboard = s.page == 0;
-        caption(s.title, PAGES[s.page]);
+        let details = s.page == 0 && s.details_open;
+        let dashboard = s.page == 0 && !details;
+        caption(
+            s.title,
+            if details {
+                "VM / GPU Details"
+            } else {
+                PAGES[s.page]
+            },
+        );
         caption(
             s.subtitle,
             if dashboard {
@@ -568,10 +624,15 @@ fn render() {
         }
         // SAFETY: all HWNDs belong to this UI thread; visibility/enabled state is presentation only.
         unsafe {
-            for h in [
-                s.list, s.toggle, s.details, s.verify, s.reapply, s.info, s.discard, s.apply,
-            ] {
+            for h in [s.list, s.details, s.info] {
                 let _ = ShowWindow(h, if dashboard { SW_SHOW } else { SW_HIDE });
+            }
+            for h in [s.verify, s.reapply, s.discard, s.apply] {
+                let _ = ShowWindow(h, if s.page == 0 { SW_SHOW } else { SW_HIDE });
+            }
+            let _ = ShowWindow(s.toggle, if details { SW_SHOW } else { SW_HIDE });
+            for h in [s.back, s.gpu, s.gpu_label] {
+                let _ = ShowWindow(h, if details { SW_SHOW } else { SW_HIDE });
             }
             let _ = ShowWindow(s.page_text, if dashboard { SW_HIDE } else { SW_SHOW });
             for h in [s.save, s.store, s.forget] {
@@ -585,8 +646,16 @@ fn render() {
             WPARAM(usize::from(active)),
             LPARAM(35),
         );
-        caption(s.page_text, &page_text(s));
+        caption(
+            s.page_text,
+            &if details {
+                details_text(s)
+            } else {
+                page_text(s)
+            },
+        );
         caption(s.status, &s.notice);
+        let top = send(s.list, LVM_GETTOPINDEX, WPARAM(0), LPARAM(0)).0.max(0) as usize;
         send(s.list, LVM_DELETEALLITEMS, WPARAM(0), LPARAM(0));
         if let Some(i) = &s.view.inventory {
             for (row, vm) in i.discovery.vms.iter().enumerate() {
@@ -637,9 +706,85 @@ fn render() {
                         LPARAM((&item as *const LVITEMW) as isize),
                     );
                 }
+                let configured = s
+                    .view
+                    .configuration
+                    .targets
+                    .iter()
+                    .find(|t| t.vm_id == vm.vm_id);
+                let checked = s
+                    .view
+                    .draft
+                    .as_ref()
+                    .filter(|t| t.vm_id == vm.vm_id)
+                    .map_or_else(
+                        || configured.is_some_and(|t| vm.gpus == vec![t.gpu_interface.clone()]),
+                        |t| t.enabled,
+                    );
+                let editable = configured.is_some_and(|t| {
+                    let mut t = t.clone();
+                    t.enabled = !checked;
+                    s.view.eligibility(&t).is_ok() && !s.view.unsaved
+                });
+                let item = LVITEMW {
+                    stateMask: LVIS_STATEIMAGEMASK,
+                    state: LIST_VIEW_ITEM_STATE_FLAGS(
+                        (if !editable {
+                            0
+                        } else if checked {
+                            2
+                        } else {
+                            1
+                        }) << 12,
+                    ),
+                    ..Default::default()
+                };
+                send(
+                    s.list,
+                    LVM_SETITEMSTATE,
+                    WPARAM(row),
+                    LPARAM((&item as *const LVITEMW) as isize),
+                );
+            }
+            if !i.discovery.vms.is_empty() {
+                send(
+                    s.list,
+                    LVM_ENSUREVISIBLE,
+                    WPARAM(top.min(i.discovery.vms.len() - 1)),
+                    LPARAM(0),
+                );
             }
         }
         let target = selected(s);
+        send(s.gpu, CB_RESETCONTENT, WPARAM(0), LPARAM(0));
+        let label = target
+            .as_ref()
+            .and_then(|t| {
+                s.view.inventory.as_ref().and_then(|i| {
+                    i.enrolled
+                        .iter()
+                        .any(|e| e.vm_id == t.vm_id && e.gpu_interface == t.gpu_interface)
+                        .then(|| {
+                            i.discovery
+                                .gpus
+                                .iter()
+                                .find(|g| g.interface == t.gpu_interface)
+                                .map_or_else(
+                                    || "Enrolled GPU unavailable".into(),
+                                    |g| format!("{} — driver {}", g.name, g.driver_version),
+                                )
+                        })
+                })
+            })
+            .unwrap_or_else(|| "No protected GPU pair enrolled for this VM".into());
+        let label = wide(&label);
+        send(
+            s.gpu,
+            CB_ADDSTRING,
+            WPARAM(0),
+            LPARAM(label.as_ptr() as isize),
+        );
+        send(s.gpu, CB_SETCURSEL, WPARAM(0), LPARAM(0));
         let enabled = s
             .view
             .draft
@@ -677,6 +822,8 @@ fn render() {
                 (s.toggle, editable),
                 (s.reapply, editable),
                 (s.details, s.view.selected.is_some()),
+                (s.back, true),
+                (s.gpu, false),
                 (s.verify, verifiable && !s.view.needs_readback),
                 (s.discard, s.view.draft.is_some()),
                 (s.apply, s.view.apply_target().is_ok()),
@@ -839,22 +986,24 @@ fn apply() {
         }
     }
 }
-#[allow(unsafe_code)]
-fn details() {
-    let text = STATE.with(|c| {
-        let b = c.borrow(); let s = b.as_ref()?; let id = s.view.selected.as_ref()?; let vm = s.view.vm(id)?; let t = selected(s); let i = s.view.inventory.as_ref()?;
+fn details_text(s: &State) -> String {
+    (|| {
+  let id = s.view.selected.as_ref()?; let vm = s.view.vm(id)?; let t = selected(s); let i = s.view.inventory.as_ref()?;
         let gpu = t.as_ref().and_then(|t| i.discovery.gpus.iter().find(|g| g.interface == t.gpu_interface)); let j = i.managed.get(id).and_then(Option::as_ref);
         let eligibility = t.as_ref().map_or_else(|| "Not configured/enrolled".into(), |t| s.view.eligibility(t).err().unwrap_or_else(|| "Eligible enrolled pair".into()));
         Some(format!("{}\nVM: {}\nGeneration: {}\nPower: {:?}\n\n{}\nRequested configuration: {}\nObserved support: {}\nSelected GPU: {}\nAttached interfaces: {:?}\nAllocation: {} {:?}\n\nPending recovery: {}\nRecorded preparation: {}\nLast successful graphics check (UTC Unix seconds): {}\nA recorded check is not fresh health. Guest OS is unobserved.\n\nGPU selection is constrained to the protected pair. Update runtime configuration and re-run administrator install to change GPU; the dashboard cannot grant enrollment.", vm.name, id, vm.generation, vm.power, eligibility, t.as_ref().map_or("Unconfigured", |t| if t.enabled { "Enabled" } else { "Disabled" }), s.view.support_text(vm), gpu.map_or("Unavailable", |g| g.name.as_str()), vm.gpus, allocation_text(vm), vm.vram, j.is_some_and(|j| j.pending), j.and_then(|j| j.prepared.as_deref()).unwrap_or("Not recorded"), j.and_then(|j| j.last_verified).map_or_else(|| "Not recorded".into(), |t| t.to_string())))
-    }).unwrap_or_else(|| "Select an observed VM.".into());
-    let parent = STATE.with(|c| c.borrow().as_ref().map(|s| s.window));
-    modal(true);
-    let text = wide(&text);
-    // SAFETY: GUI-owned optional parent and live terminated text.
-    unsafe {
-        MessageBoxW(parent, PCWSTR(text.as_ptr()), w!("VM / GPU Details"), MB_OK);
-    }
-    modal(false);
+
+    })().unwrap_or_else(|| "The selected VM is no longer available. Refresh or return to the list.".into()).replace("\n", "\r\n")
+}
+fn details() {
+    STATE.with(|c| {
+        if let Some(s) = c.borrow_mut().as_mut() {
+            s.details_open = true;
+            s.page = 0;
+        }
+    });
+    layout();
+    render();
 }
 fn verify() {
     let data = STATE.with(|c| {
@@ -1011,18 +1160,25 @@ unsafe extern "system" fn window_proc(
                 if hdr.idFrom == LIST {
                     if hdr.code == LVN_ITEMCHANGED {
                         let changed = &*(lparam.0 as *const NMLISTVIEW);
-                        if changed.uNewState & LVIS_SELECTED.0 != 0 {
+                        let checked_change =
+                            (changed.uNewState ^ changed.uOldState) & LVIS_STATEIMAGEMASK.0 != 0;
+                        if changed.uNewState & LVIS_SELECTED.0 != 0 || checked_change {
                             STATE.with(|c| {
-                                if let Some(s) = c.borrow_mut().as_mut()
-                                    && let Some(vm) =
-                                        s.view.inventory.as_ref().and_then(|i| {
-                                            i.discovery.vms.get(changed.iItem as usize)
-                                        })
-                                {
-                                    s.view.selected = Some(vm.vm_id.clone());
+                                if let Some(s) = c.borrow_mut().as_mut() {
+                                    let id = s.view.inventory.as_ref().and_then(|i| i.discovery.vms.get(changed.iItem as usize)).map(|vm| vm.vm_id.clone());
+                                    if let Some(id) = id {
+                                        s.view.selected = Some(id.clone());
+                                        if checked_change {
+                                            s.notice = if busy(s) { "Wait for the active operation.".into() } else {
+                                                let checked = changed.uNewState & LVIS_STATEIMAGEMASK.0 == 2 << 12;
+                                                s.view.stage(&id, checked).map_or_else(|e| e, |()| "Pending intent only; Apply previews effects. Discard changes no VM state.".into())
+                                            };
+                                        }
+                                    }
                                 }
                             });
-                            render();
+                            // Finish the native checkbox/selection transaction before rebuilding rows.
+                            let _ = PostMessageW(Some(hwnd), RENDER, WPARAM(0), LPARAM(0));
                         }
                     } else if hdr.code == NM_DBLCLK || hdr.code == NM_CLICK {
                         let click = &*(lparam.0 as *const NMITEMACTIVATE);
@@ -1042,8 +1198,19 @@ unsafe extern "system" fn window_proc(
                             STATE.with(|c| {
                                 if let Some(s) = c.borrow_mut().as_mut() {
                                     s.page = id - 200;
+                                    s.details_open = false;
                                 }
                             });
+                            layout();
+                            render();
+                        }
+                        BACK => {
+                            STATE.with(|c| {
+                                if let Some(s) = c.borrow_mut().as_mut() {
+                                    s.details_open = false;
+                                }
+                            });
+                            layout();
                             render();
                         }
                         REFRESH => discover(),
@@ -1078,6 +1245,10 @@ unsafe extern "system" fn window_proc(
             }
             WM_TIMER => {
                 poll();
+                LRESULT(0)
+            }
+            RENDER => {
+                render();
                 LRESULT(0)
             }
             WM_CLOSE => {

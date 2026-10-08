@@ -1,170 +1,78 @@
-# Native Windows GUI plan
+# Hyper GPU Support — Slint GUI Roadmap
 
-**Reviewed:** 8 October 2026. [Product roadmap](ROADMAP.md) owns milestones;
-[GUI-001](BACKLOG.md#gui-001) owns status/dependencies. This is a written design
-specification for the native presentation and supported interactions.
+**Status:** Planning-only v0.1  
+**Updated:** 2026-10-09  
+**Authoritative choices:** [`GUI_GUIDE.md`](GUI_GUIDE.md), especially architecture decisions A18–A32  
+**Codex planning brief:** [`GUI_PROMPT.md`](GUI_PROMPT.md)
 
-## Reuse and actual prototype state
+> This roadmap authorises **no code, build, installation, elevation, VM power change or GPU operation**. Obtain explicit approval for an implementation milestone. `windows_gui.rs` is a disposable experiment; do not port it for compatibility.
 
-`src/windows_gui.rs` already uses Win32 through existing `windows` bindings:
-window/message loop, sidebar/report table/native checkbox/buttons, runner discovery,
-one background request, credential prompt/vault and configuration save.
-Keep this foundation and `src/bin/hyper-gpu-gui.rs`; no toolkit replacement or
-duplicate Hyper-V implementation.
+## Principles and gates
 
-It currently requires `--config FILE` plus separate runner installation/enrollment.
-The 8 October foundation implements sidebar/header/five-column table/panel/footer,
-DPI-scaled resizing and minimum sizing, independent one-VM draft and retained
-selection. Apply fetches the shared preview; Reapply / Update deliberately stages
-current driver preparation even for an enabled VM. Protected enrollment is read
-back from the runner. Historical inventory blocks actions until refresh succeeds.
-Busy requests disable conflicting controls; close waits for their final response.
-Save failures retain completed intent without replaying VM effects. Verification
-confirmation uses the core's pending recovery power intent.
+- One Windows executable: default Slint GUI, explicit CLI subcommands, internal elevated worker mode; common Rust core and validation.
+- Per-VM configs in ProgramData keyed by VM GUID; draft in memory; protected worker writes only after Apply/readback. Save-only retry never repeats GPU operations.
+- GUI normally unelevated. One short-lived elevated worker per authorised operation; fixed typed operations via private local Windows Named Pipe.
+- Exactly one host-wide modifying GPU operation across GUI/CLI/workers; recovery hold remains distinct from lock state.
+- On failure, stop modifying GPU state; manual reconciliation only. Read-only discovery remains available; persistent recovery warning on startup.
+- Host GPU settings read-only. Physical GPU selection and per-VM VRAM/compute/encode/decode Min/Optimal/Max editable after capability validation.
+- No application code from this plan until a separate implementation task is authorised. The old Win32 GUI need not be preserved.
 
-Native release smoke passed navigation, reapply staging, refresh retention,
-discard, resize and idle close without provider/journal/configuration changes.
-The selected-VM checkbox and native Details dialog are initial controls; per-row
-switches, in-window Details/GPU selection, styling, 150/200% DPI, accessibility and
-full GUI operation/recovery acceptance remain. The hang investigation is closed
-by user direction; live GUI acceptance follows M2's affected preparation gate.
+## Milestone 0 — Read-only repository and host capability audit
 
-## Written layout
+**Scope:** Inspect Cargo structure, CLI routing, core API, existing config/runner/permission/recovery contracts, tests and relevant roadmaps. Verify Microsoft GPU-P provider semantics and current Slint APIs; read only unless an explicit test is approved.
 
-Keep **Hyper GPU Support**, standard Windows title bar/window controls and native UI
-font. Use light surfaces, blue accent, soft borders, modest corners and whitespace.
-Style incrementally with native controls/custom drawing only where needed. Preserve
-keyboard focus/accessibility in drawn controls; avoid decorative animation.
+**Deliver:** Reality-check matrix (existing / missing / unsupported / needs experimental verification); proposed compact module ownership; list of OPEN items with evidence and options; adjusted milestone estimates without pretending uncertain APIs are proven.
 
-| Region | Target |
-|---|---|
-| Sidebar | Approximately 280 logical pixels at design size; **Virtual Machines**, **System Information**, **Settings**, **About**; line icons, pale blue active row and slim blue indicator |
-| Header | **Virtual Machines**; **Manage GPU support and related settings for your Hyper-V virtual machines.**; outlined **Refresh** at upper right |
-| Table | **Virtual Machine**, **Status**, **GPU Support**, **GPU Memory Allocation**, **Details**; light header/separators and blue selection |
-| Row | Real bold VM name/muted subline, generic VM icon unless OS is known, labelled power state, switch, allocation text and outlined **View Details** |
-| Information panel | Light blue/grey with information icon and **GPU Support** explanation |
-| Footer | Bottom-right **Discard Changes** and blue **Apply Changes**; disabled without a draft |
-| Details | Selected-VM native pane/dialog with GPU selection, identities, eligibility, preparation/verification and recovery; technical details on demand |
+**Gate:** Review findings and resolve security/configuration interface decisions before any core change.
 
-Use roughly 1536 × 1024 for proportions, not fixed required dimensions.
-Set a usable minimum window size, responsive layout/scrolling for many VMs and
-DPI-aware sizing. Status is never colour alone. OS window rounding follows Windows.
+## Milestone 1 — Slint visual shell with mock backend
 
-## Supported behavior
+**Scope:** Modular shell/navigation, VM cards, split layout (never collapses), resizable divider, horizontal scroll for narrow windows, hybrid right-hand panel, Fluent theme tokens and static/mock states.
 
-- List discovered VMs, including readable ineligible/unenrolled entries. Discovery
-  does not establish guest OS; never infer OS support/icons from VM names.
-- Power state, GPU attachment, preparation and graphics health are separate.
-  **Enabled** describes observed selected assignment, not successful rendering.
-- Stage one VM draft with **Pending**; retain effective baseline. Toggle clicks
-  have no effects. Changing rows cannot silently discard edits.
-- Allocation text is **Provider default**, **Provider values**, or **Unknown** from
-  readback. Existing raw/external values are not defaults. No GiB/percentage slider
-  until GPU-010 establishes meaning/enforcement.
-- Apply obtains the shared fresh plan, explains preparation/settings/downtime/
-  restoration, then uses the existing runner. Never hash the payload on dashboard refresh.
-- GPU selection must respect the protected enrolled VM/GPU pair. Explain changing
-  config/re-enrolling; combo selection cannot grant privilege.
-- Reuse CLI credential/vault semantics, with explicit storage only. Short-lived
-  credentials never enter persistent draft/config, reports, logs or arguments.
-- Use indeterminate progress/real exposed stage. Runner currently returns final
-  results, not streamed stages; no progress protocol is needed just for a bar.
-- Refresh readback after success/failure. Timeout/lost response/pending journal
-  means inspect/reconcile, never automatic rollback or false success.
-- Apply success and config-save success are separate. Persist safely; failed save
-  does not undo Hyper-V or justify blind replay.
-- Disable conflicting controls while busy. Closing/cancelling the UI does not
-  prove native mutation stopped; prefer delaying close until bounded work finishes.
-  A disconnected reply requires reconciliation before retry.
-- Preserve selection/draft on Refresh; invalidate preview if identities/state
-  changed. Discard clears UI intent only.
-- Keep one-VM-at-a-time staged Apply. Disclose unqualified sharing; any concurrent
-  admission policy belongs to the core, not UI-only warnings.
+**Gate:** VS Code Slint preview; no Hyper-V needed; keyboard selection, focus, scroll, long names, multiple DPI/text scale and empty/error states visually checked.
 
-## Details and secondary pages
+## Milestone 2 — Executable dispatch and shared domain contracts
 
-**View Details:** real name/VM ID/generation/power, enrollment/eligibility, selected
-versus attached GPU, effective provider allocation, pending changes/recovery,
-recorded prepared digest and discovered driver, last successful graphics timestamp.
-Details do not authenticate a current guest receipt or run a fresh graphics check.
-Provide deliberate **Verify** through the existing operation with credential/downtime
-preview when needed.
+**Scope:** One executable routes no args to GUI, explicit args to CLI, restricted/internal worker to privileged path; common domain layer for VM identity, desired/observed/draft and typed operation states. No duplicate Hyper-V business rules in Slint.
 
-**System Information:** existing GPU/driver/prerequisite facts; unknown where absent.
-Add host queries only for a concrete useful fact.
+**Gate:** CLI remains headless with reliable output/exit status; GUI launch has no unwanted console; mock tests show both entry points reuse the same validation contracts.
 
-**Settings:** configuration/enrollment location and real credential actions first;
-no invented theme/refresh preferences or second policy authority.
+## Milestone 3 — Per-VM configuration persistence
 
-**About:** actual version/build, purpose and included notices/documentation.
+**Scope:** Settle schema/versioning based on repo evidence, ProgramData paths and ACLs, stable VM GUID file names, atomic write and conflict detection, per-user visual preferences separately. Reads not treated as privilege grants.
 
-## Small steps under GUI-001
+**Gate:** No stale overwrite; safe rename/missing file handling; config edits stay in memory; only worker can commit; file-save failure is distinguishable from successful Hyper-V operation.
 
-G1–G6 are checklist labels, not new backlog IDs.
+## Milestone 4 — GPU capabilities and allocation model
 
-### G1 — Native layout (available now)
+**Scope:** Detect eligible GPUs, current GPU identity and per-VM state; classify all twelve provider fields and input semantics; suggest values from real provider capabilities, not invented percentages. Host partition count displayed only.
 
-Reuse current window/message loop. Add sidebar/header/table/panel/footer and move GPU
-selector to Details. Small presentation fixtures cover empty/unknown/many-row cases
-in development only.
+**Gate:** Every field has verified units, bounds, or an honest unsupported/unknown state; mock-backed card/editor validation and CLI parity.
 
-**Acceptance:** written layout recognizable, four pages navigate; usable minimum/
-resized window, 100/150/200% DPI, keyboard focus and readable text. No GPU run needed.
+## Milestone 5 — Secure privileged execution boundary
 
-### G2 — Truthful read-only binding (CORE-012 integration)
+**Scope:** Reuse/reshape approved fixed-operation runner, one per-operation elevated instance, private local Named Pipe, access control, peer authentication, message framing/bounds/timeouts, strict identity/plan validation. Coordinate one host-wide modifying operation across processes.
 
-Reuse runner discovery/journals/observed state. Preserve selection, show eligibility/
-enrollment and detail fields; consume partial/denied results when core supports them.
+**Gate:** Denied UAC makes no VM change; malformed/untrusted/stale messages cannot run operations; simulated disconnection produces *uncertain*; locks do not erase durable unresolved recovery state.
 
-**Acceptance:** UI matches CLI; unknown/denied never becomes Disabled or Healthy.
-Refresh has no guest effects/full manifest hashing. Missing runner gives setup
-guidance; ordinary launch is not elevated.
+## Milestone 6 — Plan, apply, progress and manual recovery
 
-### G3 — Draft and fresh preview (CORE-006)
+**Scope:** Adaptive Review & Apply, explicit guest-shutdown permission, stage progress, safe restoration of previously running state, independent readback, worker-owned post-success per-VM save, narrow save-only retry, minimal recovery journal. On GPU failure stop and require manual reconciliation.
 
-Add baseline/draft/dirty actions, stale-preview handling and shared effect summary.
-Restrict GPU selection to enrollment; explain re-enrollment.
+**Gate:** Fault-injected partial success, crashes, timeouts and save failures do not trigger automatic GPU retry/rollback; stage status is accurate; recovery warning blocks new modifications after restart.
 
-**Acceptance:** toggle/Discard/Refresh are effect-free; edits survive selection
-safely; enable/disable/running-no-op plans match behavior. Apply unavailable for
-invalid, unsupported or unenrolled pairs.
+## Milestone 7 — Connect Slint controls to real backend
 
-### G4 — Complete operation integration
+**Scope:** Replace mocks incrementally for discovered VMs, selection/filtering, four expandable allocation groups, pending-draft prompt, progress/recovery notices and credentials; preserve single pending VM draft.
 
-Reuse background request/runner/credential UI. Handle channel disconnect, duplicates,
-busy controls, close, vault reuse, safe config persistence and post-result readback.
+**Gate:** UI and CLI produce the same plan for identical inputs; stale external file/Hyper-V changes block Apply; VM selection and unrelated refreshes preserve pending intent and scroll context.
 
-**Acceptance:** responsive UI, redacted credentials, save failure distinguished from
-apply failure, uncertain response preserved; focused checks of these failure paths.
-No new GUI backend or unsupported cancellation claim.
+## Milestone 8 — Process lifetime, integration and release readiness
 
-### G5 — Setup and secondary pages (CORE-021)
+**Scope:** Single GUI per Windows session with activate-existing behaviour, close deferral during active worker operation, crash/lost-pipe recovery, session-only diagnostics, GUI settings, installer path/ACLs and renderer fallback. Evaluate accessibility and actual Slint feature support.
 
-Expose schema-2 selection/config and administrator enrollment instructions; add a
-narrow guided route if needed for usability. Reuse `runner::install` with UAC and
-fixed typed validation. GPU pair changes require re-enrollment.
+**Gate:** Ordinary close cannot abandon a known active operation; another GUI launch does not clear draft; CLI and worker modes unaffected; mock/negative tests pass. Real VM tests only with specific user permission; no host reboot/shutdown without approval.
 
-**Acceptance:** packaged instructions or guided flow get an operator to enrolled VM
-controls without lab paths/arbitrary elevated commands. UAC is for setup, not drawing
-the dashboard. Secondary pages contain real supported facts/actions.
+## Work that remains explicitly open
 
-### G6 — Qualified journey and release
-
-After M2 clearance, exercise select/preview/enable/verify/reapply/disable and one
-representative failure using candidate artifacts. Check tab order, accessible
-labels, High Contrast, scaling/resize and error readability.
-
-**Acceptance:** CLI-equivalent readback; running no-op retains uptime; disable keeps
-prepared files/restores attributable state; no false green result. Ships with CLI,
-runner, guest worker and D3D11 probe under CORE-017/GPU-014.
-
-## Dependencies and proportional checks
-
-G1/G2 foundations and CORE-006 preview are available. G4 can use
-hardware-free checks before live M2 clearance. G5 reuses completed M1 enrollment.
-G6 closes M3 and feeds R1; M4 allocation/GPU-015 sharing stay separate.
-
-Review materially changed privilege/credential boundaries independently. Routine
-styling needs native usability checks, not an architecture review per control.
-No pixel-test framework, stress campaign, scheduler, driver service or historical
-lab migration is a prerequisite.
+See `GUI_GUIDE.md` section 16 for the current `OPEN-*` table. Codex should challenge assumptions with evidence, not re-open settled user choices. The next actionable step is **Milestone 0, read-only audit**, after the user chooses to initiate it.
