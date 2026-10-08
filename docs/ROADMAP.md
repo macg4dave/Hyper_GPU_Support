@@ -1,96 +1,176 @@
-# Roadmap: GPU-PV management
+# GPU-PV product roadmap
 
-Build an understandable Windows application that enables GPU-PV on existing
-Hyper-V VMs, then provides GPU on/off and allocation controls through a native GUI.
-The NVIDIA RTX 5060 / Windows 11 baseline proves feasibility; it is research
-evidence, not an architecture or configuration users must reproduce.
-See [architecture](ARCHITECTURE.md) and [backlog](BACKLOG.md#arch-001).
+**Reviewed:** 8 October 2026 against the root Rust code, architecture and M1/M2
+results. [BACKLOG.md](BACKLOG.md) owns status/dependencies; the [GUI plan](gui_roadmap.md)
+owns presentation slices. Findings below are inspection results, not fresh hardware tests.
 
-## Product workflow
+## Product outcome
 
-Host/Hyper-V discovery → VM selection → GPU discovery → GPU-PV configuration →
-automatic guest driver preparation → necessary VM settings → verification.
+Deliver a reusable Rust core, thin CLI and native Windows GUI for existing Hyper-V
+Generation 2 VMs. Prepare a selected Windows guest from the current signed NVIDIA
+driver, attach one GPU with provider defaults, verify graphics, and disable safely.
 
-Select multiple existing Generation 2 VMs, one GPU per VM; several VMs may share
-the same GPU after qualification. Discover partitionable vendors, implement NVIDIA
-preparation first, and add vendors incrementally. GUI example names and operating
-systems do not establish support; initial hardware qualification remains Windows 11 x64.
+- Windows 11 x64/NVIDIA first; RTX 5060 is a test baseline, not a universal claim.
+- Multiple VM enrollment and isolated state; simultaneous same-GPU sharing requires
+  separate two-VM qualification. No scheduler or fairness promise.
+- Preserve disks, CPU/RAM quantities, Secure Boot and security devices. Preview
+  required MMIO/cache/checkpoint-policy changes; restore attributable settings.
+- Graceful guest lifecycle is part of apply/verify; preserve initial power where
+  feasible. Failed graceful shutdown stops mutation. Host lifecycle needs immediate
+  explicit permission; never automate host restart.
+- No VM creation/reset, golden-parent requirement, fixed driver counts/hashes/versions,
+  HCS work or new resident management service in production.
+- Reuse root Rust code. DEC-028 permits only the fixed PowerShell Direct transport/
+  bootstrap bridge; preparation and application logic remain Rust.
+- Advanced allocation and additional vendors follow the defaults-based release.
+  Provider values do not establish GiB, percentages, fairness or hard limits.
 
-## M1 — Separate product contracts from the laboratory
+## Existing implementation: reuse rather than rebuild
 
-- Runtime intent contains VM/GPU identities and desired state. Discover driver
-  versions, package paths, file counts and hashes at operation time.
-- Administrator-protected runner enrollment selects existing VMs without a golden
-  image, prescribed disk chain or exact display name.
-- Reuse native provider, discovery and rendering primitives. Remove laboratory
-  reset and the superseded package-only/CUDA alias path from the production graph.
-- Preserve the previous application in the standalone [laboratory](../tools/lab/README.md).
-  Production never imports it; its artifacts/installation stay separate.
+| Area | Implemented | Remaining gap |
+|---|---|---|
+| M1 boundary | Separate root workspace, schema 2, native install/enrollment, protected runner; qualified | M1 stays complete |
+| Discovery/selection | Native VM/GPU inventory, multiple targets and exact VM/GPU enrollment | Partial-access reporting; guided selection/enrollment UX |
+| NVIDIA preparation | Current-driver discovery, signature/catalog trust, complete payload and Rust guest writer | Explain drift/receipt state; affected qualification |
+| Apply/disable | Minimal compatibility changes, defaults, initial-power handling, detach/restoration; current-build repeat passed | Useful operator preview |
+| Recovery | Per-VM journals, pending intent, stale-digest invalidation, retry/reconciliation and audit | Clear next actions; no new rollback/reset subsystem |
+| Verification | PnP and checked D3D11; running no-op retains uptime | Current versus last verified state in presentation |
+| CLI | inventory/install/plan/apply/enable/disable/status/verify/credentials/forget | Readable effects/errors; no new validate command needed |
+| GUI | Win32 controls, runner discovery, selection, background apply, credentials/details/config save | Layout, draft/observed split, fresh preview, busy/close/setup handling |
+| Allocation | Optional raw VRAM triple, range validation and native setter | Units/enforcement unqualified; no ordinary slider |
 
-**Exit:** default builds have no laboratory dependency; runtime discovery and
-enrollment work on an existing VM without golden-parent configuration. Independently
-review and qualify the rewritten privilege boundary before deployment.
+Sources: root `src/model.rs`, `workflow.rs`, `runner.rs`, `windows_hyperv.rs`,
+`windows_driver.rs`, `guest.rs`, `main.rs` and `windows_gui.rs`.
+The standalone lab is historical/contributor tooling, not a product backend.
 
-Acceptance and current milestone status are recorded in the
-[backlog](BACKLOG.md#current-milestone-acceptance) with [M1 results](evidence/M1.md).
+**Important limits:** status returns observed Hyper-V state and the journal, not a
+fresh guest receipt/graphics check. Enable-plan currently discovers/hashes the full
+signed payload; it is read-only for VM/guest effects, but is not a cheap dashboard
+poll. Runner requests also write protected audit records. Inventory currently fails
+the entire request if an individual VM inspection fails; per-row denied/unavailable
+state is still work. Do not label these capabilities implemented.
 
-## M2 — Small working GPU-PV core
+## Milestones
 
-- Implement discovery, preview, enable/apply, disable, status and health-plus-graphics
-  verification through one reusable Rust core and thin CLI.
-- Automatically discover, authenticate and prepare the complete current host-driver
-  payload. Per-run hashes/receipts are internal integrity data, not operator inputs.
-- Use Hyper-V resource defaults first. Preserve CPU/RAM quantities, disks, Secure
-  Boot and security devices; change only necessary GPU compatibility settings.
-- Gracefully restart guests when needed, restore initial power state and avoid
-  restarting a running no-op target. Never force power-off after shutdown failure.
-- Reconcile partial preparation and settings through durable state. Disable keeps
-  prepared guest files; refresh stale preparation on the next apply.
-- Prompt for credentials or explicitly store them in the current user's Windows
-  Credential Manager, scoped by selected VM.
+| Milestone | Exit | Current state / owner |
+|---|---|---|
+| M1: product boundary | Native install/enrollment reviewed and qualified; no lab dependency | Complete; ARCH-001 |
+| M2: reliable NVIDIA core | One-VM apply/render/reapply/disable, recovery and stable host | Current-build observed repeat passed; fresh preparation under new limits remains; ARCH-001 |
+| M3: native GUI | Written layout, responsive operations, truthful state and CLI parity | Prototype in progress; GUI-001 |
+| R1: packaged v1.0 | CLI/GUI/runner/guest/probe candidate, tested guide, no essential blocker | CORE-017, DOC-003, GPU-014 |
+| M4: allocation/vendors | Qualified units/readback/enforcement and incremental vendor preparation | Later; GPU-010 and separately scheduled vendor work |
 
-**Exit:** one NVIDIA VM completes current preparation, attachment and checked
-rendering; reapply and disable pass. Qualify two VMs sharing a GPU before advertising
-sharing. Failed default-allocation qualification is a blocker, not permission to
-silently substitute the experimental 50% resource profile.
+Visual/read-only GUI work can proceed during M2 diagnosis. Live GUI acceptance and
+release depend on M2 qualification. Multi-target isolation is required; simultaneous
+sharing is a conditional capability, not a defaults-based v1 release gate.
 
-## M3 — Native Windows GUI
+## Small core steps
 
-- Native controls use the same core for VM listing, GPU selection, per-VM on/off,
-  effective status, preparation/verification results and credential prompts.
-- Keep management off the UI thread. Display actual failures and pending operations.
-- Use the supplied VM-table mockup as a design reference; its OS names, capacities
-  and slider ranges are not discovered data or compatibility promises.
-- Build the GUI immediately after the working core, before expanding allocation.
+### C1 — Host-hang investigation closed (BLK-005)
 
-**Exit:** GUI/CLI exercise the same qualified operations. Initial controls expose
-provider defaults, without a fictional GiB slider. Validate native UI usability and
-real management behavior; compilation alone is insufficient.
+**8 October result:** reviewed revision `96152e7` was rebuilt, installed and passed
+an observed default-attach/PnP/D3D11/Off-and-running-reapply/verify/disable sequence.
+Graceful cleanup and preservation passed; the user confirmed no slowdown or beeps.
+This bounded run did not reproduce the earlier hang or establish its cause. It
+reused preparation, so fresh transfer/writing under the new child limits remains
+an affected qualification gap. See [M2 evidence](evidence/M2.md).
 
-## M4 — VRAM controls and additional vendors
+**Closed by user direction, 8 October:** no further hang investigation, reproduction
+campaign or resource-observation requirement is scheduled. Preserve the evidence;
+the cause is unknown, not claimed fixed. BLK-005 no longer blocks product work.
+Normal development/test authorization and existing operation guards still apply.
+Next product step: C2 / CORE-006 shared preview.
 
-- Expose supported provider allocation values with effective readback. Translate
-  into GiB/percent only when that provider mapping is established for the GPU.
-- A requested allocation is not a proven hard VRAM limit or fairness guarantee.
-- Add AMD/Intel preparation adapters independently with hardware validation;
-  refuse unsupported preparation explicitly.
-- Keep encode/decode/compute controls and additional GPUs per VM deferred.
+### C2 — Useful shared preview (CORE-006, P1)
 
-**Exit:** qualified allocation behavior, truthful GUI units and independently
-validated preparation for each newly supported vendor. Raw-value validation is
-groundwork, not completion of this milestone.
+Reuse target/observed/journal/preparation results to describe attach/detach, settings,
+driver drift, credential need, downtime and initial-power restoration. Remove the
+unconditional restart implication for running unchanged targets. Keep lightweight
+inventory/status separate from full payload validation.
 
-## Development support and deferred work
+**Acceptance:** enable/disable/running-no-op/pending-recovery previews match workflow
+decisions with no VM/guest effects. CLI and GUI use the same summary. Apply rechecks
+identity/state; preview cannot broaden protected enrollment.
 
-Golden parents, disposable cloning/reset, test disks, clean-target preparation,
-CUDA SDK acquisition and repeated stress/control experiments belong to contributors.
-Reuse these tools for affected qualification; do not make laboratory implementation
-a product task. Product code must not depend on the harness.
+### C3 — Truthful operator state and errors (CORE-012 / CORE-021, P1)
 
-Defer mandatory CUDA, sustained stress, CUDA/D3D interoperability, hard-limit/fairness
-guarantees, scheduling, fleet-wide automatic driver updates, VM creation, custom
-display/streaming and HCS. GUI and incremental vendor support are planned milestones.
+Distinguish requested state, observed attachment, pending recovery, recorded prepared
+digest and last successful graphics timestamp. A past check is not fresh health.
+Separate missing/denied/unsupported/unobserved; isolate individual inventory failures
+where practical. Never turn failed discovery into an empty successful list.
 
-Package the actual product with prerequisites, notices and tested operating/recovery
-instructions. Never distribute proprietary drivers, VM disks, OS media or secrets.
-Historical hardware results do not qualify rewritten product boundaries.
+Explain schema-2 intent versus protected enrollment: changing the VM/GPU pair needs
+administrator re-enrollment. Preserve actual commands, improve errors/next actions
+and redacted reports. Configuration-save failure after successful apply must not
+cause a blind replay. Do not add a second configuration authority.
+
+**Acceptance:** focused partial-access, stale-state, enrollment mismatch and save-failure
+checks; help/examples match shipped behavior. No broad event-collection service.
+
+### C4 — Close M2 proportionally (GPU-012)
+
+Reuse M1 review/M2 passes and existing recovery/drift tests. Qualify affected
+behavior with one representative bounded retry and current-driver refresh when that
+path changed. No manufactured driver upgrade, two recreated children, long stress
+campaign or mandatory CUDA/D3D12 gate.
+
+**Acceptance:** stable host, PnP/checked D3D11, no-op uptime, clean disable/settings/power
+restoration and understood recovery. Independent review applies to materially changed
+privileged boundaries, not repeated review of unchanged code.
+
+## M3: native GUI
+
+Follow [gui_roadmap.md](gui_roadmap.md) under GUI-001:
+
+1. Reuse Win32 and background runner calls; build sidebar/header/five-column table,
+   information panel and Apply/Discard footer.
+2. Bind inventory/journals; preserve selection, expose eligibility/enrollment and
+   unknown state; place GPU selection in details.
+3. Stage one VM draft, show C2 preview, execute through the existing runner; handle
+   busy/close, credentials, uncertain response and config persistence.
+4. Check keyboard/accessibility/DPI/resize and the qualified operator journey.
+
+**Acceptance:** native UI with CLI-equivalent effective results. No unqualified
+GiB/percentage slider, implicit sharing, toolkit migration or separate backend.
+Use the concrete written design requirements.
+
+## R1: package and accept
+
+- CORE-017: clean locked Windows x64 candidate containing all product binaries;
+  unpack/help/setup/missing-prerequisite checks. Reuse native installation and
+  document update/re-enrollment/interrupted-install recovery. Removal instructions
+  preserve unrelated state; no general installer framework required.
+- DOC-003: actual install/config/enrollment, plan/apply/status/verify/disable,
+  credentials, drift refresh and pending recovery. No developer paths.
+- GPU-014: candidate-only journey on the existing designated disposable VM, including
+  no-op and representative recovery. Repeat affected package failures only.
+- Include revision/checksums, runtime requirements and notices. Product MSVC CRT is
+  statically linked; verify prerequisites rather than require a separate VC runtime.
+  Exclude proprietary drivers, media, disks and secrets.
+
+**Acceptance:** M2 + M3, tested guide/useful diagnostics and no essential blocker.
+Packaging does not authorize publication.
+
+## M4 and conditional sharing
+
+GPU-010 starts from the existing raw VRAM API: establish units, bounds, readback and
+enforcement before exposing ordinary controls. Defaults remain the normal path;
+no host partition-count tuning.
+
+GPU-015 qualifies two explicitly designated VMs: independent attach/render/no-op and
+disable of one without disturbing the other. Reuse serialization; no scheduler.
+Before advertising concurrent sharing, document the core's admission/support policy;
+UI-only warnings cannot enforce safety.
+
+Additional vendors need chosen hardware and a concrete signed-payload recipe, then
+small adapters and affected qualification. Optional API probes, HCS and recipe
+minimization remain separate from production delivery.
+
+## Significant corrections, 8 October 2026
+
+- Replaced repeated implemented work with explicit gaps and reuse points.
+- Corrected plan cost, status freshness, GUI toolkit and enrollment assumptions.
+- Recorded the host incident as active without inventing its cause.
+- Removed old lab-port/reset/CUDA release dependencies; aligned M2/M3/R1.
+- Kept multiple-target isolation and made simultaneous sharing conditional.
+- Established a concrete written GUI layout and actionable integration steps.

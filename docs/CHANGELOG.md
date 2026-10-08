@@ -1,5 +1,34 @@
 ﻿# Changelog
 
+## 2026-10-08 - Observed current-build qualification
+
+- Closed the hang investigation/reproduction/observation work by user direction;
+  BLK-005 no longer blocks product delivery. Retained evidence and the unknown
+  cause; next active product task is CORE-006 shared preview.
+
+- Independently reviewed, rebuilt and installed revision `96152e7`; the bounded
+  default attachment/PnP/D3D11/reapply/verify/disable/cleanup sequence passed with
+  host resource observation and no symptoms reported by the user.
+- Bounded the temporary contributor shutdown helper after its synchronous wait
+  stalled; graceful reconciliation and settings/security preservation passed.
+- Recorded the original hang as not reproduced, with cause unknown. Preparation
+  was reused; fresh transfer/writing under the new limits remains unqualified.
+- Product gates passed: 52 core and 3 CLI tests, strict checks, release build/docs.
+
+## 2026-10-08 - Product and GUI plan reconciliation
+
+- Reviewed proposed roadmaps against root Rust code and M1/M2 results; retained
+  completed discovery, preparation, install/enrollment, workflow and recovery.
+- Recorded BLK-005 host-stability qualification blocker; GUI layout/read-only work
+  can proceed while disruptive testing stays paused.
+- Aligned M2 core, M3 native GUI, R1 packaging and later allocation/vendors. Removed
+  laboratory port/reset/CUDA gates from production dependencies while preserving
+  task IDs and historical results. Concurrent sharing stays separately qualified.
+- Added shared-preview, enrollment, partial-discovery, truthful status, GUI draft/
+  persistence/close and accessibility steps; reuse Win32 and the current runner.
+- Established written GUI layout requirements. No features or hardware tests were
+  implemented/run in this documentation review.
+
 ## 2026-10-08 - M2 verification recovery
 
 - Resolve the inbox Hyper-V module through its trusted module directory, including

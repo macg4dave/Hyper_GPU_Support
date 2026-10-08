@@ -116,9 +116,20 @@ guest lifecycle does not.
 
 ## Display and presentation boundary
 
-Native controls consume actual discovery and the shared workflow. The supplied image
-is a design reference, not a support matrix. GiB sliders remain deferred until units
-are established; no web frontend or duplicate GUI management backend is needed.
+Native controls consume actual discovery and the shared workflow. The
+[written GUI specification](gui_roadmap.md)
+defines layout and interaction. The current prototype uses Win32 controls through
+the existing `windows` crate. Reuse its background runner calls; add an explicit
+observed-state/draft split, shared fresh effect preview and bounded close/disconnect
+handling. GPU selection cannot broaden administrator enrollment. GiB sliders remain
+deferred until units/enforcement are established; no duplicate GUI backend is needed.
+
+Inventory/status are dashboard reads, not guest verification. Status reports fresh
+Hyper-V state plus recorded journal state; a prepared digest or last-success timestamp
+does not authenticate the current guest receipt or prove current graphics health.
+Enable-plan currently validates/hashes the payload, so do not use it for periodic
+refresh. Runner requests write protected audit records even for reads. Per-VM partial
+discovery errors and a human-readable effect summary remain integration work.
 
 ## Native Windows boundaries
 

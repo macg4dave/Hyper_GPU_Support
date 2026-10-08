@@ -6,14 +6,20 @@ Active work is **ARCH-001**, implementing the user-approved architectural rebase
 **M1 is completed as of 2026-10-08**; its independent review and live
 [installation/enrollment qualification](evidence/M1.md) passed. Active milestone
 work is M2's small working GPU-PV core. NVIDIA one-VM functional checks passed,
-but a subsequent reported host freeze/unclean restart blocks qualification;
-live testing is stopped pending diagnosis. See [M2 results](evidence/M2.md).
+and the user-authorized observed repeat on current revision `96152e7` passed
+attachment/rendering/reapply/disable and graceful cleanup without host symptoms.
+The user closed the hang investigation on 8 October; BLK-005 no longer blocks work
+and no further hang testing/observation is scheduled. Its cause remains unknown.
+Fresh preparation under the new child limits remains a separate qualification gap.
+See [M2 results](evidence/M2.md).
 Product configuration and native operations no longer require laboratory identities.
 The old fixed-slot application is retained under `tools/lab/`, outside production.
 The roadmap now orders contract separation → working core → native GUI → allocation
 and vendors. Prior implementation cards/results remain historical; their old
-dependency ordering does not override the new product goal. Native source changes
-require independent review and affected hardware qualification before deployment.
+dependency ordering does not override the new product goal. Materially changed
+privileged boundaries require independent review and affected
+qualification. Routine patches use proportional checks. Next: **CORE-006 shared
+operator preview**, followed by GUI-001 integration; reuse the working core.
 
 ## Task register
 
@@ -29,7 +35,10 @@ support, not shipped functionality. Qualification may reuse existing tooling.
 | Milestone | Status | Result |
 |---|---|---|
 | M1 | completed | Product/laboratory separation, existing-VM enrollment and rewritten privilege boundary reviewed and live-qualified on 2026-10-08; [acceptance](evidence/M1.md). |
-| M2 | in progress | One-VM functional checks passed, but a subsequent host failure blocks qualification; [results](evidence/M2.md). Live testing stopped; sharing unqualified. |
+| M2 | in progress | Observed current-build one-VM repeat passed; affected fresh preparation under new limits remains. Earlier hang cause unknown; [results](evidence/M2.md). Sharing unqualified. |
+| M3 | in progress | GUI-001 native prototype; written layout/read-only work available now, live acceptance after M2. |
+| R1 | planned | CLI + GUI candidate, tested guide and packaged acceptance; CORE-017/DOC-003/GPU-014. |
+| M4 | deferred | Allocation meaning/enforcement and incremental vendor qualification after useful release. |
 
 Legacy card milestone labels below retain implementation history; they do not
 reopen the current roadmap's completed M1 acceptance.
@@ -37,32 +46,32 @@ Do not port laboratory setup merely to satisfy the Rust product migration gate.
 
 | ID | Milestone/class | Priority | Status | Depends on |
 |---|---|---|---|---|
-| [ARCH-001](#arch-001) | M1/M2 | P0 | in progress | proven baseline |
-| [GUI-001](#gui-001) | M3 | P1 | in progress | ARCH-001 working-core acceptance |
+| [ARCH-001](#arch-001) | M1/M2 | P0 | in progress; observed current-build repeat passed | M1 complete; affected fresh preparation |
+| [GUI-001](#gui-001) | M3 | P1 | in progress | read-only/layout now; live acceptance after M2; CORE-006 preview |
 | [CORE-022](#core-022) | M1 | P0 | completed | CORE-009 |
 | [CORE-023](#core-023) | M1 | P0 | completed | CORE-002 |
 | [CORE-003](#core-003) | M1 | P0 | completed | CORE-020 |
-| [GPU-006](#gpu-006) | M1 | P0 | in progress | CORE-022, CORE-023, CORE-003 |
+| [GPU-006](#gpu-006) | lab history | P2 | deferred | no product release dependency |
 | [CORE-024](#core-024) | M1 | P0 | completed | CORE-020 |
-| [CORE-025](#core-025) | M1 | P0 | in progress | CORE-024, CORE-023 |
-| [CORE-026](#core-026) | M1 | P0 | ready | CORE-022, CORE-003 |
-| [CORE-027](#core-027) | M2 | P1 | ready | CORE-005 |
-| [CORE-006](#core-006) | M2 | P1 | in progress | CORE-022, CORE-023 |
-| [CORE-011](#core-011) | M2 | P1 | ready | CORE-005 |
-| [CORE-010](#core-010) | M2 | P1 | ready | CORE-005 |
-| [CORE-012](#core-012) | M2 | P1 | ready | CORE-020 |
-| [CORE-021](#core-021) | M2 | P1 | ready | CORE-004 |
-| [CORE-015](#core-015) | M2 | P1 | planned | CORE-022, CORE-006 |
-| [GPU-012](#gpu-012) | M2 | P1 | planned | GPU-006, CORE-024, CORE-025, CORE-026, CORE-027, CORE-006, CORE-010, CORE-011, CORE-012, CORE-015, CORE-021 |
-| [CORE-017](#core-017) | M3 | P1 | planned | CORE-027, CORE-006, CORE-010, CORE-011, CORE-012, CORE-015, CORE-021 |
-| [DOC-003](#doc-003) | M3 | P1 | planned | CORE-006, CORE-010, CORE-011, CORE-015, CORE-021 |
-| [GPU-014](#gpu-014) | M3 | P1 | planned | GPU-012, CORE-017, DOC-003 |
-| [GPU-010](#gpu-010) | post-v1 | P2 | deferred | GPU-006 |
-| [GPU-007](#gpu-007) | post-v1 | P2 | deferred | CORE-003 |
-| [GPU-013](#gpu-013) | post-v1 | P2 | deferred | CORE-015 |
-| [GPU-015](#gpu-015) | experimental | P2 | deferred | GPU-012 |
+| [CORE-025](#core-025) | lab history | P2 | deferred | product replacement owned by ARCH-001 |
+| [CORE-026](#core-026) | M2 | P1 | merged | ARCH-001; DEC-028 |
+| [CORE-027](#core-027) | M1 | P1 | completed | ARCH-001 M1 |
+| [CORE-006](#core-006) | M2 | P1 | in progress | existing workflow; shared preview gap |
+| [CORE-011](#core-011) | later | P2 | deferred | no standalone lifecycle release requirement |
+| [CORE-010](#core-010) | M2 | P1 | merged | ARCH-001 recovery/disable |
+| [CORE-012](#core-012) | M2/M3 | P1 | ready | existing observed/journal/error results |
+| [CORE-021](#core-021) | M2/M3 | P1 | in progress | schema 2 and M1 enrollment implemented |
+| [CORE-015](#core-015) | M2 | P1 | merged | ARCH-001 drift refresh |
+| [GPU-012](#gpu-012) | M2 | P1 | in progress | affected ARCH-001 qualification |
+| [CORE-017](#core-017) | R1 | P1 | planned | M2, GUI-001; packaging preparation may overlap |
+| [DOC-003](#doc-003) | R1 | P1 | planned | stable CLI/GUI operator contract |
+| [GPU-014](#gpu-014) | R1 | P1 | planned | M2, GUI-001, CORE-017, DOC-003 |
+| [GPU-010](#gpu-010) | M4 | P2 | deferred | M2; existing raw allocation API |
+| [GPU-007](#gpu-007) | post-v1 | P2 | deferred | M2; chosen workload |
+| [GPU-013](#gpu-013) | post-v1 | P2 | deferred | M2; actual owner-controlled driver update |
+| [GPU-015](#gpu-015) | conditional sharing | P2 | deferred | M2; two explicitly designated test VMs |
 | [GPU-016](#gpu-016) | post-v1 | P2 | deferred | GPU-005 |
-| [GPU-017](#gpu-017) | post-v1 | P2 | deferred | GPU-006 |
+| [GPU-017](#gpu-017) | post-v1 | P2 | deferred | M2; concrete reduction hypothesis |
 
 ### Completed foundation
 
@@ -124,7 +133,8 @@ Read the selected card and affected source, implement, run proportional checks,
 record its short result, then move on. Claim ownership only for scheduled/shared
 work or a handover; fix trivial drift in place. Normal statuses are planned, ready,
 in progress, blocked and completed; deferred means outside v1, while cancelled/merged
-IDs are retained only in the mapping. A ready task has satisfied prerequisites.
+IDs are retained only in the mapping. A ready task has satisfied prerequisites. Merged cards are excluded from release
+dependencies; lab-history cards retain results without scheduling product work.
 Create a blocker only for an observed impediment. Update only documentation affected
 by the behavior; a new evidence file is optional unless a hardware report needs it.
 Each implementation task maintains existing hardware-free Windows CI and meaningful
@@ -133,22 +143,25 @@ and [targeting/authorization](../AGENTS.md#development-and-test-authorization).
 
 ## Blocker register
 
-**No active delivery blocker is recorded.** This is a plan/evidence review, not a new
-live-state inspection. Recheck actual identities/servicing before the next effect.
-Missing implementation is represented by task dependencies. Publication/license
-choices are handled when concrete package actions need them, not as a speculative
-development blocker.
+**BLK-005 is closed by user direction on 8 October.** The current-build repeat
+passed without symptoms. Historical cause remains unknown; there is no further
+hang investigation or observation prerequisite for product work.
 
 | ID | State | Resolution |
 |---|---|---|
 | BLK-001 | resolved 2026-09-25 | Approved elevated inventory established the management facts; [HV-001](evidence/HV-001.md). Use the approved runner for privileged work. |
 | BLK-002 | resolved 2026-09-26 | Servicing/reboot impediment resolved; exact residual delete-only cleanup was reviewed. Unknown/active servicing is still rejected. |
 | BLK-003 | closed 2026-10-05 | Optional historical guest-access comparison was discarded with GPU-004. Its transport was not repaired and has no reopening instruction or product dependency. |
+| BLK-005 | closed by user direction 2026-10-08 | Current-build repeat passed without symptoms. Historical cause unknown; investigation/reproduction/observation work closed, not a product blocker. See [M2](evidence/M2.md). |
 | BLK-004 | resolved 2026-10-04 | Verified stage/no-op accepted build drift as qualification context and only exact reviewed delete cleanup; [CORE-009](evidence/CORE-009.md), DEC-022/023. |
 
-## Required v1 tasks
+## Implementation cards and retained history
 
 ## CORE-022
+
+Historical standalone-lab card; original results below are retained. Root product
+replacement/qualification belongs to ARCH-001, not this legacy procedure. Source
+paths below refer to the pre-rebase tree (now tools/lab), unless stated otherwise.
 
 **Write the complete discovered driver/runtime manifest**
 
@@ -164,6 +177,10 @@ development blocker.
 
 ## CORE-023
 
+Historical standalone-lab card; original results below are retained. Root product
+replacement/qualification belongs to ARCH-001, not this legacy procedure. Source
+paths below refer to the pre-rebase tree (now tools/lab), unless stated otherwise.
+
 **Apply and read back the validated Hyper-V profile**
 
 - Objective: express the measured VM/GPU settings as typed configuration and apply them through the approved fixed runner.
@@ -177,6 +194,10 @@ development blocker.
 - Validation: `scripts/testing/check.ps1` passed 151 tests, strict Clippy/compiler warnings, formatting, build, rustdoc and policy drift; release runner/client/rights build, all artifact-pin checks and documentation checks passed. Local test: `local/scripts/test-core023-live.ps1 -SettingsOnly`; results in `local/evidence/core023-live.status.json` and `core023-live-{0,1}-configure-slot.log`.
 
 ## CORE-003
+
+Historical standalone-lab card; original results below are retained. Root product
+replacement/qualification belongs to ARCH-001, not this legacy procedure. Source
+paths below refer to the pre-rebase tree (now tools/lab), unless stated otherwise.
 
 **Automate GPU readiness and essential workload verification**
 
@@ -193,6 +214,10 @@ development blocker.
 
 ## GPU-006
 
+Historical standalone-lab card; original results below are retained. Root product
+replacement/qualification belongs to ARCH-001, not this legacy procedure. Source
+paths below refer to the pre-rebase tree (now tools/lab), unless stated otherwise.
+
 **Reproduce the proven baseline from a clean child through Rust**
 
 - Objective: exercise the three implemented pieces as one configured Rust workflow.
@@ -205,19 +230,29 @@ development blocker.
 
 ## CORE-006
 
-**Connect public plan/apply/status to the proven Rust operations**
+**Finish the shared operator preview; reuse the working workflow**
 
-- Objective: replace public CLI stubs with one reviewable operator workflow; reuse the fixed runner's audit, serialization and reconciliation.
-- Owner: Codex; started 2026-10-07. User narrowed active delivery to the existing-VM Rust CLI; laboratory qualification is not the operator workflow.
-- Read: src/cli.rs, src/config.rs and existing client/runner operation contracts.
-- Acceptance: plan shows exact target, settings, manifest changes and prerequisites without effects; apply rejects stale assumptions and wrong targets, orders staging/settings/start safely, and reports verified success or no-op. Status distinguishes VM state, staging, assignment and GPU readiness. Bind mutation to rechecked identities and existing locks/receipts. Test stale plans, concurrent/replayed requests and external state changes.
-- Run full native manifest discovery behind the existing bounded process supervision: synchronous COM setup/object resolution can otherwise escape its enumeration deadline. Test timeout, child termination/reaping and bounded failure reporting; CORE-015 reuses this supervised path. No new resident worker or arbitrary privileged command interface.
-- CORE-007 is absorbed here; no general transaction engine or second privilege channel.
-- Own the ordinary staging/settings/start order currently exercised by `run-clean-child-qualification.ps1`; keep that script only as an optional acceptance harness. Integrate CORE-024/025/026 replacements as they land, never launch the harness from apply. Existing helpers allow integration to start before all backend ports finish; GPU-012 requires the native replacements.
-- First implementation slice: `plan` and `status` now consume bounded native inventory and emit versioned operator JSON. Plan shows the selected VM/GPU, desired settings and initial prerequisites, preserving unknown versus failed checks. Status distinguishes configured intent from provider observations and leaves unqueried assignment/staging/readiness explicitly unknown. Neither command inspects/hashes VM disks or launches the qualification harness. `apply` remains pending, as do exact manifest changes, assignment/guest observations and integration of ordinary existing-VM mutation paths.
-- Validation: focused operator tests and public command integration passed; formatting, strict all-target/all-feature Clippy, workspace all-feature tests/doc-tests and rustdoc passed with warnings denied and `RUST_TEST_THREADS=4`. Public report tests exercised native inventory on Windows x64 and verified explicit unobserved guest state. Initial command tests found a stale help expectation, corrected before the passing run. Documentation checks passed.
+- Owner: Codex; originally claimed 2026-10-07.
+- Historical first slice: bounded native plan/status and versioned operator JSON
+  passed focused operator/public-command tests, native Windows inventory checks,
+  formatting, strict Clippy, workspace tests/doc-tests and rustdoc. Guest state was
+  explicitly unobserved. That pre-rebase implementation now lives in tools/lab;
+  its old pending-apply statement does not describe the current root product.
+- Implemented under ARCH-001: public apply/enable/disable/verify, exact target guards,
+  preparation, settings, initial-power handling and recovery. Do not rebuild these.
+- Remaining: shared effect summary from target/observed/journal/preparation state;
+  explain settings, detach/attach, driver refresh, credential need, downtime and
+  restoration. Existing enable-plan hashes the payload; keep dashboard reads separate.
+- Acceptance: enable/disable/running-no-op/pending previews agree with workflow;
+  CLI/GUI share results; no VM/guest effects. Apply still rechecks identities/state.
+- Read: src/main.rs, src/runner.rs, src/workflow.rs, src/model.rs.
+- Result: workflow functionally passed M2; useful preview remains pending.
 
 ## CORE-024
+
+Historical standalone-lab card; original results below are retained. Root product
+replacement/qualification belongs to ARCH-001, not this legacy procedure. Source
+paths below refer to the pre-rebase tree (now tools/lab), unless stated otherwise.
 
 **Replace PowerShell inventory with bounded native Rust discovery**
 
@@ -232,6 +267,10 @@ development blocker.
 - Validation: focused native identity/provider/selection, stale-worker, malformed-protocol, launch/exit/timeout/overflow/watchdog tests and public worker-argument rejection pass. Full `scripts/testing/check.ps1` passed formatting, strict Clippy/compiler warnings, all workspace tests/doc-tests, build, rustdoc and configuration/policy drift with `RUST_TEST_THREADS=4`; the initial default-concurrency run exhausted existing PowerShell fixture deadlines. Documentation checks passed. Independent architecture review closed stale-worker and unrelated-provider-field findings and reported no remaining blockers in implementation commit `5f4e514`.
 
 ## CORE-025
+
+Historical standalone-lab card; original results below are retained. Root product
+replacement/qualification belongs to ARCH-001, not this legacy procedure. Source
+paths below refer to the pre-rebase tree (now tools/lab), unless stated otherwise.
 
 **Port fixed Hyper-V and GPU-PV operations to native Rust**
 
@@ -249,114 +288,151 @@ development blocker.
 
 ## CORE-026
 
-**Move guest provisioning into a Rust writer and narrow remoting glue**
+**Guest provisioning port — absorbed by ARCH-001**
 
-- Objective: replace product guest-side PowerShell in `windows_guest.rs`, `windows_environment_staging.rs` and `validation_transport.ps1`; reuse complete native manifest and Rust validation worker.
-- Replacement: fixed Rust guest writer/bootstrap owns Windows-root destination calculation, filesystem/security/reparse/servicing validation, locks, byte copies, lengths/hashes/versions, atomic receipts and verified no-op; Rust owns fixed validation input preparation and launch supervision. Preserve current credential, guest-identity and restricted destination/source contracts.
-- Investigate the supported session/transfer interface separately from writer logic. Prefer a practical native API; if PowerShell Direct is essential for authenticated bootstrap/transport, document the exact remaining session/transfer/launch calls and why investigated COM/WMI/Win32 routes cannot provide them. DEC-020 is historical rationale, not approval for retaining file/receipt/security logic in PowerShell. No arbitrary guest command channel or resident service.
-- Tests: clean copy and discovered source/destination mapping with variable-size artificial manifests, tampered/missing files, ACL/reparse escapes, destination collisions, wrong guest, servicing, stale receipts, partial publication, lost remoting and timeouts. Retain the historical mapping fixture separately; no fixed file count is a general acceptance condition. Never infer cancellation from a killed host transport; retain uncertain-state recovery.
-- Acceptance: complete fresh provisioning and verified reapply pass against the working baseline; Rust readiness/nvidia-smi/D3D11/D3D12/CUDA passes through the changed boundary. Preserve scripts until demonstrated. Independent security/architecture review passes; remove migrated embedded logic and keep only a specifically justified interface exception, if required.
-- Result: pending; CORE-022 qualified the full recipe through a substantial PowerShell guest backend.
+- Root Rust guest writer, native payload/trust and checked D3D11 are implemented.
+  DEC-028 authorizes the fixed session/transfer/bootstrap/launch bridge only.
+- Result: merged into ARCH-001; M2 one-VM preparation/reapply/rendering passed,
+  current-build observed repeat subsequently passed; affected fresh preparation remains. Historical lab PowerShell migration is not a
+  separate product prerequisite. Extended CUDA/D3D12 remain contributor diagnostics.
 
 ## CORE-027
 
-**Provide Rust runner installation, enrollment and recovery**
+**Native product installation/enrollment — completed under M1**
 
-- Objective: remove ordinary setup/recovery dependence on `install-runner-v1.ps1`, `restore-runner-v1.ps1` and the policy-generation portion of `update-project-pins.ps1`.
-- Replacement: typed Rust installation/policy generation with native account/security and Task Scheduler interfaces, pinned artifact validation, administrator ACLs, exact-SID rights via the existing LSA helper, task quiescence and captured preimage restoration. Artifact pin maintenance and golden-image/disposable enrollment remain development tooling. Product enrollment pins an existing selected VM/GPU without requiring a golden image; preserve laboratory protections only in development setup. CORE-021 owns runtime configuration integration; CORE-017 owns packaging/prerequisites.
-- Tests: bad pins/config, non-elevated refusal before effects, unrelated account/SID/task/path rejection, ACL escapes, in-flight runner, partial installation and interrupted restore. Demonstrate install/update/recovery through a bounded authorized elevation path with retained audit/preimages; no arbitrary elevated command input or host lifecycle.
-- Acceptance: packaged Rust setup and recovery require no manual PowerShell; old scripts are optional developer recovery only after demonstrated replacement. Independent review of changed privileged/security boundaries passes. Do not redesign the runner or broaden its one-slot policy.
-- Result: pending.
+- Result: root runner native installation, exact multi-target VM/GPU enrollment,
+  protected artifacts/state and interrupted-install admission/recovery qualified;
+  independent review cleared M1. See [M1 acceptance](evidence/M1.md).
+- Reuse src/runner.rs. GUI setup and runtime intent integration belong to CORE-021/
+  GUI-001; packaged update/recovery instructions belong to CORE-017/DOC-003.
+  No S4U/LSA/one-slot lab installer port or installer redesign is required.
 
 ## CORE-011
 
-**Expose bounded guest start/shutdown/restart**
+**Standalone guest lifecycle commands — deferred**
 
-- Objective: use the existing fixed runner lifecycle operations from the public CLI.
-- Acceptance: start, graceful shutdown and guest restart have configured waits and useful timeout errors; report VM state separately from GPU health. Reject conflicting/saved state and unsafe target identities. Test running, off and unresponsive cases without a forced-stop default. GPU-012 owns live repeatability.
-- Result: pending; fixed start/shutdown operations already work.
+- Root apply/verify already use bounded start/graceful shutdown and power restoration.
+  Standalone start/shutdown/restart commands are not required for the GPU-PV journey.
+- Schedule only for a concrete operator need; preserve identity, finite waits and
+  graceful refusal. Do not add lab reset/forced-stop commands to production.
 
 ## CORE-010
 
-**Expose safe removal and existing-VM recovery**
+**Removal and recovery — absorbed by ARCH-001**
 
-- Objective: integrate exact GPU detach and reconciliation/restaging of product-owned changes on the selected existing VM. Do not expose disposable disk reset as product recovery.
-- Acceptance: remove only the exact project adapter in a safe state; recovery preserves the user VM/disk and reconciles observed state before retrying; uncertain guest provisioning requires explicit recovery guidance, not automatic disk replacement. Make repeated removal a verified no-op. Test wrong identity, partial assignment/staging, denied cleanup and representative interruption before/after effects; reconcile rather than report false success. Preserve useful recovery instructions when automatic completion is impossible.
-- CORE-014 failure tests are incorporated here and in CORE-022; do not rebuild rollback machinery for the guest.
-- Result: pending; fixed detach exists. Disposable reset remains reusable development tooling, excluded from the default build. Remove mandatory golden-parent/child configuration from ordinary use under CORE-021/027 without weakening the enrolled laboratory guards.
+- Implemented: exact disable, settings attribution/restoration, preserved preparation,
+  durable pending state and retry/reconciliation, including failed verification and
+  stale-refresh recovery. Existing workflow tests cover meaningful interruption paths.
+- Result: merged; M2 disable/reapply passed. Remaining recovery presentation belongs
+  to CORE-012/GUI-001 and stability qualification to ARCH-001/GPU-012. No disk reset.
 
 ## CORE-012
 
-**Report actionable failures and redacted diagnostics**
+**Finish useful diagnostics and truthful observed state**
 
-- Objective: explain failures at inventory, staging, assignment, guest readiness or workload using existing native results.
-- Acceptance: provide concise human and versioned machine reports with observed/unknown distinctions, bounded relevant events, manifest/operation references and the next useful recovery action. Test partial access, missing logs, malformed guest output and secret redaction. Reuse current error categories; no automatic device cycling or broad telemetry service.
-- Result: pending.
+- Reuse root observed state, journals, audit and existing errors. Distinguish intent,
+  attachment, prepared digest, pending recovery and last successful graphics timestamp.
+  Status does not freshly authenticate guest preparation or run graphics checks.
+- Isolate per-VM discovery errors where practical; missing/denied/unavailable is not
+  an empty successful result. Give concise stage/context and next safe action.
+- Acceptance: focused partial-access, pending/stale and secret-redaction checks;
+  CLI/GUI agree. Keep diagnostic details bounded/on demand, no telemetry service.
+- Result: underlying state/errors implemented; human summaries/partial results pending.
 
 ## CORE-021
 
-**Finish runtime TOML configuration and the public CLI contract**
+**Finish runtime configuration and enrollment UX**
 
-- Objective: make one operator-selected TOML file drive application behavior and stabilize help/config/report semantics. Separate existing-VM product configuration from golden-image/disposable laboratory pins; ordinary users require no golden image.
-- Read: docs/CONFIGURATION.md, src/config.rs, src/cli.rs and maintained script configuration readers.
-- Acceptance: deserialize/validate once and pass typed values; discover Windows inventory and derive paths. Remove embedded development-machine target/path assumptions; avoid a second settings authority. Clarify installed runner policy regeneration/enrollment after configuration changes. Test examples, unknown fields/schema, missing inputs, exit codes and report redaction; help describes implemented commands accurately.
-- CORE-018 schema/help stabilization is absorbed here. Fixtures, protocol values and fixed safety bounds stay in code. Finish affected command checks as those commands land.
-- Result: pending; strict types/shared project configuration exist, product runtime selection and remaining cleanup do not.
+- Implemented: schema 2 deserialized/validated at boundary, multiple exact targets,
+  no lab paths/pins; actual CLI commands and native administrator enrollment.
+- Read: src/model.rs, src/main.rs, src/runner.rs, src/windows_gui.rs and CONFIGURATION.md.
+- Remaining: useful schema-2 selection/config flow, clear protected re-enrollment
+  for VM/GPU changes, safe GUI persistence and credential/vault parity.
+- Acceptance: packaged instructions or guided GUI flow reach an enrolled pair;
+  unapproved pair cannot mutate, failed config save cannot cause blind replay;
+  examples/help match inventory/install/plan/apply/enable/disable/status/verify/
+  credentials/forget. No new settings authority or general elevated command endpoint.
+- Result: core configuration complete; operator/GUI integration remains in progress.
 
 ## CORE-015
 
-**Regenerate and restage after driver/environment drift**
+**Driver drift refresh — absorbed by ARCH-001**
 
-- Objective: support an explicit driver update/re-stage workflow without installing or downgrading host drivers.
-- Rediscover the current selected signed driver's packages and associated external files after updates. Generate fresh paths, lengths, hashes and manifest identity; the old manifest/count is comparison data, never the source for a new payload. Replace baseline package pins with generated per-environment integrity artifacts rather than silently bypass their checks or require an updated package to reproduce their old extent/digest. Keep operator target intent and signature validation separate from discovered inventory.
-- Acceptance: detect changed driver/package/signature/manifest before apply/start; invalidate stale receipts and explain requalification. Regenerate the complete discovered inventory and create a reviewed fresh-child restaging plan; apply, verify and rerun essential probes. Report host/guest build drift as qualification context under DEC-022, not an invented build-equality prohibition. Active/unknown servicing still fails closed.
-- Test changed-driver/build fixtures, stale/partial manifests and identity drift; rehearse regeneration/re-stage on the current signed host driver. A real different host-driver transition is optional GPU-013, not required to prove the workflow.
-- Result: pending.
+- Implemented: dynamic current-driver payload, digest comparison, stale-receipt
+  invalidation before refresh, completed-preparation retention and rollback/retry tests.
+- Result: merged. Remaining drift explanation belongs to CORE-006/CORE-012; affected
+  refresh qualification to ARCH-001/GPU-012. No fresh-child/reset prerequisite or
+  manufactured host-driver transition; GPU-013 retains optional real-update testing.
 
 ## GPU-012
 
-**Qualify repeatable operation and maintenance**
+**Bounded core stability and maintenance qualification**
 
-- Objective: qualify the integrated one-VM workflow rather than repeat feasibility experiments.
-- Acceptance: reproduce on two independently recreated children; verify no-op reapply, three guest lifecycle cycles including restart, representative interrupted-operation recovery, and a bounded sustained mixed essential-workload run. Put run durations/deadlines in configuration and report actual duration/correctness, device state and any host responsiveness problem. Stop on essential failure; fix and repeat only affected checks.
-- Include the maintenance restage and user-facing diagnostics from owning implementation tasks. No mandatory host reboots, manufactured host-driver transition, resource-fairness benchmark or percentage performance SLA.
-- GPU-011 lifecycle qualification and CORE-016 independent security review are absorbed here. Review actual privileged/credential/path boundaries at M2 closure; fix release-blocking findings. Reuse existing foundation tests instead of retesting each check for its own sake.
-- Result: pending.
+- BLK-005 investigation is closed by user direction; no further hang campaign.
+  Reuse M1/M2 passes and existing workflow recovery tests.
+- After clearance, verify exact designated target and run only affected NVIDIA
+  preparation/default attachment/PnP/checked D3D11/reapply/disable/restoration.
+  Include one representative recovery and refresh when the changed path needs it.
+- Acceptance: bounded stable-host result, correct state/readback and no essential
+  unresolved failure. Report actual environment, duration and limitations.
+- No two recreated children, mandatory CUDA/D3D12/nvidia-smi campaign, prolonged
+  stress, host reboot or review-of-review. Review materially changed boundaries.
+- Result: current-build observed attach/render/reapply/verify/disable/cleanup passed;
+  original hang cause unresolved; fresh preparation under new child limits remains.
 
 ## CORE-017
 
-**Build a traceable Windows x64 release package**
+**Build the CLI/GUI Windows x64 candidate**
 
-- Objective: produce a candidate from a clean locked Windows build with the tested CLI, examples and verification prerequisites. Build with default features; exclude `dev-harness` and laboratory helpers, and verify the candidate refuses disposable reset.
-- Acceptance: include revision/version, checksums, applicable project/dependency/probe notices and documented runtime requirements; test unpack/help and absent prerequisites. Exclude drivers, Windows images/disks, credentials and keys. Review actual CRT/probe redistribution rights or document legitimate local prerequisites; do not assume the developer runtime is installed.
-- DOC-004 release/license/signing choices and REF-003 payload notice review are absorbed here. Prepare concrete local artifacts first; obtain owner choices only for unresolved licensing/signing/publication actions when they are actually needed. No installer or background service is required. Packaging and DOC-003 guide work may proceed together once commands are stable.
-- Result: pending. Final acceptance/delivery belongs to GPU-014; packaging does not publish anything.
+- Package CLI, GUI, protected runner, guest worker and checked D3D11 probe from a
+  clean locked build; root workspace excludes the standalone lab/reset helpers.
+- Include version/revision/checksums/notices, runtime and native install/update/
+  re-enrollment/interrupted-install recovery instructions. Verify unpack/help,
+  absent prerequisites and all fixed sibling artifacts. Product MSVC CRT is static.
+- Exclude proprietary drivers, media/disks, secrets and keys. Signing/publication
+  choices apply when concrete distribution needs them; packaging does not publish.
+- Acceptance: usable candidate without developer paths or lab setup. Reuse native
+  installer; no new service/installer framework. GPU-014 owns final acceptance.
+- Result: pending; packaging preparation may overlap GUI work.
 
 ## DOC-003
 
-**Write the tested operator and recovery guide**
+**Write the tested CLI/GUI operator guide**
 
-- Objective: explain the actual one-VM workflow using runtime configuration and legitimate local OS/driver inputs.
-- Acceptance: document prerequisites, approved runner setup, ephemeral guest credentials, config selection, plan/apply/status/validate, lifecycle, removal/recovery and driver re-stage. Commands match help and contain no hidden development-machine paths. State tested compatibility, known optional limits and host lifecycle permission. Reuse the architecture recipe and existing reports rather than create another evidence hierarchy.
-- Result: pending; write alongside packaging, then exercise the guide in GPU-014.
+- Document actual schema-2 selection, administrator install/enrollment, plan/apply/
+  enable/disable/status/verify, credentials/forget, drift refresh and pending recovery.
+  Include GUI draft/preview/effective-state behavior and setup route.
+- Acceptance: candidate instructions work without hidden developer paths; clear
+  qualified combinations, sharing/allocation limits and host-lifecycle boundary.
+  No product validate/reset/standalone lifecycle command assumptions.
+- Result: pending; write with CORE-017 and exercise under GPU-014.
 
 ## GPU-014
 
-**Accept the packaged v1.0 workflow and deliver handover**
+**Accept the packaged v1.0 CLI/GUI journey**
 
-- Objective: use only candidate artifacts and the operator guide to reproduce on a clean disposable child.
-- Acceptance: record candidate hashes and exact host/guest/driver environment; follow inventory/plan/apply/validate, restart, removal/recovery and current-driver re-stage. Require stable Code 0, nvidia-smi and checked D3D11/D3D12/CUDA with no undocumented developer setup. Verify applicable notices, complete required tasks and no open essential/security blocker.
-- DOC-005's final checklist and DOC-006 handover are incorporated into this single acceptance run. Independent M3 review uses the candidate and actual results; no review-of-review task. Fix package/guide defects and repeat affected steps. Provide final local artifacts, compatibility/limitations, checksums and recovery instructions; publish only to a separately authorized destination if requested.
+- Dependencies: qualified M2, GUI-001 M3, CORE-017 and DOC-003.
+- Use candidate artifacts/guide on the existing designated disposable test VM;
+  verify setup/enrollment, preview/apply/PnP/checked D3D11/status, no-op and disable,
+  plus representative interruption/recovery. Repeat only changed package paths.
+- Acceptance: exact candidate/environment record, CLI/GUI parity, stable host,
+  preserved unrelated state and no essential/security blocker. No mandatory reset,
+  golden image, CUDA/D3D12 or manufactured driver update.
+- Deliver local artifacts/notices/limitations/recovery; publication separately requested.
 - Result: pending.
 
 ## Optional and later work
 
 ## GPU-010
 
-**Resource-envelope and enforcement measurements**
+**Qualify resource units and enforcement before ordinary controls**
 
-- Class: post-v1. Measure allocation/headroom/enforcement only when changing the validated resource profile; no v1 fairness or performance SLA.
-- Result: deferred; use the complete validated profile for v1.
+- Class: M4. Root optional VRAM triples/provider range validation/native setter
+  already exist; do not reimplement them or restore the historical 50% profile.
+- Acceptance: establish actual units, bounds, effective readback and enforcement
+  on selected hardware before UI controls. No fairness/performance SLA or host
+  partition-count changes. Provider defaults remain the normal release path.
+- Result: deferred; meaning/enforcement unqualified.
 
 ## GPU-007
 
@@ -376,10 +452,15 @@ development blocker.
 
 ## GPU-015
 
-**Multi-guest contention**
+**Qualify conditional same-GPU sharing**
 
-- Class: experimental and outside the one-VM product. Requires an explicit future scope change and separately verified targets; do not implement a scheduler.
-- Result: deferred.
+- Class: separate capability; multiple selected VMs are current product intent.
+  Simultaneous sharing remains unqualified, not automatically supported.
+- Acceptance: two explicitly designated test VMs, independent attach/render/reapply,
+  disabling one preserves the other, stable host and exact tested combination.
+  Record core admission/support policy before exposing concurrent operations.
+- Reuse enrollment/per-VM journals/global serialization; no scheduler/fairness benchmark.
+- Result: deferred until stable M2 and a second designated test VM.
 
 ## GPU-016
 
@@ -393,7 +474,9 @@ development blocker.
 **Reduce the complete provisioning/settings recipe**
 
 - Class: post-v1 optimisation. Compare isolated reductions to the full recipe on recoverable clean children with sustained readiness and essential checked workloads.
-- Result: individual file/setting necessity is unisolated and is not needed to ship v1.
+- Result: historical full-recipe necessity is unisolated; root M2 already uses
+  provider defaults and minimal attributable settings. No recipe-minimization
+  campaign is needed to ship v1.
 
 ## Completed and retired ID anchors
 
@@ -618,13 +701,34 @@ Runtime existing-VM architecture and small GPU-PV core.
   User clarified progressive slowdown, mouse-movement beeps and manual hard
   power-off. Diagnose the hang; do not treat the restart event as its root cause.
 
+- Observed follow-up (2026-10-08): user authorized bounded reproduction despite
+  hang risk. Rebuilt/reviewed/installed revision `96152e7`; 52 core and 3 CLI tests
+  plus strict product gates passed. Current-build default attachment, PnP/checked
+  D3D11, Off/running reapply, verify, disable and graceful cleanup passed. Final
+  Off/no GPU/pending=false; disk/CPU/RAM/Secure Boot/TPM preserved. User reported
+  no slowdown/beeps; host resource capture showed no runaway or long sample stall.
+  Fixed the temporary contributor helper's synchronous shutdown wait using a
+  bounded asynchronous request and Off readback; current-build cleanup passed.
+  Preparation was reused, so fresh transfer/writing under the new child limits
+  remains unqualified. The original hang's cause is unknown; see [M2](evidence/M2.md).
+- User closure (2026-10-08): close hang investigation/reproduction/observation
+  work and remove BLK-005 as a blocker. Preserve results without claiming a cause
+  or fix. Next active product task is CORE-006 shared preview.
+
 ## GUI-001
 
-Native Windows controls over the shared core, following working-core acceptance.
+**Native Windows GUI over the shared core**
 
-- Owner: Codex; prototype implementation in progress 2026-10-07.
-- VM list, GPU selection, on/off, effective details, background apply and guest
-  credential prompts use the same discovery/runner/workflow contracts as CLI.
-- Acceptance: native UI usability and actual shared-core workflow validation.
-  Use the supplied mockup as reference, not an OS/capacity support claim. Keep GiB
-  sliders absent until GPU-010 establishes truthful provider units.
+- Owner: Codex; prototype in progress since 2026-10-07. Win32 controls and background
+  runner integration already exist in src/windows_gui.rs; reuse them.
+- Plan: [written GUI specification](gui_roadmap.md), G1 layout → G2 truthful reads →
+  G3 draft/shared preview → G4 operation/persistence/close handling → G5 setup/pages
+  → G6 qualified usability/journey. These are substeps, not new task IDs.
+- Layout/read-only work may proceed; live GUI acceptance depends on M2 closure.
+  Fresh preview depends on CORE-006; enrollment/persistence integrates CORE-021.
+- Acceptance: sidebar/header/five-column table/panel/footer, one-VM staged Apply/
+  Discard, real observed versus desired/prepared/verified state, responsive native
+  operation, DPI/resize/keyboard/accessibility and CLI parity after M2 clearance.
+- Respect protected VM/GPU pair; no unqualified GiB sliders or implicit sharing.
+  No toolkit replacement or duplicate backend.
+- Result: functional scaffolding exists; layout and integration gaps remain.
