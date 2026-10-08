@@ -16,6 +16,51 @@ pub struct ProcessOutput {
 }
 
 const PROCESS_OUTPUT_LIMIT: usize = 1024 * 1024;
+// Fixed helpers stream payload bytes; they are not general workload launchers.
+// Bound aggregate descendants before resume, leaving room for Windows/UI work.
+const CHILD_JOB_MEMORY_LIMIT: usize = 1024 * 1024 * 1024;
+const CHILD_JOB_PROCESS_LIMIT: u32 = 4;
+const CHILD_JOB_CPU_RATE: u32 = 2500; // 25% in Windows' 1/100-percent units.
+
+struct BackgroundWork(bool);
+#[allow(unsafe_code)]
+impl BackgroundWork {
+    fn start() -> Result<Self, String> {
+        use windows::Win32::System::Threading::{
+            GetCurrentThread, SetThreadPriority, THREAD_MODE_BACKGROUND_BEGIN,
+        };
+        // SAFETY: modifies only the calling worker thread; no borrowed handles.
+        unsafe { SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN) }
+            .map_err(|e| format!("cannot enter background payload processing: {e}"))?;
+        Ok(Self(true))
+    }
+    fn finish(&mut self) -> Result<(), String> {
+        use windows::Win32::System::Threading::{
+            GetCurrentThread, SetThreadPriority, THREAD_MODE_BACKGROUND_END,
+        };
+        if self.0 {
+            // SAFETY: same synchronous thread that successfully entered background mode.
+            unsafe { SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END) }
+                .map_err(|e| format!("cannot restore payload scheduling priority: {e}"))?;
+            self.0 = false;
+        }
+        Ok(())
+    }
+}
+impl Drop for BackgroundWork {
+    fn drop(&mut self) {
+        let _ = self.finish();
+    }
+}
+pub(crate) fn background_work<T>(work: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    let mut guard = BackgroundWork::start()?;
+    let result = work();
+    match (result, guard.finish()) {
+        (result, Ok(())) => result,
+        (Ok(_), Err(recovery)) => Err(recovery),
+        (Err(primary), Err(recovery)) => Err(format!("{primary}; {recovery}")),
+    }
+}
 /// Independent worker deadline. Abrupt exit closes OS-owned kill-job handles even
 /// when WMI/input or remoting blocks; no Rust destructor is required for containment.
 pub struct WorkerDeadline {
@@ -145,20 +190,23 @@ pub fn is_elevated() -> Result<bool, String> {
 struct KillJob(windows::Win32::Foundation::HANDLE);
 #[allow(unsafe_code)]
 impl KillJob {
-    fn attach(child: &std::process::Child) -> Result<Self, String> {
-        use std::os::windows::io::AsRawHandle;
-        use windows::Win32::{
-            Foundation::HANDLE,
-            System::JobObjects::{
-                AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-                JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-                SetInformationJobObject,
-            },
+    fn create() -> Result<Self, String> {
+        use windows::Win32::System::JobObjects::{
+            CreateJobObjectW, JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
+            JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
+            JOB_OBJECT_LIMIT_JOB_MEMORY, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_CPU_RATE_CONTROL_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JobObjectCpuRateControlInformation, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
         };
         // SAFETY: unnamed non-inheritable job with no external pointers.
         let job = Self(unsafe { CreateJobObjectW(None, None) }.map_err(|e| e.to_string())?);
         let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            | JOB_OBJECT_LIMIT_JOB_MEMORY
+            | JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+        info.BasicLimitInformation.ActiveProcessLimit = CHILD_JOB_PROCESS_LIMIT;
+        info.JobMemoryLimit = CHILD_JOB_MEMORY_LIMIT;
         // SAFETY: valid owned job and correctly sized information structure.
         unsafe {
             SetInformationJobObject(
@@ -169,6 +217,27 @@ impl KillJob {
             )
         }
         .map_err(|e| e.to_string())?;
+        let mut cpu = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION {
+            ControlFlags: JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP,
+            ..Default::default()
+        };
+        cpu.Anonymous.CpuRate = CHILD_JOB_CPU_RATE;
+        // SAFETY: valid owned job; enabled hard cap selects the CpuRate union arm.
+        unsafe {
+            SetInformationJobObject(
+                job.0,
+                JobObjectCpuRateControlInformation,
+                (&cpu as *const JOBOBJECT_CPU_RATE_CONTROL_INFORMATION).cast(),
+                std::mem::size_of_val(&cpu) as u32,
+            )
+        }
+        .map_err(|e| format!("cannot enforce child CPU limit: {e}"))?;
+        Ok(job)
+    }
+    fn attach(child: &std::process::Child) -> Result<Self, String> {
+        use std::os::windows::io::AsRawHandle;
+        use windows::Win32::{Foundation::HANDLE, System::JobObjects::AssignProcessToJobObject};
+        let job = Self::create()?;
         // SAFETY: child owns this live process handle. Job cannot outlive ownership.
         unsafe { AssignProcessToJobObject(job.0, HANDLE(child.as_raw_handle())) }
             .map_err(|e| e.to_string())?;
@@ -368,6 +437,67 @@ pub fn bounded_process_with_limit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(unsafe_code)]
+    fn background_payload_work_restores_priority_after_success_and_failure() {
+        use windows::Win32::System::Threading::{GetCurrentThread, GetThreadPriority};
+        // SAFETY: borrowed current thread pseudo-handle; read-only priority query.
+        let original = unsafe { GetThreadPriority(GetCurrentThread()) };
+        assert_eq!(background_work(|| Ok(17)).unwrap(), 17);
+        assert_eq!(unsafe { GetThreadPriority(GetCurrentThread()) }, original);
+        assert_eq!(
+            background_work::<()>(|| Err("fixed failure".into())).unwrap_err(),
+            "fixed failure"
+        );
+        assert_eq!(unsafe { GetThreadPriority(GetCurrentThread()) }, original);
+    }
+
+    #[test]
+    #[allow(unsafe_code)]
+    fn child_job_resource_limits_are_installed_before_launch() {
+        use windows::Win32::System::JobObjects::{
+            JOB_OBJECT_LIMIT_ACTIVE_PROCESS, JOB_OBJECT_LIMIT_JOB_MEMORY,
+            JOBOBJECT_CPU_RATE_CONTROL_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JobObjectCpuRateControlInformation, JobObjectExtendedLimitInformation,
+            QueryInformationJobObject,
+        };
+        let job = KillJob::create().unwrap();
+        let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        let mut cpu = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION::default();
+        // SAFETY: owned empty job and correctly sized writable native buffers.
+        unsafe {
+            QueryInformationJobObject(
+                Some(job.0),
+                JobObjectExtendedLimitInformation,
+                (&mut limits as *mut JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                std::mem::size_of_val(&limits) as u32,
+                None,
+            )
+            .unwrap();
+            QueryInformationJobObject(
+                Some(job.0),
+                JobObjectCpuRateControlInformation,
+                (&mut cpu as *mut JOBOBJECT_CPU_RATE_CONTROL_INFORMATION).cast(),
+                std::mem::size_of_val(&cpu) as u32,
+                None,
+            )
+            .unwrap();
+        }
+        assert!(
+            limits
+                .BasicLimitInformation
+                .LimitFlags
+                .contains(JOB_OBJECT_LIMIT_JOB_MEMORY | JOB_OBJECT_LIMIT_ACTIVE_PROCESS)
+        );
+        assert_eq!(limits.JobMemoryLimit, CHILD_JOB_MEMORY_LIMIT);
+        assert_eq!(
+            limits.BasicLimitInformation.ActiveProcessLimit,
+            CHILD_JOB_PROCESS_LIMIT
+        );
+        // SAFETY: configured CPU rate control selects the CpuRate arm.
+        assert_eq!(unsafe { cpu.Anonymous.CpuRate }, CHILD_JOB_CPU_RATE);
+    }
 
     #[test]
     fn powershell_reads_large_stdin_without_command_line_interpretation() {

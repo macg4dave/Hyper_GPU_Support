@@ -24,12 +24,17 @@ function Invoke-CheckedCommand {
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $oldRustFlags = $env:RUSTFLAGS
 $oldRustDocFlags = $env:RUSTDOCFLAGS
+$oldBuildJobs = $env:CARGO_BUILD_JOBS
+$oldTestThreads = $env:RUST_TEST_THREADS
 
 Push-Location $repositoryRoot
 try {
     # RUSTFLAGS overrides .cargo/config.toml; retain the product's static CRT.
     $env:RUSTFLAGS = '-Dwarnings -C target-feature=+crt-static'
     $env:RUSTDOCFLAGS = '-Dwarnings'
+    # Keep build and fixture concurrency small on the development desktop.
+    $env:CARGO_BUILD_JOBS = '2'
+    $env:RUST_TEST_THREADS = '2'
 
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('fmt', '--all', '--', '--check')
     # Root workspace contains only the product. The laboratory has separate gates.
@@ -49,5 +54,7 @@ catch {
 finally {
     $env:RUSTFLAGS = $oldRustFlags
     $env:RUSTDOCFLAGS = $oldRustDocFlags
+    $env:CARGO_BUILD_JOBS = $oldBuildJobs
+    $env:RUST_TEST_THREADS = $oldTestThreads
     Pop-Location
 }

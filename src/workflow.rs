@@ -157,6 +157,12 @@ pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationRes
     if needs_changes || target.enabled {
         journal.pending = true;
         journal.verification_only = !needs_changes;
+        if stale {
+            // A failed refresh may leave a mixture of the old and new payload.
+            // Invalidate the old receipt before effects, including if the host
+            // later rolls back to that old driver's digest.
+            journal.prepared = None;
+        }
         backend.save(target, &journal)?;
     }
     let operation: Result<OperationResult, String> = (|| {
@@ -369,6 +375,7 @@ mod tests {
         fail_verify: bool,
         fail_shutdown: bool,
         fail_start_after_effect: bool,
+        driver: &'static str,
     }
     fn target() -> Target {
         Target {
@@ -401,6 +408,7 @@ mod tests {
             fail_verify: false,
             fail_shutdown: false,
             fail_start_after_effect: false,
+            driver: "current",
         }
     }
     impl Backend for Fake {
@@ -423,7 +431,7 @@ mod tests {
             })
         }
         fn payload(&mut self, _: &Target) -> Result<String, String> {
-            Ok("current".into())
+            Ok(self.driver.into())
         }
         fn journal(&mut self, _: &Target) -> Result<Option<Journal>, String> {
             Ok(self.journal.clone())
@@ -472,7 +480,7 @@ mod tests {
             if self.fail_prepare {
                 Err("interrupted".into())
             } else {
-                Ok("current".into())
+                Ok(self.driver.into())
             }
         }
         fn verify(&mut self, _: &Target, _: &Gpu) -> Result<(), String> {
@@ -685,6 +693,27 @@ mod tests {
         f.events.clear();
         assert!(!apply(&mut f, &target()).unwrap().prepared);
         assert_eq!(f.events, ["attach", "start", "graphics"]);
+        assert!(!f.journal.as_ref().unwrap().pending);
+    }
+    #[test]
+    fn interrupted_refresh_requires_preparation_after_host_driver_rollback() {
+        let mut f = fake();
+        apply(&mut f, &target()).unwrap();
+        f.driver = "new-driver";
+        f.fail_prepare = true;
+        assert!(
+            apply(&mut f, &target())
+                .unwrap_err()
+                .contains("interrupted")
+        );
+        assert!(f.state.gpus.is_empty());
+        f.driver = "current";
+        f.fail_prepare = false;
+        f.events.clear();
+        assert!(apply(&mut f, &target()).unwrap().prepared);
+        let preparation = f.events.iter().position(|e| *e == "prepare").unwrap();
+        let attachment = f.events.iter().position(|e| *e == "attach").unwrap();
+        assert!(preparation < attachment);
         assert!(!f.journal.as_ref().unwrap().pending);
     }
 }

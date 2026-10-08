@@ -5,7 +5,9 @@
 Active work is **ARCH-001**, implementing the user-approved architectural rebase.
 **M1 is completed as of 2026-10-08**; its independent review and live
 [installation/enrollment qualification](evidence/M1.md) passed. Active milestone
-work is M2's small working GPU-PV core and affected guest qualification.
+work is M2's small working GPU-PV core. NVIDIA one-VM functional checks passed,
+but a subsequent reported host freeze/unclean restart blocks qualification;
+live testing is stopped pending diagnosis. See [M2 results](evidence/M2.md).
 Product configuration and native operations no longer require laboratory identities.
 The old fixed-slot application is retained under `tools/lab/`, outside production.
 The roadmap now orders contract separation → working core → native GUI → allocation
@@ -27,7 +29,7 @@ support, not shipped functionality. Qualification may reuse existing tooling.
 | Milestone | Status | Result |
 |---|---|---|
 | M1 | completed | Product/laboratory separation, existing-VM enrollment and rewritten privilege boundary reviewed and live-qualified on 2026-10-08; [acceptance](evidence/M1.md). |
-| M2 | in progress | Verification lifecycle recovery hardened and independently reviewed; current preparation, provider-default attachment, rendering, reapply and disable qualification remain open. |
+| M2 | in progress | One-VM functional checks passed, but a subsequent host failure blocks qualification; [results](evidence/M2.md). Live testing stopped; sharing unqualified. |
 
 Legacy card milestone labels below retain implementation history; they do not
 reopen the current roadmap's completed M1 acceptance.
@@ -596,6 +598,25 @@ Runtime existing-VM architecture and small GPU-PV core.
   current NVIDIA preparation, provider-default attachment and checked rendering,
   then running reapply and disable/restoration. No live guest qualification or
   deployment of this recovery change is claimed.
+- M2 continuation (2026-10-08): current complete NVIDIA preparation, native default
+  attachment, PnP health and checked D3D11 rendering passed on the designated VM.
+  Off/running reapply, standalone verification and disable passed; running reapply
+  retained uptime and disable retained preparation. Final guest Off, no adapter,
+  no pending operation; CPU/RAM, disk identity, Secure Boot and TPM preserved.
+  Fixed WMI host-resource identity/readback, nullable defaults and failed-job
+  diagnostics. Recovery invalidates stale receipts before refresh, preserves
+  completed preparation after later failure, and covers host-driver rollback.
+  Product gate passed: 49 core and 3 CLI tests, strict Clippy/compiler warnings,
+  formatting/build/docs; release x64 build passed. Focused independent reviews
+  cleared deployment. Exact environment and scope: [M2 acceptance](evidence/M2.md).
+  Sharing requires a second explicitly designated test VM before qualification.
+- Host-failure follow-up: user reported a freeze/crash during this session; host
+  rebooted at 14:08:37 UTC. Kernel-Power 41 reports bugcheck 0; no recent resource-
+  exhaustion event was found. Pre-failure RAM/commit data was not captured, so
+  memory pressure/process growth is unresolved. Live testing stopped; successful
+  command results do not close host stability or M2 acceptance.
+  User clarified progressive slowdown, mouse-movement beeps and manual hard
+  power-off. Diagnose the hang; do not treat the restart event as its root cause.
 
 ## GUI-001
 

@@ -1,10 +1,7 @@
 //! Scoped Hyper-V COM objects and typed VARIANT/SAFEARRAY ownership.
 
 use crate::windows_com::{Apartment, connect};
-use std::{
-    mem::ManuallyDrop,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use windows::{
     Win32::System::{
         Com::{CLSCTX_INPROC_SERVER, CoCreateInstance},
@@ -23,6 +20,60 @@ use windows::{
 };
 
 type Result<T> = std::result::Result<T, String>;
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PendingOperation {
+    schema: u32,
+    method: String,
+    target: String,
+    job: Option<String>,
+}
+fn operation_path() -> Result<std::path::PathBuf> {
+    Ok(crate::runner::data_directory()?.join("provider-operation.json"))
+}
+fn clear_operation() -> Result<()> {
+    let path = operation_path()?;
+    crate::security::verify(&path)?;
+    std::fs::remove_file(path).map_err(|e| e.to_string())
+}
+pub(crate) fn reconcile_pending_operation() -> Result<()> {
+    let path = operation_path()?;
+    if !path.exists() {
+        return Ok(());
+    }
+    crate::security::verify(&path)?;
+    if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 65536 {
+        return Err("invalid pending provider operation size".into());
+    }
+    let pending: PendingOperation =
+        serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
+            .map_err(|_| "invalid pending provider operation")?;
+    if pending.schema != 1 {
+        return Err("unsupported pending provider operation".into());
+    }
+    let job = pending.job_path()?;
+    let s = Session::new(Duration::from_secs(30))?;
+    let job = s
+        .get(local_job_path(job)?)
+        .map_err(|e| format!("previous Hyper-V job cannot be reconciled: {e}"))?;
+    let state = job.number("JobState")?;
+    require_terminal_operation(state)?;
+    clear_operation()
+}
+impl PendingOperation {
+    fn job_path(&self) -> Result<&str> {
+        local_job_path(self.job.as_deref().ok_or("previous Hyper-V call has an unknown outcome; administrator reconciliation is required before another mutation")?)
+    }
+}
+fn require_terminal_operation(state: u64) -> Result<()> {
+    if (7..=10).contains(&state) {
+        Ok(())
+    } else {
+        Err(format!(
+            "previous Hyper-V job is unresolved (state {state}); wait for terminal reconciliation before retry"
+        ))
+    }
+}
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(Some(0)).collect()
 }
@@ -30,7 +81,12 @@ fn win(e: windows::core::Error) -> String {
     format!("Hyper-V WMI {}: {}", e.code(), e.message())
 }
 
-struct OwnedVariant(VARIANT);
+pub(crate) struct OwnedVariant(VARIANT);
+impl From<VARIANT> for OwnedVariant {
+    fn from(value: VARIANT) -> Self {
+        Self(value)
+    }
+}
 #[allow(unsafe_code)]
 impl Drop for OwnedVariant {
     fn drop(&mut self) {
@@ -84,6 +140,15 @@ impl Object {
                 Ok(u64::from(unsafe { inner.Anonymous.lVal } as u32))
             }
             _ => Err(format!("{name}: unexpected integer VARIANT {}", inner.vt.0)),
+        }
+    }
+    pub(crate) fn optional_number(&self, name: &str) -> Result<Option<u64>> {
+        let value = self.value(name)?;
+        // SAFETY: initialized VARIANT; inspect only its discriminator.
+        if unsafe { value.0.Anonymous.Anonymous.vt } == VT_NULL {
+            Ok(None)
+        } else {
+            self.number(name).map(Some)
         }
     }
     pub(crate) fn boolean(&self, name: &str) -> Result<bool> {
@@ -160,7 +225,7 @@ impl Object {
         self.set(name, v)
     }
     pub(crate) fn set_strings(&self, name: &str, values: &[String]) -> Result<()> {
-        self.set(name, string_array(values)?)
+        self.set_owned(name, &string_array(values)?)
     }
     pub(crate) fn xml(&self) -> Result<String> {
         // SAFETY: apartment is initialized and returned COM interface is scoped.
@@ -175,7 +240,7 @@ impl Object {
 }
 
 #[allow(unsafe_code)]
-pub(crate) fn string_array(values: &[String]) -> Result<VARIANT> {
+pub(crate) fn string_array(values: &[String]) -> Result<OwnedVariant> {
     if values.len() > 16384 {
         return Err("excessive WMI input array".into());
     }
@@ -197,9 +262,7 @@ pub(crate) fn string_array(values: &[String]) -> Result<VARIANT> {
         unsafe { SafeArrayPutElement(array, &(index as i32), text.as_ptr().cast()) }
             .map_err(win)?;
     }
-    let result = ManuallyDrop::new(owned);
-    // SAFETY: transfer this sole owned VARIANT; ManuallyDrop prevents double-clear.
-    Ok(unsafe { std::ptr::read(&result.0) })
+    Ok(owned)
 }
 
 pub(crate) struct Session {
@@ -290,15 +353,11 @@ impl Session {
         &self,
         target: &Object,
         method: &str,
-        values: Vec<(&str, VARIANT)>,
+        values: Vec<(&str, OwnedVariant)>,
     ) -> Result<Object> {
-        // Adopt every input before the first fallible call; VARIANT itself has no
-        // destructor, including when signature lookup or an earlier Put fails.
-        let values: Vec<_> = values
-            .into_iter()
-            .map(|(k, v)| (k, OwnedVariant(v)))
-            .collect();
+        // Arguments own their native allocations before even entering this call.
         self.check_deadline()?;
+        reconcile_pending_operation()?;
         let mut signature = None;
         // GetMethod is valid only on a class definition, never a queried VM or
         // management-service instance. ExecMethod still targets the exact instance.
@@ -325,10 +384,17 @@ impl Session {
                 .map_err(|e| format!("{method}: {e}"))?;
         }
         let mut output = None;
+        let mut pending = PendingOperation {
+            schema: 1,
+            method: method.into(),
+            target: target.path()?,
+            job: None,
+        };
+        crate::runner::atomic_json(&operation_path()?, &pending)?;
         // SAFETY: secured services, live input, initialized output; fixed target method.
         unsafe {
             self.services.ExecMethod(
-                &BSTR::from(target.path()?),
+                &BSTR::from(pending.target.as_str()),
                 &BSTR::from(method),
                 WBEM_GENERIC_FLAG_TYPE(0),
                 None,
@@ -344,11 +410,23 @@ impl Session {
             let path = output.string("Job")?;
             // Do not follow remote/arbitrary provider references.
             let path = local_job_path(&path)?;
+            pending.job = Some(path.into());
+            crate::runner::atomic_json(&operation_path()?, &pending)?;
             loop {
                 self.check_deadline()?;
                 let job = self.get(path)?;
                 let state = job.number("JobState")?;
-                match job_status(state)? {
+                if (7..=10).contains(&state) {
+                    clear_operation()?;
+                }
+                match job_status(state).map_err(|reason| {
+                    format!(
+                        "{method}: {reason}; error code {}; {}",
+                        job.number("ErrorCode")
+                            .map_or_else(|e| e, |code| code.to_string()),
+                        job.string("ErrorDescription").unwrap_or_else(|e| e)
+                    )
+                })? {
                     true => {
                         if job.number("ErrorCode")? != 0 {
                             return Err(format!(
@@ -362,16 +440,19 @@ impl Session {
                 }
             }
         } else if code != 0 {
+            clear_operation()?;
             return Err(format!(
                 "{method}: provider return code {code}; reconcile before retry"
             ));
+        } else {
+            clear_operation()?;
         }
         Ok(output)
     }
     pub(crate) fn modify(&self, service: &Object, object: &Object, system: bool) -> Result<()> {
         let xml = object.xml()?;
         let args = if system {
-            vec![("SystemSettings", VARIANT::from(BSTR::from(xml)))]
+            vec![("SystemSettings", VARIANT::from(BSTR::from(xml)).into())]
         } else {
             vec![("ResourceSettings", string_array(&[xml])?)]
         };
@@ -436,6 +517,27 @@ pub(crate) fn one(mut objects: Vec<Object>) -> Result<Object> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn uncertain_provider_work_never_allows_overlapping_mutation() {
+        let mut operation = PendingOperation {
+            schema: 1,
+            method: "AddResourceSettings".into(),
+            target: "fixed-vm".into(),
+            job: None,
+        };
+        assert!(operation.job_path().is_err());
+        operation.job = Some("other.InstanceID=\"123\"".into());
+        assert!(operation.job_path().is_err());
+        operation.job = Some("Msvm_ConcreteJob.InstanceID=\"123\"".into());
+        assert!(operation.job_path().is_ok());
+        for state in [0, 1, 2, 3, 4, 5, 6, 11, u64::MAX] {
+            assert!(require_terminal_operation(state).is_err());
+        }
+        for state in 7..=10 {
+            assert!(require_terminal_operation(state).is_ok());
+        }
+    }
 
     #[test]
     fn provider_job_terminal_failures_never_become_success() {
@@ -513,9 +615,12 @@ mod tests {
         assert!(object.boolean("Flag").unwrap());
         assert!(object.number("Text").is_err());
         assert!(object.boolean("Small").is_err());
+        assert_eq!(object.optional_number("Empty").unwrap(), None);
+        assert!(object.optional_number("Text").is_err());
         assert!(object.set_number("Empty", 31).is_err());
         object.set("Empty", VARIANT::from(31i32)).unwrap();
         assert_eq!(object.number("Empty").unwrap(), 31);
+        assert_eq!(object.optional_number("Empty").unwrap(), Some(31));
         object.set_number("Large", u64::MAX - 1).unwrap();
         object.set_number("Small", 17).unwrap();
         object.set("Flag", VARIANT::from(false)).unwrap();

@@ -463,7 +463,7 @@ fn enrollment() -> Result<Enrollment, String> {
     }
     Ok(value)
 }
-fn atomic_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
+pub(crate) fn atomic_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
     crate::security::verify(path.parent().ok_or("state directory missing")?)?;
     let temp = path.with_extension("partial");
     remove_protected_leaf(&temp)?;
@@ -708,6 +708,9 @@ fn execute_operation(
         manifest: None,
         data,
     };
+    if matches!(request.operation, Operation::Apply | Operation::Verify) {
+        crate::windows_wmi::reconcile_pending_operation()?;
+    }
     let output = match request.operation {
         Operation::Discover => return Err("invalid operation".into()),
         Operation::Status => Ok(serde_json::json!({"observed": backend.inspect(&target)?, "managed": backend.journal(&target)?})),
@@ -738,21 +741,20 @@ impl Backend for NativeBackend {
         windows_hyperv::inspect(&t.vm_id)
     }
     fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
-        windows_hyperv::discover()?
-            .gpus
-            .into_iter()
-            .find(|g| g.interface == t.gpu_interface)
-            .ok_or("selected GPU is unavailable".into())
+        windows_hyperv::selected_gpu(t)
     }
     fn payload(&mut self, t: &Target) -> Result<String, String> {
-        let discovery =
-            crate::windows_driver::discover_driver_environment(t, Duration::from_secs(300))
-                .map_err(|e| e.to_string())?;
-        let manifest = payload::discover(
-            &crate::windows_paths::windows_directory().map_err(|e| e.to_string())?,
-            discovery,
-        )?;
-        crate::guest::validate_trust(&manifest)?;
+        let manifest = process::background_work(|| {
+            let discovery =
+                crate::windows_driver::discover_driver_environment(t, Duration::from_secs(300))
+                    .map_err(|e| e.to_string())?;
+            let manifest = payload::discover(
+                &crate::windows_paths::windows_directory().map_err(|e| e.to_string())?,
+                discovery,
+            )?;
+            crate::guest::validate_trust(&manifest)?;
+            Ok(manifest)
+        })?;
         let digest = manifest.digest()?;
         self.manifest = Some(manifest);
         Ok(digest)

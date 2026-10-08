@@ -20,7 +20,24 @@ pub fn inspect(id: &str) -> Result<VmState, String> {
     ))?;
     let cfg = settings(&s, id)?;
     let gpus = s.related(&cfg, "Msvm_GpuPartitionSettingData")?;
-    let vram = gpus.first().map(read_vram).transpose()?;
+    let providers = if gpus.is_empty() {
+        Vec::new()
+    } else {
+        s.query("SELECT * FROM Msvm_PartitionableGpu")?
+            .into_iter()
+            .map(|gpu| {
+                let interface = gpu.string("Name")?;
+                Ok(vec![
+                    (gpu.path()?, interface.clone()),
+                    (gpu.string("__PATH")?, interface),
+                ])
+            })
+            .collect::<Result<Vec<_>, String>>()?
+            .into_iter()
+            .flatten()
+            .collect()
+    };
+    let vram = gpus.first().map(read_optional_vram).transpose()?.flatten();
     Ok(VmState {
         vm_id: vm.string("Name")?.to_ascii_lowercase(),
         name: vm.string("ElementName")?,
@@ -36,11 +53,8 @@ pub fn inspect(id: &str) -> Result<VmState, String> {
         },
         gpus: gpus
             .iter()
-            .map(|g| g.strings("HostResource"))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect(),
+            .map(|g| selected_gpu_interface(&g.strings("HostResource")?, &providers))
+            .collect::<Result<Vec<_>, _>>()?,
         vram,
         settings: Settings {
             low_mmio: cfg.number("LowMmioGapSize")?,
@@ -50,12 +64,46 @@ pub fn inspect(id: &str) -> Result<VmState, String> {
         },
     })
 }
+
+fn selected_gpu_interface(
+    resources: &[String],
+    providers: &[(String, String)],
+) -> Result<String, String> {
+    let [resource] = resources else {
+        return Err("GPU adapter must reference exactly one host resource".into());
+    };
+    let mut matches = providers
+        .iter()
+        .filter(|(path, _)| path.eq_ignore_ascii_case(resource));
+    let (_, interface) = matches
+        .next()
+        .ok_or("GPU host resource is not a discovered local GPU")?;
+    if matches.next().is_some() {
+        return Err("GPU host resource identity is ambiguous".into());
+    }
+    Ok(interface.clone())
+}
 fn read_vram(o: &Object) -> Result<Allocation, String> {
     Ok(Allocation {
         minimum: o.number("MinPartitionVRAM")?,
         maximum: o.number("MaxPartitionVRAM")?,
         optimal: o.number("OptimalPartitionVRAM")?,
     })
+}
+fn read_optional_vram(o: &Object) -> Result<Option<Allocation>, String> {
+    match (
+        o.optional_number("MinPartitionVRAM")?,
+        o.optional_number("MaxPartitionVRAM")?,
+        o.optional_number("OptimalPartitionVRAM")?,
+    ) {
+        (None, None, None) => Ok(None),
+        (Some(minimum), Some(maximum), Some(optimal)) => Ok(Some(Allocation {
+            minimum,
+            maximum,
+            optimal,
+        })),
+        _ => Err("GPU allocation readback is partially specified".into()),
+    }
 }
 /// Enumerate all partitionable GPUs, without claiming preparation support for unimplemented vendors.
 pub fn discover() -> Result<Discovery, String> {
@@ -65,10 +113,31 @@ pub fn discover() -> Result<Discovery, String> {
         .into_iter()
         .map(|v| inspect(&v.string("Name")?))
         .collect::<Result<Vec<_>, _>>()?;
+    Ok(Discovery {
+        vms,
+        gpus: discover_gpus(&s, "SELECT * FROM Msvm_PartitionableGpu")?,
+    })
+}
+pub(crate) fn selected_gpu(t: &Target) -> Result<Gpu, String> {
+    t.validate()?;
+    let s = Session::new(TIMEOUT)?;
+    let mut gpus = discover_gpus(
+        &s,
+        &format!(
+            "SELECT * FROM Msvm_PartitionableGpu WHERE Name='{}'",
+            quoted(&t.gpu_interface)
+        ),
+    )?;
+    if gpus.len() != 1 {
+        return Err("selected GPU is absent or ambiguous".into());
+    }
+    gpus.pop().ok_or("selected GPU disappeared".into())
+}
+fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
     let _apartment = Apartment::initialize().map_err(|e| e.to_string())?;
     let cim = connect(r"ROOT\cimv2").map_err(|e| e.to_string())?;
     let mut gpus = Vec::new();
-    for o in s.query("SELECT * FROM Msvm_PartitionableGpu")? {
+    for o in s.query(gpu_query)? {
         let interface = o.string("Name")?;
         let physical = physical_device_id(&interface)?;
         let rows = query(
@@ -104,7 +173,7 @@ pub fn discover() -> Result<Discovery, String> {
             preparation_supported: vendor == 0x10de,
         });
     }
-    Ok(Discovery { vms, gpus })
+    Ok(gpus)
 }
 fn require_off(t: &Target) -> Result<(), String> {
     t.validate()?;
@@ -137,15 +206,20 @@ pub fn assign(t: &Target, enabled: bool) -> Result<(), String> {
                 Err(e) => Some(Err(e)),
             })
             .collect::<Result<Vec<_>, String>>()?)?;
-        template.set("InstanceID", VARIANT::from(BSTR::from("")))?;
-        template.set_strings("HostResource", std::slice::from_ref(&t.gpu_interface))?;
+        // Keep the provider's default definition identity and allocation values.
+        // AddResourceSettings creates the VM-specific resource identity.
+        let gpu = s.one(&format!(
+            "SELECT * FROM Msvm_PartitionableGpu WHERE Name='{}'",
+            quoted(&t.gpu_interface)
+        ))?;
+        template.set_strings("HostResource", &[gpu.string("__PATH")?])?;
         s.invoke(
             &service,
             "AddResourceSettings",
             vec![
                 (
                     "AffectedConfiguration",
-                    VARIANT::from(BSTR::from(cfg.path()?)),
+                    VARIANT::from(BSTR::from(cfg.path()?)).into(),
                 ),
                 ("ResourceSettings", string_array(&[template.xml()?])?),
             ],
@@ -241,7 +315,7 @@ pub fn power(t: &Target, desired: Power) -> Result<(), String> {
         s.invoke(
             &vm,
             "RequestStateChange",
-            vec![("RequestedState", VARIANT::from(2i32))],
+            vec![("RequestedState", VARIANT::from(2i32).into())],
         )?;
     } else {
         let shutdown = one(s.related(&vm, "Msvm_ShutdownComponent")?)?;
@@ -249,20 +323,72 @@ pub fn power(t: &Target, desired: Power) -> Result<(), String> {
             &shutdown,
             "InitiateShutdown",
             vec![
-                ("Force", VARIANT::from(false)),
+                ("Force", VARIANT::from(false).into()),
                 (
                     "Reason",
-                    VARIANT::from(BSTR::from("Hyper GPU Support configuration")),
+                    VARIANT::from(BSTR::from("Hyper GPU Support configuration")).into(),
                 ),
             ],
         )?;
     }
     let deadline = Instant::now() + TIMEOUT;
-    while inspect(&t.vm_id)?.power != desired {
+    while read_power(&s, &t.vm_id)? != desired {
         if Instant::now() >= deadline {
             return Err("guest lifecycle timeout; reconcile before retry".into());
         }
-        std::thread::sleep(Duration::from_millis(200));
+        std::thread::sleep(Duration::from_secs(1));
+    }
+    // Preserve independent full readback after the lightweight transition poll.
+    if inspect(&t.vm_id)?.power != desired {
+        return Err("guest power state changed during final verification".into());
     }
     Ok(())
+}
+
+fn read_power(s: &Session, id: &str) -> Result<Power, String> {
+    let vm = s.one(&format!(
+        "SELECT EnabledState FROM Msvm_ComputerSystem WHERE Caption='Virtual Machine' AND Name='{}'",
+        quoted(id)
+    ))?;
+    Ok(match vm.number("EnabledState")? {
+        2 => Power::Running,
+        3 => Power::Off,
+        n => Power::Other(n),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::selected_gpu_interface;
+
+    #[test]
+    fn host_resources_resolve_only_to_discovered_local_gpu_identities() {
+        let path = r#"\\host\root\virtualization\v2:Msvm_PartitionableGpu.Name="gpu""#;
+        let providers = vec![(path.into(), "selected-interface".into())];
+        assert_eq!(
+            selected_gpu_interface(&[path.to_ascii_uppercase()], &providers).unwrap(),
+            "selected-interface"
+        );
+        for resources in [
+            vec![],
+            vec!["selected-interface".into()],
+            vec![path.replace("host", "remote")],
+            vec![path.into(), path.into()],
+        ] {
+            assert!(selected_gpu_interface(&resources, &providers).is_err());
+        }
+        let ambiguous = vec![providers[0].clone(), providers[0].clone()];
+        assert!(selected_gpu_interface(&[path.into()], &ambiguous).is_err());
+        let relative = r#"Msvm_PartitionableGpu.Name="gpu""#;
+        let local_forms = vec![
+            providers[0].clone(),
+            (relative.into(), "selected-interface".into()),
+        ];
+        for reference in [path, relative] {
+            assert_eq!(
+                selected_gpu_interface(&[reference.into()], &local_forms).unwrap(),
+                "selected-interface"
+            );
+        }
+    }
 }

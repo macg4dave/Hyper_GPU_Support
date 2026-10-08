@@ -50,6 +50,9 @@ CPU/RAM quantities, Secure Boot and security devices. Capture preimages of compa
 MMIO/cache/checkpoint settings and independently read back effects. Conservative NVIDIA
 MMIO values retain the measured recipe pending affected qualification. First-core
 attachment omits explicit resources; optional raw VRAM triples require provider limits.
+Attach using the selected GPU's discovered WMI object path, then map full/relative
+host-resource references against fresh local GPU inventory for interface readback.
+All-null adapter allocation fields mean provider defaults, not zero capacity.
 
 ### Driver/runtime manifest and guest placement
 
@@ -96,6 +99,9 @@ Audit records are retained for administrator inspection.
 Reconcile fresh state before retry; preserve externally changed settings. Recovery
 never replaces a user disk. Disable retains guest driver files; stale preparation
 refreshes on apply. Credentials are ephemeral or explicitly stored per-user/per-VM.
+Invalidate the previous prepared digest durably before a stale refresh starts;
+publish the new digest only after complete preparation and graceful shutdown.
+Keep completed preparation after later settings/attachment failure for retry.
 Verification also records pending intent before checks on a running unchanged VM.
 Standalone verification reconciles power after an uncertain start and retains both
 the verification error and any restoration failure. Failed checks retain pending

@@ -11,7 +11,17 @@
   the guest again. Retain failed verification intent for retry.
 - Restore initial power after uncertain standalone-verification startup and report
   both check and graceful-restoration failures. Added failure/retry coverage;
-  independent bounded review and product checks passed. Live M2 qualification remains open.
+  independent bounded review and product checks passed.
+- Attach through the discovered GPU WMI object path and reconcile full/relative
+  references against local inventory. Preserve nullable provider-default allocations
+  and include terminal job details in errors.
+- Retain completed preparation after later failure; invalidate stale receipts before
+  refresh, including interrupted refresh followed by host-driver rollback.
+- Live NVIDIA one-VM preparation/default attachment/checked rendering, Off/running
+  reapply, verification and disable passed; [results](evidence/M2.md). Sharing remains
+  unqualified.
+- Subsequent reported host freeze/unclean restart blocks M2 qualification despite
+  successful functional checks. Live testing stopped pending diagnosis; cause unknown.
 
 ## 2026-10-08 - M1 product boundary qualification
 
