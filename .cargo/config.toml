@@ -1,3 +1,7 @@
 [build]
 target = "x86_64-pc-windows-msvc"
 target-dir = "target"
+
+[target.x86_64-pc-windows-msvc]
+# Guest helpers must start on supported Windows without a separately installed VC runtime.
+rustflags = ["-C", "target-feature=+crt-static"]

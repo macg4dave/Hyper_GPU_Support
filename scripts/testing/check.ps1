@@ -27,7 +27,8 @@ $oldRustDocFlags = $env:RUSTDOCFLAGS
 
 Push-Location $repositoryRoot
 try {
-    $env:RUSTFLAGS = '-Dwarnings'
+    # RUSTFLAGS overrides .cargo/config.toml; retain the product's static CRT.
+    $env:RUSTFLAGS = '-Dwarnings -C target-feature=+crt-static'
     $env:RUSTDOCFLAGS = '-Dwarnings'
 
     Invoke-CheckedCommand -FilePath 'cargo' -ArgumentList @('fmt', '--all', '--', '--check')

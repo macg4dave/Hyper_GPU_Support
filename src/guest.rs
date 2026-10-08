@@ -85,10 +85,10 @@ fn bridge(
     let bytes = zeroize::Zeroizing::new(serde_json::to_vec(&request).map_err(|e| e.to_string())?);
     let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
     let module = windows.join("System32/WindowsPowerShell/v1.0/Modules");
-    let module_literal = module
-        .join("Hyper-V/Hyper-V.psd1")
-        .to_string_lossy()
-        .replace('\'', "''");
+    // Inbox modules may use versioned subdirectories. Importing the trusted
+    // module directory lets PowerShell's loader select its installed manifest.
+    crate::security::verify_system(&module.join("Hyper-V"))?;
+    let module_literal = module.join("Hyper-V").to_string_lossy().replace('\'', "''");
     let script = include_str!("guest_transport.ps1").replace("__HYPERV_MODULE__", &module_literal);
     let mut command =
         Command::new(windows_paths::windows_powershell_executable().map_err(|e| e.to_string())?);
@@ -105,7 +105,9 @@ fn bridge(
         1024 * 1024,
         &bytes,
     )
-    .map_err(|_| "guest transport failed or timed out; preparation may be partial")?;
+    .map_err(|error| {
+        format!("guest transport supervision failed: {error}; preparation may be partial")
+    })?;
     if result.exit_code != Some(0) {
         return Err("guest transport/worker failed; reconcile the selected VM before retry".into());
     }
@@ -375,5 +377,40 @@ fn health() -> Result<(), String> {
             return Err("guest GPU did not reach Code 0".into());
         }
         std::thread::sleep(Duration::from_secs(1));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fixed_transport_refuses_malformed_input_before_guest_effects() {
+        let module = windows_paths::windows_directory()
+            .unwrap()
+            .join("System32/WindowsPowerShell/v1.0/Modules/Hyper-V")
+            .to_string_lossy()
+            .replace('\'', "''");
+        let script = include_str!("guest_transport.ps1").replace("__HYPERV_MODULE__", &module);
+        let mut command = Command::new(windows_paths::windows_powershell_executable().unwrap());
+        command.args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &script,
+        ]);
+        let result = process::bounded_process_with_limit(
+            command,
+            Duration::from_secs(15),
+            1024 * 1024,
+            &vec![b'x'; 131072],
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(result.exit_code, Some(1));
+        assert_eq!(
+            result.stderr.trim(),
+            "Fixed guest transport failed; reconcile before retry."
+        );
     }
 }

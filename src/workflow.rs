@@ -134,8 +134,9 @@ pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationRes
     } else {
         None
     };
-    let stale = target.enabled
-        && ((journal.pending && !journal.verification_only) || journal.prepared != digest);
+    // The prepared digest is published only after a complete verified preparation.
+    // A later Hyper-V failure must not turn that receipt back into partial staging.
+    let stale = target.enabled && journal.prepared != digest;
     let assignment = !initial.gpus.is_empty();
     let settings_change = target.enabled && initial.settings != desired;
     let allocation_change = target.enabled
@@ -151,7 +152,9 @@ pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationRes
         || (!target.enabled
             && initial.settings == journal.applied
             && initial.settings != journal.original);
-    if needs_changes || (target.enabled && initial.power == Power::Off) {
+    // Verification is an operation even on a running no-op target. Persist its
+    // intent before the check so failure cannot leave a completed-looking journal.
+    if needs_changes || target.enabled {
         journal.pending = true;
         journal.verification_only = !needs_changes;
         backend.save(target, &journal)?;
@@ -177,11 +180,15 @@ pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationRes
                 backend.save(target, &journal)?;
             }
             if target.enabled {
-                backend.settings(target, &desired)?;
+                backend
+                    .settings(target, &desired)
+                    .map_err(|e| format!("apply compatibility settings: {e}"))?;
                 journal.applied = desired.clone();
                 backend.save(target, &journal)?;
                 if backend.inspect(target)?.gpus.is_empty() {
-                    backend.assign(target, true)?;
+                    backend
+                        .assign(target, true)
+                        .map_err(|e| format!("attach selected GPU: {e}"))?;
                 }
                 if let Some(vram) = &target.vram {
                     backend.allocation(target, vram)?;
@@ -240,7 +247,7 @@ pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationRes
     // attached boot using partial guest files. Pending state explains the next apply.
     operation.map_err(|error| {
         if journal.verification_only && restore_power == Power::Off {
-            let restoration = backend.power(target, Power::Off);
+            let restoration = restore_guest_power(backend, target, &Power::Off);
             return format!(
                 "GPU-PV verification failed: {error}; power restoration: {}",
                 restoration.err().unwrap_or_else(|| "completed".into())
@@ -255,6 +262,7 @@ pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationRe
     target.validate()?;
     let before = backend.inspect(target)?;
     if before.vm_id != target.vm_id
+        || before.generation != 2
         || before.gpus != vec![target.gpu_interface.clone()]
         || !matches!(before.power, Power::Running | Power::Off)
     {
@@ -271,6 +279,10 @@ pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationRe
             "unfinished management operation requires apply reconciliation before verification"
                 .into(),
         );
+    }
+    let gpu = backend.gpu(target)?;
+    if gpu.interface != target.gpu_interface {
+        return Err("selected GPU identity changed".into());
     }
     let mut journal = old.unwrap_or(Journal {
         schema: 1,
@@ -290,33 +302,53 @@ pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationRe
     journal.pending = true;
     journal.verification_only = true;
     backend.save(target, &journal)?;
-    let gpu = backend.gpu(target)?;
-    if before.power == Power::Off {
-        backend.power(target, Power::Running)?;
+    let checked = (|| {
+        if before.power == Power::Off {
+            backend.power(target, Power::Running)?;
+        }
+        backend.verify(target, &gpu)
+    })();
+    // A start error may follow a real state change. Inspect and restore even then,
+    // retaining both failures and the durable intent if recovery cannot complete.
+    let restoration = restore_guest_power(backend, target, &journal.restore_power);
+    match (checked, restoration) {
+        (Err(primary), Err(recovery)) => {
+            return Err(format!(
+                "GPU-PV verification failed: {primary}; power restoration failed: {recovery}"
+            ));
+        }
+        (Err(primary), Ok(())) => return Err(primary),
+        (Ok(()), Err(recovery)) => {
+            return Err(format!("power restoration failed: {recovery}"));
+        }
+        (Ok(()), Ok(())) => {}
     }
-    let checked = backend.verify(target, &gpu);
-    let restoration = if backend.inspect(target)?.power != journal.restore_power {
-        backend.power(target, journal.restore_power.clone())
-    } else {
-        Ok(())
-    };
-    restoration?;
     let effective = backend.inspect(target)?;
     if effective.power != journal.restore_power || effective.gpus != before.gpus {
         return Err("verification lifecycle readback failed".into());
     }
     journal.pending = false;
-    if checked.is_ok() {
-        journal.last_verified = Some(verified_at());
-    }
+    journal.last_verified = Some(verified_at());
     backend.save(target, &journal)?;
-    checked?;
     Ok(OperationResult {
         effective,
         prepared: false,
         verified: true,
         settings_preserved: false,
     })
+}
+fn restore_guest_power(
+    backend: &mut impl Backend,
+    target: &Target,
+    desired: &Power,
+) -> Result<(), String> {
+    if backend.inspect(target)?.power != *desired {
+        backend.power(target, desired.clone())?;
+    }
+    if backend.inspect(target)?.power != *desired {
+        return Err("power restoration readback failed".into());
+    }
+    Ok(())
 }
 fn verified_at() -> u64 {
     std::time::SystemTime::now()
@@ -335,6 +367,8 @@ mod tests {
         fail_prepare: bool,
         fail_settings: bool,
         fail_verify: bool,
+        fail_shutdown: bool,
+        fail_start_after_effect: bool,
     }
     fn target() -> Target {
         Target {
@@ -365,6 +399,8 @@ mod tests {
             fail_prepare: false,
             fail_settings: false,
             fail_verify: false,
+            fail_shutdown: false,
+            fail_start_after_effect: false,
         }
     }
     impl Backend for Fake {
@@ -402,7 +438,13 @@ mod tests {
             } else {
                 "shutdown"
             });
+            if p == Power::Off && self.fail_shutdown {
+                return Err("shutdown refused".into());
+            }
             self.state.power = p;
+            if self.state.power == Power::Running && self.fail_start_after_effect {
+                return Err("start readback interrupted".into());
+            }
             Ok(())
         }
         fn assign(&mut self, t: &Target, e: bool) -> Result<(), String> {
@@ -549,5 +591,100 @@ mod tests {
         f.events.clear();
         assert!(verify(&mut f, &target()).is_err());
         assert!(f.events.is_empty());
+    }
+    #[test]
+    fn failed_running_reapply_is_pending_and_retry_does_not_restart_or_prepare() {
+        let mut f = fake();
+        apply(&mut f, &target()).unwrap();
+        let previous_verified = f.journal.as_ref().unwrap().last_verified;
+        f.events.clear();
+        f.fail_verify = true;
+        assert!(
+            apply(&mut f, &target())
+                .unwrap_err()
+                .contains("graphics failed")
+        );
+        let j = f.journal.as_ref().unwrap();
+        assert!(j.pending && j.verification_only);
+        assert_eq!(j.last_verified, previous_verified);
+        assert_eq!(f.events, ["graphics"]);
+        f.fail_verify = false;
+        f.events.clear();
+        apply(&mut f, &target()).unwrap();
+        assert_eq!(f.events, ["graphics"]);
+        assert!(!f.journal.as_ref().unwrap().pending);
+    }
+    #[test]
+    fn standalone_verify_preserves_check_and_restoration_failures_for_retry() {
+        let mut f = fake();
+        f.state.power = Power::Off;
+        apply(&mut f, &target()).unwrap();
+        f.events.clear();
+        f.fail_verify = true;
+        f.fail_shutdown = true;
+        let error = verify(&mut f, &target()).unwrap_err();
+        assert!(error.contains("graphics failed"));
+        assert!(error.contains("shutdown refused"));
+        assert_eq!(f.events, ["start", "graphics", "shutdown"]);
+        assert_eq!(f.state.power, Power::Running);
+        let j = f.journal.as_ref().unwrap();
+        assert!(j.pending && j.verification_only);
+        assert_eq!(j.restore_power, Power::Off);
+        f.fail_verify = false;
+        f.fail_shutdown = false;
+        f.events.clear();
+        verify(&mut f, &target()).unwrap();
+        assert_eq!(f.events, ["graphics", "shutdown"]);
+        assert_eq!(f.state.power, Power::Off);
+        assert!(!f.journal.as_ref().unwrap().pending);
+    }
+    #[test]
+    fn uncertain_start_restores_off_and_retains_verification_intent() {
+        let mut f = fake();
+        f.state.power = Power::Off;
+        apply(&mut f, &target()).unwrap();
+        f.events.clear();
+        f.fail_start_after_effect = true;
+        assert!(
+            verify(&mut f, &target())
+                .unwrap_err()
+                .contains("start readback interrupted")
+        );
+        assert_eq!(f.events, ["start", "shutdown"]);
+        assert_eq!(f.state.power, Power::Off);
+        assert!(f.journal.as_ref().unwrap().pending);
+    }
+    #[test]
+    fn shutdown_failure_never_prepares_or_detaches() {
+        let mut f = fake();
+        f.fail_shutdown = true;
+        assert!(
+            apply(&mut f, &target())
+                .unwrap_err()
+                .contains("shutdown refused")
+        );
+        assert_eq!(f.events, ["shutdown"]);
+        assert_eq!(f.state.power, Power::Running);
+        assert!(f.journal.as_ref().unwrap().pending);
+    }
+    #[test]
+    fn completed_preparation_survives_settings_failure_without_retransfer() {
+        let mut f = fake();
+        f.fail_settings = true;
+        assert!(
+            apply(&mut f, &target())
+                .unwrap_err()
+                .contains("apply compatibility settings")
+        );
+        assert_eq!(
+            f.journal.as_ref().unwrap().prepared.as_deref(),
+            Some("current")
+        );
+        assert!(f.journal.as_ref().unwrap().pending);
+        f.fail_settings = false;
+        f.events.clear();
+        assert!(!apply(&mut f, &target()).unwrap().prepared);
+        assert_eq!(f.events, ["attach", "start", "graphics"]);
+        assert!(!f.journal.as_ref().unwrap().pending);
     }
 }

@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 15
     env:
-      RUSTFLAGS: -Dwarnings
+      RUSTFLAGS: -Dwarnings -C target-feature=+crt-static
       RUSTDOCFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

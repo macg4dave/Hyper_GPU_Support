@@ -142,7 +142,8 @@ impl Object {
     }
     fn set_owned(&self, name: &str, value: &OwnedVariant) -> Result<()> {
         // SAFETY: initialized input VARIANT and live object; Put copies the input.
-        unsafe { self.0.Put(PCWSTR(wide(name).as_ptr()), 0, &value.0, 0) }.map_err(win)
+        unsafe { self.0.Put(PCWSTR(wide(name).as_ptr()), 0, &value.0, 0) }
+            .map_err(|e| format!("write property {name}: {}", win(e)))
     }
     pub(crate) fn set_number(&self, name: &str, n: u64) -> Result<()> {
         // Preserve the provider's uint64 BSTR / uint16,32 VT_I4 representation.
@@ -167,7 +168,8 @@ impl Object {
             unsafe { CoCreateInstance(&WbemObjectTextSrc, None, CLSCTX_INPROC_SERVER) }
                 .map_err(win)?;
         // SAFETY: live object, CIM DTD 2.0 (protocol format 1), no context.
-        let text = unsafe { source.GetText(0, &self.0, 1, None) }.map_err(win)?;
+        let text = unsafe { source.GetText(0, &self.0, 1, None) }
+            .map_err(|e| format!("serialize CIM XML: {}", win(e)))?;
         String::from_utf16(&text).map_err(|_| "invalid WMI XML UTF-16".into())
     }
 }
@@ -313,9 +315,14 @@ impl Session {
         .map_err(|e| format!("{method}: read method signature: {}", win(e)))?;
         let signature = signature.ok_or("missing WMI input signature")?;
         // SAFETY: provider method input class definition; owns spawned instance.
-        let input = Object(unsafe { signature.SpawnInstance(0) }.map_err(win)?);
+        let input = Object(
+            unsafe { signature.SpawnInstance(0) }
+                .map_err(|e| format!("{method}: create method input: {}", win(e)))?,
+        );
         for (key, value) in values {
-            input.set_owned(key, &value)?;
+            input
+                .set_owned(key, &value)
+                .map_err(|e| format!("{method}: {e}"))?;
         }
         let mut output = None;
         // SAFETY: secured services, live input, initialized output; fixed target method.
@@ -330,7 +337,7 @@ impl Session {
                 None,
             )
         }
-        .map_err(win)?;
+        .map_err(|e| format!("{method}: invoke method: {}", win(e)))?;
         let output = Object(output.ok_or("missing WMI method output")?);
         let code = output.number("ReturnValue")?;
         if code == 4096 {

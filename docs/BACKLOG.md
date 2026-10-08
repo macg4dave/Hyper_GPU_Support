@@ -27,6 +27,7 @@ support, not shipped functionality. Qualification may reuse existing tooling.
 | Milestone | Status | Result |
 |---|---|---|
 | M1 | completed | Product/laboratory separation, existing-VM enrollment and rewritten privilege boundary reviewed and live-qualified on 2026-10-08; [acceptance](evidence/M1.md). |
+| M2 | in progress | Verification lifecycle recovery hardened and independently reviewed; current preparation, provider-default attachment, rendering, reapply and disable qualification remain open. |
 
 Legacy card milestone labels below retain implementation history; they do not
 reopen the current roadmap's completed M1 acceptance.
@@ -583,6 +584,18 @@ Runtime existing-VM architecture and small GPU-PV core.
   checks and ordinary-token authorization/audit/write-denial qualification passed.
   The independent reviewer cleared M1 closure. Exact environment and commands are
   in [M1 acceptance](evidence/M1.md). Pending preparation remains M2 work.
+- M2 started (2026-10-08), owner Codex: running no-op verification now journals
+  pending intent before checking; standalone verification restores initial power
+  after an uncertain start, retains check and recovery errors together, and leaves
+  failed work pending for retry. Graceful shutdown refusal stops apply before
+  preparation or attachment. Independent bounded review found no blockers;
+  11 focused workflow tests and the product gate passed (43 library, 3 CLI tests,
+  strict Clippy/compiler warnings, formatting, build, rustdoc and documentation).
+  Installed-runner `status` freshly confirmed the selected Generation 2 VM Off,
+  no GPU attached, pending preparation and no prepared digest. Next: qualify
+  current NVIDIA preparation, provider-default attachment and checked rendering,
+  then running reapply and disable/restoration. No live guest qualification or
+  deployment of this recovery change is claimed.
 
 ## GUI-001
 

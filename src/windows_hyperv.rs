@@ -170,6 +170,9 @@ pub fn assign(t: &Target, enabled: bool) -> Result<(), String> {
 /// Apply compatibility settings without changing CPU/RAM amounts or security devices.
 pub fn configure(t: &Target, value: &Settings) -> Result<(), String> {
     require_off(t)?;
+    if inspect(&t.vm_id)?.settings == *value {
+        return Ok(());
+    }
     let s = Session::new(TIMEOUT)?;
     let cfg = settings(&s, &t.vm_id)?;
     let service = s.one("SELECT * FROM Msvm_VirtualSystemManagementService")?;

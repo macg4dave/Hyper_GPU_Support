@@ -96,6 +96,10 @@ Audit records are retained for administrator inspection.
 Reconcile fresh state before retry; preserve externally changed settings. Recovery
 never replaces a user disk. Disable retains guest driver files; stale preparation
 refreshes on apply. Credentials are ephemeral or explicitly stored per-user/per-VM.
+Verification also records pending intent before checks on a running unchanged VM.
+Standalone verification reconciles power after an uncertain start and retains both
+the verification error and any restoration failure. Failed checks retain pending
+intent for retry; they do not replace the last successful verification timestamp.
 
 ## Development strategy: guest image and disposable VM
 

@@ -357,7 +357,8 @@ to DEC-027, not permission for application decisions in scripts.
 
 Exact invocation: discovered inbox powershell.exe with -NoLogo -NoProfile
 -NonInteractive -Command and the fixed `src/guest_transport.ps1` text. Pin module
-loading to the discovered system Hyper-V module. Pass typed input/credentials over
+loading to the protected absolute inbox Hyper-V module directory; the native loader
+resolves installed versioned manifests. Pass typed input/credentials over
 stdin, never command arguments. Bootstrap protects paths/ownership and verifies
 fixed worker hashes before launch; Rust owns driver membership, destination mapping,
 copy/reapply logic, receipt validation and hardware checking. Supervised host process

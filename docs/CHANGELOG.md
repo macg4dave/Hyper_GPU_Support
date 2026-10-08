@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+## 2026-10-08 - M2 verification recovery
+
+- Resolve the inbox Hyper-V module through its trusted module directory, including
+  versioned layouts. Preserve bounded failed-child results when stdin closes early;
+  successful children still require complete input delivery.
+- Statically link the MSVC C runtime in product builds, quality checks and CI;
+  guest workers no longer require a separately installed VC runtime.
+- Record pending verification on running reapply without restarting or preparing
+  the guest again. Retain failed verification intent for retry.
+- Restore initial power after uncertain standalone-verification startup and report
+  both check and graceful-restoration failures. Added failure/retry coverage;
+  independent bounded review and product checks passed. Live M2 qualification remains open.
+
 ## 2026-10-08 - M1 product boundary qualification
 
 - Validate runtime intent from both TOML and native installation callers; reject

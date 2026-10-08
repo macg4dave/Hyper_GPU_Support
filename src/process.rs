@@ -14,6 +14,7 @@ pub struct ProcessOutput {
     /// Bounded stderr.
     pub stderr: String,
 }
+
 const PROCESS_OUTPUT_LIMIT: usize = 1024 * 1024;
 /// Independent worker deadline. Abrupt exit closes OS-owned kill-job handles even
 /// when WMI/input or remoting blocks; no Rust destructor is required for containment.
@@ -330,10 +331,7 @@ pub fn bounded_process_with_limit(
         let _ = child.kill();
     }
     child.wait().map_err(|e| e.to_string())?;
-    writer
-        .join()
-        .map_err(|_| "stdin writer panicked")?
-        .map_err(|e| e.to_string())?;
+    let write_result = writer.join().map_err(|_| "stdin writer panicked")?;
     output_thread.join().map_err(|_| "stdout reader panicked")?;
     error_thread.join().map_err(|_| "stderr reader panicked")?;
     for (is_out, result) in receiver {
@@ -352,6 +350,12 @@ pub fn bounded_process_with_limit(
         return Err(e);
     }
     let status = status.ok_or(BoundedProcessError::Timeout)?;
+    // A child can reject the command before consuming input. Its failure status
+    // and bounded diagnostics explain that refusal; a broken stdin pipe must not
+    // hide them. A successful child must still have accepted the complete input.
+    if status.success() {
+        write_result.map_err(|e| e.to_string())?;
+    }
     Ok(ProcessOutput {
         exit_code: status.code(),
         stdout: String::from_utf8(stdout.ok_or("missing stdout result")?)
@@ -359,4 +363,46 @@ pub fn bounded_process_with_limit(
         stderr: String::from_utf8(stderr.ok_or("missing stderr result")?)
             .map_err(|_| "non-UTF-8 stderr")?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn powershell_reads_large_stdin_without_command_line_interpretation() {
+        let mut command =
+            Command::new(crate::windows_paths::windows_powershell_executable().unwrap());
+        command.args([
+            "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+            "\n$ErrorActionPreference = 'Stop'\n$value = [Console]::In.ReadToEnd()\n[Console]::Out.Write($value.Length)\n",
+        ]);
+        let result =
+            bounded_process_with_limit(command, Duration::from_secs(15), 1024, &vec![b'x'; 32768])
+                .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(result.exit_code, Some(0), "{}", result.stderr);
+        assert_eq!(result.stdout.trim(), "32768");
+    }
+
+    #[test]
+    fn early_child_failure_retains_its_exit_status_and_diagnostics() {
+        let mut command =
+            Command::new(crate::windows_paths::windows_powershell_executable().unwrap());
+        command.args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "[Console]::Error.Write('fixed failure'); exit 7",
+        ]);
+        let result = bounded_process_with_limit(
+            command,
+            Duration::from_secs(15),
+            1024,
+            &vec![b'x'; 1048576],
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(result.exit_code, Some(7));
+        assert_eq!(result.stderr, "fixed failure");
+    }
 }

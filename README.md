@@ -11,6 +11,10 @@ product still needs changed-boundary hardware qualification. See the
 ## Build and checks
 
 Use the pinned Rust/MSVC/Windows SDK toolchain from `rust-toolchain.toml`.
+The Windows x64 Cargo configuration statically links the C runtime so the guest
+worker and graphics probe do not require a separately installed VC runtime.
+If overriding `RUSTFLAGS`, retain `-C target-feature=+crt-static`; the quality
+script and CI include it with warnings denied. See [Rust linkage](https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes).
 
 ```powershell
 cargo build --locked
