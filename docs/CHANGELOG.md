@@ -1,5 +1,18 @@
 ﻿# Changelog
 
+## 2026-10-08 - Shared operator preview (CORE-006)
+
+- Plan and apply now share validation/decisions. Preview reports ordered effects,
+  preparation drift, compatibility settings, raw allocation writes, credentials,
+  downtime, pending recovery and final power; running no-op avoids a restart claim.
+- GUI Apply fetches the shared preview before confirmation/credentials/execution.
+  Cancellation and preview/credential failures keep accurate status; apply still
+  rechecks enrollment/state. Invalid pending restoration power fails before effects.
+- Independent review cleared the allocation-refresh correction. Gates passed:
+  60 core tests, 3 CLI tests, strict checks/build/docs and release x64 build.
+  Installed-runner enable/disable previews passed without VM/guest/journal changes.
+- Full GUI layout, draft/refresh/close and visual interaction remain GUI-001 work.
+
 ## 2026-10-08 - Observed current-build qualification
 
 - Closed the hang investigation/reproduction/observation work by user direction;

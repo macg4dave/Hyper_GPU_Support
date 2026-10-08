@@ -18,8 +18,9 @@ The roadmap now orders contract separation → working core → native GUI → a
 and vendors. Prior implementation cards/results remain historical; their old
 dependency ordering does not override the new product goal. Materially changed
 privileged boundaries require independent review and affected
-qualification. Routine patches use proportional checks. Next: **CORE-006 shared
-operator preview**, followed by GUI-001 integration; reuse the working core.
+qualification. Routine patches use proportional checks. **CORE-006 shared preview
+is completed.** Next: GUI-001 native layout/draft integration; reuse the working core
+and shared preview. CORE-012/CORE-021 operator state/error work can proceed alongside it.
 
 ## Task register
 
@@ -56,7 +57,7 @@ Do not port laboratory setup merely to satisfy the Rust product migration gate.
 | [CORE-025](#core-025) | lab history | P2 | deferred | product replacement owned by ARCH-001 |
 | [CORE-026](#core-026) | M2 | P1 | merged | ARCH-001; DEC-028 |
 | [CORE-027](#core-027) | M1 | P1 | completed | ARCH-001 M1 |
-| [CORE-006](#core-006) | M2 | P1 | in progress | existing workflow; shared preview gap |
+| [CORE-006](#core-006) | M2 | P1 | completed | shared workflow preview; read-only live plans passed |
 | [CORE-011](#core-011) | later | P2 | deferred | no standalone lifecycle release requirement |
 | [CORE-010](#core-010) | M2 | P1 | merged | ARCH-001 recovery/disable |
 | [CORE-012](#core-012) | M2/M3 | P1 | ready | existing observed/journal/error results |
@@ -233,6 +234,7 @@ paths below refer to the pre-rebase tree (now tools/lab), unless stated otherwis
 **Finish the shared operator preview; reuse the working workflow**
 
 - Owner: Codex; originally claimed 2026-10-07.
+- Current product slice claimed 2026-10-08: shared decision/preview and GUI integration.
 - Historical first slice: bounded native plan/status and versioned operator JSON
   passed focused operator/public-command tests, native Windows inventory checks,
   formatting, strict Clippy, workspace tests/doc-tests and rustdoc. Guest state was
@@ -240,13 +242,28 @@ paths below refer to the pre-rebase tree (now tools/lab), unless stated otherwis
   its old pending-apply statement does not describe the current root product.
 - Implemented under ARCH-001: public apply/enable/disable/verify, exact target guards,
   preparation, settings, initial-power handling and recovery. Do not rebuild these.
-- Remaining: shared effect summary from target/observed/journal/preparation state;
-  explain settings, detach/attach, driver refresh, credential need, downtime and
-  restoration. Existing enable-plan hashes the payload; keep dashboard reads separate.
+- Delivered: typed shared effect summary from target/observed/journal/preparation;
+  ordered actions, settings before/after, raw allocation writes, driver refresh,
+  credential need, downtime and restoration. Enable-plan still authenticates the
+  payload; dashboard inventory/status remain separate.
 - Acceptance: enable/disable/running-no-op/pending previews agree with workflow;
   CLI/GUI share results; no VM/guest effects. Apply still rechecks identities/state.
 - Read: src/main.rs, src/runner.rs, src/workflow.rs, src/model.rs.
-- Result: workflow functionally passed M2; useful preview remains pending.
+- Result (2026-10-08): plan and apply share validated decisions; running unchanged
+  and verification-only retry do not imply preparation/restart. GUI Apply fetches
+  a fresh plan, shows the shared summary, then obtains credentials and submits a
+  separate apply. Preview errors/cancellation retain accurate status; preview never
+  saves configuration or journals. Invalid pending restoration power fails before
+  effects. Independent review cleared the corrected allocation-refresh preview.
+- Checks: 21 focused workflow tests, including eight-scenario preview/apply parity,
+  read-only/error/recovery/identity cases and matching-allocation refresh. Full gate
+  passed: 60 core tests, 3 CLI tests, strict Clippy/compiler warnings, format/build/
+  rustdoc/docs; release x64 build passed. Existing opt-in M1 test remained ignored.
+- Live read-only enable/disable plans passed after reviewed native installation on
+  the designated target. Before/after observed Hyper-V and journal state matched;
+  no guest preparation, boot or rendering was executed by the plans. Contributor
+  outputs: `local/evidence/core006-preview-20261008/`. GUI native modal interaction,
+  layout, draft/refresh and close/disconnect acceptance remain GUI-001 work.
 
 ## CORE-024
 

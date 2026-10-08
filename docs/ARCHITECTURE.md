@@ -124,6 +124,16 @@ observed-state/draft split, shared fresh effect preview and bounded close/discon
 handling. GPU selection cannot broaden administrator enrollment. GiB sliders remain
 deferred until units/enforcement are established; no duplicate GUI backend is needed.
 
+CORE-006's typed plan shares apply's read-only validation and decision calculation.
+It reports ordered semantic actions, settings before/after, raw allocation writes,
+preparation drift, credential need, downtime and recorded restoration power. Pending
+verification alone does not imply preparation or restart. Both frontends consume
+the shared summary; GUI Apply requests a fresh plan before its confirmation/credential
+step, then submits a separate apply that independently rechecks state/enrollment.
+Plan never saves a management journal or calls guest/VM mutators; protected audit
+records still apply. Enabled plans authenticate the payload, while status/inventory
+remain separate. Full GUI draft/refresh/close acceptance remains GUI-001 work.
+
 Inventory/status are dashboard reads, not guest verification. Status reports fresh
 Hyper-V state plus recorded journal state; a prepared digest or last-success timestamp
 does not authenticate the current guest receipt or prove current graphics health.

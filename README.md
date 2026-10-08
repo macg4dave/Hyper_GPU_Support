@@ -63,6 +63,16 @@ fixed one-shot task; caller config never grants new administrator authorization.
 
 After enrollment, ordinary CLI/GUI commands use the authenticated installed runner:
 
+`plan` returns a shared effect preview: ordered attachment/preparation/verification
+actions, compatibility settings before/after, requested raw allocation, credential
+need, guest downtime, pending recovery and final power. An unchanged running VM
+is checked without a restart. To preview disable, set that target's `enabled = false`
+in runtime configuration; `disable` still directly executes disable. GUI Apply
+fetches a fresh plan and shows the same summary before credentials and execution.
+Apply independently rechecks state and enrollment. Plan makes no VM/guest changes,
+but writes runner audit records; enabled plans authenticate the full current payload
+and should not be used for dashboard polling. Status does not verify guest graphics.
+
 ```powershell
 hyper-gpu-support plan --config my-vms.toml
 hyper-gpu-support apply --config my-vms.toml --vm VM-GUID

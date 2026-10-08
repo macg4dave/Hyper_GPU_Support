@@ -714,17 +714,7 @@ fn execute_operation(
     let output = match request.operation {
         Operation::Discover => return Err("invalid operation".into()),
         Operation::Status => Ok(serde_json::json!({"observed": backend.inspect(&target)?, "managed": backend.journal(&target)?})),
-        Operation::Plan => {
-            let observed = backend.inspect(&target)?;
-            let preparation = if target.enabled {
-                let gpu = backend.gpu(&target)?;
-                if !gpu.preparation_supported { return Err("automatic preparation is not implemented for this GPU vendor".into()); }
-                let digest = backend.payload(&target)?;
-                let journal = backend.journal(&target)?;
-                serde_json::json!({"current_driver": gpu.driver_version, "stale": journal.as_ref().is_none_or(|j| j.pending || j.prepared.as_ref() != Some(&digest)), "digest": digest})
-            } else { serde_json::Value::Null };
-            Ok(serde_json::json!({"desired": target, "observed": observed, "preparation": preparation, "allocation_units": "provider-defined", "automatic_guest_restart": true}))
-        }
+        Operation::Plan => serde_json::to_value(crate::workflow::plan(&mut backend, &target)?),
         Operation::Apply => serde_json::to_value(crate::workflow::apply(&mut backend, &target)?),
         Operation::Verify => serde_json::to_value(crate::workflow::verify(&mut backend, &target)?),
     }

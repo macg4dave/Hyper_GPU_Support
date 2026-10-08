@@ -39,6 +39,7 @@ struct State {
     receiver: Option<Receiver<Result<serde_json::Value, String>>>,
     pending_target: Option<Target>,
     managed: serde_json::Value,
+    preview_target: Option<Target>,
 }
 #[allow(unsafe_code)]
 fn send(hwnd: HWND, message: u32, w: WPARAM, l: LPARAM) -> LRESULT {
@@ -304,6 +305,7 @@ pub(super) fn run() -> Result<(), String> {
             receiver: None,
             pending_target: None,
             managed: serde_json::Value::Null,
+            preview_target: None,
         })
     });
     start_discovery();
@@ -373,6 +375,58 @@ fn poll() {
         Some(result)
     });
     if let Some(result) = result {
+        let preview = STATE.with(|c| {
+            c.borrow_mut()
+                .as_mut()
+                .and_then(|s| s.preview_target.take().map(|target| (target, s.window)))
+        });
+        if let Some((target, parent)) = preview {
+            let message = match result.and_then(|value| {
+                serde_json::from_value::<hyper_gpu_support::workflow::Plan>(value)
+                    .map_err(|e| e.to_string())
+            }) {
+                Err(e) => {
+                    error(&e);
+                    "Preview failed; no changes requested."
+                }
+                Ok(plan) => {
+                    let text = wide(&format!(
+                        "VM: {}\nGPU: {}\n\n{}\n\nApply these changes?",
+                        plan.observed.name,
+                        plan.desired.gpu_interface,
+                        plan.preview.summary.join("\n")
+                    ));
+                    // SAFETY: GUI-owned parent and live terminated buffers for a modal preview.
+                    if unsafe {
+                        MessageBoxW(
+                            Some(parent),
+                            PCWSTR(text.as_ptr()),
+                            w!("Preview GPU changes"),
+                            MB_YESNO | MB_ICONINFORMATION | MB_DEFBUTTON2,
+                        )
+                    } == IDYES
+                    {
+                        if execute_apply(target, parent) {
+                            "Applying previewed changes..."
+                        } else {
+                            "Credential entry failed or was cancelled; no changes requested."
+                        }
+                    } else {
+                        "Preview cancelled; no changes requested."
+                    }
+                }
+            };
+            STATE.with(|c| {
+                if let Some(s) = c.borrow().as_ref() {
+                    caption(s.status, message);
+                    // SAFETY: GUI-owned control, re-enabled only when no background work remains.
+                    unsafe {
+                        let _ = EnableWindow(s.apply, s.receiver.is_none());
+                    }
+                }
+            });
+            return;
+        }
         match result {
             Err(e) => {
                 error(&e);
@@ -526,25 +580,39 @@ fn apply() {
     });
     match selection {
         Err(e) => error(e),
-        Ok((target, parent)) => {
-            let credential = if target.enabled {
-                match credentials::prompt(&target.vm_id, parent) {
-                    Ok(c) => Some(c),
-                    Err(e) => {
-                        error(&e);
-                        return;
-                    }
+        Ok((target, _)) => {
+            STATE.with(|c| {
+                if let Some(s) = c.borrow_mut().as_mut() {
+                    s.preview_target = Some(target.clone());
                 }
-            } else {
-                None
-            };
-            let copy = target.clone();
+            });
             background(
-                move || runner::submit(runner::request(Operation::Apply, Some(copy), credential)),
-                Some(target),
+                move || runner::submit(runner::request(Operation::Plan, Some(target), None)),
+                None,
             );
         }
     }
+}
+fn execute_apply(target: Target, parent: HWND) -> bool {
+    let credential = if target.enabled {
+        match credentials::read(&target.vm_id).and_then(|stored| {
+            stored.map_or_else(|| credentials::prompt(&target.vm_id, parent), Ok)
+        }) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                error(&e);
+                return false;
+            }
+        }
+    } else {
+        None
+    };
+    let copy = target.clone();
+    background(
+        move || runner::submit(runner::request(Operation::Apply, Some(copy), credential)),
+        Some(target),
+    );
+    true
 }
 #[allow(unsafe_code)]
 unsafe extern "system" fn window_proc(

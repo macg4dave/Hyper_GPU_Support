@@ -83,6 +83,12 @@ Next product step: C2 / CORE-006 shared preview.
 
 ### C2 — Useful shared preview (CORE-006, P1)
 
+**Completed 8 October:** typed plan and apply share their validated decisions.
+CLI JSON and GUI's fresh pre-apply confirmation use the same effect summary.
+Focused parity/read-only/recovery tests and live enable/disable previews passed;
+the latter preserved observed/journal state. Full GUI interaction/layout acceptance
+remains GUI-001. See [CORE-006 results](BACKLOG.md#core-006).
+
 Reuse target/observed/journal/preparation results to describe attach/detach, settings,
 driver drift, credential need, downtime and initial-power restoration. Remove the
 unconditional restart implication for running unchanged targets. Keep lightweight
