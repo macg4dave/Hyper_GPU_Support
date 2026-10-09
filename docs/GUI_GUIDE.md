@@ -56,12 +56,23 @@ or persistent writes occur. Scenario/reset controls appear only in this mode.
 The GPU Memory slider remains illustrative, independent of advanced allocation;
 its GB label promises no real allocation or enforcement.
 
-**`--mock-gui --snapshot FILE`** selects an existing JSON capture from CLI
+**`--mock-gui --snapshot FILE [--config GUID.toml]`** selects an existing JSON capture from CLI
 `inventory`, instead of fixtures. It uses the existing real-data cards/System
 view, labels observations historical and only rereads that file on Refresh.
 Missing managed/enrollment data remains unknown; it is never inferred. Snapshot
 contents cannot authorize live plans, credentials, verification or execution.
-Editing and plan/stage rehearsal are not connected in this slice. The reader is
+Recorded enrolled pairs support raw VRAM/toggle drafts and the shared Rust planner.
+The optional candidate configuration is read through the production per-VM parser;
+it is labelled candidate intent, never trusted machine-wide committed state.
+Enrollment is not substituted for saved desired configuration. Enabled previews
+require a `plans` JSON array of recorded shared plans supplying a unique historical
+payload digest for the same VM/GPU/driver. No payload discovery/authentication is
+performed. Unread managed state blocks planning rather than implying absence.
+Review confirmation displays the plan's stages as simulated, with the draft still
+unapplied. The snapshot backend rejects all mutation methods. Credentials, saving,
+verification and recovery clearance remain blocked. Refresh/Review/confirmation
+detect changed capture/configuration inputs and preserve the draft.
+The inventory reader is
 bounded to 8 MiB; invalid input reports an error without a fixture fallback.
 This implementation remains untested/unqualified pending M3 validation.
 
@@ -81,7 +92,7 @@ after failed real discovery. No extra pages or second backend implementation.
 **Current limitation:** ordinary-token live discovery uses the protected runner,
 which writes mandatory security audit records even for reads. Mock mode therefore
 does not call it. The optional snapshot reader needs no-write qualification;
-authorized native discovery and recorded-plan rehearsal remain future work. Never suppress
+authorized native discovery remains future work. Never suppress
 required security audit to satisfy rehearsal mode.
 
 ## Backend integration

@@ -84,12 +84,19 @@ Plain mock mode uses fixtures. To inspect an existing JSON capture from the
 hyper-gpu-support --mock-gui --snapshot inventory.json
 ```
 
-Snapshot input uses the real-data cards/System presentation, labels every
-observation historical and blocks editing, planning, credentials and execution.
-Refresh rereads the file. This route is implemented but not yet qualified;
+Snapshot input uses the real-data cards/System presentation and labels every
+observation historical. Recorded enrolled pairs support draft editing and shared
+plan rehearsal. An optional `--config GUID.toml` loads one candidate per-VM file
+through the production parser, separately from enrollment and observation.
+Enabled previews require a `plans` array containing shared CLI plan JSON with a
+unique recorded payload digest for the selected VM/GPU/driver; missing managed
+records remain unknown. Disabled previews do not require a payload digest.
+Review can display simulated stages without executing them or saving the draft.
+Refresh rereads the inputs; external changes block an existing draft until it is
+discarded and refreshed. Credentials and execution remain blocked.
+This route is implemented but not yet qualified;
 capturing inventory is a separate operation and may write mandatory runner audits.
-The next rehearsal slice is the same validated plans and simulated execution;
-see the
+See the
 [mode contract](docs/GUI_GUIDE.md#mock-mode-development-direction).
 Normal mode never substitutes simulated success for an unconnected operation.
 Ordinary-token live discovery retains the existing runner's required audit records;

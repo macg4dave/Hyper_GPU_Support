@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-09 - GUI recorded-plan rehearsal
+
+- Separated saved desired intent from enrollment in the live controller. Snapshot
+  rehearsal can read a per-VM candidate file, validate drafts through the shared
+  Rust planner using recorded payload context, and display simulated stages.
+  External input changes preserve/block drafts; no effects or persistent writes.
+  Focused test source added; tests, builds and GUI qualification remain deferred.
+
 ## 2026-10-09 - OPEN-01 configuration contract selected
 
 - Selected schema-2 one-target GUID-keyed TOML and explicit import semantics.

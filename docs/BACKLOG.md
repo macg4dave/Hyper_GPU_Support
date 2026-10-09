@@ -310,14 +310,29 @@ make save-only recovery protected and durable through CFG-001/SEC-001.
 
 ### GUI-002
 
+**9 October configuration/recorded-plan rehearsal slice:** stopped treating
+enrollment as saved desired configuration. Added optional
+`--mock-gui --snapshot FILE --config GUID.toml` via the production per-VM reader;
+candidate intent, observed state, enrollment and one draft remain separate.
+Snapshot pairs can edit raw VRAM/toggle intent and recompute the shared Rust plan
+from captured inventory/managed records. Enabled previews require recorded plan
+payload context for the same VM/GPU/driver; missing context blocks truthfully.
+Review confirmation lists simulated stages, retains the unapplied draft and
+performs no effects/saving/credentials/recovery clearance. Changed input bytes
+block Refresh/Review/confirmation without silently discarding drafts. Added focused
+separation/conflict, shared-plan parity, missing-context and mutation-refusal test
+source. **Untested/unqualified:** no tests, builds or GUI launches; M3 remains open.
+Next: trusted live configuration reads/commits (CFG-001), GPU-010 field semantics,
+SEC-001 worker and CORE-028 progress/recovery, then GUI parity/qualification.
+
 **Mode split:** no arguments launch live inventory; `--mock-gui` selects isolated
 fixture rehearsal. Live Refresh/System reuse native discovery when already elevated
 or the existing authenticated fixed runner for ordinary tokens. No installation or
 automatic elevation. Failed reads never substitute sample VMs. Enrollment, guest
 health and desired configuration are not inferred; unconnected actions are blocked.
 
-**Next:** read actual data/config/capabilities and validate the shared plan in mock
-mode, then rehearse stages without executing effects or persistent writes. Preserve
+**Next:** finish trusted live configuration/effect bindings through the listed
+dependencies and qualify the recorded-data rehearsal slice above. Preserve
 fixture scenarios for isolated tests. The current runner audits reads; a strict
 no-write real-data route must use authorized native reads/an existing snapshot and
 be qualified without suppressing security records. Mock save/forget/credentials/
@@ -346,7 +361,8 @@ editing/effects remain blocked. Plain `--mock-gui` retains fixture scenarios and
 simulated stages. Added dispatch, malformed/oversized/native/protected input and
 source-refusal tests. Untested/unqualified: no builds, tests, UI launches or
 no-write runtime qualification performed. Recorded-plan/stage rehearsal and
-configuration reads remain next work; mandatory runner audit is unchanged.
+candidate configuration reads were subsequently added in the slice above;
+mandatory runner audit is unchanged.
 
 **Validation (9 October mode split):** Windows x64 MSVC build, strict Clippy and
 77 tests passed (one privileged enrollment test ignored). Runtime checks covered

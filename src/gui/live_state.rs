@@ -9,6 +9,11 @@ pub(super) struct State {
     pub view: View,
     pub pending_selection: Option<String>,
     pub draft_gpu: Option<String>,
+    /// Exact candidate source retained for read-only rehearsal conflict detection.
+    pub configuration_source: Option<String>,
+    pub historical: bool,
+    pub snapshot_source: Option<Vec<u8>>,
+    pub rehearsal_plan: Option<Plan>,
 }
 
 impl Default for State {
@@ -20,14 +25,16 @@ impl Default for State {
             }),
             pending_selection: None,
             draft_gpu: None,
+            configuration_source: None,
+            historical: false,
+            snapshot_source: None,
+            rehearsal_plan: None,
         }
     }
 }
 
 impl State {
     pub fn refresh(&mut self, inventory: Inventory) {
-        // Enrollment supplies a bounded starting draft, not committed configuration.
-        self.view.configuration.targets = inventory.enrolled.clone();
         let selected = self.view.selected.clone();
         self.view.refresh(inventory);
         if self.view.draft.is_some() {
@@ -38,7 +45,21 @@ impl State {
 
     pub fn target(&self, id: &str) -> Result<Target, String> {
         self.view.configuration.targets.iter().find(|t| t.vm_id == id).cloned()
+            .or_else(|| self.view.inventory.as_ref()?.enrolled.iter().find(|t| t.vm_id == id).cloned())
             .ok_or_else(|| "This VM has no protected enrollment. Use CLI installation until GUI enrollment is connected.".into())
+    }
+
+    pub fn load_configuration(
+        &mut self,
+        configuration: Configuration,
+        source: String,
+    ) -> Result<(), String> {
+        if self.view.draft.is_some() && self.configuration_source.as_ref() != Some(&source) {
+            return Err("The candidate configuration changed externally. Your draft is preserved; discard it and Refresh before reviewing.".into());
+        }
+        self.view.configuration = configuration;
+        self.configuration_source = Some(source);
+        Ok(())
     }
 
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
@@ -185,6 +206,37 @@ mod tests {
         s.refresh(inventory());
         s
     }
+
+    #[test]
+    fn saved_intent_remains_distinct_from_enrollment_observation_and_draft() {
+        let mut s = state();
+        assert!(s.view.configuration.targets.is_empty());
+        assert!(s.view.saved_desired_text(id(&s)).contains("No saved"));
+        let mut candidate = s.target(id(&s)).unwrap();
+        candidate.enabled = false;
+        let configuration = Configuration {
+            schema: 2,
+            targets: vec![candidate.clone()],
+        };
+        s.load_configuration(configuration.clone(), "original source".into())
+            .unwrap();
+        assert!(!s.target(id(&s)).unwrap().enabled);
+        assert!(s.view.inventory.as_ref().unwrap().enrolled[0].enabled);
+        s.view.draft = Some(
+            s.draft(id(&s), true, 0, &values("10", "50", "100"))
+                .unwrap(),
+        );
+        s.refresh(inventory());
+        assert_eq!(s.view.configuration.targets[0], candidate);
+        assert!(s.view.draft.as_ref().unwrap().enabled);
+        assert!(
+            s.load_configuration(configuration, "changed source".into())
+                .unwrap_err()
+                .contains("changed externally")
+        );
+        assert_eq!(s.configuration_source.as_deref(), Some("original source"));
+        assert!(s.view.draft.is_some());
+    }
     fn id(s: &State) -> &str {
         s.view.selected.as_deref().unwrap()
     }
@@ -204,7 +256,7 @@ mod tests {
             .unwrap();
         assert_eq!(target.vram.unwrap().optimal, 50);
         assert!(s.view.vm(id(&s)).unwrap().gpus.is_empty());
-        assert!(s.view.configuration.targets[0].vram.is_none());
+        assert!(s.view.configuration.targets.is_empty());
         assert!(
             s.draft(id(&s), false, 0, &values("", "", ""))
                 .unwrap()
@@ -292,6 +344,7 @@ mod tests {
     #[test]
     fn changed_provider_bounds_leave_editor_available_to_correct_old_vram() {
         let mut s = state();
+        s.view.configuration.targets = s.view.inventory.as_ref().unwrap().enrolled.clone();
         s.view.configuration.targets[0].vram = Some(Allocation {
             minimum: 10,
             optimal: 150,

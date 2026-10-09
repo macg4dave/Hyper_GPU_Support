@@ -62,7 +62,7 @@ export component VmDetails inherits Rectangle {
                         }
                         HorizontalLayout { Hint { text: root.mock-mode ? "1 GB" : "—"; } Hint { text: root.mock-mode ? "8 GB" : "—"; horizontal-alignment: right; } }
                         Hint { text: root.mock-mode ? "Visual mock preference only. Does not change the advanced fields or allocate physical VRAM." : "Real memory mapping is not implemented. No allocation or physical GB amount is claimed."; }
-                        Hint { visible: Theme.show-help; text: root.mock-mode ? "Changes stay in memory. Shared GPU use is not qualified." : "Drafts stay in memory. Review reads a fresh shared plan; execution is unavailable. Shared GPU use is not qualified."; }
+                        Hint { visible: Theme.show-help; text: root.snapshot-mode ? "Historical draft rehearsal only. Review uses recorded inputs; stages are simulated and nothing is saved or executed." : root.mock-mode ? "Changes stay in memory. Shared GPU use is not qualified." : "Drafts stay in memory. Review reads a fresh shared plan; execution is unavailable. Shared GPU use is not qualified."; }
                     }
                 }
                 if root.status == "Setup required" : Surface {

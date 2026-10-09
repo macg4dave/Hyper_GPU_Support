@@ -4,6 +4,7 @@ import { TechnicalOutput } from "technical-output.slint";
 
 export component DemoDialog inherits Rectangle {
     in property <bool> mock-mode: true;
+    in property <bool> snapshot-mode: false;
     in property <string> kind;
     in property <string> title;
     in property <string> body;
@@ -23,7 +24,7 @@ export component DemoDialog inherits Rectangle {
             max-width: 620px; min-width: 420px;
             VerticalLayout {
                 padding: 24px; spacing: 16px;
-                Label { text: root.mock-mode ? "MOCK · NO REAL OPERATIONS" : "LIVE APPLICATION"; font-size: 11px; font-weight: 600; color: Theme.muted; }
+                Label { text: root.snapshot-mode ? "HISTORICAL REHEARSAL · NO WRITES" : root.mock-mode ? "MOCK · NO REAL OPERATIONS" : "LIVE APPLICATION"; font-size: 11px; font-weight: 600; color: Theme.muted; }
                 Heading { text: root.title; }
                 ScrollView {
                     vertical-stretch: 1;
@@ -31,13 +32,13 @@ export component DemoDialog inherits Rectangle {
                     VerticalLayout { spacing: 14px; alignment: start;
                         Hint { text: root.body; font-size: 14px; }
                         for stage in root.stages : Label { text: stage; font-size: 13px; }
-                        if root.kind == "review" && root.needs-shutdown && root.mock-mode : CheckBox { text: "Demonstrate graceful guest shutdown & restore"; checked <=> root.consent; }
+                        if root.kind == "review" && root.needs-shutdown && (root.mock-mode || root.snapshot-mode) : CheckBox { text: "Demonstrate graceful guest shutdown & restore"; checked <=> root.consent; }
                         if root.running : ProgressIndicator { indeterminate: true; }
                     }
                 }
                 if root.technical : TechnicalOutput {
                     max-height: min(220px, root.height / 3);
-                    text: root.mock-mode ? "Source: deterministic in-memory mock provider.\nNo worker is launched.\nNo permissions, passwords or GPU API calls are used.\nTiming illustrates the proposed stage flow.\n\nDialog: " + root.title + "\n\nMock diagnostic context:\n" + root.body : "Live application information:\n" + root.body;
+                    text: root.snapshot-mode ? "Historical snapshot rehearsal; no writes or effects.\n" + root.body : root.mock-mode ? "Source: deterministic in-memory mock provider.\nNo worker is launched.\nNo permissions, passwords or GPU API calls are used.\nTiming illustrates the proposed stage flow.\n\nDialog: " + root.title + "\n\nMock diagnostic context:\n" + root.body : "Live application information:\n" + root.body;
                 }
                 HorizontalLayout {
                     spacing: 8px;
@@ -48,7 +49,7 @@ export component DemoDialog inherits Rectangle {
                     if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
                     if root.kind == "forget" : Button { text: "Forget sample pairing"; primary: true; clicked => { root.action("confirm-forget"); } }
                     if root.kind == "review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
-                    if root.kind == "review" : Button { text: root.mock-mode ? "Confirm demonstration" : "Apply unavailable"; primary: true; enabled: root.mock-mode && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
+                    if root.kind == "review" : Button { text: root.snapshot-mode ? "Rehearse recorded stages" : root.mock-mode ? "Confirm demonstration" : "Apply unavailable"; primary: true; enabled: (root.mock-mode || root.snapshot-mode) && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
                     if root.kind == "save" : Button { text: "Demonstrate save-only retry"; primary: true; clicked => { root.action("save-only"); } }
                     if root.kind == "recovery" : Button { text: "Inspect mock reconciliation"; primary: true; clicked => { root.action("reconcile"); } }
                     if root.kind == "more" : Button { text: "Verify Graphics"; enabled: root.mock-mode; clicked => { root.action("verify"); } }

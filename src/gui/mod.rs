@@ -267,11 +267,14 @@ pub(super) fn run(mock_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub(super) fn run_snapshot(path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+pub(super) fn run_snapshot(
+    path: std::path::PathBuf,
+    configuration: Option<std::path::PathBuf>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let ui = AppWindow::new()?;
     // Use real-data presentation, without fixture labels or illustrative allocations.
     ui.set_mock_mode(false);
     ui.set_snapshot_mode(true);
     ui.set_workspace_label("SNAPSHOT REHEARSAL · NO WRITES".into());
-    live::run(ui, live::Source::Snapshot(path))
+    live::run(ui, live::Source::Snapshot(path, configuration))
 }

@@ -17,6 +17,7 @@ enum GuiMode {
     Live,
     Fixtures,
     Snapshot(std::path::PathBuf),
+    SnapshotConfiguration(std::path::PathBuf, std::path::PathBuf),
 }
 
 fn gui_mode(args: &[String]) -> Result<Option<GuiMode>, String> {
@@ -26,8 +27,11 @@ fn gui_mode(args: &[String]) -> Result<Option<GuiMode>, String> {
         [flag, option, path] if flag == "--mock-gui" && option == "--snapshot" && !path.is_empty() => {
             Ok(Some(GuiMode::Snapshot(path.as_str().into())))
         }
+        [flag, option, path, config, candidate] if flag == "--mock-gui" && option == "--snapshot" && config == "--config" && !path.is_empty() && !candidate.is_empty() => {
+            Ok(Some(GuiMode::SnapshotConfiguration(path.as_str().into(), candidate.as_str().into())))
+        }
         [flag, ..] if flag == "--mock-gui" => Err(
-            "Use --mock-gui for fixtures, or --mock-gui --snapshot FILE for read-only historical inventory".into(),
+            "Use --mock-gui for fixtures, or --mock-gui --snapshot FILE [--config GUID.toml] for historical rehearsal".into(),
         ),
         _ => Ok(None),
     }
@@ -39,11 +43,17 @@ fn run() -> Result<(), String> {
         return match mode {
             GuiMode::Live => gui::run(false),
             GuiMode::Fixtures => gui::run(true),
-            GuiMode::Snapshot(path) => gui::run_snapshot(path),
-        }.map_err(|error| error.to_string());
+            GuiMode::Snapshot(path) => gui::run_snapshot(path, None),
+            GuiMode::SnapshotConfiguration(path, configuration) => {
+                gui::run_snapshot(path, Some(configuration))
+            }
+        }
+        .map_err(|error| error.to_string());
     }
     if matches!(args.as_slice(),[v]if v=="--help"||v=="-h") {
-        print!("{HELP}\nSnapshot rehearsal: --mock-gui --snapshot FILE\n  Read existing inventory JSON; historical data only, no backend calls or writes.\n");
+        print!(
+            "{HELP}\nSnapshot rehearsal: --mock-gui --snapshot FILE [--config GUID.toml]\n  Read historical inventory and an optional per-VM candidate file; no backend effects or writes.\n  Enabled plan rehearsal requires a plans array of shared CLI plan JSON in the snapshot.\n"
+        );
         return Ok(());
     }
     if matches!(args.as_slice(),[v]if v=="--version"||v=="-V") {
@@ -71,9 +81,17 @@ mod dispatch_tests {
     #[test]
     fn snapshot_rehearsal_requires_explicit_input_and_does_not_change_cli_dispatch() {
         assert_eq!(gui_mode(&[]).unwrap(), Some(GuiMode::Live));
-        assert_eq!(gui_mode(&args(&["--mock-gui"])).unwrap(), Some(GuiMode::Fixtures));
         assert_eq!(
-            gui_mode(&args(&["--mock-gui", "--snapshot", "recorded inventory.json"])).unwrap(),
+            gui_mode(&args(&["--mock-gui"])).unwrap(),
+            Some(GuiMode::Fixtures)
+        );
+        assert_eq!(
+            gui_mode(&args(&[
+                "--mock-gui",
+                "--snapshot",
+                "recorded inventory.json"
+            ]))
+            .unwrap(),
             Some(GuiMode::Snapshot("recorded inventory.json".into()))
         );
         for values in [
@@ -84,7 +102,25 @@ mod dispatch_tests {
         ] {
             assert!(gui_mode(&args(&values)).is_err());
         }
-        for values in [vec!["inventory"], vec!["--help"], vec!["status", "--config", "intent.toml"]] {
+        assert_eq!(
+            gui_mode(&args(&[
+                "--mock-gui",
+                "--snapshot",
+                "capture.json",
+                "--config",
+                "vm.toml"
+            ]))
+            .unwrap(),
+            Some(GuiMode::SnapshotConfiguration(
+                "capture.json".into(),
+                "vm.toml".into()
+            ))
+        );
+        for values in [
+            vec!["inventory"],
+            vec!["--help"],
+            vec!["status", "--config", "intent.toml"],
+        ] {
             assert_eq!(gui_mode(&args(&values)).unwrap(), None);
         }
     }

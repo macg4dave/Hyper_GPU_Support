@@ -15,38 +15,54 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 type SharedState = Arc<Mutex<State>>;
+type InventoryRead = (Inventory, Option<String>, Option<Vec<u8>>);
 
 #[derive(Clone)]
 pub(super) enum Source {
     Protected,
-    Snapshot(std::path::PathBuf),
+    Snapshot(std::path::PathBuf, Option<std::path::PathBuf>),
 }
 
 impl Source {
     fn historical(&self) -> bool {
-        matches!(self, Self::Snapshot(_))
+        matches!(self, Self::Snapshot(..))
     }
 
-    fn discover(&self) -> Result<(Inventory, Option<String>), String> {
+    fn discover(&self) -> Result<InventoryRead, String> {
         match self {
-            Self::Protected => discover(),
-            Self::Snapshot(path) => super::snapshot::read(path).map(|inventory| {
-                (inventory, Some("Historical inventory snapshot loaded. No runner or native discovery was called. Editing, planning, credentials and execution are unavailable in this rehearsal slice.".into()))
+            Self::Protected => discover().map(|(i, w)| (i, w, None)),
+            Self::Snapshot(path, _) => super::snapshot::capture(path).map(|(inventory, bytes)| {
+                (inventory, Some("Historical snapshot loaded. Drafts and shared plan rehearsal use recorded inputs only. No runner, credential access or persistent writes.".into()), Some(bytes))
             }),
         }
     }
 
-    fn plan(&self, target: Target) -> Result<Plan, String> {
+    fn plan(&self, target: Target, expected_snapshot: Option<&[u8]>) -> Result<Plan, String> {
         match self {
             Self::Protected => plan(target),
-            Self::Snapshot(_) => Err("Snapshot rehearsal cannot request an audited live plan. Recorded-plan rehearsal is not connected yet.".into()),
+            Self::Snapshot(path, _) => super::snapshot::plan(path, &target, expected_snapshot),
         }
     }
 
     fn credentials(&self, id: &str) -> Result<bool, String> {
         match self {
             Self::Protected => credential_dialog(id),
-            Self::Snapshot(_) => Err("Credential access and storage are blocked in no-write snapshot rehearsal.".into()),
+            Self::Snapshot(..) => Err(
+                "Credential access and storage are blocked in no-write snapshot rehearsal.".into(),
+            ),
+        }
+    }
+}
+
+impl Source {
+    fn configuration(
+        &self,
+    ) -> Result<Option<(hyper_gpu_support::model::Configuration, String)>, String> {
+        match self {
+            Self::Snapshot(_, Some(path)) => {
+                hyper_gpu_support::model::Configuration::read_vm_file(path).map(Some)
+            }
+            _ => Ok(None),
         }
     }
 }
@@ -182,7 +198,7 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(inventory) = state.view.inventory.as_ref() else {
         return;
     };
-    let row = observed_row(vm, inventory, state.view.needs_readback);
+    let row = observed_row(vm, inventory, state.view.needs_readback || state.historical);
     ui.set_vm_name(row.name);
     ui.set_power(row.power);
     let enrolled = state.target(id).ok();
@@ -192,7 +208,11 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_observed(
         format!(
             "{}{}; {}{}; {}",
-            if state.view.needs_readback { "Historical: " } else { "" },
+            if state.view.needs_readback || state.historical {
+                "Historical: "
+            } else {
+                ""
+            },
             row.gpu,
             hyper_gpu_support::gui_model::allocation_text(vm),
             vm.vram.as_ref().map_or(String::new(), |v| format!(
@@ -204,7 +224,15 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
         .into(),
     );
     ui.set_desired(
-        "Committed configuration not loaded. Draft starts from protected enrollment intent.".into(),
+        if state.historical && state.configuration_source.is_some() {
+            format!(
+                "Candidate file (read-only rehearsal): {}",
+                state.view.saved_desired_text(id)
+            )
+        } else {
+            state.view.saved_desired_text(id)
+        }
+        .into(),
     );
     ui.set_verification(recorded.graphics.into());
     let eligibility = state.editor_eligibility(id);
@@ -312,7 +340,12 @@ fn background<T: Send + 'static>(
     Ok(())
 }
 
-fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: &Source) -> Result<(), String> {
+fn refresh(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+    source: &Source,
+) -> Result<(), String> {
     let historical = source.historical();
     ui.set_notice(if historical {
         "Reading a historical inventory snapshot; no backend operations will be requested."
@@ -325,11 +358,31 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: 
         ui,
         busy,
         "Refreshing inventory",
-        move || source.discover(),
+        move || {
+            let (inventory, warning, snapshot) = source.discover()?;
+            Ok((inventory, warning, source.configuration()?, snapshot))
+        },
         move |ui, result| {
             with_state(ui, &state, |state| {
                 match result {
-                    Ok((inventory, warning)) => {
+                    Ok((inventory, warning, configuration, snapshot)) => {
+                        state.rehearsal_plan = None;
+                        if state.view.draft.is_some() && snapshot != state.snapshot_source {
+                            state.view.needs_readback = true;
+                            present(ui, state, false);
+                            ui.set_eligible(false);
+                            ui.set_validation("Snapshot changed externally. Draft preserved; discard and Refresh.".into());
+                            return Err("Snapshot changed externally. Draft preserved; discard and Refresh.".into());
+                        }
+                        if let Some((configuration, text)) = configuration {
+                            if let Err(error) = state.load_configuration(configuration, text) {
+                                state.view.needs_readback = true;
+                                present(ui, state, false);
+                                ui.set_eligible(false);
+                                ui.set_validation(error.clone().into());
+                                return Err(error);
+                            }
+                        }
                         let rows = inventory
                             .discovery
                             .vms
@@ -350,8 +403,9 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: 
                                 .collect(),
                         ));
                         state.refresh(inventory);
+                        state.snapshot_source = snapshot;
                         // Imported enrollment is display data, never execution authorization.
-                        state.view.needs_readback = historical;
+                        state.historical = historical;
                         let reset = !ui.get_dirty();
                         // Bind the draft GPU by identity across provider enumeration changes.
                         if !reset {
@@ -369,11 +423,6 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: 
                             );
                         }
                         present(ui, state, reset);
-                        if historical {
-                            ui.set_eligible(false);
-                            ui.set_validation("Historical snapshot is display-only. Refresh rereads the file; it cannot establish current eligibility or authorize operations.".into());
-                            ui.set_desired("Committed configuration is not included in an inventory snapshot.".into());
-                        }
                         if ui.get_dirty() {
                             ui.set_validation(
                                 draft_target(ui, state).err().unwrap_or_default().into(),
@@ -391,7 +440,10 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: 
                         state.view.needs_readback = true;
                         if let Some(inventory) = state.view.inventory.as_ref() {
                             ui.set_vms(model(
-                                inventory.discovery.vms.iter()
+                                inventory
+                                    .discovery
+                                    .vms
+                                    .iter()
                                     .map(|vm| observed_row(vm, inventory, true))
                                     .collect(),
                             ));
@@ -403,7 +455,15 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: 
                         );
                         ui.set_notice(format!("{} inventory unavailable: {error}. Existing rows are historical; Refresh retries the read.", if historical { "Snapshot" } else { "Live" }).into());
                         ui.set_system_summary(
-                            format!("{} unavailable: {error}", if historical { "Snapshot read" } else { "Live discovery" }).into(),
+                            format!(
+                                "{} unavailable: {error}",
+                                if historical {
+                                    "Snapshot read"
+                                } else {
+                                    "Live discovery"
+                                }
+                            )
+                            .into(),
                         );
                         Err(error)
                     }
@@ -413,26 +473,68 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: 
     )
 }
 
-fn review(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: &Source) -> Result<(), String> {
-    let target = state
+fn review(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+    source: &Source,
+) -> Result<(), String> {
+    let (target, configuration_source, snapshot_source) = state
         .lock()
         .map_err(|_| "Live presentation state unavailable".to_owned())
-        .and_then(|state| draft_target(ui, &state))?;
+        .and_then(|mut state| {
+            state.rehearsal_plan = None;
+            draft_target(ui, &state).map(|target| {
+                (
+                    target,
+                    state.configuration_source.clone(),
+                    state.snapshot_source.clone(),
+                )
+            })
+        })?;
     let expected = target.clone();
+    let historical = source.historical();
     let source = source.clone();
+    let review_state = state.clone();
     background(
         ui,
         busy,
-        "Building fresh plan",
-        move || source.plan(target),
+        if historical {
+            "Building historical rehearsal plan"
+        } else {
+            "Building fresh plan"
+        },
+        move || {
+            if source.configuration()?.map(|(_, text)| text) != configuration_source {
+                return Err("Candidate configuration changed externally. Draft preserved; discard and Refresh.".into());
+            }
+            source.plan(target, snapshot_source.as_deref())
+        },
         move |ui, result| match result {
             Ok(plan) if plan.desired == expected && plan.observed.vm_id == expected.vm_id => {
+                if historical {
+                    with_state(ui, &review_state, |state| {
+                        state.rehearsal_plan = Some(plan.clone());
+                        Ok(())
+                    });
+                }
                 ui.set_needs_shutdown(plan.preview.guest_downtime);
                 dialog(
                     ui,
                     "review",
-                    "Review your draft · execution unavailable",
-                    &review_text(&plan),
+                    if historical {
+                        "Review historical draft · rehearsal only"
+                    } else {
+                        "Review your draft · execution unavailable"
+                    },
+                    &if historical {
+                        format!(
+                            "HISTORICAL REHEARSAL · NO WRITES\nInputs and payload digest are recorded, not currently authenticated. No credentials, guest probe or VM effect is requested.\n\n{}",
+                            review_text(&plan)
+                        )
+                    } else {
+                        review_text(&plan)
+                    },
                 );
             }
             Ok(_) => dialog(
@@ -480,6 +582,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     ui.on_edited(move || {
         if let Some(ui) = weak.upgrade() {
             with_state(&ui, &edit_state, |state| {
+                state.rehearsal_plan = None;
                 ui.set_dirty(true);
                 state.draft_gpu = state
                     .view
@@ -515,11 +618,36 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         let result = match action.as_str() {
             "refresh" => refresh(&ui, &action_state, &action_busy, &action_source),
             "review" => review(&ui, &action_state, &action_busy, &action_source),
-            "reapply" => {
-                if action_source.historical() {
-                    dialog(&ui, "error", "Action unavailable", "Snapshot rehearsal cannot request a live plan or change a VM.");
-                    return;
+            "confirm" => {
+                if !action_source.historical() {
+                    Err("Live execution is unavailable until the restricted worker and protected saving are connected.".into())
+                } else {
+                    let inputs = action_state.lock().map_err(|_| "Presentation state unavailable".to_owned())
+                        .and_then(|state| {
+                            let plan = state.rehearsal_plan.clone().ok_or("Review the historical draft first.")?;
+                            Ok((plan, state.configuration_source.clone(), state.snapshot_source.clone()))
+                        });
+                    inputs.and_then(|(recorded, configuration, snapshot)| {
+                        let source = action_source.clone();
+                        background(&ui, &action_busy, "Checking rehearsal inputs", move || {
+                            if source.configuration()?.map(|(_, text)| text) != configuration {
+                                return Err("Candidate configuration changed externally. Draft preserved; discard and Refresh.".into());
+                            }
+                            // Recompute the plan from identical captured bytes, then display
+                            // its actions. No workflow apply or mutation adapter is called.
+                            source.plan(recorded.desired, snapshot.as_deref())
+                        }, |ui, result| match result {
+                            Ok(plan) => {
+                                dialog(ui, "info", "Historical stage rehearsal complete", "These stages come from the shared plan. No VM operation, guest verification, configuration save, credential access or recovery clearing occurred. The draft remains unapplied; simulated stages do not prove GPU support.");
+                                ui.set_stages(model(plan.preview.actions.iter().enumerate()
+                                    .map(|(i, action)| format!("{}. {:?} · simulated only, not executed", i + 1, action).into()).collect()));
+                            }
+                            Err(error) => dialog(ui, "error", "Rehearsal blocked", &error),
+                        })
+                    })
                 }
+            }
+            "reapply" => {
                 // Preserve allocation edits while deliberately previewing enabled support.
                 ui.set_gpu_enabled(true);
                 ui.invoke_edited();
@@ -530,6 +658,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             "discard" | "switch" => {
                 with_state(&ui, &action_state, |state| {
                     state.view.discard();
+                    state.rehearsal_plan = None;
                     state.draft_gpu = None;
                     if action == "switch" { state.view.selected = state.pending_selection.take(); }
                     present(&ui, state, true); ui.set_dirty(false); ui.set_dialog_kind("".into());
@@ -538,7 +667,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             }
             "more" => {
                 let body = if action_source.historical() {
-                    "This snapshot is historical display data. Reapply, verification and forgetting are unavailable; no backend request or persistent write will occur."
+                    "Reapply rehearses an enabled draft against historical inputs. Verification and forgetting remain blocked. No backend effect or persistent write will occur."
                 } else {
                     "Reapply / Update reads a fresh shared plan for the current draft. Guest verification and forgetting pairing remain unavailable until worker and protected configuration bindings are ready."
                 };
@@ -568,7 +697,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             }
             "shortcuts" => {
                 let help = if action_source.historical() {
-                    "Select a VM from the historical snapshot or inspect System. Refresh rereads the same file. No live discovery, plan, credentials, verification or execution is requested. Plain --mock-gui retains fixture scenarios and simulated stages."
+                    "Select a recorded enrolled VM, edit raw VRAM or enable/disable intent and Review. The shared planner uses recorded inputs only; enabled previews require snapshot plans with a matching historical payload digest. Optional --config reads one GUID-keyed candidate file. Refresh rereads inputs; credentials, verification and execution remain blocked."
                 } else {
                     "Select a real VM, inspect System, or Refresh protected inventory. Enrolled pairs support in-memory toggles and raw VRAM drafts with fresh CLI planner previews. Settings opens the native credential dialog for the selected enrolled VM. Apply, Verify and enrollment await worker integration. --mock-gui rehearses fixtures without writes."
                 };
@@ -596,8 +725,8 @@ mod tests {
     use super::*;
     use hyper_gpu_support::model::Settings;
     #[test]
-    fn snapshot_source_refuses_backend_plans_and_credentials() {
-        let source = Source::Snapshot("unused-snapshot.json".into());
+    fn snapshot_source_requires_captured_input_and_refuses_credentials() {
+        let source = Source::Snapshot("unused-snapshot.json".into(), None);
         assert!(source.historical());
         let target = Target {
             vm_id: "12345678-1234-1234-1234-123456789abc".into(),
@@ -605,7 +734,12 @@ mod tests {
             enabled: true,
             vram: None,
         };
-        assert!(source.plan(target).unwrap_err().contains("cannot request"));
+        assert!(
+            source
+                .plan(target, None)
+                .unwrap_err()
+                .contains("Cannot open inventory snapshot")
+        );
         assert!(source.credentials("vm").unwrap_err().contains("blocked"));
     }
     #[test]

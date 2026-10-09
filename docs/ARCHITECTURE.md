@@ -156,7 +156,13 @@ It reports ordered semantic actions, settings before/after, raw allocation write
 preparation drift, credential need, downtime and recorded restoration power. Pending
 verification alone does not imply preparation or restart. The CLI consumes this
 shared summary. GUI-002 must bind the same fresh plan and independent execution
-rechecks; the promoted Slint review/apply is currently mocked.
+rechecks; live Slint Review reads the shared plan but Apply is unavailable.
+Explicit snapshot rehearsal reuses the same planner with historical inventory,
+explicit managed records and a matching recorded payload digest for enabled
+targets. Its backend rejects mutations. An optional GUID-keyed per-VM candidate
+file is read separately from enrollment, observation and draft state; it does not
+establish trusted committed-store ownership. Changed input bytes block existing
+drafts, and confirmed rehearsal only displays simulated plan stages.
 Plan never saves a management journal or calls guest/VM mutators; protected audit
 records still apply. Enabled plans authenticate the payload, while status/inventory
 remain separate. Slint binding and process/UX acceptance belong to GUI-002/GUI-003.
