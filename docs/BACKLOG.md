@@ -237,6 +237,10 @@ distribution license/advisory review remains part of CORE-017, not a claimed pas
 
 ### CFG-001
 
+**Active closure work:** protected store, revision/readback-bound publication and
+durable save-only recovery; integrate the same contract into GUI and CLI. Do not
+mark complete before implementation, qualification and independent boundary review.
+
 **Per-VM machine-wide configuration and safe saving.** Replace/extend schema 2 as justified by the repository audit; use stable Hyper-V VM GUID files under `%ProgramData%\HyperGpuSupport\config\vms\` (format/version **OPEN-01**). Keep **observed**, **committed desired** and **one in-memory draft** separate. Current appearance/window/split preferences remain session-only; persistence absent from the approved prototype is retired GUI scope. Enrollment/operational recovery records remain protected separately, with appropriate installer-created ACLs.
 
 **9 October format investigation / OPEN-01 proposal:** recommend existing TOML
@@ -316,6 +320,10 @@ make save-only recovery protected and durable through CFG-001/SEC-001.
 **Exit:** fault-injected crash, timeout, partial state, unsafe restart, UAC refusal, stale plan, save failure and save-only retry; no GPU operation replay. Exact reconciliation mechanics remain **OPEN-08** until independently reviewed.
 
 ### GUI-002
+
+**Active closure work:** trusted saved-intent loading, worker/progress/recovery
+bindings and approved-control parity, including Review text wrapping. Dependencies
+SEC-001/CORE-028/GPU-010 remain acceptance gates, not exemptions.
 
 **9 October configuration/recorded-plan rehearsal slice:** stopped treating
 enrollment as saved desired configuration. Added optional

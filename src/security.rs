@@ -73,6 +73,91 @@ fn trusted(sid: &str, system: bool) -> bool {
     matches!(sid, "S-1-5-18" | "S-1-5-32-544")
         || (system && sid == "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464")
 }
+/// Create a new file with trusted ownership at creation, inheriting only the
+/// explicit protected DACL. No caller-owned or inherited-writer interval.
+#[allow(unsafe_code)]
+pub(crate) fn create_file(path: &Path, client: &str) -> Result<std::fs::File, String> {
+    use std::os::windows::io::FromRawHandle;
+    use windows::Win32::{
+        Foundation::{GENERIC_READ, GENERIC_WRITE},
+        Storage::FileSystem::{CREATE_NEW, CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_MODE},
+    };
+    verify(path.parent().ok_or("protected file parent missing")?)?;
+    let sddl: Vec<u16> = format!("O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;{client})")
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .to_string_lossy()
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    let mut descriptor = PSECURITY_DESCRIPTOR::default();
+    // SAFETY: fixed terminated descriptor; owner is assigned atomically by CreateFile.
+    unsafe { windows::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW(PCWSTR(sddl.as_ptr()), windows::Win32::Security::Authorization::SDDL_REVISION_1, &mut descriptor, None) }.map_err(|e| e.to_string())?;
+    let attributes = windows::Win32::Security::SECURITY_ATTRIBUTES {
+        nLength: std::mem::size_of::<windows::Win32::Security::SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor.0,
+        bInheritHandle: false.into(),
+    };
+    // SAFETY: descriptor/path live through call; exclusive new file cannot replace an existing object.
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            GENERIC_READ.0 | GENERIC_WRITE.0,
+            FILE_SHARE_MODE(0),
+            Some(&attributes),
+            CREATE_NEW,
+            FILE_ATTRIBUTE_NORMAL,
+            None,
+        )
+    };
+    unsafe {
+        LocalFree(Some(HLOCAL(descriptor.0)));
+    }
+    let handle = handle.map_err(|e| e.to_string())?;
+    // SAFETY: successful newly created handle transfers once into File ownership.
+    Ok(unsafe { std::fs::File::from_raw_handle(handle.0) })
+}
+/// Create a new protected directory with its owner and DACL installed atomically.
+#[allow(unsafe_code)]
+pub(crate) fn create_directory(path: &Path, client: &str) -> Result<(), String> {
+    payload::no_reparse(path.parent().ok_or("protected directory parent missing")?)?;
+    let sddl: Vec<u16> =
+        format!("O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FRFX;;;{client})")
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .to_string_lossy()
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    let mut descriptor = PSECURITY_DESCRIPTOR::default();
+    // SAFETY: terminated SDDL and initialized API-owned output descriptor.
+    unsafe { windows::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW(PCWSTR(sddl.as_ptr()), windows::Win32::Security::Authorization::SDDL_REVISION_1, &mut descriptor, None) }.map_err(|e| e.to_string())?;
+    let attributes = windows::Win32::Security::SECURITY_ATTRIBUTES {
+        nLength: std::mem::size_of::<windows::Win32::Security::SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor.0,
+        bInheritHandle: false.into(),
+    };
+    // SAFETY: live descriptor and terminated destination; fails rather than replacing an existing object.
+    let result = unsafe {
+        windows::Win32::Storage::FileSystem::CreateDirectoryW(
+            PCWSTR(wide.as_ptr()),
+            Some(&attributes),
+        )
+    }
+    .map_err(|e| e.to_string());
+    // SAFETY: descriptor is solely owned here and CreateDirectory copies it.
+    unsafe {
+        LocalFree(Some(HLOCAL(descriptor.0)));
+    }
+    result?;
+    verify(path)
+}
 #[allow(unsafe_code)]
 fn verify_owner(path: &Path, system: bool) -> Result<(), String> {
     payload::no_reparse(path)?;

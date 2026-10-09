@@ -81,6 +81,8 @@ pub enum Operation {
     Status,
     /// Inspect desired changes and authenticate the current preparation payload without effects.
     Plan,
+    /// Read-only preview of the guest verification lifecycle.
+    VerifyPlan,
     /// Apply desired GPU state.
     Apply,
     /// Verify selected guest health and rendering.
@@ -103,11 +105,11 @@ pub struct Request {
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Enrollment {
+pub(crate) struct Enrollment {
     schema: u32,
-    client_sid: String,
-    targets: Vec<Target>,
-    artifacts: std::collections::BTreeMap<String, String>,
+    pub(crate) client_sid: String,
+    pub(crate) targets: Vec<Target>,
+    pub(crate) artifacts: std::collections::BTreeMap<String, String>,
 }
 #[derive(Serialize, Deserialize)]
 struct Reply {
@@ -349,28 +351,18 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
         Err(error) if error.code().0 == 0x80070002_u32 as i32 => {}
         Err(error) => return Err(error.to_string()),
     }
-    use std::os::windows::fs::OpenOptionsExt;
-    let lock_path = data.join("operation.lock");
-    if lock_path.exists() {
-        crate::security::verify(&lock_path)?;
-    }
-    let _lock = fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .share_mode(0)
-        .open(&lock_path)
-        .map_err(|_| "runner operation is active; retry installation after it finishes")?;
+    let _lock = operation_lock()?;
     atomic_json(
         &data.join("installation-pending.json"),
         &serde_json::json!({"schema": 1}),
     )?;
+    crate::configuration_store::protected::install(&client)?;
     let mut artifacts = std::collections::BTreeMap::new();
     for name in [
         "hyper-gpu-runner.exe",
         "hyper-gpu-guest.exe",
         "d3d11-probe.exe",
+        "hyper-gpu-support.exe",
     ] {
         let from = source.join(name);
         payload::no_reparse(&from)?;
@@ -382,11 +374,7 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
         let staged = install.join(format!("{name}.partial"));
         remove_protected_leaf(&staged)?;
         let mut input = fs::File::open(&from).map_err(|e| e.to_string())?;
-        let mut output = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&staged)
-            .map_err(|e| e.to_string())?;
+        let mut output = crate::security::create_file(&staged, &client)?;
         std::io::copy(&mut input, &mut output)
             .and_then(|_| output.sync_all())
             .map_err(|e| e.to_string())?;
@@ -430,7 +418,7 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
     fs::remove_file(data.join("installation-pending.json")).map_err(|e| e.to_string())?;
     Ok(())
 }
-fn enrollment() -> Result<Enrollment, String> {
+pub(crate) fn enrollment() -> Result<Enrollment, String> {
     let root = data_directory()?;
     crate::security::verify(&root)?;
     if root.join("installation-pending.json").exists() {
@@ -450,7 +438,8 @@ fn enrollment() -> Result<Enrollment, String> {
     if value.schema != 2 {
         return Err("unsupported enrollment version".into());
     }
-    if value.artifacts.len() != 3
+    if !(value.artifacts.len() == 3
+        || (value.artifacts.len() == 4 && value.artifacts.contains_key("hyper-gpu-support.exe")))
         || ![
             "hyper-gpu-runner.exe",
             "hyper-gpu-guest.exe",
@@ -468,19 +457,63 @@ pub(crate) fn atomic_json(path: &Path, value: &impl Serialize) -> Result<(), Str
     let temp = path.with_extension("partial");
     remove_protected_leaf(&temp)?;
     let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp)
-        .map_err(|e| e.to_string())?;
+    let client = enrollment()
+        .map(|e| e.client_sid)
+        .or_else(|_| windows_pipe::current_user_sid_string().map_err(|e| e.to_string()))?;
+    let mut file = crate::security::create_file(&temp, &client)?;
     file.write_all(&bytes)
         .and_then(|()| file.sync_all())
         .map_err(|e| e.to_string())?;
     drop(file);
+    crate::security::verify(&temp)?;
     if path.exists() {
         crate::security::verify(path)?;
     }
     crate::guest::replace_file(&temp, path)
+}
+pub(crate) fn operation_lock() -> Result<fs::File, String> {
+    use std::os::windows::fs::OpenOptionsExt;
+    let data = data_directory()?;
+    crate::security::verify(&data)?;
+    let path = data.join("operation.lock");
+    match fs::symlink_metadata(&path) {
+        Ok(_) => {
+            crate::security::verify(&path)?;
+            fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .share_mode(0)
+                .open(path)
+                .map_err(|e| format!("another host operation is active: {e}"))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let client = enrollment()
+                .map(|e| e.client_sid)
+                .or_else(|_| windows_pipe::current_user_sid_string().map_err(|e| e.to_string()))?;
+            crate::security::create_file(&path, &client)
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+pub(crate) fn verify_artifacts(e: &Enrollment) -> Result<(), String> {
+    for (name, hash) in &e.artifacts {
+        if ![
+            "hyper-gpu-runner.exe",
+            "hyper-gpu-guest.exe",
+            "d3d11-probe.exe",
+            "hyper-gpu-support.exe",
+        ]
+        .contains(&name.as_str())
+        {
+            return Err("unrecognized installed product artifact".into());
+        }
+        let path = install_directory()?.join(name);
+        crate::security::verify(&path)?;
+        if payload::hash_file(&path)? != *hash {
+            return Err("installed product artifact changed".into());
+        }
+    }
+    Ok(())
 }
 fn remove_protected_leaf(path: &Path) -> Result<(), String> {
     if path.exists() {
@@ -496,7 +529,8 @@ fn remove_protected_leaf(path: &Path) -> Result<(), String> {
 #[allow(unsafe_code)]
 pub fn submit(request: Request) -> Result<serde_json::Value, String> {
     let e = enrollment()?;
-    if e.artifacts.len() != 3
+    if !(e.artifacts.len() == 3
+        || (e.artifacts.len() == 4 && e.artifacts.contains_key("hyper-gpu-support.exe")))
         || ![
             "hyper-gpu-runner.exe",
             "hyper-gpu-guest.exe",
@@ -568,19 +602,7 @@ pub fn serve() -> Result<(), String> {
         return Err("runner must execute from its protected installation as SYSTEM".into());
     }
     let e = enrollment()?;
-    for (name, hash) in &e.artifacts {
-        crate::security::verify(&install_directory()?.join(name))?;
-        if ![
-            "hyper-gpu-runner.exe",
-            "hyper-gpu-guest.exe",
-            "d3d11-probe.exe",
-        ]
-        .contains(&name.as_str())
-            || payload::hash_file(&install_directory()?.join(name))? != *hash
-        {
-            return Err("installed product artifact changed".into());
-        }
-    }
+    verify_artifacts(&e)?;
     // Specific client rights exclude FILE_CREATE_PIPE_INSTANCE, which generic
     // write would grant. Clients cannot create a competing server instance.
     let sddl = format!("O:SYG:SYD:P(A;;GA;;;SY)(A;;0x0012008b;;;{})", e.client_sid);
@@ -630,19 +652,14 @@ fn execute(e: &Enrollment, request: Request) -> Result<serde_json::Value, String
         return Err("expired request identity".into());
     }
     let data = data_directory()?;
-    use std::os::windows::fs::OpenOptionsExt;
-    let lock = data.join("operation.lock");
-    if lock.exists() {
-        payload::no_reparse(&lock)?;
+    let _lock = operation_lock()?;
+    let current = enrollment()?;
+    if serde_json::to_value(e).map_err(|e| e.to_string())?
+        != serde_json::to_value(&current).map_err(|e| e.to_string())?
+    {
+        return Err("enrollment changed before admission; retry discovery".into());
     }
-    let _lock = fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .share_mode(0)
-        .open(lock)
-        .map_err(|e| format!("another managed operation is active: {e}"))?;
+    verify_artifacts(&current)?;
     let nonces = data.join("nonces");
     fs::create_dir_all(&nonces).map_err(|e| e.to_string())?;
     crate::security::verify(&nonces)?;
@@ -710,22 +727,101 @@ fn execute_operation(
         data,
     };
     if matches!(request.operation, Operation::Apply | Operation::Verify) {
-        crate::windows_wmi::reconcile_pending_operation()?;
+        require_no_recovery()?;
+        crate::windows_wmi::require_no_pending_operation()?;
+        if backend
+            .journal(&target)?
+            .is_some_and(|journal| journal.pending)
+        {
+            return Err(
+                "unfinished managed operation requires explicit manual reconciliation".into(),
+            );
+        }
     }
     let output = match request.operation {
         Operation::Discover => return Err("invalid operation".into()),
         Operation::Status => Ok(serde_json::json!({"observed": backend.inspect(&target)?, "managed": backend.journal(&target)?})),
         Operation::Plan => serde_json::to_value(crate::workflow::plan(&mut backend, &target)?),
-        Operation::Apply => serde_json::to_value(crate::workflow::apply(&mut backend, &target)?),
-        Operation::Verify => serde_json::to_value(crate::workflow::verify(&mut backend, &target)?),
+        Operation::VerifyPlan => serde_json::to_value(crate::workflow::plan_verification(&mut backend, &target)?),
+        Operation::Apply | Operation::Verify => return Err("mutation requires the reviewed per-operation worker; update the frontend and installation".into()),
     }
     .map_err(|e| e.to_string())?;
     Ok(output)
 }
-struct NativeBackend {
-    credential: Option<Credential>,
-    manifest: Option<payload::Manifest>,
-    data: PathBuf,
+pub(crate) struct NativeBackend {
+    pub(crate) credential: Option<Credential>,
+    pub(crate) manifest: Option<payload::Manifest>,
+    pub(crate) data: PathBuf,
+}
+pub(crate) fn recovery_path() -> Result<PathBuf, String> {
+    Ok(data_directory()?.join("operation-recovery.json"))
+}
+pub(crate) fn import_path() -> Result<PathBuf, String> {
+    Ok(data_directory()?.join("configuration-import.json"))
+}
+/// Read import recovery without accepting it as enrollment or changing any file.
+pub fn import_record() -> Result<Option<crate::configuration_store::ImportRecord>, String> {
+    let path = import_path()?;
+    match fs::symlink_metadata(&path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+        Ok(metadata) if !metadata.is_file() => {
+            return Err("import receipt is not a regular file".into());
+        }
+        Ok(_) => {}
+    }
+    crate::security::verify(&path)?;
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .map_err(|e| e.to_string())?
+        .take(FRAME_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() > FRAME_LIMIT {
+        return Err("import recovery input limit exceeded".into());
+    }
+    let record: crate::configuration_store::ImportRecord =
+        serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    record.validate()?;
+    Ok(Some(record))
+}
+/// Read the host-wide protected operation hold without modifying or clearing it.
+pub fn recovery_record() -> Result<Option<crate::configuration_store::SaveRecord>, String> {
+    let path = recovery_path()?;
+    match fs::symlink_metadata(&path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+        Ok(metadata) if !metadata.is_file() => return Err("recovery record is not a file".into()),
+        Ok(_) => {}
+    }
+    crate::security::verify(&path)?;
+    let mut bytes = Vec::new();
+    fs::File::open(&path)
+        .map_err(|e| e.to_string())?
+        .take(FRAME_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() > FRAME_LIMIT {
+        return Err("recovery record exceeds input limit".into());
+    }
+    let record: crate::configuration_store::SaveRecord = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("invalid protected recovery record: {e}"))?;
+    if record.schema != 1 {
+        return Err("unsupported protected recovery version".into());
+    }
+    record.target.validate()?;
+    Ok(Some(record))
+}
+pub(crate) fn require_no_recovery() -> Result<(), String> {
+    if recovery_record()?.is_some() {
+        return Err("host-wide recovery hold is active; reconcile or retry saving only".into());
+    }
+    if import_record()?.is_some() {
+        return Err(
+            "interrupted configuration import requires explicit import reconciliation".into(),
+        );
+    }
+    Ok(())
 }
 impl Backend for NativeBackend {
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
@@ -754,11 +850,21 @@ impl Backend for NativeBackend {
         let path = self
             .data
             .join(format!("{}.json", t.vm_id.to_ascii_lowercase()));
-        if !path.exists() {
-            return Ok(None);
+        match fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.to_string()),
+            Ok(metadata) if !metadata.is_file() => {
+                return Err("journal is not a regular file".into());
+            }
+            Ok(_) => {}
         }
         crate::security::verify(&path)?;
-        let b = fs::read(path).map_err(|e| e.to_string())?;
+        let mut b = Vec::new();
+        fs::File::open(path)
+            .map_err(|e| e.to_string())?
+            .take(65537)
+            .read_to_end(&mut b)
+            .map_err(|e| e.to_string())?;
         if b.len() > 65536 {
             return Err("invalid journal size".into());
         }

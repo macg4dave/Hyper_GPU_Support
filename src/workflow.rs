@@ -174,6 +174,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
     })
 }
 
+#[derive(Clone)]
 struct Decision {
     initial: VmState,
     gpu: Gpu,
@@ -276,6 +277,9 @@ pub struct Plan {
 /// Preview apply using the same validation and decisions, without saving or mutating guest/VM state.
 pub fn plan(backend: &mut impl Backend, target: &Target) -> Result<Plan, String> {
     let d = decision(backend, target)?;
+    Ok(plan_from_decision(d, target))
+}
+fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     let mut actions = Vec::new();
     let mut power = d.initial.power.clone();
     if d.needs_changes {
@@ -391,7 +395,7 @@ pub fn plan(backend: &mut impl Backend, target: &Target) -> Result<Plan, String>
         );
     }
     summary.push(format!("Final guest power: {:?}. Apply rechecks identity and state; a preview does not reserve them.", d.restore_power));
-    Ok(Plan {
+    Plan {
         desired: target.clone(),
         observed: d.initial,
         managed: d.managed,
@@ -413,12 +417,39 @@ pub fn plan(backend: &mut impl Backend, target: &Target) -> Result<Plan, String>
         },
         allocation_units: "provider-defined".into(),
         automatic_guest_restart: restart,
-    })
+    }
 }
 
 /// Apply one selected target after independently reading and validating current state.
 /// Failures retain recovery intent; no disk recreation or forced shutdown is attempted.
 pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
+    apply_with_plan(backend, target, None)
+}
+/// Execute only when independently gathered state still matches the approved plan.
+/// This check precedes journal admission and every GPU/guest effect.
+pub fn apply_approved(
+    backend: &mut impl Backend,
+    approved: &Plan,
+) -> Result<OperationResult, String> {
+    apply_with_plan(backend, &approved.desired, Some(approved))
+}
+fn apply_with_plan(
+    backend: &mut impl Backend,
+    target: &Target,
+    approved: Option<&Plan>,
+) -> Result<OperationResult, String> {
+    let d = decision(backend, target)?;
+    if let Some(approved) = approved {
+        let actual = plan_from_decision(d.clone(), target);
+        if serde_json::to_value(&actual).map_err(|e| e.to_string())?
+            != serde_json::to_value(approved).map_err(|e| e.to_string())?
+        {
+            return Err("approved plan is stale; refresh and review before effects".into());
+        }
+        if d.journal.pending {
+            return Err("pending recovery requires manual reconciliation, not Apply".into());
+        }
+    }
     let Decision {
         initial,
         gpu,
@@ -432,7 +463,7 @@ pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationRes
         assignment,
         needs_changes,
         ..
-    } = decision(backend, target)?;
+    } = d;
     // Verification is an operation even on a running no-op target. Persist its
     // intent before the check so failure cannot leave a completed-looking journal.
     if needs_changes || target.enabled {
@@ -579,6 +610,54 @@ pub fn verification_power(
     Ok(power.clone())
 }
 /// Check graphics and restore the independently validated recovery power intent.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerificationPlan {
+    /// Exact selected enrolled pair.
+    pub target: Target,
+    /// Fresh state; an off guest is temporarily started and then stopped.
+    pub observed: VmState,
+    /// Current device and driver identity.
+    pub gpu: Gpu,
+    /// Exact management state; pending operations prohibit fresh verification.
+    pub managed: Option<Journal>,
+}
+/// Preview verification without guest, journal or power effects.
+pub fn plan_verification(
+    backend: &mut impl Backend,
+    target: &Target,
+) -> Result<VerificationPlan, String> {
+    let observed = backend.inspect(target)?;
+    let managed = backend.journal(target)?;
+    if managed.as_ref().is_some_and(|j| j.pending) {
+        return Err("unfinished operation requires manual reconciliation".into());
+    }
+    verification_power(target, &observed, managed.as_ref())?;
+    let gpu = backend.gpu(target)?;
+    if gpu.interface != target.gpu_interface {
+        return Err("selected GPU identity changed".into());
+    }
+    Ok(VerificationPlan {
+        target: target.clone(),
+        observed,
+        gpu,
+        managed,
+    })
+}
+/// Independently check reviewed verification scope immediately before effects.
+pub fn verify_approved(
+    backend: &mut impl Backend,
+    approved: &VerificationPlan,
+) -> Result<OperationResult, String> {
+    let current = plan_verification(backend, &approved.target)?;
+    if serde_json::to_value(&current).map_err(|e| e.to_string())?
+        != serde_json::to_value(approved).map_err(|e| e.to_string())?
+    {
+        return Err("verification observations changed; Refresh and review".into());
+    }
+    verify(backend, &approved.target)
+}
+/// Check graphics and restore the independently validated recovery power intent.
 pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
     target.validate()?;
     let before = backend.inspect(target)?;
@@ -659,6 +738,100 @@ fn verified_at() -> u64 {
         .as_secs()
 }
 
+/// Explicitly reconcile an achieved outcome without GPU, settings or payload
+/// mutation. Caller has independently validated the durable approved receipt.
+pub fn reconcile_observed(
+    backend: &mut impl Backend,
+    target: &Target,
+    observed: &VmState,
+    restore: Power,
+    payload: Option<&str>,
+) -> Result<OperationResult, String> {
+    target.validate()?;
+    let mut journal = backend
+        .journal(target)?
+        .ok_or("no attributable operation journal; retain recovery for administrator inspection")?;
+    if journal.vm_id != target.vm_id
+        || journal.gpu_interface != target.gpu_interface
+        || journal.schema != 1
+        || journal.restore_power != restore
+        || !matches!(restore, Power::Off | Power::Running)
+        || (target.enabled && payload.is_some_and(|p| journal.prepared.as_deref() != Some(p)))
+    {
+        return Err(
+            "operation journal does not prove the reviewed preparation and power intent".into(),
+        );
+    }
+    if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
+        != serde_json::to_value(observed).map_err(|e| e.to_string())?
+    {
+        return Err("state changed during reconciliation".into());
+    }
+    if target.enabled {
+        let gpu = backend.gpu(target)?;
+        if observed.power == Power::Off {
+            backend.power(target, Power::Running)?;
+        }
+        let checked = backend.verify(target, &gpu);
+        let restoration = (|| {
+            let current = backend.inspect(target)?;
+            let mut expected = observed.clone();
+            expected.power = current.power.clone();
+            if !matches!(current.power, Power::Off | Power::Running)
+                || serde_json::to_value(&current).map_err(|e| e.to_string())?
+                    != serde_json::to_value(&expected).map_err(|e| e.to_string())?
+                || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
+                    != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+                || payload.is_some_and(|digest| backend.payload(target).as_deref() != Ok(digest))
+            {
+                return Err(
+                    "reconciliation facts changed; unsafe power restoration blocked".into(),
+                );
+            }
+            if checked.is_err() && restore == Power::Running && current.power != Power::Running {
+                return Err(
+                    "failed verification cannot authorize restarting the stopped guest".into(),
+                );
+            }
+            restore_guest_power(backend, target, &restore)
+        })();
+        match (checked, restoration) {
+            (Err(primary), Err(restoration)) => {
+                return Err(format!(
+                    "verification failed: {primary}; safe power restoration blocked or failed: {restoration}"
+                ));
+            }
+            (Err(primary), Ok(())) => return Err(primary),
+            (Ok(()), Err(restoration)) => return Err(restoration),
+            (Ok(()), Ok(())) => {}
+        }
+    } else {
+        // Disabled reconciliation never starts a guest for a graphics check.
+        if backend.inspect(target)?.power != restore {
+            return Err("disabled outcome has unresolved guest power; retain recovery".into());
+        }
+    }
+    let effective = backend.inspect(target)?;
+    let mut expected = observed.clone();
+    expected.power = restore;
+    if serde_json::to_value(&effective).map_err(|e| e.to_string())?
+        != serde_json::to_value(&expected).map_err(|e| e.to_string())?
+    {
+        return Err("reconciliation independent readback changed".into());
+    }
+    journal.pending = false;
+    if target.enabled {
+        journal.last_verified = Some(verified_at());
+    }
+    backend.save(target, &journal)?;
+    Ok(OperationResult {
+        effective,
+        prepared: false,
+        verified: target.enabled,
+        settings_preserved: false,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -714,6 +887,89 @@ mod tests {
             fail_payload: false,
             allocation_writes: 0,
         }
+    }
+    #[test]
+    fn approved_plan_changes_block_before_any_journal_or_effect() {
+        for changed in 0..3 {
+            let mut backend = fake();
+            let approved = plan(&mut backend, &target()).unwrap();
+            match changed {
+                0 => backend.state.power = Power::Off,
+                1 => backend.driver = "changed-payload",
+                _ => backend.state.settings.high_mmio += 1,
+            }
+            assert!(
+                apply_approved(&mut backend, &approved)
+                    .unwrap_err()
+                    .contains("stale")
+            );
+            assert_eq!(backend.journal_writes, 0);
+            assert!(backend.events.is_empty());
+        }
+        let mut backend = fake();
+        let approved = plan(&mut backend, &target()).unwrap();
+        assert!(apply_approved(&mut backend, &approved).unwrap().verified);
+    }
+    #[test]
+    fn reviewed_verification_rejects_stale_state_before_power_or_journal_effects() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.events.clear();
+        backend.journal_writes = 0;
+        let approved = plan_verification(&mut backend, &target()).unwrap();
+        backend.state.power = Power::Off;
+        assert!(verify_approved(&mut backend, &approved).is_err());
+        assert!(backend.events.is_empty());
+        assert_eq!(backend.journal_writes, 0);
+        backend.journal.as_mut().unwrap().pending = true;
+        assert!(plan_verification(&mut backend, &target()).is_err());
+    }
+    #[test]
+    fn explicit_reconciliation_never_reassigns_reprepares_or_reallocates() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.journal.as_mut().unwrap().pending = true;
+        backend.events.clear();
+        backend.allocation_writes = 0;
+        let observed = backend.state.clone();
+        let result = reconcile_observed(
+            &mut backend,
+            &target(),
+            &observed,
+            Power::Running,
+            Some("current"),
+        )
+        .unwrap();
+        assert!(result.verified);
+        assert_eq!(backend.events, ["graphics"]);
+        assert_eq!(backend.allocation_writes, 0);
+        assert!(!backend.journal.as_ref().unwrap().pending);
+        backend.journal.as_mut().unwrap().pending = true;
+        backend.fail_verify = true;
+        assert!(
+            reconcile_observed(
+                &mut backend,
+                &target(),
+                &observed,
+                Power::Running,
+                Some("current")
+            )
+            .is_err()
+        );
+        assert!(backend.journal.as_ref().unwrap().pending);
+        backend.events.clear();
+        backend.state.settings.high_mmio += 1;
+        assert!(
+            reconcile_observed(
+                &mut backend,
+                &target(),
+                &observed,
+                Power::Running,
+                Some("current")
+            )
+            .is_err()
+        );
+        assert!(backend.events.is_empty());
     }
     impl Backend for Fake {
         fn inspect(&mut self, _: &Target) -> Result<VmState, String> {

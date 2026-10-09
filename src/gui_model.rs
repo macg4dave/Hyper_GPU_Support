@@ -93,6 +93,8 @@ pub struct View {
     pub draft: Option<Target>,
     /// Successful apply whose configuration has not yet been saved.
     pub unsaved: bool,
+    /// Verified effects awaiting protected publication; never presented as committed.
+    pub verified_unsaved: Option<Target>,
     /// Failed/lost operation requires a successful readback before further execution.
     pub needs_readback: bool,
 }
@@ -147,6 +149,7 @@ impl View {
             selected: None,
             draft: None,
             unsaved: false,
+            verified_unsaved: None,
             needs_readback: false,
         }
     }
@@ -303,16 +306,42 @@ impl View {
     }
     /// Separate successful provider execution from persistence; never replay for save failure.
     pub fn applied(&mut self, target: &Target) -> Result<(), String> {
-        let old = self
-            .configuration
-            .targets
-            .iter_mut()
-            .find(|t| t.vm_id == target.vm_id)
-            .ok_or("Applied target is absent from runtime configuration.")?;
-        *old = target.clone();
-        self.draft = None;
+        target.validate()?;
+        self.verified_unsaved = Some(target.clone());
+        if self
+            .draft
+            .as_ref()
+            .is_none_or(|draft| draft.vm_id == target.vm_id)
+        {
+            self.draft = None;
+        }
         self.unsaved = true;
         self.needs_readback = true;
+        Ok(())
+    }
+    /// Only a protected publication confirmation changes committed desired intent.
+    pub fn published(&mut self, target: &Target) -> Result<(), String> {
+        target.validate()?;
+        if self
+            .verified_unsaved
+            .as_ref()
+            .is_some_and(|verified| verified != target)
+        {
+            return Err("publication does not match verified-unsaved intent".into());
+        }
+        self.configuration
+            .targets
+            .retain(|old| old.vm_id != target.vm_id);
+        self.configuration.targets.push(target.clone());
+        self.verified_unsaved = None;
+        self.unsaved = false;
+        if self
+            .draft
+            .as_ref()
+            .is_none_or(|draft| draft.vm_id == target.vm_id)
+        {
+            self.draft = None;
+        }
         Ok(())
     }
     /// Row text reflects observed assignment; pending intent is a separate suffix.
@@ -638,8 +667,12 @@ mod tests {
     #[test]
     fn successful_apply_save_failure_and_uncertain_reply_cannot_trigger_blind_replay() {
         let mut v = view();
-        v.stage(&target(1).vm_id, true).unwrap();
-        v.applied(&target(1)).unwrap();
+        v.stage(&target(1).vm_id, false).unwrap();
+        let mut verified = target(1);
+        verified.enabled = false;
+        v.applied(&verified).unwrap();
+        assert!(v.configuration.targets[0].enabled);
+        assert_eq!(v.verified_unsaved.as_ref(), Some(&verified));
         assert!(v.draft.is_none());
         assert!(v.unsaved && v.needs_readback);
         assert!(v.apply_target().is_err());

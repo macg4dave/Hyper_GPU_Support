@@ -16,6 +16,7 @@ export component AppWindow inherits Window {
     in-out property <int> scenario: 0;
     in property <bool> mock-mode: true;
     in property <bool> snapshot-mode: false;
+    in-out property <bool> execution-ready: false;
     in property <string> workspace-label: root.mock-mode ? "MOCK WORKSPACE" : "LIVE WORKSPACE";
     in property <[string]> gpu-options: ["NVIDIA GeForce RTX 5060 · mock", "NVIDIA GeForce RTX 4070 · mock", "AMD Radeon RX 7800 XT · unavailable adapter"];
     in property <string> system-summary;
@@ -135,6 +136,6 @@ export component AppWindow inherits Window {
             HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.snapshot-mode ? "Snapshot rehearsal · Historical inventory · No writes" : root.mock-mode ? "Mock GUI · In-memory drafts · No real GPU changes" : "Live GUI · Shared plan previews · Apply unavailable"; } Hint { text: root.running ? (root.snapshot-mode ? "Reading snapshot" : root.mock-mode ? "Demonstration running" : "Backend operation running") : "Ready"; horizontal-alignment: right; } }
         }
     }
-    if root.dialog-kind != "" : DemoDialog { mock-mode: root.mock-mode; snapshot-mode: root.snapshot-mode; kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body; stages: root.stages; running: root.running; needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); } }
+    if root.dialog-kind != "" : DemoDialog { mock-mode: root.mock-mode; snapshot-mode: root.snapshot-mode; execution-ready: root.execution-ready; kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body; stages: root.stages; running: root.running; needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); } }
 }
 

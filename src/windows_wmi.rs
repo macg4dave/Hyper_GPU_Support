@@ -36,10 +36,19 @@ fn clear_operation() -> Result<()> {
     crate::security::verify(&path)?;
     std::fs::remove_file(path).map_err(|e| e.to_string())
 }
+pub(crate) fn require_no_pending_operation() -> Result<()> {
+    match std::fs::symlink_metadata(operation_path()?) {
+        Ok(_) => Err("unfinished native operation requires explicit manual reconciliation".into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
+}
 pub(crate) fn reconcile_pending_operation() -> Result<()> {
     let path = operation_path()?;
-    if !path.exists() {
-        return Ok(());
+    match std::fs::symlink_metadata(&path) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.to_string()),
     }
     crate::security::verify(&path)?;
     if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 65536 {
@@ -357,7 +366,7 @@ impl Session {
     ) -> Result<Object> {
         // Arguments own their native allocations before even entering this call.
         self.check_deadline()?;
-        reconcile_pending_operation()?;
+        require_no_pending_operation()?;
         let mut signature = None;
         // GetMethod is valid only on a class definition, never a queried VM or
         // management-service instance. ExecMethod still targets the exact instance.

@@ -39,6 +39,16 @@ fn gui_mode(args: &[String]) -> Result<Option<GuiMode>, String> {
 
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    #[cfg(windows)]
+    if args.first().is_some_and(|arg| arg == "--internal-worker") {
+        return match args.as_slice() {
+            [_, session, frontend] => hyper_gpu_support::worker::serve(
+                session,
+                frontend.parse().map_err(|_| "invalid frontend identity")?,
+            ),
+            _ => Err("invalid restricted worker mode".into()),
+        };
+    }
     if let Some(mode) = gui_mode(&args)? {
         return match mode {
             GuiMode::Live => gui::run(false),
@@ -78,6 +88,53 @@ fn execute(args: &[String]) -> Result<(), String> {
         runner::{self, Operation},
     };
     let command = args.first().ok_or("command required")?;
+    if ["save-only", "reconcile", "import-reconcile"].contains(&command.as_str()) {
+        let (operation_id, shutdown) = match args {
+            [_, option, id] if option == "--operation" => (id.clone(), false),
+            [cmd, option, id, consent]
+                if cmd == "reconcile"
+                    && option == "--operation"
+                    && consent == "--approve-shutdown" =>
+            {
+                (id.clone(), true)
+            }
+            _ => {
+                return Err("use COMMAND --operation ID [--approve-shutdown for reconcile]".into());
+            }
+        };
+        let progress = |stage: hyper_gpu_support::worker::Progress| {
+            eprintln!("{:?}: {}", stage.status, stage.stage)
+        };
+        let result = match command.as_str() {
+            "save-only" => hyper_gpu_support::worker::save_only(operation_id, progress)?,
+            "import-reconcile" => hyper_gpu_support::worker::resume_import(operation_id, progress)?,
+            _ => {
+                let record = runner::recovery_record()?
+                    .ok_or("no recorded operation requires reconciliation")?;
+                if record.operation_id != operation_id {
+                    return Err("reconciliation operation identity mismatch".into());
+                }
+                let credential = if record.target.enabled || !record.publication_required {
+                    Some(
+                        credentials::read(&record.target.vm_id)?
+                            .map_or_else(|| prompt(&record.target.vm_id), Ok)?,
+                    )
+                } else {
+                    None
+                };
+                hyper_gpu_support::worker::reconcile(operation_id, shutdown, credential, progress)?
+            }
+        };
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
+        );
+        return if result.finished {
+            Ok(())
+        } else {
+            Err("publication incomplete; retain the receipt and retry saving only".into())
+        };
+    }
     if ![
         "inventory",
         "plan",
@@ -89,6 +146,7 @@ fn execute(args: &[String]) -> Result<(), String> {
         "verify",
         "credentials",
         "forget",
+        "import",
     ]
     .contains(&command.as_str())
     {
@@ -96,14 +154,22 @@ fn execute(args: &[String]) -> Result<(), String> {
     }
     let mut config_path = None;
     let mut vm = None;
+    let mut shutdown_approved = false;
     let mut iter = args[1..].iter();
     while let Some(option) = iter.next() {
+        if option == "--approve-shutdown" && !shutdown_approved {
+            shutdown_approved = true;
+            continue;
+        }
         let value = iter.next().ok_or("option value missing")?;
         match option.as_str() {
             "--config" if config_path.is_none() => config_path = Some(value),
             "--vm" if vm.is_none() => vm = Some(value),
             _ => return Err("unknown or repeated option".into()),
         }
+    }
+    if shutdown_approved && !["apply", "enable", "disable", "verify"].contains(&command.as_str()) {
+        return Err("--approve-shutdown is valid only for an effect command".into());
     }
     if command == "inventory" {
         if config_path.is_some() || vm.is_some() {
@@ -121,9 +187,46 @@ fn execute(args: &[String]) -> Result<(), String> {
         );
         return Ok(());
     }
-    let text = std::fs::read_to_string(config_path.ok_or("--config FILE is required")?)
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(config_path.ok_or("--config FILE is required")?)
+        .map_err(|e| e.to_string())?
+        .take(runner::FRAME_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
         .map_err(|e| e.to_string())?;
+    if bytes.len() > runner::FRAME_LIMIT {
+        return Err("configuration input exceeds the 1 MiB limit".into());
+    }
+    let text = String::from_utf8(bytes).map_err(|_| "configuration must be UTF-8 TOML")?;
     let config = Configuration::parse(&text)?;
+    if command == "import" {
+        if vm.is_some() {
+            return Err("import requires approval of the complete bundle destination set".into());
+        }
+        let snapshot = hyper_gpu_support::configuration_store::read_committed();
+        let mut expected = std::collections::BTreeMap::new();
+        for (filename, source) in config.vm_documents()? {
+            let target = Configuration::parse_vm_file(&source, &filename)?
+                .targets
+                .remove(0);
+            let revision = snapshot.revision(&target.vm_id)?;
+            if revision != hyper_gpu_support::configuration_store::Revision::Missing {
+                return Err(format!(
+                    "import destination {filename} already exists; resolve the conflict explicitly"
+                ));
+            }
+            eprintln!("Import destination: {filename}");
+            expected.insert(filename, revision);
+        }
+        let result = hyper_gpu_support::worker::import(text, expected, |stage| {
+            eprintln!("{:?}: {}", stage.status, stage.stage)
+        })?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
+        );
+        return Ok(());
+    }
     if command == "install" {
         if vm.is_some() {
             return Err("install enrolls the complete configuration".into());
@@ -173,16 +276,63 @@ fn execute(args: &[String]) -> Result<(), String> {
         } else {
             Operation::Apply
         };
-        let credential = if !status && (t.enabled || command == "verify") {
-            Some(credentials::read(&t.vm_id)?.map_or_else(|| prompt(&t.vm_id), Ok)?)
+        let result = if !status {
+            let snapshot = hyper_gpu_support::configuration_store::read_committed();
+            let expected = snapshot.revision(&t.vm_id)?;
+            if command == "verify" {
+                let approved: hyper_gpu_support::workflow::VerificationPlan =
+                    serde_json::from_value(runner::submit(runner::request(
+                        Operation::VerifyPlan,
+                        Some(t.clone()),
+                        None,
+                    ))?)
+                    .map_err(|e| e.to_string())?;
+                if approved.observed.power == hyper_gpu_support::model::Power::Off
+                    && !shutdown_approved
+                {
+                    return Err("verification temporarily starts and stops this guest; supply --approve-shutdown after reviewing the lifecycle".into());
+                }
+                let credential =
+                    credentials::read(&t.vm_id)?.map_or_else(|| prompt(&t.vm_id), Ok)?;
+                serde_json::to_value(hyper_gpu_support::worker::verify(
+                    approved,
+                    shutdown_approved,
+                    credential,
+                    |stage| eprintln!("{:?}: {}", stage.status, stage.stage),
+                )?)
+                .map_err(|e| e.to_string())?
+            } else {
+                let approved: hyper_gpu_support::workflow::Plan = serde_json::from_value(
+                    runner::submit(runner::request(Operation::Plan, Some(t.clone()), None))?,
+                )
+                .map_err(|e| e.to_string())?;
+                if approved.preview.guest_downtime && !shutdown_approved {
+                    return Err("this plan requires graceful guest shutdown; review with plan, then supply --approve-shutdown".into());
+                }
+                let credential = if approved.preview.credentials_required {
+                    Some(credentials::read(&t.vm_id)?.map_or_else(|| prompt(&t.vm_id), Ok)?)
+                } else {
+                    None
+                };
+                serde_json::to_value(hyper_gpu_support::worker::apply(
+                    approved,
+                    expected,
+                    shutdown_approved,
+                    credential,
+                    |stage| eprintln!("{:?}: {}", stage.status, stage.stage),
+                )?)
+                .map_err(|e| e.to_string())?
+            }
         } else {
-            None
+            runner::submit(runner::request(operation, Some(t.clone()), None))?
         };
-        let result = runner::submit(runner::request(operation, Some(t.clone()), credential))?;
         println!(
             "{}",
             serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
         );
+        if result.get("finished").is_some_and(|v| v == false) {
+            return Err("verified operation awaits configuration publication; use save-only with its operation_id".into());
+        }
     }
     Ok(())
 }

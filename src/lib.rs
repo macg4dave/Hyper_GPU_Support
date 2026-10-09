@@ -1,4 +1,5 @@
 //! Runtime-configured GPU-PV management, independent of contributor laboratory tooling.
+pub mod configuration_store;
 #[cfg(windows)]
 pub mod credentials;
 #[cfg(windows)]
@@ -29,4 +30,6 @@ mod windows_pipe;
 pub mod windows_probe;
 #[cfg(windows)]
 mod windows_wmi;
+#[cfg(windows)]
+pub mod worker;
 pub mod workflow;

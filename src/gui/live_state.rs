@@ -14,6 +14,10 @@ pub(super) struct State {
     pub historical: bool,
     pub snapshot_source: Option<Vec<u8>>,
     pub rehearsal_plan: Option<Plan>,
+    pub verification_plan: Option<hyper_gpu_support::workflow::VerificationPlan>,
+    pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
+    pub recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
+    pub import_recovery: Option<hyper_gpu_support::configuration_store::ImportRecord>,
 }
 
 impl Default for State {
@@ -29,6 +33,10 @@ impl Default for State {
             historical: false,
             snapshot_source: None,
             rehearsal_plan: None,
+            verification_plan: None,
+            committed: Default::default(),
+            recovery: None,
+            import_recovery: None,
         }
     }
 }
@@ -63,12 +71,34 @@ impl State {
     }
 
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
+        if self.recovery.is_some() || self.import_recovery.is_some() {
+            return Err(
+                "A host-wide operation requires manual reconciliation or save-only retry.".into(),
+            );
+        }
+        self.committed.revision(id)?;
         let mut pair = self.target(id)?;
         // Pair eligibility must allow correcting a now-invalid old allocation or
         // disabling an unsupported preparation adapter. Draft validation is separate.
         pair.enabled = false;
         pair.vram = None;
         self.view.eligibility(&pair)
+    }
+    pub fn load_committed(
+        &mut self,
+        committed: hyper_gpu_support::configuration_store::StoreSnapshot,
+    ) -> Result<(), String> {
+        if let Some(draft) = &self.view.draft
+            && self.committed.revision(&draft.vm_id)? != committed.revision(&draft.vm_id)?
+        {
+            return Err(
+                "Committed configuration changed externally. Draft preserved; discard and Refresh."
+                    .into(),
+            );
+        }
+        self.view.configuration = committed.configuration();
+        self.committed = committed;
+        Ok(())
     }
 
     pub fn draft(
@@ -134,7 +164,7 @@ pub(super) fn review_text(plan: &Plan) -> String {
         "No allocation write planned; existing/provider values are not explicitly reset",
     );
     format!(
-        "VM: {}\nVM ID: {}\nGPU interface: {}\nDesired GPU support: {}\nVRAM draft (Minimum / Optimal / Maximum): {requested}\nPlanned allocation write: {planned}\n\n{}\n\nAllocation units: {}\n\nRead-only preview from the shared CLI planner. Execution is unavailable until per-operation elevation and protected configuration saving are connected. No VM or guest changes were performed.",
+        "VM: {}\nVM ID: {}\nGPU interface: {}\nDesired GPU support: {}\nVRAM draft (Minimum / Optimal / Maximum): {requested}\nPlanned allocation write: {planned}\n\n{}\n\nAllocation units: {}\n\nPreview from the shared CLI planner. No VM or guest changes have been performed during review.",
         plan.observed.name,
         plan.desired.vm_id,
         plan.desired.gpu_interface,

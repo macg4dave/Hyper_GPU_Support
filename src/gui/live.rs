@@ -24,6 +24,31 @@ pub(super) enum Source {
 }
 
 impl Source {
+    fn import_recovery(
+        &self,
+    ) -> Result<Option<hyper_gpu_support::configuration_store::ImportRecord>, String> {
+        match self {
+            #[cfg(windows)]
+            Self::Protected => hyper_gpu_support::runner::import_record(),
+            _ => Ok(None),
+        }
+    }
+    fn recovery(
+        &self,
+    ) -> Result<Option<hyper_gpu_support::configuration_store::SaveRecord>, String> {
+        match self {
+            #[cfg(windows)]
+            Self::Protected => hyper_gpu_support::runner::recovery_record(),
+            _ => Ok(None),
+        }
+    }
+    fn committed(&self) -> Option<hyper_gpu_support::configuration_store::StoreSnapshot> {
+        match self {
+            #[cfg(windows)]
+            Self::Protected => Some(hyper_gpu_support::configuration_store::read_committed()),
+            _ => None,
+        }
+    }
     fn historical(&self) -> bool {
         matches!(self, Self::Snapshot(..))
     }
@@ -176,7 +201,7 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(id) = state.view.selected.as_ref() else {
         ui.set_selected_id("".into());
         ui.set_eligible(false);
-        ui.set_recovery(false);
+        ui.set_recovery(state.recovery.is_some() || state.import_recovery.is_some());
         ui.set_dirty(false);
         ui.set_validation("".into());
         return;
@@ -189,7 +214,7 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
         ui.set_status("Unavailable".into());
         ui.set_observed("Selected VM was not returned by the latest inventory read".into());
         ui.set_verification("Unknown; the selected VM is unavailable".into());
-        ui.set_recovery(false);
+        ui.set_recovery(state.recovery.is_some() || state.import_recovery.is_some());
         ui.set_validation(
             "The draft VM is no longer present. Discard the draft and Refresh.".into(),
         );
@@ -204,7 +229,9 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     let enrolled = state.target(id).ok();
     ui.set_status(row.status);
     let recorded = inventory.recorded_state(id);
-    ui.set_recovery(recorded.recovery_required);
+    ui.set_recovery(
+        recorded.recovery_required || state.recovery.is_some() || state.import_recovery.is_some(),
+    );
     ui.set_observed(
         format!(
             "{}{}; {}{}; {}",
@@ -310,7 +337,16 @@ fn background<T: Send + 'static>(
         ui,
         "progress",
         title,
-        "Waiting for the shared backend. No VM or guest changes are requested by this action.",
+        if title == "Apply approved changes"
+            || title == "Verify approved graphics"
+            || title == "Reconcile observed outcome"
+        {
+            "Requesting Windows elevation before the approved operation. Actual stages will appear as the shared backend executes."
+        } else if title == "Retry configuration save only" {
+            "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
+        } else {
+            "Waiting for the shared backend. No VM or guest changes are requested by this action."
+        },
     );
     let weak = ui.as_weak();
     let worker_busy = busy.clone();
@@ -360,13 +396,45 @@ fn refresh(
         "Refreshing inventory",
         move || {
             let (inventory, warning, snapshot) = source.discover()?;
-            Ok((inventory, warning, source.configuration()?, snapshot))
+            Ok((
+                inventory,
+                warning,
+                source.configuration()?,
+                snapshot,
+                source.committed(),
+                source.recovery()?,
+                source.import_recovery()?,
+            ))
         },
         move |ui, result| {
             with_state(ui, &state, |state| {
                 match result {
-                    Ok((inventory, warning, configuration, snapshot)) => {
+                    Ok((
+                        inventory,
+                        warning,
+                        configuration,
+                        snapshot,
+                        committed,
+                        recovery,
+                        import_recovery,
+                    )) => {
+                        #[cfg(windows)]
+                        ui.set_execution_ready(
+                            !historical && hyper_gpu_support::worker::available().is_ok(),
+                        );
+                        state.recovery = recovery;
+                        state.import_recovery = import_recovery;
+                        if let Some(record) = &state.recovery {
+                            state.view.unsaved = record.publication_required
+                                && matches!(
+                                    record.phase,
+                                    hyper_gpu_support::configuration_store::SavePhase::Verified(_)
+                                );
+                            state.view.verified_unsaved =
+                                state.view.unsaved.then(|| record.target.clone());
+                        }
                         state.rehearsal_plan = None;
+                        state.verification_plan = None;
                         if state.view.draft.is_some() && snapshot != state.snapshot_source {
                             state.view.needs_readback = true;
                             present(ui, state, false);
@@ -376,6 +444,15 @@ fn refresh(
                         }
                         if let Some((configuration, text)) = configuration
                             && let Err(error) = state.load_configuration(configuration, text)
+                        {
+                            state.view.needs_readback = true;
+                            present(ui, state, false);
+                            ui.set_eligible(false);
+                            ui.set_validation(error.clone().into());
+                            return Err(error);
+                        }
+                        if let Some(committed) = committed
+                            && let Err(error) = state.load_committed(committed)
                         {
                             state.view.needs_readback = true;
                             present(ui, state, false);
@@ -431,7 +508,7 @@ fn refresh(
                         ui.set_system_summary(if historical {
                             "Historical inventory snapshot. Provider bounds, enrollment and records describe its capture, not current machine state. No runner, credentials, journal or audit writes are requested."
                         } else {
-                            "Actual Hyper-V inventory and protected enrollment read. Graphics results are historical; committed configuration is not loaded."
+                            "Actual Hyper-V inventory, protected enrollment and GUID-keyed committed configuration read. Graphics results remain historical."
                         }.into());
                         ui.set_notice(warning.unwrap_or_else(|| "Protected inventory loaded. Enrolled pairs support drafts and fresh plan previews. Apply and guest verification await worker integration.".into()).into());
                         Ok(())
@@ -479,17 +556,19 @@ fn review(
     busy: &Arc<AtomicBool>,
     source: &Source,
 ) -> Result<(), String> {
-    let (target, configuration_source, snapshot_source) = state
+    let (target, configuration_source, snapshot_source, committed_revision) = state
         .lock()
         .map_err(|_| "Live presentation state unavailable".to_owned())
         .and_then(|mut state| {
             state.rehearsal_plan = None;
-            draft_target(ui, &state).map(|target| {
-                (
+            draft_target(ui, &state).and_then(|target| {
+                let revision = state.committed.revision(&target.vm_id)?;
+                Ok((
                     target,
                     state.configuration_source.clone(),
                     state.snapshot_source.clone(),
-                )
+                    revision,
+                ))
             })
         })?;
     let expected = target.clone();
@@ -508,16 +587,23 @@ fn review(
             if source.configuration()?.map(|(_, text)| text) != configuration_source {
                 return Err("Candidate configuration changed externally. Draft preserved; discard and Refresh.".into());
             }
+            if let Some(committed) = source.committed()
+                && committed.revision(&target.vm_id)? != committed_revision
+            {
+                return Err("Committed configuration changed externally. Draft preserved; discard and Refresh.".into());
+            }
             source.plan(target, snapshot_source.as_deref())
         },
         move |ui, result| match result {
             Ok(plan) if plan.desired == expected && plan.observed.vm_id == expected.vm_id => {
-                if historical {
-                    with_state(ui, &review_state, |state| {
-                        state.rehearsal_plan = Some(plan.clone());
-                        Ok(())
-                    });
-                }
+                #[cfg(windows)]
+                ui.set_execution_ready(
+                    !historical && hyper_gpu_support::worker::available().is_ok(),
+                );
+                with_state(ui, &review_state, |state| {
+                    state.rehearsal_plan = Some(plan.clone());
+                    Ok(())
+                });
                 ui.set_needs_shutdown(plan.preview.guest_downtime);
                 dialog(
                     ui,
@@ -525,7 +611,7 @@ fn review(
                     if historical {
                         "Review historical draft · rehearsal only"
                     } else {
-                        "Review your draft · execution unavailable"
+                        "Review your draft"
                     },
                     &if historical {
                         format!(
@@ -533,7 +619,10 @@ fn review(
                             review_text(&plan)
                         )
                     } else {
-                        review_text(&plan)
+                        format!(
+                            "{}\n\nAfter confirmation Windows elevation is requested before any guest effect. Configuration is published only after verified readback.",
+                            review_text(&plan)
+                        )
                     },
                 );
             }
@@ -553,6 +642,392 @@ fn review(
             ),
         },
     )
+}
+
+#[cfg(windows)]
+fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support::worker::Progress) {
+    move |progress| {
+        let _ = weak.upgrade_in_event_loop(move |ui| {
+            let mut rows: Vec<_> = ui.get_stages().iter().collect();
+            if rows.len() < 256 {
+                rows.push(format!("{} · {:?}", progress.stage, progress.status).into());
+            }
+            ui.set_stages(model(rows));
+        });
+    }
+}
+#[cfg(windows)]
+fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Result<(), String> {
+    if !ui.get_execution_ready() {
+        return Err("The reviewed protected worker is not available.".into());
+    }
+    let (approved, revision) = {
+        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let approved = state
+            .rehearsal_plan
+            .clone()
+            .ok_or("Review the current draft before Apply")?;
+        if draft_target(ui, &state)? != approved.desired {
+            return Err("The draft changed after review; review it again.".into());
+        }
+        let revision = state.committed.revision(&approved.desired.vm_id)?;
+        (approved, revision)
+    };
+    let selected = approved.desired.clone();
+    let finished_state = state.clone();
+    let progress = progress_to_ui(ui.as_weak());
+    background(
+        ui,
+        busy,
+        "Apply approved changes",
+        move || {
+            let credential = if approved.preview.credentials_required {
+                Some(
+                    hyper_gpu_support::credentials::read(&approved.desired.vm_id)?.map_or_else(
+                        || {
+                            hyper_gpu_support::credentials::prompt(
+                                &approved.desired.vm_id,
+                                windows::Win32::Foundation::HWND::default(),
+                            )
+                        },
+                        Ok,
+                    )?,
+                )
+            } else {
+                None
+            };
+            let shutdown = approved.preview.guest_downtime;
+            hyper_gpu_support::worker::apply(approved, revision, shutdown, credential, progress)
+        },
+        move |ui, result| match result {
+            Ok(outcome) => {
+                with_state(ui, &finished_state, |state| {
+                    state.view.applied(&selected)?;
+                    if outcome.saved {
+                        state.view.published(&selected)?;
+                    }
+                    state.committed = hyper_gpu_support::configuration_store::read_committed();
+                    state.recovery = hyper_gpu_support::runner::recovery_record()?;
+                    state.rehearsal_plan = None;
+                    ui.set_dirty(false);
+                    present(ui, state, false);
+                    Ok(())
+                });
+                if outcome.saved {
+                    dialog(
+                        ui,
+                        "info",
+                        "Operation verified and configuration saved",
+                        "Independent GPU readback and protected configuration publication completed. Refresh shows current observations and committed intent.",
+                    );
+                } else {
+                    dialog(
+                        ui,
+                        "save",
+                        "Operation verified; configuration not saved",
+                        &format!(
+                            "{}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply.",
+                            outcome.save_error.unwrap_or_default()
+                        ),
+                    );
+                }
+            }
+            Err(error) => {
+                with_state(ui, &finished_state, |state| {
+                    state.recovery = hyper_gpu_support::runner::recovery_record()?;
+                    state.view.needs_readback = true;
+                    state.rehearsal_plan = None;
+                    present(ui, state, false);
+                    Ok(())
+                });
+                dialog(
+                    ui,
+                    "error",
+                    "Operation did not complete",
+                    &format!(
+                        "{error}\nYour draft is retained. Inspect recovery and refresh before retrying an uncertain operation."
+                    ),
+                );
+            }
+        },
+    )
+}
+#[cfg(windows)]
+fn save_only_live(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+) -> Result<(), String> {
+    let record = state
+        .lock()
+        .map_err(|_| "Presentation state unavailable")?
+        .recovery
+        .clone()
+        .ok_or("No protected save-only record is loaded")?;
+    let finished_state = state.clone();
+    let target = record.target.clone();
+    let progress = progress_to_ui(ui.as_weak());
+    background(
+        ui,
+        busy,
+        "Retry configuration save only",
+        move || hyper_gpu_support::worker::save_only(record.operation_id, progress),
+        move |ui, result| match result {
+            Ok(outcome) if outcome.saved => {
+                with_state(ui, &finished_state, |state| {
+                    state.view.published(&target)?;
+                    state.committed = hyper_gpu_support::configuration_store::read_committed();
+                    state.recovery = hyper_gpu_support::runner::recovery_record()?;
+                    present(ui, state, false);
+                    Ok(())
+                });
+                dialog(
+                    ui,
+                    "info",
+                    "Configuration saved",
+                    "Protected publication passed readback. No GPU operation was repeated.",
+                );
+            }
+            Ok(_) => dialog(
+                ui,
+                "error",
+                "Configuration still unsaved",
+                "The protected receipt remains available for inspection. No GPU operation was repeated.",
+            ),
+            Err(error) => dialog(
+                ui,
+                "error",
+                "Save-only retry blocked",
+                &format!(
+                    "{error}\nThe protected recovery record remains; no GPU operation was repeated."
+                ),
+            ),
+        },
+    )
+}
+#[cfg(windows)]
+fn review_verification(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+) -> Result<(), String> {
+    let target = {
+        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        if state.view.draft.is_some() {
+            return Err(
+                "Discard or Apply the draft before reviewing a separate graphics check.".into(),
+            );
+        }
+        state.editor_eligibility(ui.get_selected_id().as_str())?;
+        state.target(ui.get_selected_id().as_str())?
+    };
+    let review_state = state.clone();
+    background(
+        ui,
+        busy,
+        "Reviewing graphics verification",
+        move || {
+            let value = hyper_gpu_support::runner::submit(hyper_gpu_support::runner::request(
+                hyper_gpu_support::runner::Operation::VerifyPlan,
+                Some(target),
+                None,
+            ))?;
+            serde_json::from_value::<hyper_gpu_support::workflow::VerificationPlan>(value)
+                .map_err(|e| e.to_string())
+        },
+        move |ui, result| match result {
+            Ok(plan) => {
+                ui.set_needs_shutdown(plan.observed.power == hyper_gpu_support::model::Power::Off);
+                let body = format!(
+                    "VM: {}\nVM ID: {}\nGPU: {}\nDriver: {}\n\nCheck guest device health and hardware rendering using guest administrator credentials. {}\nGPU assignment, resources, preparation and committed configuration are not changed by this check. The worker independently rechecks the reviewed state before effects.",
+                    plan.observed.name,
+                    plan.target.vm_id,
+                    plan.target.gpu_interface,
+                    plan.gpu.driver_version,
+                    if plan.observed.power == hyper_gpu_support::model::Power::Off {
+                        "Temporarily start the stopped guest, then gracefully restore it to stopped."
+                    } else {
+                        "The guest remains running."
+                    }
+                );
+                with_state(ui, &review_state, |state| {
+                    state.verification_plan = Some(plan);
+                    Ok(())
+                });
+                dialog(ui, "verify-review", "Review graphics verification", &body);
+            }
+            Err(error) => dialog(ui, "error", "Graphics verification blocked", &error),
+        },
+    )
+}
+#[cfg(windows)]
+fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Result<(), String> {
+    let approved = state
+        .lock()
+        .map_err(|_| "Presentation state unavailable")?
+        .verification_plan
+        .clone()
+        .ok_or("Review verification first")?;
+    let shutdown = approved.observed.power == hyper_gpu_support::model::Power::Off;
+    let progress = progress_to_ui(ui.as_weak());
+    let finished_state = state.clone();
+    background(
+        ui,
+        busy,
+        "Verify approved graphics",
+        move || {
+            let credential = hyper_gpu_support::credentials::read(&approved.target.vm_id)?
+                .map_or_else(
+                    || {
+                        hyper_gpu_support::credentials::prompt(
+                            &approved.target.vm_id,
+                            windows::Win32::Foundation::HWND::default(),
+                        )
+                    },
+                    Ok,
+                )?;
+            hyper_gpu_support::worker::verify(approved, shutdown, credential, progress)
+        },
+        move |ui, result| {
+            with_state(ui, &finished_state, |state| {
+                state.verification_plan = None;
+                state.view.needs_readback = true;
+                state.recovery = hyper_gpu_support::runner::recovery_record()?;
+                present(ui, state, false);
+                Ok(())
+            });
+            match result {
+                Ok(outcome) if outcome.finished => dialog(
+                    ui,
+                    "info",
+                    "Graphics verification passed",
+                    "Fresh guest device health and hardware rendering passed. Disclosed guest power was restored. Refresh to read the new protected verification record.",
+                ),
+                Ok(_) => dialog(
+                    ui,
+                    "error",
+                    "Graphics outcome unresolved",
+                    "Inspect the retained recovery record and Refresh.",
+                ),
+                Err(error) => dialog(
+                    ui,
+                    "error",
+                    "Graphics verification did not complete",
+                    &format!("{error}\nRefresh and inspect recovery before another operation."),
+                ),
+            }
+        },
+    )
+}
+#[cfg(windows)]
+fn reconcile_live(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+) -> Result<(), String> {
+    let record = state
+        .lock()
+        .map_err(|_| "Presentation state unavailable")?
+        .recovery
+        .clone()
+        .ok_or("No reviewed operation recovery is loaded")?;
+    let progress = progress_to_ui(ui.as_weak());
+    let finished_state = state.clone();
+    let target = record.target.clone();
+    let publication = record.publication_required;
+    background(
+        ui,
+        busy,
+        "Reconcile observed outcome",
+        move || {
+            let graphics = record.target.enabled || !record.publication_required;
+            let credential = if graphics {
+                Some(
+                    hyper_gpu_support::credentials::read(&record.target.vm_id)?.map_or_else(
+                        || {
+                            hyper_gpu_support::credentials::prompt(
+                                &record.target.vm_id,
+                                windows::Win32::Foundation::HWND::default(),
+                            )
+                        },
+                        Ok,
+                    )?,
+                )
+            } else {
+                None
+            };
+            hyper_gpu_support::worker::reconcile(
+                record.operation_id,
+                graphics,
+                credential,
+                progress,
+            )
+        },
+        move |ui, result| {
+            with_state(ui, &finished_state, |state| {
+                if let Ok(outcome) = &result
+                    && publication
+                    && outcome.operation.is_some()
+                {
+                    state.view.applied(&target)?;
+                    if outcome.saved {
+                        state.view.published(&target)?;
+                    }
+                }
+                state.view.needs_readback = true;
+                state.recovery = hyper_gpu_support::runner::recovery_record()?;
+                state.committed = hyper_gpu_support::configuration_store::read_committed();
+                ui.set_dirty(state.view.draft.is_some());
+                present(ui, state, false);
+                Ok(())
+            });
+            match result {
+                Ok(outcome) if outcome.finished => dialog(
+                    ui,
+                    "info",
+                    "Recorded outcome reconciled",
+                    "Fresh checks established the reviewed outcome and any required configuration publication. No GPU assignment, allocation or preparation was repeated. Refresh before another operation.",
+                ),
+                Ok(outcome) => dialog(
+                    ui,
+                    "save",
+                    "Outcome verified; configuration unsaved",
+                    &format!(
+                        "{}\nRetry configuration saving only.",
+                        outcome.save_error.unwrap_or_default()
+                    ),
+                ),
+                Err(error) => dialog(
+                    ui,
+                    "error",
+                    "Reconciliation remains blocked",
+                    &format!(
+                        "{error}\nThe durable hold remains. Partial GPU state is not automatically repaired or replayed."
+                    ),
+                ),
+            }
+        },
+    )
+}
+#[cfg(not(windows))]
+fn review_verification(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
+    Err("Graphics verification requires Windows".into())
+}
+#[cfg(not(windows))]
+fn verify_live(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
+    Err("Graphics verification requires Windows".into())
+}
+#[cfg(not(windows))]
+fn reconcile_live(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
+    Err("Reconciliation requires Windows".into())
+}
+#[cfg(not(windows))]
+fn apply_live(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
+    Err("GPU operations require Windows".into())
+}
+#[cfg(not(windows))]
+fn save_only_live(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
+    Err("Protected publication requires Windows".into())
 }
 
 pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::error::Error>> {
@@ -620,7 +1095,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             "review" => review(&ui, &action_state, &action_busy, &action_source),
             "confirm" => {
                 if !action_source.historical() {
-                    Err("Live execution is unavailable until the restricted worker and protected saving are connected.".into())
+                    apply_live(&ui, &action_state, &action_busy)
                 } else {
                     let inputs = action_state.lock().map_err(|_| "Presentation state unavailable".to_owned())
                         .and_then(|state| {
@@ -647,6 +1122,10 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     })
                 }
             }
+            "save-only" if !action_source.historical() => save_only_live(&ui, &action_state, &action_busy),
+            "verify" if !action_source.historical() => review_verification(&ui, &action_state, &action_busy),
+            "confirm-verify" if !action_source.historical() => verify_live(&ui, &action_state, &action_busy),
+            "reconcile" if !action_source.historical() => reconcile_live(&ui, &action_state, &action_busy),
             "reapply" => {
                 // Preserve allocation edits while deliberately previewing enabled support.
                 ui.set_gpu_enabled(true);
@@ -685,6 +1164,27 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             }
             "diagnostics" | "recovery" => {
                 with_state(&ui, &action_state, |state| {
+                    if action == "recovery" && let Some(record) = &state.import_recovery {
+                        dialog(&ui, "info", "Configuration import requires reconciliation", &format!("Import operation: {}\n{} destinations, {} recorded as published. Resolve this explicit CLI import with import-reconcile --operation {}. Changed files block continuation; import never changes enrollment or GPU state.", record.operation_id, record.documents.len(), record.documents.values().filter(|item| item.published).count(), record.operation_id));
+                        return Ok(());
+                    }
+                    if action == "recovery" && !action_source.historical()
+                        && let Some(record) = &state.recovery {
+                        ui.set_needs_shutdown(record.target.enabled || !record.publication_required);
+                        match record.phase {
+                            hyper_gpu_support::configuration_store::SavePhase::Verified(_) | hyper_gpu_support::configuration_store::SavePhase::Published(_) => {
+                                if record.publication_required {
+                                    dialog(&ui, "save", "Verified operation awaits configuration publication", "GPU effects already passed independent readback. Retry saves only the bound configuration; it will not repeat GPU modification. Changed configuration, driver, payload or effective state blocks this retry.");
+                                } else {
+                                    dialog(&ui, "recovery", "Reconcile interrupted graphics check", "Check the recorded pair and fresh graphics outcome; restore only the originally approved guest power if safe. No GPU assignment, allocation, preparation or configuration publication is performed.");
+                                }
+                            }
+                            hyper_gpu_support::configuration_store::SavePhase::Admitted | hyper_gpu_support::configuration_store::SavePhase::EffectsStarted => {
+                                dialog(&ui, "recovery", "Review explicit reconciliation", &format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\n\nIndependently check whether the reviewed outcome was achieved. Partial assignment/settings or changed driver/payload remain blocked. An enabled pair requires fresh guest health and hardware rendering; the stopped guest may be temporarily started, then the originally approved power restored only if safe. GPU assignment, allocation, settings and preparation are never replayed. Verified intent can then be saved; conflicts retain a save-only hold.", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power));
+                            }
+                        }
+                        return Ok(());
+                    }
                     let id = ui.get_selected_id(); let inventory = state.view.inventory.as_ref().ok_or("Refresh inventory first.")?;
                     let body = serde_json::to_string_pretty(&serde_json::json!({"observed": state.view.vm(&id), "managed": inventory.managed.get(id.as_str()).and_then(Option::as_ref), "historical": state.view.needs_readback, "enrollment": state.target(&id).ok()})).map_err(|e| e.to_string())?;
                     let provenance = if action_source.historical() {

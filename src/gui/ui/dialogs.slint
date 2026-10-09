@@ -5,6 +5,7 @@ import { TechnicalOutput } from "technical-output.slint";
 export component DemoDialog inherits Rectangle {
     in property <bool> mock-mode: true;
     in property <bool> snapshot-mode: false;
+    in property <bool> execution-ready: false;
     in property <string> kind;
     in property <string> title;
     in property <string> body;
@@ -13,6 +14,7 @@ export component DemoDialog inherits Rectangle {
     in property <bool> needs-shutdown;
     private property <bool> consent: false;
     private property <bool> technical: false;
+    changed body => { root.consent = false; }
     init => { detail-button.focus(); }
     callback action(string);
     background: #00000088;
@@ -26,13 +28,15 @@ export component DemoDialog inherits Rectangle {
                 padding: 24px; spacing: 16px;
                 Label { text: root.snapshot-mode ? "HISTORICAL REHEARSAL · NO WRITES" : root.mock-mode ? "MOCK · NO REAL OPERATIONS" : "LIVE APPLICATION"; font-size: 11px; font-weight: 600; color: Theme.muted; }
                 Heading { text: root.title; }
-                ScrollView {
+                body-scroll := ScrollView {
                     vertical-stretch: 1;
                     horizontal-scrollbar-policy: always-off;
+                    content-width: self.visible-width;
                     VerticalLayout { spacing: 14px; alignment: start;
-                        Hint { text: root.body; font-size: 14px; }
+                        width: body-scroll.visible-width;
+                        Hint { text: root.body; font-size: 14px; min-width: 0px; horizontal-stretch: 1; }
                         for stage in root.stages : Label { text: stage; font-size: 13px; }
-                        if root.kind == "review" && root.needs-shutdown && (root.mock-mode || root.snapshot-mode) : CheckBox { text: "Demonstrate graceful guest shutdown & restore"; checked <=> root.consent; }
+                        if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox { text: root.mock-mode || root.snapshot-mode ? "Demonstrate graceful guest shutdown & restore" : "Approve graceful guest shutdown and safe restoration"; checked <=> root.consent; }
                         if root.running : ProgressIndicator { indeterminate: true; }
                     }
                 }
@@ -49,10 +53,11 @@ export component DemoDialog inherits Rectangle {
                     if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
                     if root.kind == "forget" : Button { text: "Forget sample pairing"; primary: true; clicked => { root.action("confirm-forget"); } }
                     if root.kind == "review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
-                    if root.kind == "review" : Button { text: root.snapshot-mode ? "Rehearse recorded stages" : root.mock-mode ? "Confirm demonstration" : "Apply unavailable"; primary: true; enabled: (root.mock-mode || root.snapshot-mode) && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
-                    if root.kind == "save" : Button { text: "Demonstrate save-only retry"; primary: true; clicked => { root.action("save-only"); } }
-                    if root.kind == "recovery" : Button { text: "Inspect mock reconciliation"; primary: true; clicked => { root.action("reconcile"); } }
-                    if root.kind == "more" : Button { text: "Verify Graphics"; enabled: root.mock-mode; clicked => { root.action("verify"); } }
+                    if root.kind == "review" : Button { text: root.snapshot-mode ? "Rehearse recorded stages" : root.mock-mode ? "Confirm demonstration" : root.execution-ready ? "Apply approved changes" : "Apply unavailable"; primary: true; enabled: (root.mock-mode || root.snapshot-mode || root.execution-ready) && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
+                    if root.kind == "verify-review" : Button { text: "Verify approved graphics"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
+                    if root.kind == "save" : Button { text: root.mock-mode ? "Demonstrate save-only retry" : "Retry configuration save only"; primary: true; enabled: root.mock-mode || root.execution-ready; clicked => { root.action("save-only"); } }
+                    if root.kind == "recovery" : Button { text: root.mock-mode ? "Inspect mock reconciliation" : "Reconcile observed outcome"; primary: true; enabled: (root.mock-mode || root.execution-ready) && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
+                    if root.kind == "more" : Button { text: "Verify Graphics"; enabled: root.mock-mode || root.execution-ready; clicked => { root.action("verify"); } }
                     if root.kind == "more" : Button { text: "Reapply / Update"; clicked => { root.action("reapply"); } }
                     if root.kind == "more" : Button { text: "Forget pairing"; enabled: root.mock-mode; clicked => { root.action("forget"); } }
                     close-button := Button { visible: root.kind != "review" && root.kind != "switch" && root.kind != "exit"; text: root.running ? "Operation in progress" : "Close"; enabled: !root.running; clicked => { root.action("close"); } }
