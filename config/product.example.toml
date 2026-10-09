@@ -7,7 +7,8 @@ vm_id = "11111111-1111-1111-1111-111111111111"
 gpu_interface = '\\?\PCI#VEN_10DE&DEV_2D05#INSTANCE#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
 enabled = true
 
-# Later/advanced allocation uses actual provider-defined units. Omit for defaults.
+# Advanced allocation uses actual provider-defined units. Omit for no explicit
+# allocation write; existing/provider values are not reset.
 # [targets.vram]
 # minimum = 0
 # optimal = 0

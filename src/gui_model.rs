@@ -92,6 +92,26 @@ pub struct View {
     pub needs_readback: bool,
 }
 impl View {
+    /// Load saved intent through the production per-VM parser, separately from
+    /// observations and drafts. Source text is retained by the caller for conflicts.
+    /// Does not discover, enroll, write, or create a draft.
+    pub fn from_vm_file(path: &Path) -> Result<(Self, String), String> {
+        let (configuration, source) = Configuration::read_vm_file(path)?;
+        Ok((Self::new(configuration), source))
+    }
+
+    /// Display saved intent without deriving it from attachment, journals or a draft.
+    pub fn saved_desired_text(&self, id: &str) -> String {
+        self.configuration.targets.iter().find(|target| target.vm_id == id)
+            .map_or_else(|| "No saved desired configuration loaded".into(), |target| {
+                let allocation = target.vram.as_ref().map_or_else(
+                    || "No explicit VRAM request; existing/provider values are not reset".into(),
+                    |value| format!("VRAM provider integers: {} / {} / {}", value.minimum, value.optimal, value.maximum),
+                );
+                format!("GPU {}; {}; {allocation}", if target.enabled { "enabled" } else { "disabled" }, target.gpu_interface)
+            })
+    }
+
     /// Start without any observed state or staged effects.
     pub fn new(configuration: Configuration) -> Self {
         Self {

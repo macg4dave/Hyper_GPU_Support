@@ -15,12 +15,15 @@
 **v1.0 priority:** Deliver the approved completed Slint prototype as the main
 Windows application, using existing Rust backend functionality. GUI-001 is completed
 history. APP-001's promotion/GUI-CLI dispatch is implemented; protected worker and
-console packaging remain open. Next bind existing controls under GUI-002, starting
-with read-only cards/Refresh/System; no redesign or restored search/filter/Activity.
+console packaging remain open. **OPEN-01's format/import contract is resolved;
+CFG-001's storage implementation remains open.** Use the shared per-VM schema,
+samples and saved/observed/draft split in [CONFIGURATION](CONFIGURATION.md)
+when binding existing controls; no redesign or restored search/filter/Activity.
 
 Preserve M1/M2/CORE-006 evidence and BLK-005's closed investigation. Normal startup
 uses actual discovery and blocks unconnected actions; `--mock-gui` selects rehearsal.
-Next reuse real read-only data/plans in mock mode without persistent writes.
+Next reuse the selected production parser/model for read-only
+configuration and plan rehearsal, without persistent writes.
 No new hardware qualification is claimed.
 The CLI/backend keep functionality absent from the interface. For this promotion
 task, live Hyper-V/GPU/driver/VM-power operations require explicit permission.
@@ -61,7 +64,7 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 | [CORE-021](#core-021) | M2/M3 | P1 | **in progress** | Integration/doc residuals; parser/storage CFG-001, enrollment SEC-001, UI GUI-002 |
 | [CORE-006](#core-006) | M2 | P1 | **completed (reported)** | Reuse shared plan/apply preview; extend only for new operations |
 | [APP-001](#app-001) | M3.2 | P0 | **in progress — GUI/CLI promotion implemented** | Existing prototype moved; console packaging and restricted worker still pending |
-| [CFG-001](#cfg-001) | M3.3 | P0 | **planned — new** | PLAN-001, shared model audit; worker write integration depends on SEC-001 |
+| [CFG-001](#cfg-001) | M3.3 | P0 | **in progress — format selected** | OPEN-01 format/import contract resolved; protected store/write integration depends on SEC-001 |
 | [GPU-010](#gpu-010) | M3.4 | P0 | **planned — promoted from M4** | PLAN-001; provider/API validation and selected-GPU capability model |
 | [SEC-001](#sec-001) | M3.5 | P0 | **planned — extension** | APP-001; adapt existing protected runner/pipe/lock, no replacement stack |
 | [CORE-028](#core-028) | M3.6 | P0 | **planned — new** | CORE-006, CFG-001, GPU-010, SEC-001; real progress/manual recovery |
@@ -236,6 +239,39 @@ distribution license/advisory review remains part of CORE-017, not a claimed pas
 
 **Per-VM machine-wide configuration and safe saving.** Replace/extend schema 2 as justified by the repository audit; use stable Hyper-V VM GUID files under `%ProgramData%\HyperGpuSupport\config\vms\` (format/version **OPEN-01**). Keep **observed**, **committed desired** and **one in-memory draft** separate. Current appearance/window/split preferences remain session-only; persistence absent from the approved prototype is retired GUI scope. Enrollment/operational recovery records remain protected separately, with appropriate installer-created ACLs.
 
+**9 October format investigation / OPEN-01 proposal:** recommend existing TOML
+schema 2, exactly one `[[targets]]` entry per canonical `<vm-guid>.toml`; retain
+`Configuration` / `Target` / `Allocation`, strict parsing and existing CLI input
+compatibility. Required schema/GUID/GPU interface/enabled; optional complete raw
+VRAM triple. Omission means no allocation write, not reset. Full field/read/state
+contract, storage audit and migration gaps are in [CONFIGURATION](CONFIGURATION.md).
+Compute/encode/decode and slider semantics remain GPU-010 gaps; do not invent
+sample support. A later expanded-resource schema requires versioned import.
+
+Added three synthetic production-format files under `config/samples/vms/`, bounded
+read-only `Configuration::read_vm_file/parse_vm_file` with filename/identity binding,
+and `View::from_vm_file/saved_desired_text` as the GUI loading/display boundary.
+Added fixture/identity/parser/separation test source; **no builds, tests or GUI
+launches run**. This is an unvalidated proposal/read boundary, not trusted-store
+deployment. Superseded by the OPEN-01 result below; CFG-001 is not complete.
+
+Subsequent GUI-002 integration must stop
+substituting enrollment for saved configuration, replace the old mock `Saved`
+intent with `Target`, retain raw invalid edits separately, and keep fixture reads
+explicit/read-only. Directory aggregation, ACL/reparse trust, protected TOML
+commits, revision conflicts, explicit bundle import and durable save-only recovery
+remain on CFG-001/SEC-001/CORE-028; no migration or live configuration write added.
+
+**OPEN-01 result, 9 October:** selected the schema-2 one-target/GUID-file contract
+under DEC-032. Implemented `Configuration::vm_documents` to validate and prepare
+canonical per-VM TOML from existing bundles, preserving typed intent and leaving
+the source untouched. Added round-trip/duplicate/invalid/version test cases (unrun).
+Defined explicit conflict handling, protected per-file commit and partial-import
+recovery requirements; no automatic migration or import CLI/publisher exists.
+OPEN-01 is resolved as a format/identity/import decision. Reader/serializer code
+is untested; protected deployment and CFG-001 acceptance remain open. No builds,
+tests, GUI launch, ProgramData write or VM operation performed.
+
 **Exit:** no saving while merely editing; after authorised Apply and verified readback, **only the elevated worker** atomically commits the VM configuration. Detect externally modified files/VM state and **block with refresh**, never auto-merge. Verified GPU success followed by save failure offers **save-only retry**, never repeat Apply. Test wrong GUID/name collision, torn writes, ACL/reparse issues, external edits and recovery. Protected write integration requires SEC-001.
 
 ### GPU-010
@@ -393,7 +429,7 @@ independent GUI requirement register. DEC-030 supersedes absent-interface scope.
 
 | ID | Verification needed |
 |---|---|
-| OPEN-01 | Per-VM config format/schema version and safe migration of existing real files |
+| OPEN-01 | Resolved: schema-2 one-target/GUID-file and explicit import contract ([contract](CONFIGURATION.md#open-01-per-vm-format), DEC-032). Code untested; protected publication remains CFG-001/SEC-001; resource schema extension remains GPU-010 |
 | OPEN-03 / OPEN-05 | Cross-process lock/worker handover; Named Pipe ACL, peer authentication, plan binding and launch semantics |
 | OPEN-04 / OPEN-10 | Actual Windows 11 GPU-P provider APIs, GPU selection, 12 field units/bounds/unset/readback/enforcement |
 | OPEN-06 | Slint renderer and practical software fallback for unhealthy GPU drivers |

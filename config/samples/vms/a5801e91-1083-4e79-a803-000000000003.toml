@@ -1,0 +1,13 @@
+# Development fixture: synthetic identities, actual production schema 2.
+# Values are illustrative raw provider integers, not measured limits or GiB.
+schema = 2
+
+[[targets]]
+vm_id = "a5801e91-1083-4e79-a803-000000000003"
+gpu_interface = '\\?\PCI#VEN_10DE&DEV_2D05#SAMPLE_GPU_B#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
+enabled = true
+
+[targets.vram]
+minimum = 268435456
+optimal = 536870912
+maximum = 1073741824

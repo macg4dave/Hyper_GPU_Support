@@ -472,3 +472,30 @@ live mode retains that behavior. Strict no-write mock reads cannot use that rout
 qualify authorized native reads or existing snapshots without disabling audit or
 creating a parallel privileged backend. No live mutation binding or privilege
 change is claimed by this first read-only presentation slice.
+
+## DEC-032
+
+**Selected for implementation | 2026-10-09 | Reuse production TOML for per-VM intent (OPEN-01)**
+
+Keep existing schema 2 and `Configuration` / `Target` / `Allocation`; a per-VM
+document contains exactly one target and is keyed by canonical Hyper-V GUID
+filename. This preserves current CLI parsing/serialization and avoids a second
+flat or mock-specific schema. Optional VRAM omission requests no allocation write.
+Saved intent, observed state, draft, protected enrollment and recovery stay separate.
+
+Use the same parser for synthetic development files and eventual production
+storage. Added bounded single-file read and GUI-model loading/display entry points
+do not establish protected ownership or authorize effects. No automatic migration,
+mock writes or new credential store. GUI-002 controller integration must follow this
+format; its old mock `Saved` intent and enrollment-as-config are migration
+gaps, not the selected architecture.
+
+Compute/encode/decode remain absent/strictly rejected until GPU-010 extends the
+shared model and validates capabilities; an expanded schema needs explicit import.
+Protected per-VM publication and durable save-only recovery remain CFG-001/SEC-001/
+CORE-028 work. `Configuration::vm_documents` now provides deterministic read-only
+schema-2 bundle splitting with the same production serializer. Protected import
+requires explicit destination conflict resolution, trusted per-file publication,
+partial-import recovery and preservation of the legacy source; no import command
+or publisher is added. See [format/import contract and audit](CONFIGURATION.md). No builds, tests,
+GUI launch or deployment performed during this investigation.

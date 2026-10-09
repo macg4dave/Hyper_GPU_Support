@@ -20,7 +20,7 @@ pub struct Target {
     pub gpu_interface: String,
     /// Whether to enable GPU-PV.
     pub enabled: bool,
-    /// Optional provider-defined VRAM triple; absent preserves provider defaults.
+    /// Optional provider-defined VRAM triple; absent requests no allocation write.
     #[serde(default)]
     pub vram: Option<Allocation>,
 }
@@ -49,6 +49,66 @@ impl Allocation {
     }
 }
 impl Configuration {
+    /// Prepare canonical per-VM documents for an explicit schema-2 import.
+    /// Reuses the production serializer and validates programmatically supplied
+    /// intent. This is a read-only transformation: no publication, enrollment or
+    /// VM operation occurs. Destination conflict/trust checks belong to the writer.
+    pub fn vm_documents(&self) -> Result<std::collections::BTreeMap<String, String>, String> {
+        self.validate()?;
+        self.targets
+            .iter()
+            .map(|target| {
+                let mut target = target.clone();
+                target.vm_id.make_ascii_lowercase();
+                let filename = format!("{}.toml", target.vm_id);
+                let single = Self {
+                    schema: self.schema,
+                    targets: vec![target],
+                };
+                let text = toml::to_string_pretty(&single)
+                    .map_err(|error| format!("serialize VM configuration: {error}"))?;
+                Ok((filename, text))
+            })
+            .collect()
+    }
+
+    /// Parse a GUID-keyed per-VM file with the existing production schema-2 parser.
+    /// The filename is canonical lowercase `<vm-guid>.toml`; it must match the
+    /// sole target. This validates intent syntax, not enrollment or provider state.
+    pub fn parse_vm_file(text: &str, filename: &str) -> Result<Self, String> {
+        let value = Self::parse(text)?;
+        if value.targets.len() != 1 {
+            return Err("a per-VM configuration file requires exactly one target".into());
+        }
+        let expected = format!("{}.toml", value.targets[0].vm_id);
+        if filename != expected {
+            return Err("configuration filename must match the canonical target VM GUID".into());
+        }
+        Ok(value)
+    }
+
+    /// Read a candidate per-VM file without writes or Windows/backend queries.
+    /// Returns exact source text for external-edit conflict detection. This reader
+    /// does not establish trusted ownership/ACLs; protected-store admission remains
+    /// a separate worker responsibility. Input is bounded to 64 KiB UTF-8 TOML.
+    pub fn read_vm_file(path: &std::path::Path) -> Result<(Self, String), String> {
+        use std::io::Read;
+        const MAX_BYTES: u64 = 64 * 1024;
+        let filename = path.file_name().and_then(|name| name.to_str())
+            .ok_or("configuration requires a UTF-8 GUID filename")?;
+        let file = std::fs::File::open(path)
+            .map_err(|error| format!("read VM configuration: {error}"))?;
+        let mut bytes = Vec::new();
+        file.take(MAX_BYTES + 1).read_to_end(&mut bytes)
+            .map_err(|error| format!("read VM configuration: {error}"))?;
+        if bytes.len() as u64 > MAX_BYTES {
+            return Err("per-VM configuration exceeds the 64 KiB input limit".into());
+        }
+        let text = String::from_utf8(bytes)
+            .map_err(|_| "VM configuration must be UTF-8 TOML".to_owned())?;
+        Ok((Self::parse_vm_file(&text, filename)?, text))
+    }
+
     /// Parse and validate exactly once at the application boundary.
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut value: Self = toml::from_str(text).map_err(|e| format!("configuration: {e}"))?;

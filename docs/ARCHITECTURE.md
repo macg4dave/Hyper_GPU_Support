@@ -202,6 +202,17 @@ IPC/locking/journaling stack.
 
 ## Native Windows boundaries
 
+CFG-001 / OPEN-01's [selected configuration contract](CONFIGURATION.md) retains schema-2
+TOML with one target per GUID-keyed file. `Configuration::read_vm_file` is a
+read-only syntax/filename boundary; `View::from_vm_file` keeps saved intent
+separate from observations/drafts. Neither authenticates protected storage or
+grants enrollment. Synthetic files use the production parser, not a mock schema.
+Live `State::refresh` still substitutes enrollment for configuration and the old
+mock `Saved` representation remains transitional; GUI-002 must replace those
+when binding saved configuration. `Configuration::vm_documents` prepares an
+explicit schema-2 split without publication. Protected TOML publication/import and full-resource
+extension are unimplemented; the new parser/fixtures are untested.
+
 Keep COM/VARIANT/job handling and native security in focused adapters. Supervised
 process deadlines bound synchronous-provider/remoting limitations. Timeout means
 uncertainty, not rollback. Record exact retained external interfaces in DECISIONS.

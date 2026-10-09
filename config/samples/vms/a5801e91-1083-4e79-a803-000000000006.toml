@@ -1,0 +1,8 @@
+# Development fixture: synthetic identities, actual production schema 2.
+# Disabled saved intent is independent of any observed attachment.
+schema = 2
+
+[[targets]]
+vm_id = "a5801e91-1083-4e79-a803-000000000006"
+gpu_interface = '\\?\PCI#VEN_10DE&DEV_2D05#SAMPLE_GPU_A#{064092b3-625e-43bf-9eb5-dc845897dd59}\GPUPARAV'
+enabled = false

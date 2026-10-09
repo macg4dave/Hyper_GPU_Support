@@ -14,6 +14,9 @@ The prototype defines the interface: no redesign or restoration of removed featu
    credentials and persistence. `--mock-gui` explicitly selects no-write rehearsal:
    fixtures initially, actual read-only data and the same plans as work progresses.
    Live unconnected actions are blocked; simulated outcomes are never real success.
+   **Current sequencing:** OPEN-01's production-format per-VM configuration
+   contract is selected; GUI-002 must reuse its parser and samples. Saved intent,
+   observations and drafts must remain separate; no mock-only configuration model.
 4. Preserve CLI capabilities and backend security, validation and recovery.
 5. Finish backend gaps required by existing controls without adding interface.
 6. Package and validate the Windows application and necessary payloads/notices.
@@ -37,6 +40,13 @@ GUI-001 is completed history. APP-001 owns remaining console/worker consolidatio
 GUI-002 binds existing controls; CORE-012 handles discovery/errors; GPU-010 validates
 existing allocations; CFG-001/CORE-021 cover persistence; SEC-001/CORE-028 reuse
 security/recovery; GUI-003 qualifies the approved UI. See [delivery map](GUI_ROADMAP.md).
+
+CFG-001's [selected format](CONFIGURATION.md#open-01-per-vm-format) reuses
+schema-2 TOML with one target per GUID-named file. Shared read/display entry points
+and realistic schema fixtures are added but untested, with read-only bundle-split
+preparation. Protected storage/import and expanded resource fields remain open;
+this does not close M3 or authorize
+fixture identities against live VMs.
 
 ## Release constraints
 

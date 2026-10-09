@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-09 - OPEN-01 configuration contract selected
+
+- Selected schema-2 one-target GUID-keyed TOML and explicit import semantics.
+  Added shared read-only bundle splitting with production serialization; protected
+  publication/recovery remain on CFG-001/SEC-001. Test cases added, not run.
+
+## 2026-10-09 - Per-VM configuration proposal
+
+- Documented CFG-001 / OPEN-01's schema-2 TOML proposal, state separation,
+  storage reuse and migration gaps before further GUI binding. Added GUID-keyed
+  production-format samples and shared bounded parser/GUI-model read/display
+  entry points. Proposal and implementation remain unvalidated; no live writes.
+
 ## 2026-10-09 - Main Slint application promotion
 
 - Added explicit historical inventory snapshot input for no-write rehearsal,
