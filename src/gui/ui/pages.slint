@@ -6,6 +6,7 @@ export struct GpuRow { name: string, description: string }
 export component Pages inherits Rectangle {
     in property <int> page;
     in property <bool> mock-mode: true;
+    in property <bool> snapshot-mode: false;
     in property <string> system-summary;
     in property <[GpuRow]> gpu-information;
     in-out property <int> theme-index: 0;
@@ -18,10 +19,10 @@ export component Pages inherits Rectangle {
         VerticalLayout {
             padding: 28px; spacing: 18px;
             Heading { text: root.page == 2 ? "Settings" : root.page == 1 ? "System information" : "About Hyper GPU Support"; }
-            Hint { text: root.page == 2 ? "Make the workspace yours. Preferences reset on launch." : root.page == 1 ? (root.mock-mode ? "Read-only sample host capabilities. These values are not live discovery." : "Actual inventory from the shared Rust backend.") : "A focused Windows workspace for existing Hyper-V virtual machines."; }
+            Hint { text: root.page == 2 ? "Make the workspace yours. Preferences reset on launch." : root.page == 1 ? (root.snapshot-mode ? "Previously captured host capabilities. These values are historical, not live discovery." : root.mock-mode ? "Read-only sample host capabilities. These values are not live discovery." : "Actual inventory from the shared Rust backend.") : "A focused Windows workspace for existing Hyper-V virtual machines."; }
             if root.page == 1 && !root.mock-mode : VerticalLayout {
                 spacing: 18px;
-                Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: "Live discovery"; font-weight: 600; } Hint { text: root.system-summary; } } }
+                Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: root.snapshot-mode ? "Historical inventory snapshot" : "Live discovery"; font-weight: 600; } Hint { text: root.system-summary; } } }
                 for gpu in root.gpu-information : Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: gpu.name; font-weight: 600; } Hint { text: gpu.description; } } }
             }
             if root.page == 1 && root.mock-mode : VerticalLayout {

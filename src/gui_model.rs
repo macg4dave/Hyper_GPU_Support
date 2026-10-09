@@ -19,6 +19,62 @@ pub struct Inventory {
     pub enrolled: Vec<Target>,
 }
 
+/// Recorded preparation and graphics facts, never a fresh guest health result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecordedState {
+    /// Previous preparation; current driver parity requires a fresh plan.
+    pub preparation: String,
+    /// Last successful check for the exact enrolled pair, when available.
+    pub graphics: String,
+    /// Pending or inconsistent durable state requires operator inspection.
+    pub recovery_required: bool,
+}
+
+impl Inventory {
+    /// Present durable state only when its schema and identities match enrollment.
+    /// Missing map entries mean no record was read; an explicit `None` means absent.
+    pub fn recorded_state(&self, id: &str) -> RecordedState {
+        let unknown = |preparation: &str, recovery_required| RecordedState {
+            preparation: preparation.into(),
+            graphics: "Unknown; no matching graphics verification record was read".into(),
+            recovery_required,
+        };
+        match self.managed.get(id) {
+            None => unknown("Preparation record unavailable", false),
+            Some(None) => RecordedState {
+                preparation: "No preparation record".into(),
+                graphics: "No recorded graphics verification; attachment does not prove guest health".into(),
+                recovery_required: false,
+            },
+            Some(Some(journal)) => {
+                if journal.schema != 1
+                    || journal.vm_id != id
+                    || !self.enrolled.iter().any(|target| {
+                        target.vm_id == id && target.gpu_interface == journal.gpu_interface
+                    })
+                {
+                    return unknown("Preparation record does not match protected enrollment; inspect recovery", true);
+                }
+                RecordedState {
+                    preparation: if journal.pending {
+                        "Recovery pending; preparation outcome requires inspection"
+                    } else if journal.prepared.is_some() {
+                        "Previously prepared; current driver parity has not been checked"
+                    } else {
+                        "No completed preparation recorded"
+                    }
+                    .into(),
+                    graphics: journal.last_verified.map_or_else(
+                        || "No recorded graphics verification; attachment does not prove guest health".into(),
+                        |time| format!("Last successful checked rendering: Unix UTC {time} (historical; current guest health unknown)"),
+                    ),
+                    recovery_required: journal.pending,
+                }
+            }
+        }
+    }
+}
+
 /// One staged target; selection and effective observation remain independent.
 #[derive(Clone, Debug)]
 pub struct View {
@@ -355,6 +411,83 @@ mod tests {
         });
         v.refresh(inventory());
         v
+    }
+    fn journal() -> Journal {
+        Journal {
+            schema: 1,
+            vm_id: target(1).vm_id,
+            gpu_interface: target(1).gpu_interface,
+            original: vm(1).settings,
+            applied: vm(1).settings,
+            prepared: Some("fixture-digest".into()),
+            pending: false,
+            restore_power: Power::Off,
+            verification_only: false,
+            last_verified: Some(123),
+        }
+    }
+    #[test]
+    fn unavailable_absent_and_unprepared_records_are_distinct() {
+        let mut inventory = inventory();
+        let id = target(1).vm_id;
+        let unavailable = inventory.recorded_state(&id);
+        assert!(unavailable.preparation.contains("unavailable"));
+        assert!(unavailable.graphics.contains("Unknown"));
+        inventory.managed.insert(id.clone(), None);
+        let absent = inventory.recorded_state(&id);
+        assert_eq!(absent.preparation, "No preparation record");
+        assert!(!absent.recovery_required);
+        let mut record = journal();
+        record.prepared = None;
+        record.last_verified = None;
+        inventory.managed.insert(id.clone(), Some(record));
+        let unprepared = inventory.recorded_state(&id);
+        assert_eq!(unprepared.preparation, "No completed preparation recorded");
+        assert!(unprepared.graphics.contains("No recorded"));
+        assert_ne!(unavailable, absent);
+        assert_ne!(absent, unprepared);
+    }
+    #[test]
+    fn previous_preparation_and_rendering_never_claim_current_health_or_driver_parity() {
+        let mut inventory = inventory();
+        let id = target(1).vm_id;
+        inventory.managed.insert(id.clone(), Some(journal()));
+        inventory.discovery.vms[0].gpus = vec![target(1).gpu_interface];
+        let recorded = inventory.recorded_state(&id);
+        assert!(recorded.preparation.contains("current driver parity has not been checked"));
+        assert!(recorded.graphics.contains("123"));
+        assert!(recorded.graphics.contains("historical"));
+        assert!(recorded.graphics.contains("current guest health unknown"));
+        assert!(!recorded.recovery_required);
+        // A detach does not erase history or turn it into a current check.
+        inventory.discovery.vms[0].gpus.clear();
+        assert_eq!(recorded, inventory.recorded_state(&id));
+        let record = inventory.managed.get_mut(&id).unwrap().as_mut().unwrap();
+        record.pending = true;
+        let pending = inventory.recorded_state(&id);
+        assert!(pending.recovery_required);
+        assert!(pending.preparation.contains("outcome requires inspection"));
+        assert_eq!(pending.graphics, recorded.graphics);
+    }
+    #[test]
+    fn mismatched_records_cannot_supply_a_graphics_pass_for_the_selected_pair() {
+        for mismatch in 0..4 {
+            let mut inventory = inventory();
+            let id = target(1).vm_id;
+            let mut record = journal();
+            match mismatch {
+                0 => record.schema = 2,
+                1 => record.vm_id = target(2).vm_id,
+                2 => record.gpu_interface = "different-interface".into(),
+                _ => inventory.enrolled.clear(),
+            }
+            inventory.managed.insert(id.clone(), Some(record));
+            let recorded = inventory.recorded_state(&id);
+            assert!(recorded.recovery_required);
+            assert!(recorded.preparation.contains("does not match"));
+            assert!(recorded.graphics.starts_with("Unknown"));
+            assert!(!recorded.graphics.contains("123"));
+        }
     }
     #[test]
     fn historical_inventory_blocks_actions_and_reapply_is_deliberate() {

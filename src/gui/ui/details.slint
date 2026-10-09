@@ -5,6 +5,7 @@ import { ResourceEditor, AllocationDisclosure } from "resources.slint";
 export component VmDetails inherits Rectangle {
     in property <string> name;
     in property <bool> mock-mode: true;
+    in property <bool> snapshot-mode: false;
     in property <[string]> gpu-options;
     in property <string> identity;
     in property <string> power;
@@ -99,7 +100,7 @@ export component VmDetails inherits Rectangle {
                 if root.technical : Surface {
                     VerticalLayout { padding: 16px; spacing: 7px;
                         Hint { text: "VM ID: " + root.identity; }
-                        Hint { text: root.mock-mode ? "Enrollment: " + root.status + " (mock)" : "Protected enrollment: " + root.status; }
+                        Hint { text: root.snapshot-mode ? "Recorded enrollment/status: " + root.status : root.mock-mode ? "Enrollment: " + root.status + " (mock)" : "Protected enrollment: " + root.status; }
                         Hint { text: root.mock-mode ? "Driver: illustrative NVIDIA signed package · provider: sample GPU-P" : "Observed attachment: " + root.observed; }
                         Hint { text: root.mock-mode ? "Host partition count: 32 (sample, read only)\nSecure Boot: On · Generation: " + (root.status == "Unsupported" ? "1" : "2") + "\nCPU, RAM and disks are outside this editor." : "Host partition count and Secure Boot: not queried. CPU, RAM and disks are outside this editor."; }
                     }

@@ -260,7 +260,7 @@ Keep these lanes distinct (workload checks are specified in
 
 | Lane | Required behavior |
 |---|---|
-| Hardware-independent Windows tests | Unit, component integration, configuration, regression and doc tests with no administrator, Hyper-V, GPU or network prerequisite. Run routinely and on PRs. |
+| Hardware-independent Windows tests | Unit, component integration, configuration, regression and doc tests with no administrator, Hyper-V, GPU or network prerequisite. Codex runs at milestone completion or on explicit request; retain PR checks. |
 | Native Windows integration | Test actual API/adapter contracts and OS failure behavior. Run safe unprivileged cases in Windows CI where available; explicitly invoke environment/privilege-dependent cases only on a prepared target. |
 | Hyper-V and GPU workloads | Explicitly selected runs on the designated disposable target with exact environment, inputs and checked output. These runs may install/update the runner and mutate/recreate the guest without another approval. Enumeration, loading a DLL or compiling does not prove GPU support. |
 
@@ -308,7 +308,11 @@ untested cases distinctly from passes.
 
 ## Required checks and CI
 
-The normal checks after meaningful Rust changes are:
+Codex follows [Testing Policy — Codex](../AGENTS.md#testing-policy--codex).
+Do not run checks during development or at individual task completion. Run relevant
+checks once after all planned milestone tasks are finished, or on explicit request.
+Immediate exceptions require an explanation and permission first. CI retains its
+existing gates. The following commands define the applicable check set:
 
 ```powershell
 cargo fmt --all -- --check
@@ -317,7 +321,8 @@ cargo test --locked --workspace --all-features
 ```
 
 Use `--locked` on Cargo builds and checks in CI and reproducible verification.
-Run focused tests while iterating. Keep doc tests in the test lane:
+After a milestone failure, fix the relevant issue and rerun only necessary checks.
+Keep doc tests in the test lane:
 `cargo test --all-targets` alone
 does not run them ([Cargo test](https://doc.rust-lang.org/cargo/commands/cargo-test.html)).
 If all features cannot validly combine, record the actual

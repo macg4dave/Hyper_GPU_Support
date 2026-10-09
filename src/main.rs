@@ -11,16 +11,39 @@ fn main() -> ExitCode {
         }
     }
 }
+
+#[derive(Debug, PartialEq, Eq)]
+enum GuiMode {
+    Live,
+    Fixtures,
+    Snapshot(std::path::PathBuf),
+}
+
+fn gui_mode(args: &[String]) -> Result<Option<GuiMode>, String> {
+    match args {
+        [] => Ok(Some(GuiMode::Live)),
+        [flag] if flag == "--mock-gui" => Ok(Some(GuiMode::Fixtures)),
+        [flag, option, path] if flag == "--mock-gui" && option == "--snapshot" && !path.is_empty() => {
+            Ok(Some(GuiMode::Snapshot(path.as_str().into())))
+        }
+        [flag, ..] if flag == "--mock-gui" => Err(
+            "Use --mock-gui for fixtures, or --mock-gui --snapshot FILE for read-only historical inventory".into(),
+        ),
+        _ => Ok(None),
+    }
+}
+
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args.is_empty() {
-        return gui::run(false).map_err(|error| error.to_string());
-    }
-    if matches!(args.as_slice(), [flag] if flag == "--mock-gui") {
-        return gui::run(true).map_err(|error| error.to_string());
+    if let Some(mode) = gui_mode(&args)? {
+        return match mode {
+            GuiMode::Live => gui::run(false),
+            GuiMode::Fixtures => gui::run(true),
+            GuiMode::Snapshot(path) => gui::run_snapshot(path),
+        }.map_err(|error| error.to_string());
     }
     if matches!(args.as_slice(),[v]if v=="--help"||v=="-h") {
-        print!("{HELP}");
+        print!("{HELP}\nSnapshot rehearsal: --mock-gui --snapshot FILE\n  Read existing inventory JSON; historical data only, no backend calls or writes.\n");
         return Ok(());
     }
     if matches!(args.as_slice(),[v]if v=="--version"||v=="-V") {
@@ -34,6 +57,36 @@ fn run() -> Result<(), String> {
     #[cfg(not(windows))]
     {
         Err("Hyper-V GPU-PV requires Windows x64".into())
+    }
+}
+
+#[cfg(test)]
+mod dispatch_tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).into()).collect()
+    }
+
+    #[test]
+    fn snapshot_rehearsal_requires_explicit_input_and_does_not_change_cli_dispatch() {
+        assert_eq!(gui_mode(&[]).unwrap(), Some(GuiMode::Live));
+        assert_eq!(gui_mode(&args(&["--mock-gui"])).unwrap(), Some(GuiMode::Fixtures));
+        assert_eq!(
+            gui_mode(&args(&["--mock-gui", "--snapshot", "recorded inventory.json"])).unwrap(),
+            Some(GuiMode::Snapshot("recorded inventory.json".into()))
+        );
+        for values in [
+            vec!["--mock-gui", "--snapshot"],
+            vec!["--mock-gui", "--snapshot", ""],
+            vec!["--mock-gui", "--config", "intent.toml"],
+            vec!["--mock-gui", "--snapshot", "inventory.json", "--vm", "id"],
+        ] {
+            assert!(gui_mode(&args(&values)).is_err());
+        }
+        for values in [vec!["inventory"], vec!["--help"], vec!["status", "--config", "intent.toml"]] {
+            assert_eq!(gui_mode(&args(&values)).unwrap(), None);
+        }
     }
 }
 #[cfg(windows)]

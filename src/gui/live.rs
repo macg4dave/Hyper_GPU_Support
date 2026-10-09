@@ -16,6 +16,41 @@ use std::sync::{
 };
 type SharedState = Arc<Mutex<State>>;
 
+#[derive(Clone)]
+pub(super) enum Source {
+    Protected,
+    Snapshot(std::path::PathBuf),
+}
+
+impl Source {
+    fn historical(&self) -> bool {
+        matches!(self, Self::Snapshot(_))
+    }
+
+    fn discover(&self) -> Result<(Inventory, Option<String>), String> {
+        match self {
+            Self::Protected => discover(),
+            Self::Snapshot(path) => super::snapshot::read(path).map(|inventory| {
+                (inventory, Some("Historical inventory snapshot loaded. No runner or native discovery was called. Editing, planning, credentials and execution are unavailable in this rehearsal slice.".into()))
+            }),
+        }
+    }
+
+    fn plan(&self, target: Target) -> Result<Plan, String> {
+        match self {
+            Self::Protected => plan(target),
+            Self::Snapshot(_) => Err("Snapshot rehearsal cannot request an audited live plan. Recorded-plan rehearsal is not connected yet.".into()),
+        }
+    }
+
+    fn credentials(&self, id: &str) -> Result<bool, String> {
+        match self {
+            Self::Protected => credential_dialog(id),
+            Self::Snapshot(_) => Err("Credential access and storage are blocked in no-write snapshot rehearsal.".into()),
+        }
+    }
+}
+
 #[cfg(windows)]
 fn discover() -> Result<(Inventory, Option<String>), String> {
     use hyper_gpu_support::{process, runner, windows_hyperv};
@@ -103,16 +138,42 @@ fn vm_row(vm: &VmState, discovery: &Discovery) -> VmRow {
     }
 }
 
+fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool) -> VmRow {
+    let mut row = vm_row(vm, &inventory.discovery);
+    if vm.generation == 2 && inventory.enrolled.iter().any(|t| t.vm_id == vm.vm_id) {
+        row.status = if inventory.recorded_state(&vm.vm_id).recovery_required {
+            "Recovery required"
+        } else {
+            "Enrolled"
+        }
+        .into();
+    }
+    if historical {
+        row.power = format!("{} (historical)", row.power).into();
+        row.status = format!("{} (historical)", row.status).into();
+        row.gpu = format!("{} (historical)", row.gpu).into();
+    }
+    row
+}
+
 fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(id) = state.view.selected.as_ref() else {
         ui.set_selected_id("".into());
         ui.set_eligible(false);
         ui.set_recovery(false);
+        ui.set_dirty(false);
+        ui.set_validation("".into());
         return;
     };
     ui.set_selected_id(id.clone().into());
     let Some(vm) = state.view.vm(id) else {
         ui.set_eligible(false);
+        ui.set_vm_name("Selected VM unavailable".into());
+        ui.set_power("Unknown".into());
+        ui.set_status("Unavailable".into());
+        ui.set_observed("Selected VM was not returned by the latest inventory read".into());
+        ui.set_verification("Unknown; the selected VM is unavailable".into());
+        ui.set_recovery(false);
         ui.set_validation(
             "The draft VM is no longer present. Discard the draft and Refresh.".into(),
         );
@@ -121,41 +182,31 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(inventory) = state.view.inventory.as_ref() else {
         return;
     };
-    let row = vm_row(vm, &inventory.discovery);
+    let row = observed_row(vm, inventory, state.view.needs_readback);
     ui.set_vm_name(row.name);
     ui.set_power(row.power);
     let enrolled = state.target(id).ok();
-    ui.set_status(
-        if vm.generation != 2 {
-            "Unsupported"
-        } else if enrolled.is_some() {
-            "Enrolled"
-        } else {
-            "Unknown"
-        }
-        .into(),
-    );
-    let journal = inventory.managed.get(id).and_then(Option::as_ref);
-    ui.set_recovery(journal.is_some_and(|j| j.pending));
+    ui.set_status(row.status);
+    let recorded = inventory.recorded_state(id);
+    ui.set_recovery(recorded.recovery_required);
     ui.set_observed(
         format!(
-            "{}; {}{}",
+            "{}{}; {}{}; {}",
+            if state.view.needs_readback { "Historical: " } else { "" },
             row.gpu,
             hyper_gpu_support::gui_model::allocation_text(vm),
             vm.vram.as_ref().map_or(String::new(), |v| format!(
                 ": {} / {} / {}",
                 v.minimum, v.optimal, v.maximum
-            ))
+            )),
+            recorded.preparation,
         )
         .into(),
     );
     ui.set_desired(
         "Committed configuration not loaded. Draft starts from protected enrollment intent.".into(),
     );
-    ui.set_verification(journal.and_then(|j| j.last_verified).map_or_else(
-        || "Not verified; attachment does not prove guest graphics health".to_owned(),
-        |t| format!("Last successful checked rendering: Unix UTC {t} (historical; not freshly verified)"),
-    ).into());
+    ui.set_verification(recorded.graphics.into());
     let eligibility = state.editor_eligibility(id);
     ui.set_eligible(eligibility.is_ok());
     if reset_draft {
@@ -261,14 +312,20 @@ fn background<T: Send + 'static>(
     Ok(())
 }
 
-fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Result<(), String> {
-    ui.set_notice("Reading protected inventory. Existing observations remain historical until refresh succeeds.".into());
+fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: &Source) -> Result<(), String> {
+    let historical = source.historical();
+    ui.set_notice(if historical {
+        "Reading a historical inventory snapshot; no backend operations will be requested."
+    } else {
+        "Reading protected inventory. Existing observations remain historical until refresh succeeds."
+    }.into());
     let state = state.clone();
+    let source = source.clone();
     background(
         ui,
         busy,
         "Refreshing inventory",
-        discover,
+        move || source.discover(),
         move |ui, result| {
             with_state(ui, &state, |state| {
                 match result {
@@ -277,15 +334,7 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Resul
                             .discovery
                             .vms
                             .iter()
-                            .map(|vm| {
-                                let mut row = vm_row(vm, &inventory.discovery);
-                                if vm.generation == 2
-                                    && inventory.enrolled.iter().any(|t| t.vm_id == vm.vm_id)
-                                {
-                                    row.status = "Enrolled".into();
-                                }
-                                row
-                            })
+                            .map(|vm| observed_row(vm, &inventory, historical))
                             .collect();
                         ui.set_vms(model(rows));
                         ui.set_gpu_information(model(inventory.discovery.gpus.iter().map(|gpu| GpuRow {
@@ -301,6 +350,8 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Resul
                                 .collect(),
                         ));
                         state.refresh(inventory);
+                        // Imported enrollment is display data, never execution authorization.
+                        state.view.needs_readback = historical;
                         let reset = !ui.get_dirty();
                         // Bind the draft GPU by identity across provider enumeration changes.
                         if !reset {
@@ -318,24 +369,41 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Resul
                             );
                         }
                         present(ui, state, reset);
+                        if historical {
+                            ui.set_eligible(false);
+                            ui.set_validation("Historical snapshot is display-only. Refresh rereads the file; it cannot establish current eligibility or authorize operations.".into());
+                            ui.set_desired("Committed configuration is not included in an inventory snapshot.".into());
+                        }
                         if ui.get_dirty() {
                             ui.set_validation(
                                 draft_target(ui, state).err().unwrap_or_default().into(),
                             );
                         }
-                        ui.set_system_summary("Actual Hyper-V inventory and protected enrollment read. Graphics results are historical; committed configuration is not loaded.".into());
+                        ui.set_system_summary(if historical {
+                            "Historical inventory snapshot. Provider bounds, enrollment and records describe its capture, not current machine state. No runner, credentials, journal or audit writes are requested."
+                        } else {
+                            "Actual Hyper-V inventory and protected enrollment read. Graphics results are historical; committed configuration is not loaded."
+                        }.into());
                         ui.set_notice(warning.unwrap_or_else(|| "Protected inventory loaded. Enrolled pairs support drafts and fresh plan previews. Apply and guest verification await worker integration.".into()).into());
                         Ok(())
                     }
                     Err(error) => {
                         state.view.needs_readback = true;
+                        if let Some(inventory) = state.view.inventory.as_ref() {
+                            ui.set_vms(model(
+                                inventory.discovery.vms.iter()
+                                    .map(|vm| observed_row(vm, inventory, true))
+                                    .collect(),
+                            ));
+                        }
+                        present(ui, state, false);
                         ui.set_eligible(false);
                         ui.set_validation(
                             "Inventory is historical; Refresh before further actions.".into(),
                         );
-                        ui.set_notice(format!("Live inventory unavailable: {error}. Existing rows are historical; Refresh retries discovery.").into());
+                        ui.set_notice(format!("{} inventory unavailable: {error}. Existing rows are historical; Refresh retries the read.", if historical { "Snapshot" } else { "Live" }).into());
                         ui.set_system_summary(
-                            format!("Live discovery unavailable: {error}").into(),
+                            format!("{} unavailable: {error}", if historical { "Snapshot read" } else { "Live discovery" }).into(),
                         );
                         Err(error)
                     }
@@ -345,17 +413,18 @@ fn refresh(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Resul
     )
 }
 
-fn review(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Result<(), String> {
+fn review(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>, source: &Source) -> Result<(), String> {
     let target = state
         .lock()
         .map_err(|_| "Live presentation state unavailable".to_owned())
         .and_then(|state| draft_target(ui, &state))?;
     let expected = target.clone();
+    let source = source.clone();
     background(
         ui,
         busy,
         "Building fresh plan",
-        move || plan(target),
+        move || source.plan(target),
         move |ui, result| match result {
             Ok(plan) if plan.desired == expected && plan.observed.vm_id == expected.vm_id => {
                 ui.set_needs_shutdown(plan.preview.guest_downtime);
@@ -384,7 +453,7 @@ fn review(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Result
     )
 }
 
-pub(super) fn run(ui: AppWindow) -> Result<(), Box<dyn std::error::Error>> {
+pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::error::Error>> {
     ui.set_vms(model(Vec::new()));
     ui.set_selected_id("".into());
     ui.set_gpu_information(model(Vec::new()));
@@ -440,16 +509,21 @@ pub(super) fn run(ui: AppWindow) -> Result<(), Box<dyn std::error::Error>> {
     let weak = ui.as_weak();
     let action_state = state.clone();
     let action_busy = busy.clone();
+    let action_source = source.clone();
     ui.on_action(move |action| {
         let Some(ui) = weak.upgrade() else { return; }; if ui.get_running() { return; }
         let result = match action.as_str() {
-            "refresh" => refresh(&ui, &action_state, &action_busy),
-            "review" => review(&ui, &action_state, &action_busy),
+            "refresh" => refresh(&ui, &action_state, &action_busy, &action_source),
+            "review" => review(&ui, &action_state, &action_busy, &action_source),
             "reapply" => {
+                if action_source.historical() {
+                    dialog(&ui, "error", "Action unavailable", "Snapshot rehearsal cannot request a live plan or change a VM.");
+                    return;
+                }
                 // Preserve allocation edits while deliberately previewing enabled support.
                 ui.set_gpu_enabled(true);
                 ui.invoke_edited();
-                review(&ui, &action_state, &action_busy)
+                review(&ui, &action_state, &action_busy, &action_source)
             }
             "close" => { ui.set_dialog_kind("".into()); Ok(()) },
             "exit" => { ui.set_dirty(false); slint::quit_event_loop().map_err(|e| e.to_string()) },
@@ -462,11 +536,19 @@ pub(super) fn run(ui: AppWindow) -> Result<(), Box<dyn std::error::Error>> {
                     ui.set_notice("Draft discarded. No configuration was saved or VM state changed.".into()); Ok(())
                 }); Ok(())
             }
-            "more" => { dialog(&ui, "more", "VM actions", "Reapply / Update reads a fresh shared plan for the current draft. Guest verification and forgetting pairing remain unavailable until worker and protected configuration bindings are ready."); Ok(()) },
+            "more" => {
+                let body = if action_source.historical() {
+                    "This snapshot is historical display data. Reapply, verification and forgetting are unavailable; no backend request or persistent write will occur."
+                } else {
+                    "Reapply / Update reads a fresh shared plan for the current draft. Guest verification and forgetting pairing remain unavailable until worker and protected configuration bindings are ready."
+                };
+                dialog(&ui, "more", "VM actions", body); Ok(())
+            },
             "credentials" => {
                 let selected = ui.get_selected_id().to_string();
+                let credential_source = action_source.clone();
                 action_state.lock().map_err(|_| "Live presentation state unavailable".to_owned()).and_then(|s| s.target(&selected))
-                    .and_then(|target| background(&ui, &action_busy, "Guest credentials", move || credential_dialog(&target.vm_id), |ui, result| match result {
+                    .and_then(|target| background(&ui, &action_busy, "Guest credentials", move || credential_source.credentials(&target.vm_id), |ui, result| match result {
                         Ok(true) => dialog(ui, "info", "Stored guest credentials available", "A stored credential was confirmed in this user's Windows Credential Manager for the selected VM. No guest connection or graphics check was performed."),
                         Ok(false) => dialog(ui, "info", "Guest credentials not retained", "Remember was not selected. The entered credential was discarded because no guest operation is connected yet. Nothing was stored or checked in the guest."),
                         Err(error) => dialog(ui, "error", "Guest credentials unavailable", &error),
@@ -476,10 +558,22 @@ pub(super) fn run(ui: AppWindow) -> Result<(), Box<dyn std::error::Error>> {
                 with_state(&ui, &action_state, |state| {
                     let id = ui.get_selected_id(); let inventory = state.view.inventory.as_ref().ok_or("Refresh inventory first.")?;
                     let body = serde_json::to_string_pretty(&serde_json::json!({"observed": state.view.vm(&id), "managed": inventory.managed.get(id.as_str()).and_then(Option::as_ref), "historical": state.view.needs_readback, "enrollment": state.target(&id).ok()})).map_err(|e| e.to_string())?;
-                    dialog(&ui, "info", "Observed state and recovery records", &format!("Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection.\n\n{body}")); Ok(())
+                    let provenance = if action_source.historical() {
+                        "Historical snapshot only; no fresh guest verification. Refresh rereads the input file, not the host. No journal, enrollment or audit is modified."
+                    } else {
+                        "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection."
+                    };
+                    dialog(&ui, "info", "Observed state and recovery records", &format!("{provenance}\n\n{body}")); Ok(())
                 }); Ok(())
             }
-            "shortcuts" => { dialog(&ui, "info", "Application help", "Select a real VM, inspect System, or Refresh protected inventory. Enrolled pairs support in-memory toggles and raw VRAM drafts with fresh CLI planner previews. Settings opens the native credential dialog for the selected enrolled VM. Apply, Verify and enrollment await worker integration. --mock-gui rehearses fixtures without writes."); Ok(()) },
+            "shortcuts" => {
+                let help = if action_source.historical() {
+                    "Select a VM from the historical snapshot or inspect System. Refresh rereads the same file. No live discovery, plan, credentials, verification or execution is requested. Plain --mock-gui retains fixture scenarios and simulated stages."
+                } else {
+                    "Select a real VM, inspect System, or Refresh protected inventory. Enrolled pairs support in-memory toggles and raw VRAM drafts with fresh CLI planner previews. Settings opens the native credential dialog for the selected enrolled VM. Apply, Verify and enrollment await worker integration. --mock-gui rehearses fixtures without writes."
+                };
+                dialog(&ui, "info", "Application help", help); Ok(())
+            },
             _ => Err("This action is not connected yet. Use the supported CLI; no operation was performed.".into()),
         };
         if let Err(error) = result { dialog(&ui, "error", "Action unavailable", &error); }
@@ -492,7 +586,7 @@ pub(super) fn run(ui: AppWindow) -> Result<(), Box<dyn std::error::Error>> {
         }
         slint::CloseRequestResponse::HideWindow
     });
-    refresh(&ui, &state, &busy)?;
+    refresh(&ui, &state, &busy, &source)?;
     ui.run()?;
     Ok(())
 }
@@ -501,6 +595,19 @@ pub(super) fn run(ui: AppWindow) -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use hyper_gpu_support::model::Settings;
+    #[test]
+    fn snapshot_source_refuses_backend_plans_and_credentials() {
+        let source = Source::Snapshot("unused-snapshot.json".into());
+        assert!(source.historical());
+        let target = Target {
+            vm_id: "12345678-1234-1234-1234-123456789abc".into(),
+            gpu_interface: "untrusted-snapshot-interface".into(),
+            enabled: true,
+            vram: None,
+        };
+        assert!(source.plan(target).unwrap_err().contains("cannot request"));
+        assert!(source.credentials("vm").unwrap_err().contains("blocked"));
+    }
     #[test]
     fn unknown_health_enrollment_and_unresolved_attachment_are_not_samples() {
         let vm = VmState {
@@ -530,5 +637,66 @@ mod tests {
         assert_eq!(row.status, "Unsupported");
         assert_eq!(row.power, "Unknown");
         assert_eq!(row.os, "unknown");
+    }
+
+    #[test]
+    fn historical_rows_keep_identity_and_do_not_claim_current_power() {
+        let vm = VmState {
+            vm_id: "12345678-1234-1234-1234-123456789abc".into(),
+            name: "Actual VM".into(),
+            power: Power::Running,
+            generation: 2,
+            gpus: vec![],
+            vram: None,
+            settings: Settings {
+                low_mmio: 0,
+                high_mmio: 0,
+                cache_types: false,
+                automatic_checkpoints: true,
+            },
+        };
+        let target = Target {
+            vm_id: vm.vm_id.clone(),
+            gpu_interface: "actual-interface".into(),
+            enabled: true,
+            vram: None,
+        };
+        let mut inventory = Inventory {
+            discovery: Discovery {
+                vms: vec![vm.clone()],
+                gpus: vec![],
+            },
+            managed: Default::default(),
+            enrolled: vec![target.clone()],
+        };
+        let current = observed_row(&vm, &inventory, false);
+        assert_eq!(current.power, "Running");
+        assert_eq!(current.status, "Enrolled");
+        let historical = observed_row(&vm, &inventory, true);
+        assert_eq!(historical.id, current.id);
+        assert_eq!(historical.name, current.name);
+        assert_eq!(historical.power, "Running (historical)");
+        assert_eq!(historical.status, "Enrolled (historical)");
+        assert!(historical.gpu.ends_with("(historical)"));
+        inventory.managed.insert(
+            vm.vm_id.clone(),
+            Some(hyper_gpu_support::workflow::Journal {
+                schema: 1,
+                vm_id: vm.vm_id.clone(),
+                gpu_interface: target.gpu_interface,
+                original: vm.settings.clone(),
+                applied: vm.settings.clone(),
+                prepared: None,
+                pending: true,
+                restore_power: Power::Off,
+                verification_only: false,
+                last_verified: None,
+            }),
+        );
+        assert_eq!(
+            observed_row(&vm, &inventory, false).status,
+            "Recovery required"
+        );
+        assert!(inventory.managed[&vm.vm_id].as_ref().unwrap().pending);
     }
 }

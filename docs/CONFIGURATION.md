@@ -3,8 +3,12 @@
 ## Implemented baseline
 
 The CLI reads `--config FILE`. Normal GUI startup reads real inventory; configuration
-loading/editing is not connected yet. `--mock-gui` uses session-only simulated
-configuration and accepts no config argument. Future real-data reads must not write
+loading/editing is not connected yet. Plain `--mock-gui` uses session-only simulated
+configuration and accepts no config argument. `--mock-gui --snapshot FILE` reads
+an existing inventory JSON capture through the real-data presentation, with all
+observations historical and no editing, plan or credential/backend requests. It
+does not import desired configuration or authorize enrollment. Snapshot-route
+qualification remains outstanding. Future real-data reads must not write
 files, vault entries, journals, enrollment or audit records. Preserve mandatory
 runner audit; do not use audited discovery as a strict no-write mock source.
 [product.example.toml](../config/product.example.toml)

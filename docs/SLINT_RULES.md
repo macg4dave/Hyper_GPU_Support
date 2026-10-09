@@ -106,12 +106,17 @@ Use the installed official Slint skill for Codex when available. Consult the cur
 
 ## 8. Make Codex's visual iteration reliable
 
+[Testing Policy — Codex](../AGENTS.md#testing-policy--codex) governs all build,
+test, preview and GUI-launch instructions below. Defer execution until all planned
+milestone tasks are finished or the user explicitly requests it. Immediate testing
+requires an explanation and permission first; task completion is not a milestone.
+
 - Use mock inventory, GPU capabilities, and operation results for layout/interaction work. The interface must be previewable without a working Hyper-V host, administrator elevation, or real VMs.
 - Keep a small, deterministic set of mock scenarios: no VMs; many VMs; long names; unconfigured/unsupported/unknown; changing GPU; dirty draft; operation in progress; failed/uncertain/recovery states.
 - Inspect the `.slint` files with the VS Code Slint extension or `slint-viewer` during authorised implementation. Do not mark a visual change complete solely because it compiles.
 - If the official Slint Codex skill or embedded MCP inspection is installed and configured, use it to inspect the running UI and test interactions. Do not presume those capabilities are available or silently install anything.
 - Compare screenshots/preview results at multiple widths and scaling factors. Describe what was actually inspected; do not claim tests passed without running them.
-- Keep changes small and attributable. After each significant UI adjustment, validate the affected view before moving to unrelated pages.
+- Keep changes small and attributable. Implement UI adjustments without intermediate validation; report untested views at task completion.
 
 ## 9. Testing and debugging discipline
 
@@ -129,7 +134,7 @@ Use the installed official Slint skill for Codex when available. Consult the cur
 3. **Scope:** State the components/modules affected, assumptions, unresolved design issues, and whether any privileged or live VM action would be required.
 4. **Plan:** Propose a small, independently testable change before implementation. Resolve backend integration questions on their owning cards without expanding the approved interface.
 5. **Implement only when authorised:** Keep `.slint` responsible for presentation and Rust responsible for state/operations. Use mocks for first-pass UI work.
-6. **Check:** Format/build/test as authorised; preview visually and exercise keyboard, resize, scrolling, and failure states.
+6. **Check at milestone completion or on explicit request:** Run relevant checks once; preview visually and exercise keyboard, resize, scrolling, and failure states. After failures, rerun only necessary checks.
 7. **Report:** Summarise files changed, what was verified, what is still unverified, and any deviations from this file or `GUI_GUIDE.md`.
 
 **Stop and ask for a decision** if a proposed change contradicts an approved UX decision, depends on undocumented Slint behaviour, expands privilege scope, or modifies live VM/host state without authorisation.

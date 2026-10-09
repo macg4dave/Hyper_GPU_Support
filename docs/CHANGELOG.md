@@ -1,6 +1,14 @@
-﻿# Changelog
+# Changelog
 
 ## 2026-10-09 - Main Slint application promotion
+
+- Added explicit historical inventory snapshot input for no-write rehearsal,
+  retaining fixture scenarios. Backend plans/credentials/effects are blocked;
+  reader and UI qualification remain deferred to M3 validation.
+
+- Connected live preparation/recovery/graphics history to shared Rust presentation
+  logic; reject mismatched record identities and label retained observations
+  historical after failed Refresh. Focused tests added; validation deferred to M3.
 
 - Split normal live startup from explicit `--mock-gui` rehearsal. Live cards,
   Refresh and System use shared core discovery; unconnected effects are blocked

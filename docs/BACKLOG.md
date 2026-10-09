@@ -287,8 +287,30 @@ no-write real-data route must use authorized native reads/an existing snapshot a
 be qualified without suppressing security records. Mock save/forget/credentials/
 recovery stay in memory; guest verification/probes and power transitions are effects.
 
-**Current gap:** real GUI Apply/Verify/enrollment/configuration/credential binding is
-still unavailable. Normal mode does not present demonstrations as real operations.
+**Current bindings:** enrolled in-memory toggles/raw VRAM drafts, fresh shared
+plan previews and native credential storage are connected. Real GUI
+Apply/Verify/enrollment/configuration saving remain unavailable. Normal mode does
+not present demonstrations as real operations.
+
+**9 October integration in progress (GUI-002 / CORE-012):** wired preparation,
+recovery and last graphics-check records into existing live cards/details through
+shared Rust presentation logic. Unread/absent/unprepared records are distinct;
+schema or enrolled-pair mismatches cannot supply a graphics pass. Driver parity
+and current guest health remain unknown until checked. Failed Refresh labels
+retained power/status/attachment observations historical; a disappeared draft VM
+shows unavailable details while preserving its draft. Added focused record and
+row behavior tests. Untested: no tests, builds or GUI launches run; M3 remains open.
+
+**Snapshot follow-on:** added explicit `--mock-gui --snapshot FILE` to read an
+existing native/protected CLI inventory JSON capture through the real-data UI.
+The 8 MiB-bounded reader performs file reads only; Refresh rereads the input.
+All observations are labelled historical; snapshot enrollment never authorizes
+operations. Rust source routing refuses live plans and credential access, while
+editing/effects remain blocked. Plain `--mock-gui` retains fixture scenarios and
+simulated stages. Added dispatch, malformed/oversized/native/protected input and
+source-refusal tests. Untested/unqualified: no builds, tests, UI launches or
+no-write runtime qualification performed. Recorded-plan/stage rehearsal and
+configuration reads remain next work; mandatory runner audit is unchanged.
 
 **Validation (9 October mode split):** Windows x64 MSVC build, strict Clippy and
 77 tests passed (one privileged enrollment test ignored). Runtime checks covered

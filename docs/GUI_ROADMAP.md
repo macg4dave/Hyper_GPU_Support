@@ -22,5 +22,8 @@ absent from the GUI. Mock controls stay labelled; they are not hardware evidence
 Normal mode uses actual data and supported real bindings, never simulated success;
 unconnected actions are unavailable. Mock real-data reads must preserve mandatory
 audit by using a qualified authorized no-write reader/snapshot, not disabling audit.
+The optional `--mock-gui --snapshot FILE` historical inventory reader is implemented
+but unqualified; it blocks editing, live plans, credentials and execution. Plain
+mock mode retains fixtures; recorded-plan/stage rehearsal remains open.
 For this task live Hyper-V, GPU, driver and VM-power operations require explicit
 permission. Physical-host lifecycle always requires immediate permission.

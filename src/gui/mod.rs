@@ -2,6 +2,7 @@
 mod live;
 mod live_state;
 mod mock;
+mod snapshot;
 use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
 use std::{cell::RefCell, rc::Rc, time::Duration};
 slint::include_modules!();
@@ -155,7 +156,7 @@ pub(super) fn run(mock_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
     let ui = AppWindow::new()?;
     ui.set_mock_mode(mock_mode);
     if !mock_mode {
-        return live::run(ui);
+        return live::run(ui, live::Source::Protected);
     }
     let session = Rc::new(RefCell::new(Session {
         inventory: mock::inventory(false),
@@ -264,4 +265,13 @@ pub(super) fn run(mock_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
     });
     ui.run()?;
     Ok(())
+}
+
+pub(super) fn run_snapshot(path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let ui = AppWindow::new()?;
+    // Use real-data presentation, without fixture labels or illustrative allocations.
+    ui.set_mock_mode(false);
+    ui.set_snapshot_mode(true);
+    ui.set_workspace_label("SNAPSHOT REHEARSAL · NO WRITES".into());
+    live::run(ui, live::Source::Snapshot(path))
 }

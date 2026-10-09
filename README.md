@@ -77,8 +77,19 @@ To run the mock GUI without persistent writes or real operations:
 cargo run --locked -- --mock-gui
 ```
 
-Mock mode currently uses fixtures. Its target is real data and the same validated
-plans, with execution rehearsed without writes/effects; see
+Plain mock mode uses fixtures. To inspect an existing JSON capture from the
+`inventory` command without calling the backend:
+
+```powershell
+hyper-gpu-support --mock-gui --snapshot inventory.json
+```
+
+Snapshot input uses the real-data cards/System presentation, labels every
+observation historical and blocks editing, planning, credentials and execution.
+Refresh rereads the file. This route is implemented but not yet qualified;
+capturing inventory is a separate operation and may write mandatory runner audits.
+The next rehearsal slice is the same validated plans and simulated execution;
+see the
 [mode contract](docs/GUI_GUIDE.md#mock-mode-development-direction).
 Normal mode never substitutes simulated success for an unconnected operation.
 Ordinary-token live discovery retains the existing runner's required audit records;
