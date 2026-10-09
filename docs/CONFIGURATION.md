@@ -6,13 +6,16 @@ The CLI reads `--config FILE` through `Configuration::parse`. Normal GUI startup
 reads real inventory; saved-file loading is not connected to its controller yet.
 `Configuration::read_vm_file` now provides a bounded read-only per-VM boundary;
 `View::from_vm_file` / `saved_desired_text` let GUI-002 load/display the same intent
-without observation or draft inference. These additions remain untested.
+without observation or draft inference. Reader/serializer and state separation
+passed [9 October testing](evidence/GUI-002-testing.md); protected saving remains open.
 Plain `--mock-gui` still uses the earlier session-only simulated
 configuration and accepts no config argument. `--mock-gui --snapshot FILE` reads
 an existing inventory JSON capture through the real-data presentation, with all
 observations historical and no editing, plan or credential/backend requests. It
-does not import desired configuration or authorize enrollment. Snapshot-route
-qualification remains outstanding. Future real-data reads must not write
+does not import desired configuration or authorize enrollment. The optional
+`--config GUID.toml` loads candidate intent separately for recorded-plan rehearsal.
+This implemented route passed scoped automated/headless runtime testing; full
+desktop and protected-effect qualification remain open. Future real-data reads must not write
 files, vault entries, journals, enrollment or audit records. Preserve mandatory
 runner audit; do not use audited discovery as a strict no-write mock source.
 [product.example.toml](../config/product.example.toml)

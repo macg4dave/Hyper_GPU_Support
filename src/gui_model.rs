@@ -43,7 +43,9 @@ impl Inventory {
             None => unknown("Preparation record unavailable", false),
             Some(None) => RecordedState {
                 preparation: "No preparation record".into(),
-                graphics: "No recorded graphics verification; attachment does not prove guest health".into(),
+                graphics:
+                    "No recorded graphics verification; attachment does not prove guest health"
+                        .into(),
                 recovery_required: false,
             },
             Some(Some(journal)) => {
@@ -53,7 +55,10 @@ impl Inventory {
                         target.vm_id == id && target.gpu_interface == journal.gpu_interface
                     })
                 {
-                    return unknown("Preparation record does not match protected enrollment; inspect recovery", true);
+                    return unknown(
+                        "Preparation record does not match protected enrollment; inspect recovery",
+                        true,
+                    );
                 }
                 RecordedState {
                     preparation: if journal.pending {
@@ -102,14 +107,36 @@ impl View {
 
     /// Display saved intent without deriving it from attachment, journals or a draft.
     pub fn saved_desired_text(&self, id: &str) -> String {
-        self.configuration.targets.iter().find(|target| target.vm_id == id)
-            .map_or_else(|| "No saved desired configuration loaded".into(), |target| {
-                let allocation = target.vram.as_ref().map_or_else(
-                    || "No explicit VRAM request; existing/provider values are not reset".into(),
-                    |value| format!("VRAM provider integers: {} / {} / {}", value.minimum, value.optimal, value.maximum),
-                );
-                format!("GPU {}; {}; {allocation}", if target.enabled { "enabled" } else { "disabled" }, target.gpu_interface)
-            })
+        self.configuration
+            .targets
+            .iter()
+            .find(|target| target.vm_id == id)
+            .map_or_else(
+                || "No saved desired configuration loaded".into(),
+                |target| {
+                    let allocation = target.vram.as_ref().map_or_else(
+                        || {
+                            "No explicit VRAM request; existing/provider values are not reset"
+                                .into()
+                        },
+                        |value| {
+                            format!(
+                                "VRAM provider integers: {} / {} / {}",
+                                value.minimum, value.optimal, value.maximum
+                            )
+                        },
+                    );
+                    format!(
+                        "GPU {}; {}; {allocation}",
+                        if target.enabled {
+                            "enabled"
+                        } else {
+                            "disabled"
+                        },
+                        target.gpu_interface
+                    )
+                },
+            )
     }
 
     /// Start without any observed state or staged effects.
@@ -474,7 +501,11 @@ mod tests {
         inventory.managed.insert(id.clone(), Some(journal()));
         inventory.discovery.vms[0].gpus = vec![target(1).gpu_interface];
         let recorded = inventory.recorded_state(&id);
-        assert!(recorded.preparation.contains("current driver parity has not been checked"));
+        assert!(
+            recorded
+                .preparation
+                .contains("current driver parity has not been checked")
+        );
         assert!(recorded.graphics.contains("123"));
         assert!(recorded.graphics.contains("historical"));
         assert!(recorded.graphics.contains("current guest health unknown"));

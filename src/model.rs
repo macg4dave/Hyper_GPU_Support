@@ -94,12 +94,15 @@ impl Configuration {
     pub fn read_vm_file(path: &std::path::Path) -> Result<(Self, String), String> {
         use std::io::Read;
         const MAX_BYTES: u64 = 64 * 1024;
-        let filename = path.file_name().and_then(|name| name.to_str())
+        let filename = path
+            .file_name()
+            .and_then(|name| name.to_str())
             .ok_or("configuration requires a UTF-8 GUID filename")?;
-        let file = std::fs::File::open(path)
-            .map_err(|error| format!("read VM configuration: {error}"))?;
+        let file =
+            std::fs::File::open(path).map_err(|error| format!("read VM configuration: {error}"))?;
         let mut bytes = Vec::new();
-        file.take(MAX_BYTES + 1).read_to_end(&mut bytes)
+        file.take(MAX_BYTES + 1)
+            .read_to_end(&mut bytes)
             .map_err(|error| format!("read VM configuration: {error}"))?;
         if bytes.len() as u64 > MAX_BYTES {
             return Err("per-VM configuration exceeds the 64 KiB input limit".into());

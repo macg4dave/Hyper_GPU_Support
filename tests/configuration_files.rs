@@ -9,10 +9,92 @@ const IDS: [&str; 3] = [
 ];
 
 #[test]
+fn bounded_reader_preserves_exact_source_and_refuses_bad_bytes_or_missing_files() {
+    struct Fixture(std::path::PathBuf);
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("local/test-fixtures");
+    std::fs::create_dir_all(&root).unwrap();
+    let fixture = Fixture(root.join(format!("vm-reader-{}", std::process::id())));
+    std::fs::create_dir(&fixture.0).unwrap();
+    let path = fixture.0.join(format!("{}.toml", IDS[0]));
+    assert!(Configuration::read_vm_file(&path).is_err());
+    let source = include_str!("../config/samples/vms/a5801e91-1083-4e79-a803-000000000001.toml");
+    let mut exact_limit = source.to_owned();
+    exact_limit.push_str(&" ".repeat(64 * 1024 - source.len()));
+    std::fs::write(&path, &exact_limit).unwrap();
+    let (configuration, returned) = Configuration::read_vm_file(&path).unwrap();
+    assert_eq!(returned, exact_limit);
+    assert_eq!(configuration.targets[0].vm_id, IDS[0]);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), exact_limit);
+    exact_limit.push(' ');
+    std::fs::write(&path, &exact_limit).unwrap();
+    assert!(
+        Configuration::read_vm_file(&path)
+            .unwrap_err()
+            .contains("64 KiB")
+    );
+    std::fs::write(&path, [0xff, 0xfe]).unwrap();
+    assert!(
+        Configuration::read_vm_file(&path)
+            .unwrap_err()
+            .contains("UTF-8")
+    );
+    std::fs::write(&path, "schema = [").unwrap();
+    assert!(Configuration::read_vm_file(&path).is_err());
+    assert_eq!(std::fs::read_dir(&fixture.0).unwrap().count(), 1);
+}
+
+#[test]
+fn optional_allocation_round_trip_distinguishes_no_write_from_explicit_zero() {
+    let source = include_str!("../config/samples/vms/a5801e91-1083-4e79-a803-000000000001.toml");
+    let filename = format!("{}.toml", IDS[0]);
+    let absent = Configuration::parse_vm_file(source, &filename).unwrap();
+    assert!(absent.targets[0].vram.is_none());
+    let zero = format!("{source}\n[targets.vram]\nminimum = 0\noptimal = 0\nmaximum = 0\n");
+    let explicit = Configuration::parse_vm_file(&zero, &filename).unwrap();
+    let documents = explicit.vm_documents().unwrap();
+    assert_eq!(
+        Configuration::parse_vm_file(&documents[&filename], &filename)
+            .unwrap()
+            .targets,
+        explicit.targets
+    );
+    assert!(explicit.targets[0].vram.is_some());
+    for invalid in [
+        "minimum = 0\noptimal = 0",
+        "minimum = 2\noptimal = 1\nmaximum = 3",
+        "minimum = -1\noptimal = 0\nmaximum = 1",
+        "minimum = 0\noptimal = 1\nmaximum = 18446744073709551616",
+    ] {
+        assert!(
+            Configuration::parse_vm_file(
+                &format!("{source}\n[targets.vram]\n{invalid}\n"),
+                &filename
+            )
+            .is_err()
+        );
+    }
+    for category in ["compute", "encode", "decode"] {
+        assert!(
+            Configuration::parse_vm_file(
+                &format!("{source}\n[targets.{category}]\nminimum = 0\noptimal = 1\nmaximum = 2\n"),
+                &filename
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn cli_and_gui_read_the_same_production_format_without_creating_observations_or_drafts() {
     for id in IDS {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("config/samples/vms").join(format!("{id}.toml"));
+            .join("config/samples/vms")
+            .join(format!("{id}.toml"));
         let (mut view, source) = View::from_vm_file(&path).unwrap();
         let cli = Configuration::parse(&source).unwrap();
         assert_eq!(view.configuration.schema, cli.schema);
@@ -39,7 +121,13 @@ fn per_vm_boundary_rejects_filename_mismatch_unknown_fields_and_multiple_targets
     assert!(Configuration::parse_vm_file(source, &filename.to_ascii_uppercase()).is_err());
     assert!(Configuration::parse_vm_file(&format!("{source}\ncompute = 1\n"), &filename).is_err());
     let upper_id = source.replace(IDS[0], &IDS[0].to_ascii_uppercase());
-    assert_eq!(Configuration::parse_vm_file(&upper_id, &filename).unwrap().targets[0].vm_id, IDS[0]);
+    assert_eq!(
+        Configuration::parse_vm_file(&upper_id, &filename)
+            .unwrap()
+            .targets[0]
+            .vm_id,
+        IDS[0]
+    );
     let mut bundle = Configuration::parse(source).unwrap();
     let mut other = bundle.targets[0].clone();
     other.vm_id = IDS[1].into();
@@ -51,13 +139,18 @@ fn per_vm_boundary_rejects_filename_mismatch_unknown_fields_and_multiple_targets
 
 #[test]
 fn explicit_bundle_split_preserves_intent_and_normalizes_filename_identity() {
-    let mut bundle = Configuration { schema: 2, targets: vec![] };
+    let mut bundle = Configuration {
+        schema: 2,
+        targets: vec![],
+    };
     for source in [
         include_str!("../config/samples/vms/a5801e91-1083-4e79-a803-000000000001.toml"),
         include_str!("../config/samples/vms/a5801e91-1083-4e79-a803-000000000003.toml"),
         include_str!("../config/samples/vms/a5801e91-1083-4e79-a803-000000000006.toml"),
     ] {
-        bundle.targets.extend(Configuration::parse(source).unwrap().targets);
+        bundle
+            .targets
+            .extend(Configuration::parse(source).unwrap().targets);
     }
     bundle.targets[0].vm_id.make_ascii_uppercase();
     let documents = bundle.vm_documents().unwrap();

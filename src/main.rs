@@ -70,61 +70,6 @@ fn run() -> Result<(), String> {
     }
 }
 
-#[cfg(test)]
-mod dispatch_tests {
-    use super::*;
-
-    fn args(values: &[&str]) -> Vec<String> {
-        values.iter().map(|value| (*value).into()).collect()
-    }
-
-    #[test]
-    fn snapshot_rehearsal_requires_explicit_input_and_does_not_change_cli_dispatch() {
-        assert_eq!(gui_mode(&[]).unwrap(), Some(GuiMode::Live));
-        assert_eq!(
-            gui_mode(&args(&["--mock-gui"])).unwrap(),
-            Some(GuiMode::Fixtures)
-        );
-        assert_eq!(
-            gui_mode(&args(&[
-                "--mock-gui",
-                "--snapshot",
-                "recorded inventory.json"
-            ]))
-            .unwrap(),
-            Some(GuiMode::Snapshot("recorded inventory.json".into()))
-        );
-        for values in [
-            vec!["--mock-gui", "--snapshot"],
-            vec!["--mock-gui", "--snapshot", ""],
-            vec!["--mock-gui", "--config", "intent.toml"],
-            vec!["--mock-gui", "--snapshot", "inventory.json", "--vm", "id"],
-        ] {
-            assert!(gui_mode(&args(&values)).is_err());
-        }
-        assert_eq!(
-            gui_mode(&args(&[
-                "--mock-gui",
-                "--snapshot",
-                "capture.json",
-                "--config",
-                "vm.toml"
-            ]))
-            .unwrap(),
-            Some(GuiMode::SnapshotConfiguration(
-                "capture.json".into(),
-                "vm.toml".into()
-            ))
-        );
-        for values in [
-            vec!["inventory"],
-            vec!["--help"],
-            vec!["status", "--config", "intent.toml"],
-        ] {
-            assert_eq!(gui_mode(&args(&values)).unwrap(), None);
-        }
-    }
-}
 #[cfg(windows)]
 fn execute(args: &[String]) -> Result<(), String> {
     use hyper_gpu_support::{
@@ -263,4 +208,60 @@ fn prompt(vm: &str) -> Result<hyper_gpu_support::credentials::Credential, String
         return Err("invalid guest username".into());
     }
     Ok(hyper_gpu_support::credentials::Credential { username, password })
+}
+
+#[cfg(test)]
+mod dispatch_tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).into()).collect()
+    }
+
+    #[test]
+    fn snapshot_rehearsal_requires_explicit_input_and_does_not_change_cli_dispatch() {
+        assert_eq!(gui_mode(&[]).unwrap(), Some(GuiMode::Live));
+        assert_eq!(
+            gui_mode(&args(&["--mock-gui"])).unwrap(),
+            Some(GuiMode::Fixtures)
+        );
+        assert_eq!(
+            gui_mode(&args(&[
+                "--mock-gui",
+                "--snapshot",
+                "recorded inventory.json"
+            ]))
+            .unwrap(),
+            Some(GuiMode::Snapshot("recorded inventory.json".into()))
+        );
+        for values in [
+            vec!["--mock-gui", "--snapshot"],
+            vec!["--mock-gui", "--snapshot", ""],
+            vec!["--mock-gui", "--config", "intent.toml"],
+            vec!["--mock-gui", "--snapshot", "inventory.json", "--vm", "id"],
+        ] {
+            assert!(gui_mode(&args(&values)).is_err());
+        }
+        assert_eq!(
+            gui_mode(&args(&[
+                "--mock-gui",
+                "--snapshot",
+                "capture.json",
+                "--config",
+                "vm.toml"
+            ]))
+            .unwrap(),
+            Some(GuiMode::SnapshotConfiguration(
+                "capture.json".into(),
+                "vm.toml".into()
+            ))
+        );
+        for values in [
+            vec!["inventory"],
+            vec!["--help"],
+            vec!["status", "--config", "intent.toml"],
+        ] {
+            assert_eq!(gui_mode(&args(&values)).unwrap(), None);
+        }
+    }
 }

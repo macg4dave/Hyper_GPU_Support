@@ -94,7 +94,8 @@ records remain unknown. Disabled previews do not require a payload digest.
 Review can display simulated stages without executing them or saving the draft.
 Refresh rereads the inputs; external changes block an existing draft until it is
 discarded and refreshed. Credentials and execution remain blocked.
-This route is implemented but not yet qualified;
+This route passed scoped automated and headless runtime
+[testing](docs/evidence/GUI-002-testing.md); desktop and protected-effect acceptance remain open;
 capturing inventory is a separate operation and may write mandatory runner audits.
 See the
 [mode contract](docs/GUI_GUIDE.md#mock-mode-development-direction).

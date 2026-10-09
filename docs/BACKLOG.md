@@ -269,8 +269,15 @@ the source untouched. Added round-trip/duplicate/invalid/version test cases (unr
 Defined explicit conflict handling, protected per-file commit and partial-import
 recovery requirements; no automatic migration or import CLI/publisher exists.
 OPEN-01 is resolved as a format/identity/import decision. Reader/serializer code
-is untested; protected deployment and CFG-001 acceptance remain open. No builds,
-tests, GUI launch, ProgramData write or VM operation performed.
+passed the 9 October validation below; protected deployment and CFG-001 acceptance
+remain open. No import CLI or protected publisher exists.
+
+**9 October testing:** six configuration-file tests passed, including CLI/GUI
+parity, GUID/filename binding, duplicate/version rejection, bundle round trips,
+64 KiB/UTF-8 boundaries and omitted-versus-zero allocation semantics. The wider
+103-test suite, strict Clippy and build/docs checks passed. Protected writes,
+ACL/reparse/torn-write admission and durable recovery remain unimplemented and
+unqualified. See [testing results](evidence/GUI-002-testing.md).
 
 **Exit:** no saving while merely editing; after authorised Apply and verified readback, **only the elevated worker** atomically commits the VM configuration. Detect externally modified files/VM state and **block with refresh**, never auto-merge. Verified GPU success followed by save failure offers **save-only retry**, never repeat Apply. Test wrong GUID/name collision, torn writes, ACL/reparse issues, external edits and recovery. Protected write integration requires SEC-001.
 
@@ -321,9 +328,22 @@ Review confirmation lists simulated stages, retains the unapplied draft and
 performs no effects/saving/credentials/recovery clearance. Changed input bytes
 block Refresh/Review/confirmation without silently discarding drafts. Added focused
 separation/conflict, shared-plan parity, missing-context and mutation-refusal test
-source. **Untested/unqualified:** no tests, builds or GUI launches; M3 remains open.
+source. **9 October qualification:** implemented behavior passed automated and
+headless runtime testing below; protected effects/saving and M3 remain open.
 Next: trusted live configuration reads/commits (CFG-001), GPU-010 field semantics,
 SEC-001 worker and CORE-028 progress/recovery, then GUI parity/qualification.
+
+**9 October testing:** 103 tests passed (one privileged enrollment test ignored),
+with formatting, strict Clippy, Windows x64 build and docs checks. Actual executable
+headless MCP testing passed snapshot candidate/observed separation, enabled/disabled
+shared-plan rehearsal, unapplied draft retention and external-input blocking.
+No filesystem activity was observed in the three existing product directories
+during snapshot rehearsal. Live startup/System/Refresh passed through the audited
+runner; previously recorded graphics checks remain historical and saved desired
+configuration is not inferred. **Open visual defect:** long Review body text clips
+at the right edge at the default window size. Full protected saving/effects and
+desktop accessibility/DPI acceptance remain open. See
+[testing results](evidence/GUI-002-testing.md) for exact scope and commands.
 
 **Mode split:** no arguments launch live inventory; `--mock-gui` selects isolated
 fixture rehearsal. Live Refresh/System reuse native discovery when already elevated

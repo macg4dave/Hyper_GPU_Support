@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-09 - GUI/configuration validation
+
+- Passed 103 tests, strict Clippy, Windows x64 build and docs checks; added
+  configuration byte-limit/encoding and allocation round-trip coverage.
+- Qualified live discovery/System/Refresh and snapshot plan rehearsal/draft
+  preservation through the actual Slint executable. Recorded Review text clipping;
+  protected configuration saving and GUI effects remain open. See
+  [testing results](evidence/GUI-002-testing.md).
+
 ## 2026-10-09 - GUI recorded-plan rehearsal
 
 - Separated saved desired intent from enrollment in the live controller. Snapshot

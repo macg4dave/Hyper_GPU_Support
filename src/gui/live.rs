@@ -374,14 +374,14 @@ fn refresh(
                             ui.set_validation("Snapshot changed externally. Draft preserved; discard and Refresh.".into());
                             return Err("Snapshot changed externally. Draft preserved; discard and Refresh.".into());
                         }
-                        if let Some((configuration, text)) = configuration {
-                            if let Err(error) = state.load_configuration(configuration, text) {
-                                state.view.needs_readback = true;
-                                present(ui, state, false);
-                                ui.set_eligible(false);
-                                ui.set_validation(error.clone().into());
-                                return Err(error);
-                            }
+                        if let Some((configuration, text)) = configuration
+                            && let Err(error) = state.load_configuration(configuration, text)
+                        {
+                            state.view.needs_readback = true;
+                            present(ui, state, false);
+                            ui.set_eligible(false);
+                            ui.set_validation(error.clone().into());
+                            return Err(error);
                         }
                         let rows = inventory
                             .discovery
