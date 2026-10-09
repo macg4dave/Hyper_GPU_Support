@@ -1,5 +1,6 @@
 //! Approved Slint presentation: live startup or explicitly selected mock rehearsal.
 mod live;
+mod live_state;
 mod mock;
 use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
 use std::{cell::RefCell, rc::Rc, time::Duration};

@@ -80,7 +80,7 @@ export component AppWindow inherits Window {
                 spacing: 0px;
                 Rectangle { height: root.recovery ? 72px : 42px; background: Theme.tint;
                     HorizontalLayout { padding-left: 18px; padding-right: 18px; spacing: 12px;
-                        Hint { text: root.recovery ? "DEMO recovery hold · Outcome uncertain. New GPU changes are blocked until mock reconciliation." : root.notice; }
+                        Hint { text: root.recovery ? (root.mock-mode ? "DEMO recovery hold · Outcome uncertain. New GPU changes are blocked until mock reconciliation." : "Pending protected recovery record. New GPU changes are blocked; inspection does not clear recovery.") : root.notice; }
                         if root.recovery : Button { enabled: !Theme.modal-active; text: "Inspect recovery"; clicked => { root.action("recovery"); } }
                     }
                 }
@@ -130,7 +130,7 @@ export component AppWindow inherits Window {
             }
         }
         Rectangle { height: 30px; background: Theme.surface;
-            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.mock-mode ? "Mock GUI · In-memory drafts · No real GPU changes" : "Live GUI · Configuration actions awaiting integration"; } Hint { text: root.running ? "Demonstration running" : "Ready"; horizontal-alignment: right; } }
+            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.mock-mode ? "Mock GUI · In-memory drafts · No real GPU changes" : "Live GUI · Shared plan previews · Apply unavailable"; } Hint { text: root.running ? (root.mock-mode ? "Demonstration running" : "Backend operation running") : "Ready"; horizontal-alignment: right; } }
         }
     }
     if root.dialog-kind != "" : DemoDialog { mock-mode: root.mock-mode; kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body; stages: root.stages; running: root.running; needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); } }

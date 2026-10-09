@@ -45,7 +45,7 @@ export component VmDetails inherits Rectangle {
                         Hint { text: "Saved desired: " + root.desired; }
                         Hint { text: "Graphics: " + root.verification; }
                         Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: "Enable GPU support in this draft"; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
-                        Hint { text: root.mock-mode ? "Physical GPU · sample inventory" : "Physical GPU · live inventory; editing unavailable"; }
+                        Hint { text: root.mock-mode ? "Physical GPU · sample inventory" : "Physical GPU · protected enrollment required"; }
                         ComboBox { enabled: !Theme.modal-active && (root.eligible && !root.recovery); model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
                         HorizontalLayout {
                             Label { text: "GPU Memory"; font-weight: 600; }
@@ -56,12 +56,12 @@ export component VmDetails inherits Rectangle {
                             accessible-value-step: 1;
                             minimum: 1; maximum: 8; step: 1;
                             value: root.memory-gb;
-                            enabled: !Theme.modal-active && root.eligible && !root.recovery;
+                            enabled: !Theme.modal-active && root.mock-mode && root.eligible && !root.recovery;
                             changed(value) => { root.memory-gb = max(1, min(8, round(value))); self.value = root.memory-gb; root.edited(); }
                         }
                         HorizontalLayout { Hint { text: root.mock-mode ? "1 GB" : "—"; } Hint { text: root.mock-mode ? "8 GB" : "—"; horizontal-alignment: right; } }
                         Hint { text: root.mock-mode ? "Visual mock preference only. Does not change the advanced fields or allocate physical VRAM." : "Real memory mapping is not implemented. No allocation or physical GB amount is claimed."; }
-                        Hint { visible: Theme.show-help; text: root.mock-mode ? "Changes stay in memory. Shared GPU use is not qualified." : "Live editing is unavailable until validated backend binding. Shared GPU use is not qualified."; }
+                        Hint { visible: Theme.show-help; text: root.mock-mode ? "Changes stay in memory. Shared GPU use is not qualified." : "Drafts stay in memory. Review reads a fresh shared plan; execution is unavailable. Shared GPU use is not qualified."; }
                     }
                 }
                 if root.status == "Setup required" : Surface {
@@ -75,7 +75,7 @@ export component VmDetails inherits Rectangle {
                 if !root.eligible : Surface {
                     VerticalLayout { padding: 16px; spacing: 8px;
                         Label { text: root.status == "Unsupported" ? "This VM is not eligible" : (root.mock-mode ? "VM information is unavailable" : "Configuration is unavailable"); font-weight: 600; }
-                        Hint { text: root.status == "Unsupported" ? "Non-Generation 2 guests are outside the GPU-P workflow." : (root.mock-mode ? "The sample represents an access-denied inventory result. Unknown does not mean unsupported. Refresh or inspect diagnostics." : "Enrollment and configuration have not been loaded. Live editing is not connected; this does not mean the VM is unsupported."); }
+                        Hint { text: root.status == "Unsupported" ? "Non-Generation 2 guests are outside the GPU-P workflow." : (root.mock-mode ? "The sample represents an access-denied inventory result. Unknown does not mean unsupported. Refresh or inspect diagnostics." : root.validation); }
                         Button { enabled: !Theme.modal-active; text: root.mock-mode ? "Inspect diagnostic example" : "Inspect diagnostics"; clicked => { root.action("diagnostics"); } }
                     }
                 }
@@ -85,11 +85,11 @@ export component VmDetails inherits Rectangle {
                 }
                 if root.advanced-expanded : VerticalLayout {
                     spacing: 14px;
-                    Hint { text: root.mock-mode ? "All numbers below are mock capabilities, not current GPU limits. Minimum ≤ Optimal ≤ Maximum." : "Allocation editing is not connected. Empty fields do not mean zero capacity."; }
+                    Hint { text: root.mock-mode ? "All numbers below are mock capabilities, not current GPU limits. Minimum ≤ Optimal ≤ Maximum." : "VRAM uses raw provider integers; System shows current bounds. Leave all three empty for provider defaults. Compute, encode and decode are unavailable."; }
                     ResourceEditor { mock-mode: root.mock-mode; title: "VRAM"; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Compute"; minimum : root.values[3]; optimal : root.values[4]; maximum : root.values[5]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index + 3] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Encode"; minimum : root.values[6]; optimal : root.values[7]; maximum : root.values[8]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index + 6] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Decode"; minimum : root.values[9]; optimal : root.values[10]; maximum : root.values[11]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index + 9] = value; root.edited(); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Compute"; minimum : root.values[3]; optimal : root.values[4]; maximum : root.values[5]; editable: root.mock-mode && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 3] = value; root.edited(); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Encode"; minimum : root.values[6]; optimal : root.values[7]; maximum : root.values[8]; editable: root.mock-mode && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 6] = value; root.edited(); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Decode"; minimum : root.values[9]; optimal : root.values[10]; maximum : root.values[11]; editable: root.mock-mode && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 9] = value; root.edited(); } }
                 }
                 if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }
                 HorizontalLayout {
@@ -99,7 +99,7 @@ export component VmDetails inherits Rectangle {
                 if root.technical : Surface {
                     VerticalLayout { padding: 16px; spacing: 7px;
                         Hint { text: "VM ID: " + root.identity; }
-                        Hint { text: root.mock-mode ? "Enrollment: " + root.status + " (mock)" : "Enrollment: not loaded"; }
+                        Hint { text: root.mock-mode ? "Enrollment: " + root.status + " (mock)" : "Protected enrollment: " + root.status; }
                         Hint { text: root.mock-mode ? "Driver: illustrative NVIDIA signed package · provider: sample GPU-P" : "Observed attachment: " + root.observed; }
                         Hint { text: root.mock-mode ? "Host partition count: 32 (sample, read only)\nSecure Boot: On · Generation: " + (root.status == "Unsupported" ? "1" : "2") + "\nCPU, RAM and disks are outside this editor." : "Host partition count and Secure Boot: not queried. CPU, RAM and disks are outside this editor."; }
                     }

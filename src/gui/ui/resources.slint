@@ -75,7 +75,7 @@ export component ResourceEditor inherits Surface {
         }
         if root.expanded : VerticalLayout {
             spacing: 7px;
-            Hint { text: root.mock-mode ? root.units + " · illustrative bounds 0–1000; no hardware guarantees" : "Units and bounds not loaded; allocation editing unavailable"; }
+            Hint { text: root.mock-mode ? root.units + " · illustrative bounds 0–1000; no hardware guarantees" : (root.title == "VRAM" ? "Raw provider values · see System for bounds; no physical GB or enforcement claim" : "Not exposed by the current backend; editing unavailable"); }
             HorizontalLayout {
                 spacing: 12px;
                 AllocationField { label: "Minimum"; value: root.minimum; editable: root.editable; edited(value) => { root.edited(0, value); } }

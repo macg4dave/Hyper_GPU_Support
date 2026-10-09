@@ -64,8 +64,8 @@ export component Pages inherits Rectangle {
                 } }
                 Surface { VerticalLayout { padding: 22px; spacing: 10px;
                     Label { text: "Credentials & diagnostics"; font-weight: 600; }
-                    Hint { text: "No credentials are collected. Guest credentials and protected configuration are future integration work. Diagnostics are session-only."; }
-                    Button { enabled: !Theme.modal-active; text: "Preview credential information"; clicked => { root.action("credentials"); } }
+                    Hint { text: root.mock-mode ? "No credentials are collected. Diagnostics are session-only." : "Guest credentials use the native Windows dialog for the selected enrolled VM. Remember is an explicit opt-in to this user's Credential Manager."; }
+                    Button { enabled: !Theme.modal-active; text: root.mock-mode ? "Preview credential information" : "Guest credentials for selected VM"; clicked => { root.action("credentials"); } }
                 } }
             }
             if root.page == 3 : VerticalLayout {
@@ -73,7 +73,7 @@ export component Pages inherits Rectangle {
                 Surface { VerticalLayout { padding: 24px; spacing: 14px;
                     Heading { text: "Hyper GPU Support"; }
                     Label { text: root.mock-mode ? "Mock GUI · 0.1.0" : "Hyper GPU Support · 0.1.0"; }
-                    Hint { text: root.mock-mode ? "Built with Rust and Slint 1.18.1, using Fluent widgets. This rehearsal performs no Hyper-V changes or persistent VM configuration writes." : "Built with Rust and Slint 1.18.1. Inventory is live; configuration actions are awaiting backend integration."; }
+                    Hint { text: root.mock-mode ? "Built with Rust and Slint 1.18.1, using Fluent widgets. This rehearsal performs no Hyper-V changes or persistent VM configuration writes." : "Built with Rust and Slint 1.18.1. Inventory, enrollment, drafts, plan previews and native guest credential access are connected. Apply and guest verification are unavailable."; }
                     Hint { text: root.mock-mode ? "Explore physical GPU selection, twelve allocation fields, first-time setup, review, progress and manual recovery. Current fixture identities and outcomes are illustrative." : "Explicit CLI commands retain their existing capabilities. Unconnected GUI operations never produce simulated success."; }
                     Label { text: "Designed for existing VMs"; font-weight: 600; }
                     Hint { text: "NVIDIA first. Further vendor support and simultaneous GPU sharing require independent qualification."; }

@@ -31,7 +31,7 @@ export component DemoDialog inherits Rectangle {
                     VerticalLayout { spacing: 14px; alignment: start;
                         Hint { text: root.body; font-size: 14px; }
                         for stage in root.stages : Label { text: stage; font-size: 13px; }
-                        if root.kind == "review" && root.needs-shutdown : CheckBox { text: "Demonstrate graceful guest shutdown & restore"; checked <=> root.consent; }
+                        if root.kind == "review" && root.needs-shutdown && root.mock-mode : CheckBox { text: "Demonstrate graceful guest shutdown & restore"; checked <=> root.consent; }
                         if root.running : ProgressIndicator { indeterminate: true; }
                     }
                 }
@@ -48,12 +48,12 @@ export component DemoDialog inherits Rectangle {
                     if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
                     if root.kind == "forget" : Button { text: "Forget sample pairing"; primary: true; clicked => { root.action("confirm-forget"); } }
                     if root.kind == "review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
-                    if root.kind == "review" : Button { text: "Confirm demonstration"; primary: true; enabled: !root.needs-shutdown || root.consent; clicked => { root.action("confirm"); } }
+                    if root.kind == "review" : Button { text: root.mock-mode ? "Confirm demonstration" : "Apply unavailable"; primary: true; enabled: root.mock-mode && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
                     if root.kind == "save" : Button { text: "Demonstrate save-only retry"; primary: true; clicked => { root.action("save-only"); } }
                     if root.kind == "recovery" : Button { text: "Inspect mock reconciliation"; primary: true; clicked => { root.action("reconcile"); } }
-                    if root.kind == "more" : Button { text: "Verify Graphics"; clicked => { root.action("verify"); } }
+                    if root.kind == "more" : Button { text: "Verify Graphics"; enabled: root.mock-mode; clicked => { root.action("verify"); } }
                     if root.kind == "more" : Button { text: "Reapply / Update"; clicked => { root.action("reapply"); } }
-                    if root.kind == "more" : Button { text: "Forget pairing"; clicked => { root.action("forget"); } }
+                    if root.kind == "more" : Button { text: "Forget pairing"; enabled: root.mock-mode; clicked => { root.action("forget"); } }
                     close-button := Button { visible: root.kind != "review" && root.kind != "switch" && root.kind != "exit"; text: root.running ? "Operation in progress" : "Close"; enabled: !root.running; clicked => { root.action("close"); } }
                 }
                 HorizontalLayout {
