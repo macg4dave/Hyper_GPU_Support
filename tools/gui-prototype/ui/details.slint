@@ -1,0 +1,116 @@
+import { Button, Switch, ComboBox, ScrollView, Slider } from "std-widgets.slint";
+import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
+import { ResourceEditor, AllocationDisclosure } from "resources.slint";
+
+export component VmDetails inherits Rectangle {
+    in property <string> name;
+    in property <string> identity;
+    in property <string> power;
+    in property <string> status;
+    in property <string> observed;
+    in property <string> desired;
+    in property <string> verification;
+    in property <bool> dirty;
+    in property <bool> eligible;
+    in property <bool> recovery;
+    in-out property <bool> gpu-enabled;
+    in-out property <int> gpu-index;
+    in-out property <int> memory-gb: 4;
+    in-out property <[string]> values;
+    in property <string> validation;
+    private property <bool> technical: false;
+    private property <bool> advanced-expanded: false;
+    changed memory-gb => { memory-slider.value = root.memory-gb; }
+    callback edited();
+    callback action(string);
+    background: Theme.canvas;
+    VerticalLayout {
+        padding: 18px; spacing: 14px;
+        HorizontalLayout {
+            VerticalLayout { spacing: 5px; Heading { text: root.name; } Hint { text: root.power + " · " + root.status; } }
+            if root.dirty : Label { text: "● Draft changed"; color: Theme.accent; font-size: 12px; }
+        }
+        ScrollView {
+            horizontal-scrollbar-policy: always-off;
+            VerticalLayout {
+                spacing: 14px;
+                alignment: start;
+                Surface {
+                    VerticalLayout {
+                        padding: 16px; spacing: 10px;
+                        Label { text: "GPU support"; font-weight: 600; }
+                        Hint { text: "Observed: " + root.observed; }
+                        Hint { text: "Saved desired: " + root.desired; }
+                        Hint { text: "Graphics: " + root.verification; }
+                        Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: "Enable GPU support in this draft"; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
+                        Hint { text: "Physical GPU · sample inventory"; }
+                        ComboBox { enabled: !Theme.modal-active && (root.eligible && !root.recovery); model: ["NVIDIA GeForce RTX 5060 · mock", "NVIDIA GeForce RTX 4070 · mock", "AMD Radeon RX 7800 XT · unavailable adapter"]; current-index <=> root.gpu-index;  selected => { root.edited(); } }
+                        HorizontalLayout {
+                            Label { text: "GPU Memory"; font-weight: 600; }
+                            Label { text: root.memory-gb + " GB"; font-weight: 600; horizontal-alignment: right; }
+                        }
+                        memory-slider := Slider {
+                            accessible-label: "GPU Memory mock preference in GB";
+                            accessible-value-step: 1;
+                            minimum: 1; maximum: 8; step: 1;
+                            value: root.memory-gb;
+                            enabled: !Theme.modal-active && root.eligible && !root.recovery;
+                            changed(value) => { root.memory-gb = max(1, min(8, round(value))); self.value = root.memory-gb; root.edited(); }
+                        }
+                        HorizontalLayout { Hint { text: "1 GB"; } Hint { text: "8 GB"; horizontal-alignment: right; } }
+                        Hint { text: "Visual mock preference only. Does not change the advanced fields or allocate physical VRAM."; }
+                        Hint { visible: Theme.show-help; text: "Changes stay in memory. Shared GPU use is not qualified."; }
+                    }
+                }
+                if root.status == "Setup required" : Surface {
+                    VerticalLayout {
+                        padding: 16px; spacing: 10px;
+                        Label { text: "First-time setup"; font-weight: 600; }
+                        Hint { text: "This Generation 2 VM has no saved GPU configuration. Review the pairing and demonstration enrollment before preparing the guest."; }
+                        Button { enabled: !Theme.modal-active; text: "Stage enrollment & NVIDIA preparation"; clicked => { root.action("enroll"); } }
+                    }
+                }
+                if !root.eligible : Surface {
+                    VerticalLayout { padding: 16px; spacing: 8px;
+                        Label { text: root.status == "Unsupported" ? "This VM is not eligible" : "VM information is unavailable"; font-weight: 600; }
+                        Hint { text: root.status == "Unsupported" ? "Generation 1 guests are outside the proposed GPU-P workflow. Choose an existing Generation 2 Windows VM." : "The sample represents an access-denied inventory result. Unknown does not mean unsupported. Refresh or inspect diagnostics."; }
+                        Button { enabled: !Theme.modal-active; text: "Inspect diagnostic example"; clicked => { root.action("diagnostics"); } }
+                    }
+                }
+                HorizontalLayout {
+                    advanced-toggle := AllocationDisclosure { expanded <=> root.advanced-expanded; }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+                if root.advanced-expanded : VerticalLayout {
+                    spacing: 14px;
+                    Hint { text: "All numbers below are mock capabilities, not current GPU limits. Minimum ≤ Optimal ≤ Maximum."; }
+                    ResourceEditor { title: "VRAM"; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index] = value; root.edited(); } }
+                    ResourceEditor { title: "Compute"; minimum : root.values[3]; optimal : root.values[4]; maximum : root.values[5]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index + 3] = value; root.edited(); } }
+                    ResourceEditor { title: "Encode"; minimum : root.values[6]; optimal : root.values[7]; maximum : root.values[8]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index + 6] = value; root.edited(); } }
+                    ResourceEditor { title: "Decode"; minimum : root.values[9]; optimal : root.values[10]; maximum : root.values[11]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index + 9] = value; root.edited(); } }
+                }
+                if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }
+                HorizontalLayout {
+                    TechnicalDetailsButton { enabled: !Theme.modal-active; expanded <=> root.technical; }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+                if root.technical : Surface {
+                    VerticalLayout { padding: 16px; spacing: 7px;
+                        Hint { text: "VM ID: " + root.identity; }
+                        Hint { text: "Enrollment: " + root.status + " (mock)"; }
+                        Hint { text: "Driver: illustrative NVIDIA signed package · provider: sample GPU-P"; }
+                        Hint { text: "Host partition count: 32 (sample, read only)\nSecure Boot: On · Generation: " + (root.status == "Unsupported" ? "1" : "2") + "\nCPU, RAM and disks are outside this editor."; }
+                    }
+                }
+            }
+        }
+        HorizontalLayout { spacing: 8px;
+            review := Button { enabled: !Theme.modal-active && (root.eligible && !root.recovery && root.validation == ""); text: "Review & Apply"; primary: true;  clicked => { root.action("review"); } }
+            Button { enabled: !Theme.modal-active && (root.dirty); text: "Discard draft";  clicked => { root.action("discard"); } }
+            Button { enabled: !Theme.modal-active; text: "More actions…"; clicked => { root.action("more"); } }
+        }
+    }
+}
+
+
+

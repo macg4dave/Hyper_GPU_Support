@@ -1,6 +1,6 @@
 [workspace]
 members = ["."]
-exclude = ["tools/lab"]
+exclude = ["tools/lab", "tools/gui-prototype"]
 resolver = "3"
 
 [package]

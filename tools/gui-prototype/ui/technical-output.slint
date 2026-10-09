@@ -1,0 +1,53 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+// TextEdit's Fluent colours are not publicly configurable. Keep diagnostics
+// neutral with Slint's read-only TextInput and the standard scroll container.
+export component TechnicalOutput inherits Rectangle {
+    in property <string> text;
+    min-height: 0px;
+    preferred-height: 160px;
+    max-height: 220px;
+    background: #ffffff;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: output.has-focus ? Theme.accent : #c8c8c8;
+    forward-focus: output;
+    VerticalLayout {
+        padding: 12px;
+        viewport := ScrollView {
+            content-width: max(self.visible-width, output.preferred-width);
+            content-height: max(self.visible-height, output.preferred-height);
+            output := TextInput {
+                accessible-label: "Technical details, read only";
+                text: root.text;
+                read-only: true;
+                single-line: false;
+                wrap: no-wrap;
+                horizontal-alignment: left;
+                vertical-alignment: top;
+                font-family: "Consolas";
+                font-size: 13px;
+                color: #000000;
+                selection-background-color: #005fb8;
+                selection-foreground-color: #ffffff;
+                page-height: viewport.visible-height;
+                cursor-position-changed(position) => {
+                    // Keep keyboard navigation/selection in view on both axes.
+                    if position.x + viewport.content-x < 0px {
+                        viewport.content-x = -position.x;
+                    } else if position.x + viewport.content-x > viewport.visible-width - 2px {
+                        viewport.content-x = viewport.visible-width - position.x - 2px;
+                    }
+                    if position.y + viewport.content-y < 0px {
+                        viewport.content-y = -position.y;
+                    } else if position.y + viewport.content-y > viewport.visible-height - self.font-size * 1.5 {
+                        viewport.content-y = viewport.visible-height - position.y - self.font-size * 1.5;
+                    }
+                    viewport.content-x = max(min(0px, viewport.content-x), viewport.visible-width - viewport.content-width);
+                    viewport.content-y = max(min(0px, viewport.content-y), viewport.visible-height - viewport.content-height);
+                }
+            }
+        }
+    }
+}

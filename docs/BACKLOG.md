@@ -58,7 +58,7 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 | [CORE-012](#core-012) | M2/M3 | P1 | **ready (after task authorisation)** | Existing observed-state/journal/error contracts |
 | [CORE-021](#core-021) | M2/M3 | P1 | **in progress** | Integration/doc residuals; parser/storage CFG-001, enrollment SEC-001, UI GUI-002 |
 | [CORE-006](#core-006) | M2 | P1 | **completed (reported)** | Reuse shared plan/apply preview; extend only for new operations |
-| [GUI-001](#gui-001) | M3.1 | P1 | **planned — re-scoped** | PLAN-001; Slint mock shell, **not** Win32 continuation |
+| [GUI-001](#gui-001) | M3.1 | P1 | **prototype delivered; qualification pending** | PLAN-001; isolated Slint mock shell; product integration remains separate |
 | [APP-001](#app-001) | M3.2 | P0 | **planned — new** | PLAN-001; single exe GUI/CLI/worker routing |
 | [CFG-001](#cfg-001) | M3.3 | P0 | **planned — new** | PLAN-001, shared model audit; worker write integration depends on SEC-001 |
 | [GPU-010](#gpu-010) | M3.4 | P0 | **planned — promoted from M4** | PLAN-001; provider/API validation and selected-GPU capability model |
@@ -130,6 +130,53 @@ links/task dependencies and diff hygiene. No code, builds or live operations. Th
 user can review the concrete documentation diff; implementation remains planned.
 
 ### GUI-001
+
+**Header and diagnostics:** Removed VM Selection; heading/Refresh share one row.
+VM cards have measured 12px layout gaps in narrow/wide and 35-VM scenarios.
+Reusable read-only TextInput/ScrollView keeps dialog logs black-on-white and
+monospaced in both themes, with bounded height and the existing bottom toggle.
+Running-app mouse partial copy, keyboard line copy/Ctrl+C, blocked edit/cut/paste,
+two-axis wheel scrolling, Home/End and 700x520 layouts passed; a 500-line live
+viewer fixture passed the same interaction checks without moving actions offscreen.
+Viewer compile, prototype build, format, strict Clippy and allocation test passed.
+
+**Layout usability:** Removed prototype VM search/filter controls and state;
+names now use responsive left-aligned ellipsis with full-name tooltips and
+keyboard-accessible card selection. All dialogs share a bottom technical toggle
+below their actions and a bounded technical scroll area. Viewer/live preview,
+prototype build, format, strict Clippy/test and verified application checks at
+1240x860 / 700x520, minimum 250px divider, long names, light/dark review and
+recovery layouts passed. Toggle geometry stays 210x32 in both states.
+
+**Visual polish:** Neutral light/dark surfaces and restrained accent use; removed
+navigation headings; shared 210×32 technical-detail button verified in both dialog
+states; VM dots reflect displayed power and OS icons use mock metadata with generic
+fallback. Local assets require no new dependency. Viewer compilation, wide/narrow
+renders, verified running-app light/dark/dialog checks and prototype format,
+strict Clippy/test passed. Backend operations remain untouched.
+
+**UI refinement:** Advanced Allocation now defaults to collapsed with a clickable
+chevron heading. GPU Memory has an independent mock 1–8 GB slider, separate from
+provider allocations. Navigation and VM selection have contrasting panel regions;
+Activity and unused history state are removed. Viewer/live preview, build,
+formatting, strict prototype Clippy/test, expand/edit/collapse preservation,
+slider snap/discard, page navigation, theme switching and narrow layout checked.
+
+**9 October prototype:** User explicitly requested the exploratory UI without
+backend integration. Implemented the isolated Rust/Slint 1.18.1 package at
+`tools/gui-prototype/`: Dashboard, Activity, System, Settings and About; mock
+inventory/scenarios, draft editing, twelve fields, review/progress/recovery,
+themes and adjustable scrolling workspace. Launch and limits are documented
+in its README. Production integration remains with its own cards. Full screen
+reader, Windows text-scaling and multi-monitor qualification remain open;
+this does not close M3 or qualify GPU functionality.
+
+**Checks:** Slint viewer compile/live preview and large/narrow layout renders;
+verified Rust application navigation, edit/discard, dirty-VM switch, themes,
+splitter drag, detail scrolling, mock Apply, failure/reconciliation and save-only
+recovery. Prototype build, formatting, strict Clippy and its allocation test pass;
+root formatting/strict Clippy and 69 core + 3 CLI tests pass (one privileged
+integration test remains ignored). Independent prototype review cleared.
 
 **New modular Slint shell — mock-first; old Win32 work is historical.** Build once authorised using standard Slint Fluent widgets, shared theme/spacing, sidebar, vertically scrollable **VM cards** (all discovered states), search/status filters, left/right split with adjustable divider, always-two-panel layout and **horizontal scrolling** at narrow widths. Right-hand hybrid details with expandable advanced information and four resource categories. Do not port `windows_gui.rs`, implement monolithic `.rs`/`.slint` files, or place Hyper-V rules in UI components.
 

@@ -1,0 +1,81 @@
+import { Theme, Label, Hint, Surface } from "theme.slint";
+
+export struct VmRow { id: string, name: string, power: string, status: string, gpu: string, os: string }
+
+component GuestOsIcon inherits Rectangle {
+    in property <string> os;
+    width: Theme.os-icon-size;
+    height: Theme.button-height;
+    accessible-role: image;
+    accessible-label: root.os == "windows" ? "Windows guest, sample metadata" : root.os == "linux" ? "Linux guest, sample metadata" : "Unknown guest OS";
+    if root.os == "linux" : Image { source: @image-url("icons/linux.svg"); width: Theme.os-icon-size; height: Theme.os-icon-size; }
+    if root.os != "linux" : Image {
+        source: root.os == "windows" ? @image-url("icons/windows.svg") : @image-url("icons/monitor.svg");
+        colorize: Theme.text;
+        width: Theme.os-icon-size; height: Theme.os-icon-size;
+    }
+}
+
+export component VmCard inherits Surface {
+    in property <VmRow> vm;
+    in property <bool> selected;
+    callback select(string);
+    min-width: 0px;
+    height: 132px;
+    accessible-role: button;
+    accessible-label: root.vm.name;
+    accessible-enabled: !Theme.modal-active;
+    forward-focus: keyboard;
+    background: root.selected ? Theme.tint : Theme.surface;
+    border-color: keyboard.has-focus ? Theme.accent : Theme.line;
+    accessible-action-default => { if !Theme.modal-active { root.select(root.vm.id); } }
+    keyboard := FocusScope {
+        enabled: !Theme.modal-active;
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " { root.select(root.vm.id); return accept; }
+            return reject;
+        }
+    }
+    if root.selected : Rectangle { x: 0; y: 14px; width: 3px; height: parent.height - 28px; background: Theme.accent; border-radius: 1px; }
+    TouchArea { enabled: !Theme.modal-active; clicked => { keyboard.focus(); root.select(root.vm.id); } }
+    VerticalLayout {
+        padding: 14px; spacing: 7px;
+        HorizontalLayout {
+            spacing: 10px;
+            GuestOsIcon { os: root.vm.os; }
+            Label { min-width: 0px; text: root.vm.name; horizontal-stretch: 1; horizontal-alignment: left; overflow: elide; }
+        }
+        HorizontalLayout {
+            spacing: 7px;
+            Rectangle {
+                width: Theme.status-dot-size;
+                Rectangle {
+                    width: Theme.status-dot-size; height: Theme.status-dot-size; border-radius: Theme.status-dot-size / 2;
+                    background: root.vm.power == "Running" ? Theme.running : root.vm.power == "Stopped" || root.vm.power == "Off" ? Theme.stopped : Theme.unknown;
+                }
+            }
+            Label { text: root.vm.power; font-size: 12px; }
+            Label { text: root.vm.status; font-size: 12px; color: Theme.muted; horizontal-alignment: right; }
+        }
+        Hint { text: root.vm.gpu; }
+    }
+    Tooltip {
+        Surface {
+            max-width: 400px;
+            VerticalLayout { padding: 10px; Label { text: root.vm.name; wrap: word-wrap; overflow: clip; } }
+        }
+    }
+}
+
+export component Splitter inherits Rectangle {
+    in-out property <length> position: 310px;
+    width: 10px;
+    background: drag.has-hover || drag.pressed ? Theme.tint : Theme.canvas;
+    Rectangle { width: 2px; height: 38px; background: Theme.line; border-radius: 1px; }
+    drag := TouchArea {
+        mouse-cursor: ew-resize;
+        enabled: !Theme.modal-active;
+        moved => { if self.pressed { root.position = max(250px, min(480px, root.position + self.mouse-x - self.pressed-x)); } }
+    }
+}
+

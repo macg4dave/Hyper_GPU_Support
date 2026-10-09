@@ -1,0 +1,60 @@
+import { Palette, Button } from "std-widgets.slint";
+
+export global Theme {
+    in-out property <bool> modal-active: false;
+    in-out property <bool> show-help: true;
+    out property <brush> canvas: Palette.color-scheme == ColorScheme.dark ? #202020 : #f3f3f3;
+    out property <brush> surface: Palette.color-scheme == ColorScheme.dark ? #2b2b2b : #ffffff;
+    out property <brush> navigation: Palette.color-scheme == ColorScheme.dark ? #252525 : #eeeeee;
+    out property <brush> vm-panel: Palette.color-scheme == ColorScheme.dark ? #242424 : #f7f7f7;
+    out property <brush> text: Palette.foreground;
+    out property <brush> muted: Palette.color-scheme == ColorScheme.dark ? #bdbdbd : #626262;
+    out property <brush> line: Palette.color-scheme == ColorScheme.dark ? #424242 : #dedede;
+    out property <brush> accent: Palette.color-scheme == ColorScheme.dark ? #8ab7ff : #225fbd;
+    out property <brush> tint: Palette.color-scheme == ColorScheme.dark ? #353535 : #eaeaea;
+    out property <brush> running: Palette.color-scheme == ColorScheme.dark ? #63c174 : #25833a;
+    out property <brush> stopped: Palette.color-scheme == ColorScheme.dark ? #f08080 : #c33c3c;
+    out property <brush> unknown: Palette.color-scheme == ColorScheme.dark ? #aaaaaa : #777777;
+    out property <length> status-dot-size: 8px;
+    out property <length> os-icon-size: 24px;
+    out property <length> button-height: 32px;
+    out property <length> technical-button-width: 210px;
+    out property <length> gap: 12px;
+    out property <length> radius: 8px;
+}
+
+export component TechnicalDetailsButton inherits Button {
+    in-out property <bool> expanded: false;
+    text: root.expanded ? "Hide Technical Details" : "Show Technical Details";
+    min-width: Theme.technical-button-width;
+    max-width: Theme.technical-button-width;
+    preferred-width: Theme.technical-button-width;
+    min-height: Theme.button-height;
+    max-height: Theme.button-height;
+    preferred-height: Theme.button-height;
+    clicked => { root.expanded = !root.expanded; }
+}
+
+export component Label inherits Text {
+    color: Theme.text;
+    font-size: 14px;
+    overflow: elide;
+}
+export component Hint inherits Text {
+    color: Theme.muted;
+    font-size: 12px;
+    wrap: word-wrap;
+}
+export component Heading inherits Text {
+    color: Theme.text;
+    font-size: 22px;
+    font-weight: 600;
+    overflow: elide;
+}
+export component Surface inherits Rectangle {
+    background: Theme.surface;
+    border-color: Theme.line;
+    border-width: 1px;
+    border-radius: Theme.radius;
+    @children
+}

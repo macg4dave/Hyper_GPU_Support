@@ -1,6 +1,7 @@
 # Slint GUI delivery map
 
-**Updated:** 9 October 2026. Slint implementation remains planned.
+**Updated:** 9 October 2026. An isolated exploratory Slint prototype is implemented
+in [`tools/gui-prototype`](../tools/gui-prototype/README.md); product integration remains planned.
 [ROADMAP](ROADMAP.md) owns product milestone gates, [BACKLOG](BACKLOG.md) owns task
 status/dependencies/acceptance, [GUI_GUIDE](GUI_GUIDE.md) owns approved requirements,
 and [SLINT_RULES](SLINT_RULES.md) owns implementation practice. This file maps

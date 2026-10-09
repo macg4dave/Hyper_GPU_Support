@@ -1,6 +1,34 @@
 ﻿# Changelog
 
+## 2026-10-09 - Slint prototype refinement
+
+- Simplified the VM header to its heading and Refresh row and added consistent
+  layout gaps between cards. Dialog diagnostics now have a bounded, read-only
+  monospaced black-on-white viewer with mouse/keyboard selection, Ctrl+C and
+  two-axis scrolling, while preserving the bottom technical toggle.
+
+- Contained and left-aligned VM names with ellipsis and full-name tooltips;
+  removed VM search/filter controls and their mock state. Shared dialogs keep
+  technical-details toggles below actions with stable sizing and a separately
+  scrollable technical pane, including at the minimum window size.
+
+- Polished the prototype with neutral Fluent-style surfaces, a heading-free
+  sidebar, fixed-size technical-detail buttons, state-driven VM status dots and
+  local metadata-driven Windows/Linux/unknown OS icons. No new dependencies or
+  production GPU/Hyper-V changes.
+
+- Refined the mock Slint GUI with a default-collapsed Advanced Allocation heading
+  and chevron, an independent 1–8 GB visual memory slider, separate navigation/VM
+  panel styling, and removal of Activity and its unused history state.
+
 ## 2026-10-09 - Slint documentation reconciliation
+
+The subsequent user-authorized exploratory prototype is implemented in
+`tools/gui-prototype/`: a mock-backed Rust/Slint Fluent interface with Dashboard,
+Activity, System, Settings, About, adjustable scrolling panes, twelve allocation
+fields, draft confirmations, review/progress/recovery and theme choices. It has
+no real Hyper-V, GPU, driver, host configuration or protected-runner operations.
+The existing CLI/backend remains intact; product integration is still planned.
 
 - Reconciled single-executable GUI/CLI/restricted-worker direction, initial GPU
   selection and four allocation triples, per-VM worker-owned saving and manual

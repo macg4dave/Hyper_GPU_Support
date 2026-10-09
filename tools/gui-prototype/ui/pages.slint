@@ -1,0 +1,77 @@
+import { Button, ComboBox, CheckBox, ScrollView, Palette } from "std-widgets.slint";
+import { Theme, Heading, Label, Hint, Surface } from "theme.slint";
+
+export component Pages inherits Rectangle {
+    in property <int> page;
+    in-out property <int> theme-index: 0;
+    in-out property <int> scenario: 0;
+    callback scenario-changed();
+    callback action(string);
+    background: Theme.canvas;
+    ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        VerticalLayout {
+            padding: 28px; spacing: 18px;
+            Heading { text: root.page == 2 ? "Settings" : root.page == 1 ? "System information" : "About Hyper GPU Support"; }
+            Hint { text: root.page == 2 ? "Make the workspace yours. Prototype preferences reset on launch." : root.page == 1 ? "Read-only sample host capabilities. These values are not live discovery." : "A focused Windows workspace for existing Hyper-V virtual machines."; }
+            if root.page == 1 : VerticalLayout {
+                spacing: 18px;
+                Surface { VerticalLayout { padding: 22px; spacing: 10px;
+                    Label { text: "Host prerequisites · sample"; font-weight: 600; }
+                    Hint { text: "Windows 11 Pro · x64\nHyper-V: available in sample\nGeneration 2 Windows guests: supported by proposed workflow\nProtected worker: not connected in this prototype"; }
+                } }
+                for gpu in ["NVIDIA GeForce RTX 5060", "NVIDIA GeForce RTX 4070", "AMD Radeon RX 7800 XT"] : Surface {
+                    VerticalLayout { padding: 22px; spacing: 10px;
+                        Label { text: gpu; font-weight: 600; }
+                        Hint { text: gpu == "AMD Radeon RX 7800 XT" ? "Vendor adapter unavailable · future qualification required" : "Mock NVIDIA adapter · illustrative signed driver package"; }
+                        Hint { text: "Provider units: opaque sample values 0–1000\nHost partition count: 32 (sample, read only)\nSharing: not qualified\nAttachment does not prove guest graphics support."; }
+                    }
+                }
+            }
+            if root.page == 2 : VerticalLayout {
+                spacing: 18px;
+                Surface { VerticalLayout { padding: 22px; spacing: 12px;
+                    Label { text: "Appearance"; font-weight: 600; }
+                    Hint { text: "Theme"; }
+                    HorizontalLayout { spacing: 10px;
+                        Button { enabled: !Theme.modal-active; text: "Follow Windows"; primary: root.theme-index == 0; clicked => { root.theme-index = 0; Palette.color-scheme = ColorScheme.unknown; } }
+                        Button { enabled: !Theme.modal-active; text: "Light"; primary: root.theme-index == 1; clicked => { root.theme-index = 1; Palette.color-scheme = ColorScheme.light; } }
+                        Button { enabled: !Theme.modal-active; text: "Dark"; primary: root.theme-index == 2; clicked => { root.theme-index = 2; Palette.color-scheme = ColorScheme.dark; } }
+                    }
+                    CheckBox { enabled: !Theme.modal-active; text: "Show contextual help"; checked <=> Theme.show-help; }
+                    Hint { text: "Fluent controls follow the selected palette immediately."; }
+                } }
+                Surface { VerticalLayout { padding: 22px; spacing: 12px;
+                    Label { text: "Prototype scenario"; font-weight: 600; }
+                    scenario-picker := ComboBox { enabled: !Theme.modal-active; model: ["Normal inventory", "No virtual machines", "Many VMs & long names", "Recovery required", "GPU operation fails", "Worker disconnect / uncertain", "Configuration save fails", "External change / stale draft"]; current-index <=> root.scenario; selected => { root.scenario-changed(); } }
+                    Hint { text: "Choose a scenario, then return to Dashboard. Failure scenarios take effect when you confirm a demonstration Apply."; }
+                    HorizontalLayout { spacing: 8px;
+                        Button { enabled: !Theme.modal-active; text: "Try GPU failure"; clicked => { root.scenario = 4; root.scenario-changed(); } }
+                        Button { enabled: !Theme.modal-active; text: "Try uncertain outcome"; clicked => { root.scenario = 5; root.scenario-changed(); } }
+                        Button { enabled: !Theme.modal-active; text: "Try save failure"; clicked => { root.scenario = 6; root.scenario-changed(); } }
+                    }
+                    Button { enabled: !Theme.modal-active; text: "Reset prototype session"; clicked => { root.action("reset"); } }
+                } }
+                Surface { VerticalLayout { padding: 22px; spacing: 10px;
+                    Label { text: "Credentials & diagnostics"; font-weight: 600; }
+                    Hint { text: "No credentials are collected. Guest credentials and protected configuration are future integration work. Diagnostics are session-only."; }
+                    Button { enabled: !Theme.modal-active; text: "Preview credential information"; clicked => { root.action("credentials"); } }
+                } }
+            }
+            if root.page == 3 : VerticalLayout {
+                spacing: 18px;
+                Surface { VerticalLayout { padding: 24px; spacing: 14px;
+                    Heading { text: "Hyper GPU Support"; }
+                    Label { text: "Slint exploratory prototype · 0.1.0"; }
+                    Hint { text: "Built with Rust and Slint 1.18.1, using Fluent widgets. This preview contains no Hyper-V connection, privileged runner, driver installation or persistent VM configuration."; }
+                    Hint { text: "Explore physical GPU selection, twelve allocation fields, first-time setup, review, progress and manual recovery. All device identities and outcomes are illustrative."; }
+                    Label { text: "Designed for existing VMs"; font-weight: 600; }
+                    Hint { text: "NVIDIA first. Further vendor support and simultaneous GPU sharing require independent qualification."; }
+                    Button { enabled: !Theme.modal-active; text: "View prototype shortcuts"; clicked => { root.action("shortcuts"); } }
+                } }
+            }
+            Rectangle { min-height: 12px; vertical-stretch: 1; }
+        }
+    }
+}
+

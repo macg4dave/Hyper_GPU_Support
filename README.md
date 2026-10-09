@@ -3,7 +3,9 @@
 Rust GPU-PV management for existing Hyper-V VMs. The approved product uses one
 `hyper-gpu-support.exe`: no arguments launch Slint; explicit commands run headlessly;
 a restricted internal mode runs an elevated worker per approved operation. These
-consolidated modes and Slint are **planned**, not yet implemented. The current build
+consolidated modes and production Slint integration are **planned**. An isolated
+[interactive Slint prototype](tools/gui-prototype/README.md) is available with mock
+data. The current product build
 has separate CLI, Win32 prototype and protected runner binaries using the same Rust
 core. Select multiple Generation 2 VMs, one GPU each. NVIDIA preparation
 is implemented first; discovery can list other vendors without claiming support.
@@ -13,6 +15,12 @@ product still needs changed-boundary hardware qualification. See the
 [current acceptance card](docs/BACKLOG.md#arch-001).
 
 ## Build and checks
+
+To explore the GUI prototype without Hyper-V or elevation:
+
+```powershell
+cargo run --locked --manifest-path tools/gui-prototype/Cargo.toml
+```
 
 Use the pinned Rust/MSVC/Windows SDK toolchain from `rust-toolchain.toml`.
 The Windows x64 Cargo configuration statically links the C runtime so the guest

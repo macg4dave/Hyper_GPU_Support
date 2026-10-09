@@ -1,0 +1,133 @@
+import { Button, ScrollView } from "std-widgets.slint";
+import { Theme, Label, Hint } from "theme.slint";
+import { VmRow, VmCard, Splitter } from "cards.slint";
+import { VmDetails } from "details.slint";
+import { Pages } from "pages.slint";
+import { DemoDialog } from "dialogs.slint";
+
+export component AppWindow inherits Window {
+    title: "Hyper GPU Support · GUI Prototype";
+    preferred-width: 1240px; preferred-height: 860px;
+    min-width: 700px; min-height: 520px;
+    background: Theme.canvas;
+    default-font-family: "Segoe UI";
+    in-out property <int> page: 0;
+    in-out property <int> theme-index: 0;
+    in-out property <int> scenario: 0;
+    in-out property <[VmRow]> vms: [
+        {id: "preview-1", name: "Windows 11 · Design", power: "Running", status: "Configured", gpu: "NVIDIA GeForce RTX 5060", os: "windows"},
+        {id: "preview-2", name: "Windows 11 · Development", power: "Stopped", status: "Setup required", gpu: "No GPU assigned", os: "windows"}
+    ];
+    in-out property <string> selected-id: "preview-1";
+    in-out property <string> vm-name: "Windows 11 · Design";
+    in-out property <string> power: "Running";
+    in-out property <string> status: "Configured";
+    in-out property <string> observed: "NVIDIA GeForce RTX 5060 attached (mock)";
+    in-out property <string> desired: "GPU enabled · RTX 5060 (mock)";
+    in-out property <string> verification: "Last verified in sample session; not currently verified";
+    in-out property <bool> eligible: true;
+    in-out property <bool> dirty: false;
+    in-out property <bool> recovery: false;
+    in-out property <bool> gpu-enabled: true;
+    in-out property <int> gpu-index: 0;
+    in-out property <int> memory-gb: 4;
+    in-out property <[string]> values: ["100", "500", "1000", "100", "500", "1000", "100", "500", "1000", "100", "500", "1000"];
+    in-out property <string> validation;
+    in-out property <string> notice: "Explore safely. This workspace uses sample VMs and GPUs.";
+    in-out property <string> dialog-kind;
+    in-out property <string> dialog-title;
+    in-out property <string> dialog-body;
+    in-out property <[string]> stages;
+    in-out property <bool> running: false;
+    in-out property <bool> needs-shutdown: false;
+    changed dialog-kind => { Theme.modal-active = root.dialog-kind != ""; }
+    private property <length> split: 310px;
+    callback select-vm(string);
+    callback edited();
+    callback scenario-changed();
+    callback action(string);
+    VerticalLayout {
+        spacing: 0px;
+        Rectangle {
+            height: 64px; background: Theme.surface;
+            HorizontalLayout { padding: 20px; spacing: 14px;
+                Rectangle { width: 30px; height: 30px; border-radius: 7px; background: Theme.navigation; Text { text: "H"; color: Theme.text; font-weight: 700; font-size: 20px; } }
+                Label { text: "Hyper GPU Support"; font-size: 18px; font-weight: 600; }
+                Rectangle { horizontal-stretch: 1; }
+                Label { text: "DEMO WORKSPACE"; color: Theme.muted; font-size: 11px; font-weight: 600; }
+            }
+        }
+        HorizontalLayout {
+            spacing: 0px;
+            Rectangle {
+                width: 184px; background: Theme.navigation;
+                VerticalLayout { padding: 14px; padding-top: 20px; spacing: 10px;
+                    dashboard := Button { enabled: !Theme.modal-active; text: "Dashboard"; primary: root.page == 0; clicked => { root.page = 0; } }
+                    system := Button { enabled: !Theme.modal-active; text: "System"; primary: root.page == 1; clicked => { root.page = 1; } }
+                    settings := Button { enabled: !Theme.modal-active; text: "Settings"; primary: root.page == 2; clicked => { root.page = 2; } }
+                    about := Button { enabled: !Theme.modal-active; text: "About"; primary: root.page == 3; clicked => { root.page = 3; } }
+                    Rectangle { vertical-stretch: 1; }
+                    Hint { text: "Sample inventory\nNo Hyper-V connection"; }
+                    Button { enabled: !Theme.modal-active; text: "Prototype help"; clicked => { root.action("shortcuts"); } }
+                }
+            }
+            Rectangle { width: 1px; background: Theme.line; }
+            VerticalLayout {
+                spacing: 0px;
+                Rectangle { height: root.recovery ? 72px : 42px; background: Theme.tint;
+                    HorizontalLayout { padding-left: 18px; padding-right: 18px; spacing: 12px;
+                        Hint { text: root.recovery ? "DEMO recovery hold · Outcome uncertain. New GPU changes are blocked until mock reconciliation." : root.notice; }
+                        if root.recovery : Button { enabled: !Theme.modal-active; text: "Inspect recovery"; clicked => { root.action("recovery"); } }
+                    }
+                }
+                if root.page == 0 : ScrollView {
+                    vertical-scrollbar-policy: always-off;
+                    content-width: max(self.width - 16px, root.split + 630px);
+                    HorizontalLayout {
+                        spacing: 0px;
+                        Rectangle {
+                            width: root.split; background: Theme.vm-panel;
+                            VerticalLayout { padding: 16px; spacing: 12px;
+                                HorizontalLayout { spacing: Theme.gap; Label { text: "Virtual Machines"; font-size: 17px; font-weight: 600; horizontal-stretch: 1; } Button { enabled: !Theme.modal-active; text: "Refresh"; clicked => { root.action("refresh"); } } }
+                                Hint { text: root.vms.length + " sample VMs shown"; }
+                                if root.vms.length == 0 : Hint { text: "No sample VMs. Choose a different scenario in Settings."; }
+                                vm-list := ScrollView {
+                                    accessible-role: list;
+                                    horizontal-scrollbar-policy: always-off;
+                                    VerticalLayout {
+                                        alignment: start;
+                                        spacing: Theme.gap;
+                                        padding-top: 2px; padding-bottom: 2px;
+                                        for vm in root.vms : VmCard { vm: vm; selected: vm.id == root.selected-id; select(id) => { root.select-vm(id); } }
+                                    }
+                                }
+                            }
+                        }
+                        divider := Splitter { position <=> root.split; }
+                        if root.selected-id != "" : VmDetails {
+                            min-width: 610px;
+                            name: root.vm-name; identity: root.selected-id; power: root.power; status: root.status;
+                            observed: root.observed; desired: root.desired; verification: root.verification;
+                            dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
+                            gpu-enabled <=> root.gpu-enabled; gpu-index <=> root.gpu-index; values <=> root.values;
+                            memory-gb <=> root.memory-gb;
+                            validation: root.validation;
+                            edited => { root.edited(); }
+                            action(a) => { root.action(a); }
+                        }
+                        if root.selected-id == "" : Rectangle {
+                            min-width: 610px;
+                            VerticalLayout { padding: 40px; spacing: 15px; Label { text: "Your VM workspace starts here"; font-size: 23px; } Hint { text: "Choose a sample VM on the left, or use Settings to load an inventory scenario."; } Rectangle { vertical-stretch: 1; } }
+                        }
+                    }
+                }
+                if root.page != 0 : Pages { page: root.page; theme-index <=> root.theme-index; scenario <=> root.scenario; scenario-changed => { root.scenario-changed(); } action(a) => { root.action(a); } }
+            }
+        }
+        Rectangle { height: 30px; background: Theme.surface;
+            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: "Prototype 0.1 · In-memory drafts · No real GPU changes"; } Hint { text: root.running ? "Demonstration running" : "Ready to explore"; horizontal-alignment: right; } }
+        }
+    }
+    if root.dialog-kind != "" : DemoDialog { kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body; stages: root.stages; running: root.running; needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); } }
+}
+

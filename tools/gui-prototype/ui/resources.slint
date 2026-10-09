@@ -1,0 +1,87 @@
+import { Button, LineEdit } from "std-widgets.slint";
+import { Theme, Label, Hint, Surface } from "theme.slint";
+
+export component AllocationDisclosure inherits Rectangle {
+    in-out property <bool> expanded: false;
+    accessible-role: button;
+    accessible-enabled: !Theme.modal-active;
+    accessible-label: root.expanded ? "Advanced Allocation, expanded" : "Advanced Allocation, collapsed";
+    min-width: header-layout.min-width;
+    preferred-width: header-layout.preferred-width;
+    min-height: 40px;
+    max-height: 40px;
+    vertical-stretch: 0;
+    border-radius: 4px;
+    border-width: keyboard.has-focus ? 1px : 0px;
+    border-color: Theme.accent;
+    background: hit-area.has-hover ? Theme.tint : transparent;
+    forward-focus: keyboard;
+    accessible-action-default => { if !Theme.modal-active { root.expanded = !root.expanded; } }
+    keyboard := FocusScope {
+        enabled: !Theme.modal-active;
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " { root.expanded = !root.expanded; return accept; }
+            return reject;
+        }
+    }
+    header-layout := HorizontalLayout {
+        padding-left: 10px; padding-right: 10px; spacing: 8px;
+        Image {
+            source: root.expanded ? @image-url("icons/chevron-down.svg") : @image-url("icons/chevron-right.svg");
+            width: 16px; height: 16px; colorize: Theme.text;
+        }
+        Label { text: "Advanced Allocation"; font-size: 17px; font-weight: 600; }
+    }
+    hit-area := TouchArea {
+        enabled: !Theme.modal-active;
+        mouse-cursor: pointer;
+        clicked => { keyboard.focus(); root.expanded = !root.expanded; }
+    }
+}
+
+component AllocationField inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <bool> editable;
+    callback edited(string);
+    changed value => { input.text = root.value; }
+    VerticalLayout {
+        spacing: 5px;
+        Hint { text: root.label; }
+        input := LineEdit {
+            accessible-label: root.label + " allocation";
+            enabled: !Theme.modal-active && root.editable;
+            text: root.value;
+            edited => { root.edited(self.text); }
+        }
+    }
+}
+
+export component ResourceEditor inherits Surface {
+    in property <string> title;
+    in property <string> units: "Mock provider units";
+    in property <string> minimum: "100";
+    in property <string> optimal: "500";
+    in property <string> maximum: "1000";
+    in-out property <bool> expanded: true;
+    in property <bool> editable: true;
+    callback edited(int, string);
+    VerticalLayout {
+        padding: 14px; spacing: 10px;
+        HorizontalLayout {
+            Label { text: root.title; font-weight: 600; }
+            Button { enabled: !Theme.modal-active; text: root.expanded ? "Collapse" : "Expand"; clicked => { root.expanded = !root.expanded; } }
+        }
+        if root.expanded : VerticalLayout {
+            spacing: 7px;
+            Hint { text: root.units + " · illustrative bounds 0–1000; no hardware guarantees"; }
+            HorizontalLayout {
+                spacing: 12px;
+                AllocationField { label: "Minimum"; value: root.minimum; editable: root.editable; edited(value) => { root.edited(0, value); } }
+                AllocationField { label: "Optimal"; value: root.optimal; editable: root.editable; edited(value) => { root.edited(1, value); } }
+                AllocationField { label: "Maximum"; value: root.maximum; editable: root.editable; edited(value) => { root.edited(2, value); } }
+            }
+        }
+    }
+}
+
