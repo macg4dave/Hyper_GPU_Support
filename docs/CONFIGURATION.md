@@ -2,7 +2,7 @@
 
 ## Implemented baseline
 
-CLI/GUI read `--config FILE`. [product.example.toml](../config/product.example.toml)
+The CLI reads `--config FILE`. The main Slint GUI uses session-only mock configuration and accepts no config argument at startup. [product.example.toml](../config/product.example.toml)
 documents runtime schema 2: selected VM GUID, exact GPU interface and enabled state.
 Optional VRAM triples use provider-defined units, not GiB/enforced ceilings. Normalize
 GUIDs; reject duplicate VMs and unknown fields. Several VMs may select the same GPU,
@@ -27,10 +27,11 @@ durable save-only recovery. Reuse the separation/conflict logic under CFG-001.
 
 ## Approved per-VM contract (planned)
 
-[GUI_GUIDE](GUI_GUIDE.md) owns approved A18–A32 policies; [CFG-001](BACKLOG.md#cfg-001)
+The backend persistence direction from historical DEC-029 remains scoped here;
+[CFG-001](BACKLOG.md#cfg-001)
 owns implementation. Exact format, schema version and import/migration remain
-OPEN-01. Prefer extending the existing typed TOML parser unless evidence justifies
-another format. No migration occurs in this documentation task.
+a CFG-001 implementation question. Prefer extending the existing typed TOML parser unless evidence justifies
+another format. GUI promotion performs no migration or real configuration writes.
 
 - One file per stable Hyper-V VM GUID under
   `%ProgramData%\HyperGpuSupport\config\vms\`. Names are display data, never keys.
@@ -46,12 +47,12 @@ another format. No migration occurs in this documentation task.
 - Verified GPU success followed by save failure retains a distinct pending-save
   record. A fixed save-only request revalidates identity, successful operation,
   current readback and expected file revision; it never repeats GPU modification.
-  Exact immutable binding and crash behavior remain OPEN-12.
+  Exact immutable binding and crash behavior remain a CFG-001 security question.
 - Protected enrollment, operation/recovery journals and admission/audit records
   remain separate from desired configuration. A config edit cannot clear a recovery
   hold or authorize a new pair. Reuse existing ACL, atomic-write and reparse safeguards;
   qualify changed location/ownership and migration before deployment.
-- Per-user appearance/window/split preferences are separate. Session-only human
+- Current GUI appearance/window/split state is session-only; persistent preferences absent from the approved prototype are retired v1.0 GUI scope. Session-only human
   diagnostics do not imply deleting protected security/recovery records.
 
 Host GPU partition count is observed/read-only. No credentials belong in files.

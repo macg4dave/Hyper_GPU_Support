@@ -1,5 +1,5 @@
 //! Deterministic fixtures. This module never discovers or changes host resources.
-use crate::VmRow;
+use super::VmRow;
 
 pub fn inventory(many: bool) -> Vec<VmRow> {
     let fixtures = [
@@ -81,6 +81,12 @@ pub fn inventory(many: bool) -> Vec<VmRow> {
 }
 
 pub fn validate(values: &[String], gpu: i32, enabled: bool) -> String {
+    if !(0..=2).contains(&gpu) {
+        return "Select a valid sample GPU.".into();
+    }
+    if values.len() != 12 {
+        return "All twelve sample allocation fields are required.".into();
+    }
     if !enabled {
         return String::new();
     }
@@ -117,5 +123,15 @@ mod tests {
         assert!(validate(&values, 0, true).starts_with("VRAM:"));
         assert!(!validate(&values, 2, true).is_empty());
         assert!(validate(&values, 2, false).is_empty());
+    }
+
+    #[test]
+    fn incomplete_fields_and_invalid_gpu_are_rejected() {
+        let values = vec!["100".to_owned(); 12];
+        assert!(!validate(&values[..11], 0, true).is_empty());
+        assert!(!validate(&[], 0, false).is_empty());
+        for gpu in [-1, 3, i32::MAX] {
+            assert!(!validate(&values, gpu, false).is_empty());
+        }
     }
 }

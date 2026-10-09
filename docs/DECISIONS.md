@@ -386,6 +386,10 @@ does not extend to unrelated unsigned files or executable/runtime payloads.
 
 ## DEC-029
 
+**Historical planning:** superseded for GUI scope by DEC-030. Preserve backend
+security/persistence rationale where still applicable; absent prototype features
+are no longer v1.0 GUI requirements.
+
 **Approved user policies, documented 2026-10-09 | Slint and consolidated host application**
 
 The user's recorded [GUI_GUIDE](GUI_GUIDE.md) decisions D01–D18/A18–A32 supersede
@@ -414,3 +418,35 @@ protected audit/recovery records. DEC-028's narrow guest bridge remains accepted
 These are approved requirements, not implemented/tested behavior. Technical OPEN
 questions and ownership remain in GUI_GUIDE/BACKLOG. Revisit only with evidence of
 a platform limitation or explicit product scope change; never silently reduce scope.
+
+## DEC-030
+
+**Approved completed prototype defines v1.0 | 2026-10-09**
+
+The user approved the completed Slint prototype as the official main application
+GUI. Its existing files are moved to root `ui/` and `src/gui/`, compiled into
+`hyper-gpu-support.exe`; no arguments open Slint and explicit commands retain the
+headless CLI. Remove the obsolete Win32 presentation and separate GUI executable.
+Preserve sound `gui_model` and all shared Rust backend/security functionality.
+
+The prototype is the GUI specification: preserve its design and interactions,
+connect existing controls only, and retire absent UI requirements rather than
+reintroducing them. Activity, search/filters, extra pages/actions, persistent
+preferences and session activation are not v1.0 GUI requirements. Historical task
+IDs/evidence and DEC-029 rationale remain history. A GUI omission never removes
+CLI/backend capability. Slint 1.18.1/Fluent/software renderer and icon attribution
+are retained from the approved implementation, without an additional framework.
+
+All operational GUI callbacks remain explicitly mocked in this promotion.
+Real discovery, plans, effects, credentials, persistence/progress and recovery are
+scheduled on existing cards. The current protected runner remains intact until
+reviewed consolidation; promotion does not create an elevated mode or loosen
+enrollment/IPC/audit/locking/recovery. Retain the console subsystem for reliable
+CLI output until APP-001 validates Windows console packaging. GPU Memory's real
+provider mapping remains unresolved; the mock GB slider proves no allocation.
+
+For the promotion task, build/mock checks are authorized, but live Hyper-V/GPU,
+driver installation and VM-power operations require explicit permission. Follow
+the user request over the repository's broader disposable-test authorization.
+Packaging/licensing, actual Windows UX and separately authorized changed-path
+backend qualification remain release work, not passes inferred from mocks.

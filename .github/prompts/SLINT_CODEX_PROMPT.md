@@ -1,36 +1,34 @@
-# Codex — Slint GUI
+# Codex — Integrate the approved Slint application
 
-Implement only the explicitly requested card in [BACKLOG](../../docs/BACKLOG.md).
 Follow [AGENTS](../../AGENTS.md), [ENGINEERING](../../docs/ENGINEERING.md),
-[GUI_GUIDE](../../docs/GUI_GUIDE.md) and [SLINT_RULES](../../docs/SLINT_RULES.md).
-Preserve unrelated edits. A docs-only request does not authorise code or live tests.
+[GUI_GUIDE](../../docs/GUI_GUIDE.md), [SLINT_RULES](../../docs/SLINT_RULES.md)
+and the selected [BACKLOG](../../docs/BACKLOG.md) card. User scope is authoritative.
 
-Reuse the [source audit](../../docs/ARCHITECTURE.md#repository-audit--9-october-2026):
-sound `gui_model`, backend/workflow/plans, protected runner, Named Pipe, operation
-lock and journals already exist. Extend them, without parallel infrastructure.
-Win32 presentation is disposable. Use small cohesive Slint components and Rust
-adapters, the shared core, layouts/constraints, Fluent controls and central styling;
-no Hyper-V logic or privileged commands in UI markup. Verify the chosen Slint APIs.
+The completed prototype, now in root `ui/` and `src/gui/`, defines v1.0. Preserve
+its layout, controls, navigation, styling and behavior. Do not redesign, recreate
+removed Activity/search/filter features, or add pages/controls without approval.
+No Win32 parity requirement; that presentation has been removed.
 
-Follow the agreed design: VM cards, adjustable split view with horizontal scrolling, hybrid details panel, and editable GPU selection plus Min/Optimal/Max for VRAM, compute, encode and decode. Show all VMs. Separate observed state, saved configuration and one pending VM draft; prompt before switching with pending edits. Use only verified provider values and units.
+No arguments open Slint; explicit CLI commands retain the working headless path.
+Operational GUI callbacks currently use labelled mocks. Bind existing controls
+incrementally to the shared Rust core, reusing sound `gui_model`, discovery,
+workflow/plans, configuration, credentials, runner, Named Pipe, lock and journals.
+Keep all CLI/backend capabilities, even when absent from the GUI. Do not create
+a parallel backend or security system.
 
-One `hyper-gpu-support.exe` routes no arguments to Slint, explicit commands to CLI
-and authenticated restricted worker invocation to per-operation elevation. Per-VM
-GUID files under `%ProgramData%\HyperGpuSupport\config\vms\` are written only by
-that worker after verified success. Preserve separate protected enrollment/recovery,
-detect stale external changes and support save-only recovery without GPU replay.
+Refresh uses lightweight discovery/status; Review & Apply needs a fresh plan and
+independent privileged revalidation. Preserve draft, observed and committed state
+separation. Validate provider units/bounds/readback; GPU Memory currently has only
+mock meaning and does not promise physical GB allocation. Real progress replaces
+the explicit simulation timer only when backed by actual events.
 
-Review fresh plans and independently recheck scope at the privileged boundary.
-Obtain administrator authorisation before approved graceful guest shutdown.
-One modifying GPU operation per host, one GUI per session; defer normal active-work
-closure. Startup opens the dashboard with a persistent recovery warning and blocked
-modifications. No automatic GPU rollback or blind retry. Product consent and agent
-test authorisation are distinct: follow AGENTS for selected disposable tests and
-the immediate physical-host lifecycle approval boundary.
+Keep the protected runner until independently reviewed worker consolidation.
+Preserve enrollment, artifact trust, ACL/reparse, bounded messages, replay/audit,
+lock and recovery contracts. Save-only retry never replays a GPU operation.
+Real GUI effects require appropriate elevation, guest credentials and downtime
+consent. Uncertain outcomes require reconciliation, not automatic rollback/retry.
 
-Keep work off the UI thread; report real progress. Poll lightweight discovery/status,
-not full driver validation/planning. Session-only UI diagnostics remain separate
-from protected audit/recovery records. Use mock data and Slint preview without real
-Hyper-V effects; verify sizing, DPI, keyboard and error states for the selected card.
-
-Make one reviewable change at a time. Run relevant checks and report changes, test results and remaining issues.
+Use mock data for GUI validation. Follow the active request for live-test permission;
+this promotion request permits no Hyper-V/GPU/driver/VM-power effects without
+explicit permission. Host lifecycle always needs immediate permission. Run actual
+build/check/render/interaction tests and report passes, mocks and remaining gaps.

@@ -1,25 +1,24 @@
 # Hyper GPU Support
 
-Rust GPU-PV management for existing Hyper-V VMs. The approved product uses one
-`hyper-gpu-support.exe`: no arguments launch Slint; explicit commands run headlessly;
-a restricted internal mode runs an elevated worker per approved operation. These
-consolidated modes and production Slint integration are **planned**. An isolated
-[interactive Slint prototype](tools/gui-prototype/README.md) is available with mock
-data. The current product build
-has separate CLI, Win32 prototype and protected runner binaries using the same Rust
-core. Select multiple Generation 2 VMs, one GPU each. NVIDIA preparation
-is implemented first; discovery can list other vendors without claiming support.
-The historical RTX 5060/Windows 11 baseline proves feasibility, but the rewritten
-product still needs changed-boundary hardware qualification. See the
-[roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md) and
-[current acceptance card](docs/BACKLOG.md#arch-001).
+Rust GPU-PV management for existing Hyper-V VMs. **The approved completed Slint
+prototype is now the main GUI:** run `hyper-gpu-support.exe` without arguments.
+Explicit CLI commands remain headless and retain the shared Rust backend.
+The GUI currently uses labelled sample inventory and mock operations; it does
+not call Hyper-V, collect credentials or save real configuration.
+
+v1.0 prioritizes connecting its existing controls and packaging/validation, without
+redesign or extra pages. The protected runner and guest/probe payloads remain
+separate binaries; restricted same-executable worker consolidation is still planned.
+The main binary currently retains the console subsystem for reliable CLI output;
+GUI console packaging is pending APP-001. See [GUI scope](docs/GUI_GUIDE.md),
+[roadmap](docs/ROADMAP.md) and [architecture](docs/ARCHITECTURE.md).
 
 ## Build and checks
 
-To explore the GUI prototype without Hyper-V or elevation:
+To launch the main GUI sample workspace without Hyper-V or elevation:
 
 ```powershell
-cargo run --locked --manifest-path tools/gui-prototype/Cargo.toml
+cargo run --locked
 ```
 
 Use the pinned Rust/MSVC/Windows SDK toolchain from `rust-toolchain.toml`.
@@ -59,7 +58,7 @@ cargo test --locked --test m1_enrollment -- --ignored --test-threads=1
 This tests authentication, replay and unenrolled-target refusal, durable audit
 outcomes and protected write denial. It does not qualify guest rendering or sharing.
 
-## Current runtime operation (before Slint consolidation)
+## Supported CLI and backend operation
 
 In an administrator console, read native inventory before initial enrollment:
 
@@ -73,7 +72,7 @@ identities with actual discovery. Install requires the runner, guest worker and 
 probe beside the CLI. It uses protected Windows installation/state locations and a
 fixed one-shot task; caller config never grants new administrator authorization.
 
-After enrollment, ordinary CLI/GUI commands use the authenticated installed runner:
+After enrollment, CLI commands use the authenticated installed runner:
 
 `plan` returns a shared effect preview: ordered attachment/preparation/verification
 actions, compatibility settings before/after, requested raw allocation, credential
@@ -85,12 +84,7 @@ Apply independently rechecks state and enrollment. Plan makes no VM/guest change
 but writes runner audit records; enabled plans authenticate the full current payload
 and should not be used for dashboard polling. Status does not verify guest graphics.
 
-The experimental Win32 dashboard retains one VM's staged change across selection and refresh.
-Use **Discard Changes** to clear it, or **Reapply / Update** to stage current driver
-preparation for an already enabled VM. Settings provides runner/enrollment guidance
-and explicit credential-vault actions. A failed refresh leaves historical rows with
-effects disabled. If a VM operation succeeds but saving configuration fails, use
-Settings to retry the save; the GUI does not repeat the VM operation for that error.
+The Slint dashboard preserves one in-memory sample draft; all its operation results are simulated.
 
 ```powershell
 hyper-gpu-support plan --config my-vms.toml
@@ -99,9 +93,6 @@ hyper-gpu-support status --config my-vms.toml
 hyper-gpu-support verify --config my-vms.toml --vm VM-GUID
 hyper-gpu-support disable --config my-vms.toml --vm VM-GUID
 ```
-
-The optional current prototype is `hyper-gpu-gui --config my-vms.toml`; it is
-disposable presentation code, not the product's implementation direction.
 
 Guest administrator credentials are prompted. `credentials --config FILE --vm GUID`
 explicitly stores an entry in the current user's Windows vault; `forget` deletes it.
@@ -116,23 +107,32 @@ Current allocation support is provider defaults or an optional raw VRAM triple.
 Compute, encode and decode fields are not implemented. Raw values do not promise
 GiB allocations or hard enforcement.
 
-## Approved Slint product
+## Main Slint application
 
-Initial release includes physical GPU selection and Min/Optimal/Max for VRAM,
-compute, encode and decode, with unsupported/unknown capabilities shown truthfully.
-The modular UI uses VM cards, a persistent adjustable split view, one staged VM
-draft and fresh Review & Apply through the shared backend. Dashboard discovery/status
-stays separate from expensive driver validation/planning.
+Sources are in `ui/` and `src/gui/`; the former prototype package is retired.
+Dashboard, System, Settings and About retain their completed design. All inventory,
+GPU/provider values, Apply/Verify/enrollment, progress/recovery, credentials and
+saves remain mocked. Editing, navigation, dialogs, scrolling, themes and draft
+prompts work. GPU Memory is a visual mock preference, not a physical GB allocation;
+its real provider mapping is unresolved. Advanced fields use illustrative units.
 
-Per-VM files keyed by Hyper-V GUID will live under
-`%ProgramData%\HyperGpuSupport\config\vms\`. Only the restricted elevated worker
-writes them after verified success; failed persistence offers save-only recovery.
-Enrollment and recovery records remain protected separately. Stale external changes
-block Apply/save. One modifying GPU operation runs per host, one GUI per Windows
-session; active work defers normal closure. Interrupted startup opens the dashboard
-with a persistent warning and blocked modifications, without automatic GPU rollback
-or blind retry. See [GUI requirements](docs/GUI_GUIDE.md),
-[configuration](docs/CONFIGURATION.md) and [audited gaps](docs/ARCHITECTURE.md#repository-audit--9-october-2026).
+Existing backend functionality will be bound through existing controls only.
+Per-VM persistence, same-executable worker, real progress/recovery and provider
+allocation gaps are scheduled on existing cards; they are not implemented by
+this promotion. No Activity, VM search/filter, extra wizard or diagnostic history.
+
+Preview the moved components with the existing Slint 1.18.1 viewer:
+
+```powershell
+slint-viewer --check ui/app.slint
+slint-viewer --auto-reload ui/app.slint
+```
+
+For development-only runtime inspection, enable `slint/mcp` on the command line
+and set `SLINT_EMIT_DEBUG_INFO=1` during build and `SLINT_MCP_PORT` during launch.
+Never enable this inspection server in packaged production builds. Slint licensing
+and dependency notices must be reviewed before distribution; icon attribution is
+preserved in [ui/icons](ui/icons/README.md).
 
 ## Contributor laboratory
 

@@ -2,13 +2,13 @@
 
 **Project:** Hyper GPU Support (Rust / Windows / Hyper-V GPU-P)  
 **Status:** Development rules; **not** authorisation to implement  
-**Companions:** [GUI guide](GUI_GUIDE.md) (approved UX/OPEN register),
+**Companions:** [GUI guide](GUI_GUIDE.md) (approved completed-prototype scope),
 [backlog](BACKLOG.md) (task acceptance),
 [implementation prompt](../.github/prompts/SLINT_CODEX_PROMPT.md)
 
 ## Instruction to Codex
 
-Follow these toolkit practices for Slint work; read GUI_GUIDE and the active task
+The completed prototype in root `ui/` is authoritative. Preserve its current design; no new pages/controls or restored Activity/search/filter requirements. Follow these toolkit practices for Slint work; read GUI_GUIDE and the active task
 first. The user's requested scope determines whether documentation or code edits
 are authorised. A documentation request is not code/live-test approval. These rules
 do not add a separate approval gate to already authorised development. Approved
@@ -69,7 +69,7 @@ Use the installed official Slint skill for Codex when available. Consult the cur
   authentication and Apply planning remain explicit actions.
 - Deliver worker results back to the UI using Slint's documented event-loop facilities (for example `invoke_from_event_loop` / weak-handle methods as appropriate to the selected version).
 - Use weak component references in callbacks/workers where required to avoid ownership cycles and updates to destroyed windows.
-- Prefer typed progress/result messages over generic JSON blobs routed through arbitrary UI timers. Do not fabricate stage percentages or operation progress.
+- Prefer typed progress/result messages over generic JSON blobs routed through arbitrary UI timers. Do not fabricate real stage percentages or operation progress. The retained demonstration timer is explicitly mocked until backend binding.
 - Prevent accidental double-submit, re-entrant Apply, and conflicting concurrent GUI/CLI operations.
 - A close request during active work is **not** cancellation. Report whether work remains active or is in an uncertain state.
 
@@ -120,7 +120,7 @@ Use the installed official Slint skill for Codex when available. Consult the cur
 1. **Read:** the active backlog card, `GUI_GUIDE.md`, this file, repository instructions and affected modules; reuse the recorded source audit. `GUI_PROMPT.md` is only the documentation-audit brief.
 2. **Verify:** Confirm the actual Slint version, available widgets/APIs, and any associated tooling in official documentation.
 3. **Scope:** State the components/modules affected, assumptions, unresolved design issues, and whether any privileged or live VM action would be required.
-4. **Plan:** Propose a small, independently testable change before implementation. Never silently settle `OPEN-*` questions from the guide.
+4. **Plan:** Propose a small, independently testable change before implementation. Resolve backend integration questions on their owning cards without expanding the approved interface.
 5. **Implement only when authorised:** Keep `.slint` responsible for presentation and Rust responsible for state/operations. Use mocks for first-pass UI work.
 6. **Check:** Format/build/test as authorised; preview visually and exercise keyboard, resize, scrolling, and failure states.
 7. **Report:** Summarise files changed, what was verified, what is still unverified, and any deviations from this file or `GUI_GUIDE.md`.

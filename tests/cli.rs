@@ -35,3 +35,54 @@ fn unknown_commands_are_errors() {
             .success()
     );
 }
+
+#[test]
+fn explicit_cli_dispatch_preserves_output_and_validation_without_gui() {
+    for flag in ["--version", "-V"] {
+        let result = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
+            .arg(flag)
+            .env("SLINT_BACKEND", "invalid-backend-for-cli-test")
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+        assert!(
+            String::from_utf8(result.stdout)
+                .unwrap()
+                .starts_with("hyper-gpu-support ")
+        );
+    }
+    let help = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
+        .arg("--help")
+        .env("SLINT_BACKEND", "invalid-backend-for-cli-test")
+        .output()
+        .unwrap();
+    assert!(help.status.success());
+    let help = String::from_utf8(help.stdout).unwrap();
+    for command in [
+        "inventory",
+        "plan",
+        "install",
+        "apply",
+        "enable",
+        "disable",
+        "status",
+        "verify",
+        "credentials",
+        "forget",
+    ] {
+        assert!(help.contains(command));
+    }
+    for args in [
+        vec!["status"],
+        vec!["--config", "missing.toml"],
+        vec!["--internal-worker", "arbitrary-command"],
+    ] {
+        let result = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
+            .args(args)
+            .env("SLINT_BACKEND", "invalid-backend-for-cli-test")
+            .output()
+            .unwrap();
+        assert!(!result.status.success());
+        assert!(!result.stderr.is_empty());
+    }
+}

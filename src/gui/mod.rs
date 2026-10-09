@@ -1,5 +1,4 @@
-//! Standalone exploratory UI. No dependency on the production management core.
-#![windows_subsystem = "windows"]
+//! Approved Slint presentation. Operational callbacks still use explicit mock data.
 mod mock;
 use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
 use std::{cell::RefCell, rc::Rc, time::Duration};
@@ -150,7 +149,7 @@ fn save_sample(ui: &AppWindow, session: &mut Session) {
     );
     refresh_inventory(ui, session);
 }
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let ui = AppWindow::new()?;
     let session = Rc::new(RefCell::new(Session {
         inventory: mock::inventory(false),

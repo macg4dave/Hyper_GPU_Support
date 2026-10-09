@@ -12,10 +12,16 @@ Min/Optimal/Max for VRAM, compute, encode and decode, subject to truthful provid
 capability validation/readback. No invented units or enforcement promises. See the
 [roadmap](docs/ROADMAP.md) and approved [GUI guide](docs/GUI_GUIDE.md).
 
-The Win32 `windows_gui.rs` presentation is disposable; preserve sound `gui_model`,
-workflow, runner, Named Pipe, locking and journal contracts. Extend these rather
-than create a second operation/security system. The consolidated executable and
-Slint are planned, not implemented. See [current audit](docs/ARCHITECTURE.md#repository-audit--9-october-2026).
+The completed Slint prototype is the authoritative v1.0 GUI, now in `ui/` and
+`src/gui/`. No arguments launch it; explicit CLI commands retain the working Rust
+core. Do not redesign or restore removed pages, search/filters or other absent
+controls. Backend integration may connect existing controls only. GUI operations
+currently use labelled mocks. Win32 presentation is removed; preserve sound
+`gui_model`, workflow, runner, Named Pipe, locking and journal contracts.
+The protected runner remains separate; same-executable restricted worker and
+Windows console packaging are planned, not implemented. Prioritize binding the
+approved GUI and validating/packaging it; CLI functionality absent from the GUI
+remains supported. See [GUI scope](docs/GUI_GUIDE.md).
 
 Feasibility is established on the RTX 5060/Windows 11 baseline. Treat old code and
 experiments as research material, not contracts that must be preserved. Discover

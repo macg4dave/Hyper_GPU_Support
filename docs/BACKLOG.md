@@ -1,7 +1,7 @@
 # GPU-PV Product Backlog
 
 **Updated:** 9 October 2026  
-**Status:** Architecture/planning rebase. No implementation or live testing is authorised by this document.  
+**Status:** Main Slint GUI promotion implemented; backend binding and candidate validation remain.
 **Companion documents:** [ROADMAP.md](ROADMAP.md) · [GUI_ROADMAP.md](GUI_ROADMAP.md) · [GUI_GUIDE.md](GUI_GUIDE.md) · [GUI_PROMPT.md](GUI_PROMPT.md) · [Slint implementation prompt](../.github/prompts/SLINT_CODEX_PROMPT.md)
 **Historical record:** [BACKLOG_HISTORY.md](BACKLOG_HISTORY.md) preserves the entire supplied 8 October backlog, including detailed card results, older scope, measurements and evidence references.
 
@@ -12,28 +12,28 @@
 
 ## Resume / next action
 
-**Source/documentation audit recorded under PLAN-001.** Next, when implementation
-is requested, start GUI-001's mock-backed Slint shell independently of Hyper-V,
-or an explicitly selected backend card. Technical provider/Slint/security checks
-remain with their owning cards; do not restart a broad repository audit.
+**v1.0 priority:** Deliver the approved completed Slint prototype as the main
+Windows application, using existing Rust backend functionality. GUI-001 is completed
+history. APP-001's promotion/GUI-CLI dispatch is implemented; protected worker and
+console packaging remain open. Next bind existing controls under GUI-002, starting
+with read-only cards/Refresh/System; no redesign or restored search/filter/Activity.
 
-The earlier Win32 `windows_gui.rs` is a disposable prototype, **not** the foundation of M3. Its previously reported tests do not qualify the new Slint GUI. A new `hyper-gpu-support.exe` must support no-argument Slint startup, explicit headless CLI commands, and a restricted elevated-worker mode using the same Rust core.
-
-**Preserve reported progress:** M1 accepted on 8 October; M2 one-VM current-build NVIDIA attach/render/reapply/disable checks passed, but affected fresh driver preparation under current child limits remains to qualify. CORE-006 shared preview is reported complete. BLK-005 was closed by user instruction; its historical host-hang cause is unknown, **not** proven fixed. No further hang campaign is scheduled.
-
-**Approved product shift:** Full physical GPU selection, first-time enrollment and the four allocation triples (VRAM, compute, encode, decode) are now **M3/R1 scope**, not deferred to post-v1. Host-wide GPU partition count remains read-only. Inability to support an advertised provider field requires evidence and a specific user scope decision; never silently turn the feature into a read-only/default-only release.
+Preserve M1/M2/CORE-006 evidence and BLK-005's closed investigation. All GUI effects
+remain clearly labelled mock behavior; no new hardware qualification is claimed.
+The CLI/backend keep functionality absent from the interface. For this promotion
+task, live Hyper-V/GPU/driver/VM-power operations require explicit permission.
 
 ## Status and work rules
 
 - **planned**: scoped but not authorised for implementation; **ready**: dependencies met for the stated, explicitly permitted action; **in progress**: evidence-backed ongoing work; **blocked**: observed impediment; **completed**: acceptance evidenced; **merged**: superseded/absorbed, not an independent gate; **deferred**: outside initial release; **cancelled**: no longer scheduled.
-- PLAN-001's repository/documentation scope is complete. M3 implementation cards
-  remain planned; this docs-only task does not authorise code or live testing.
+- PLAN-001 and prototype design are complete; remaining cards own backend binding
+  and release acceptance. The active user request authorizes development checks.
 - Before acting, read the chosen card, relevant source, `AGENTS.md` / `ENGINEERING.md` where present and applicable decisions. Claim shared work only when the repo workflow requires it. Avoid unnecessary historical experiments.
 - Reuse proven Rust contracts and native fixed-operation helpers. Product never depends on laboratory scripts, fixed VM slots, golden images, cloning/reset or arbitrary privileged commands. DEC-028's bounded PowerShell Direct bridge remains limited to the approved guest transport/bootstrap functions unless a new reviewed decision changes it.
 - Apply proportional tests and review changed privileged boundaries. Follow AGENTS
   for designated-disposable testing authorisation and immediate host lifecycle
   permission. Mock GUI development never triggers real Hyper-V effects. This
-  documentation task permits no build, elevation, credentials or VM operations.
+  promotion task permits builds and mock checks, not live effects without permission.
 - Report what was inspected or tested versus what is merely planned. Record narrowly scoped results on the affected card; do not mark a gate complete from mocks, read-only parity or old Win32 evidence alone.
 
 ## Milestone status
@@ -42,7 +42,7 @@ The earlier Win32 `windows_gui.rs` is a disposable prototype, **not** the founda
 |---|---|---|
 | **M1 — Product boundary** | **Completed (reported 2026-10-08)** | ARCH-001; protected native runner, existing-VM enrollment, lab separation. [M1 evidence](evidence/M1.md). |
 | **M2 — NVIDIA core** | **In progress** | ARCH-001, GPU-012, CORE-012. Current-build observed repeat passed; fresh preparation under new limits remains. [M2 evidence](evidence/M2.md). |
-| **M3 — Slint and editable GPU config** | **Planned; design agreed** | PLAN-001, GUI-001, APP-001, CFG-001, GPU-010, SEC-001, CORE-028, GUI-002, GUI-003; no Slint implementation claimed. |
+| **M3 — Slint and editable GPU config** | **In progress; approved prototype promoted** | PLAN-001, GUI-001, APP-001, CFG-001, GPU-010, SEC-001, CORE-028, GUI-002, GUI-003; main Slint GUI implemented with sample data; real bindings remain. |
 | **R1 — Packaged candidate** | **Planned** | CORE-017, DOC-003, GPU-014 after M2/M3 acceptance. |
 | **M4 — Sharing and vendors** | **Deferred** | GPU-015 and individually justified vendor/optional tasks. |
 
@@ -58,20 +58,27 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 | [CORE-012](#core-012) | M2/M3 | P1 | **ready (after task authorisation)** | Existing observed-state/journal/error contracts |
 | [CORE-021](#core-021) | M2/M3 | P1 | **in progress** | Integration/doc residuals; parser/storage CFG-001, enrollment SEC-001, UI GUI-002 |
 | [CORE-006](#core-006) | M2 | P1 | **completed (reported)** | Reuse shared plan/apply preview; extend only for new operations |
-| [GUI-001](#gui-001) | M3.1 | P1 | **prototype delivered; qualification pending** | PLAN-001; isolated Slint mock shell; product integration remains separate |
-| [APP-001](#app-001) | M3.2 | P0 | **planned — new** | PLAN-001; single exe GUI/CLI/worker routing |
+| [APP-001](#app-001) | M3.2 | P0 | **in progress â€” GUI/CLI promotion implemented** | Existing prototype moved; console packaging and restricted worker still pending |
 | [CFG-001](#cfg-001) | M3.3 | P0 | **planned — new** | PLAN-001, shared model audit; worker write integration depends on SEC-001 |
 | [GPU-010](#gpu-010) | M3.4 | P0 | **planned — promoted from M4** | PLAN-001; provider/API validation and selected-GPU capability model |
 | [SEC-001](#sec-001) | M3.5 | P0 | **planned — extension** | APP-001; adapt existing protected runner/pipe/lock, no replacement stack |
 | [CORE-028](#core-028) | M3.6 | P0 | **planned — new** | CORE-006, CFG-001, GPU-010, SEC-001; real progress/manual recovery |
-| [GUI-002](#gui-002) | M3.7 | P1 | **planned — new** | GUI-001, APP-001, CORE-012, CFG-001, GPU-010, SEC-001, CORE-028; mock binding can precede full integration |
+| [GUI-002](#gui-002) | M3.7 | P0 | **planned â€” next priority** | APP-001 read-only slice, CORE-012; effects need CFG-001/GPU-010/SEC-001/CORE-028; bind existing controls only |
 | [GUI-003](#gui-003) | M3.8 | P1 | **planned — new** | GUI-002 and APP-001; accessibility, lifetime, scaling and UX checks |
 | [CORE-017](#core-017) | R1 | P1 | **planned** | M2/M3 gate; packaging can be prepared independently |
 | [DOC-003](#doc-003) | R1 | P1 | **planned** | Verified CLI/GUI, configuration and recovery behaviour |
 | [GPU-014](#gpu-014) | R1 | P1 | **planned** | M2, M3, CORE-017, DOC-003; authorised candidate-only VM test |
 | [GPU-015](#gpu-015) | M4 | P2 | **deferred** | Two explicitly designated VMs, support/admission policy |
 
-**Task-ID changes:** `PLAN-001`, `APP-001`, `CFG-001`, `SEC-001`, `CORE-028`, `GUI-002` and `GUI-003` are **new proposals**. `GUI-001` remains the GUI card but its unfinished Win32 acceptance is retired in favour of Slint. `GPU-010` keeps its ID and is promoted to M3. Historical Win32 progress remains archived, not deleted or converted into Slint progress.
+## Completed prototype history
+
+| ID | Result |
+|---|---|
+| [GUI-001](#gui-001) | Approved completed prototype; promoted under APP-001. Historical results retained below; accessibility/scaling qualification belongs to GUI-003. |
+| PLAN-001 | Repository/source documentation audit complete; retained below. |
+
+Earlier GUI requirements absent from the approved prototype are retired from v1.0.
+Task IDs and backend work remain; no duplicate design cards or restored controls.
 
 ## M2 — Retain existing core progress
 
@@ -164,9 +171,11 @@ slider snap/discard, page navigation, theme switching and narrow layout checked.
 
 **9 October prototype:** User explicitly requested the exploratory UI without
 backend integration. Implemented the isolated Rust/Slint 1.18.1 package at
-`tools/gui-prototype/`: Dashboard, Activity, System, Settings and About; mock
+`tools/gui-prototype/`: initially Dashboard, Activity, System, Settings and About; mock
 inventory/scenarios, draft editing, twelve fields, review/progress/recovery,
-themes and adjustable scrolling workspace. Launch and limits are documented
+themes and adjustable scrolling workspace. Activity was subsequently removed;
+the completed Dashboard/System/Settings/About prototype is now authoritative.
+Launch and limits are documented
 in its README. Production integration remains with its own cards. Full screen
 reader, Windows text-scaling and multi-monitor qualification remain open;
 this does not close M3 or qualify GPU functionality.
@@ -178,15 +187,26 @@ recovery. Prototype build, formatting, strict Clippy and its allocation test pas
 root formatting/strict Clippy and 69 core + 3 CLI tests pass (one privileged
 integration test remains ignored). Independent prototype review cleared.
 
-**New modular Slint shell — mock-first; old Win32 work is historical.** Build once authorised using standard Slint Fluent widgets, shared theme/spacing, sidebar, vertically scrollable **VM cards** (all discovered states), search/status filters, left/right split with adjustable divider, always-two-panel layout and **horizontal scrolling** at narrow widths. Right-hand hybrid details with expandable advanced information and four resource categories. Do not port `windows_gui.rs`, implement monolithic `.rs`/`.slint` files, or place Hyper-V rules in UI components.
-
-**Exit:** previews without Hyper-V or elevation; usable mock data for empty, missing, denied, unknown, long-name, multi-VM and pending-draft states; practical resize/DPI/keyboard/focus checks. No claim of real GPU functionality from mocks.
+**Promotion:** Approved prototype sources moved to root `ui/` and `src/gui/`.
+No further prototype design is scheduled. Search/filter/Activity requirements and
+Win32 parity are retired. Remaining visual/accessibility release checks belong to
+GUI-003, not unfinished prototype development.
 
 ### APP-001
 
-**Single executable, three entry modes.** No arguments open the Slint GUI and begin read-only background discovery; explicit subcommands run CLI with no Slint initialisation; an internal constrained worker mode may run only following validated privileged launch. Normal second GUI launch activates the existing window **within the same Windows session** without losing drafts. Different sessions may inspect simultaneously.
+**Main application promotion â€” implemented dispatch; remaining consolidation open.**
+No arguments open the approved Slint GUI; explicit CLI commands execute the existing
+headless path. Sources were moved, not duplicated. Deleted old Win32 presentation
+and `hyper-gpu-gui` entry; retain `gui_model` and all shared core/runner functionality.
+Operational GUI callbacks still use explicit mock data, with no live calls.
 
-**Exit:** on supported Windows versions, GUI startup has no unwanted console; CLI reliably writes stdout/stderr and exit status; worker entry cannot be invoked as an unrestricted public command; tests cover dispatch, malformed arguments and session activation. Confirm Windows subsystem constraints before locking implementation.
+**Remaining:** Windows console packaging preserving CLI stdout/stderr/exit codes;
+restricted same-executable worker with SEC-001 independent security review. Keep
+the current protected SYSTEM runner until validated replacement. Second-instance
+activation and persistent preferences absent from the prototype are retired GUI
+requirements. No arbitrary internal worker mode is introduced by this promotion.
+
+**Validation:** Build/check/runtime results are recorded after promotion verification.
 
 ### CFG-001
 
@@ -198,7 +218,7 @@ integration test remains ignored). Independent prototype review cleared.
 
 **Selected physical GPU and complete allocation model — required for initial release.** Extend the existing raw VRAM capability rather than rewrite it. Discover eligible GPUs and report capability/unknown state. Implement validated per-VM **VRAM, Compute, Encode and Decode** triples (Min/Optimal/Max), selected GPU identity and first-time/re-enrollment plan semantics. Provider-reported initial values may be suggested but must be labelled as such; no invented units, GiB, percent or performance guarantees. Host GPU partition count remains **read-only**.
 
-**Exit:** for the selected host/build/vendor, each editable field has known input semantics, bounds and effective readback; CLI and GUI share validation/plan. If provider APIs or a category are unavailable, show a truthful block and bring the scoped limitation to the user **before** changing product requirements. No automatic concurrent-sharing claim, fairness promise or host-wide tuning.
+**Also resolve:** the existing GPU Memory slider has mock meaning independent of advanced allocation; evidence is required for a real mapping, with no physical GB/enforcement claim. Do not redesign it. **Exit:** for the selected host/build/vendor, each editable field has known input semantics, bounds and effective readback; CLI and GUI share validation/plan. If provider APIs or a category are unavailable, show a truthful block and bring the scoped limitation to the user **before** changing product requirements. No automatic concurrent-sharing claim, fairness promise or host-wide tuning.
 
 ### SEC-001
 
@@ -230,15 +250,20 @@ make save-only recovery protected and durable through CFG-001/SEC-001.
 
 ### GUI-002
 
-**Connect the Slint interface to the verified shared Rust core.** Replace mock data incrementally: automatic discovery with partial-access states; GUID-keyed VM cards/selection; physical-GPU dropdown; expandable allocation editor; one draft; pending-draft dialog before **switching VMs**; fresh Review & Apply; UAC/downtime approvals; credential access through existing protected facilities; true progress and persistent recovery banner. No full-list rebuild for incidental UI changes.
+**Connect the Slint interface to the verified shared Rust core.** Replace mock data incrementally: automatic discovery with partial-access states; GUID-keyed VM cards/selection; physical-GPU dropdown; expandable allocation editor; one draft; pending-draft dialog before **switching VMs**; fresh Review & Apply; UAC/downtime approvals; credential access through existing protected facilities; true progress and the existing recovery banner. No additional pages or controls. No full-list rebuild for incidental UI changes.
 
 **Exit:** identical effective plans and error semantics in CLI and GUI; switching/stale change never silently discards or applies a draft; unsupported GPU/provider states are explained; partial provider failure does not empty the list; side effects occur only through the shared core and restricted worker.
 
 ### GUI-003
 
-**Process lifetime and usability acceptance.** One GUI per Windows session; second launch activates/raises existing window with current draft intact. Defer normal close while worker is active, permit minimisation; handle unreachable workers and crashes without indefinite hang. Preserve user preferences separately from operation records. Verify permanent two-panel horizontal-scroll design, draggable splitter, independent vertical scrolling, resizing, high DPI/text scaling, theme, keyboard use, accessible labels/focus, long names and GUI rendering when the graphics driver is unhealthy.
+**Qualify the approved interface.** Verify Dashboard/System/Settings/About, current
+dialogs, draft preservation, close deferral during active work, light/dark/Windows
+themes, splitter, pane scrolling, narrow overflow, keyboard/focus, DPI/text scaling,
+long names, accessibility and software rendering. No new controls/pages, persisted
+preferences, session activation or Win32 parity gate.
 
-**Exit:** mock/negative UX checks and verified Slint renderer/accessibility limitations; no claimed screen-reader parity without testing; no old Win32 feature-parity requirement.
+**Exit:** Actual mock interaction/render checks and recorded Windows qualification
+limitations; no screen-reader parity claim without testing.
 
 ## R1 — Packaging and candidate acceptance
 
@@ -294,7 +319,8 @@ These IDs are preserved. This is a **status index**, not a request to rerun thei
 
 ## Unresolved technical verification — not permission to change approved policy
 
-Codex must report evidence and proposed choices for the outstanding `GUI_GUIDE.md` items, especially:
+Retain former OPEN IDs as references to backend/qualification questions, not an
+independent GUI requirement register. DEC-030 supersedes absent-interface scope.
 
 | ID | Verification needed |
 |---|---|
@@ -302,13 +328,14 @@ Codex must report evidence and proposed choices for the outstanding `GUI_GUIDE.m
 | OPEN-03 / OPEN-05 | Cross-process lock/worker handover; Named Pipe ACL, peer authentication, plan binding and launch semantics |
 | OPEN-04 / OPEN-10 | Actual Windows 11 GPU-P provider APIs, GPU selection, 12 field units/bounds/unset/readback/enforcement |
 | OPEN-06 | Slint renderer and practical software fallback for unhealthy GPU drivers |
-| OPEN-07 | Draft behaviour when switching non-VM pages or closing idle GUI |
+| OPEN-07 | Resolved by approved prototype: page navigation preserves draft; dirty close prompts |
 | OPEN-08 | Exact manual reconciliation/clearance rules for incomplete or uncertain operations |
-| OPEN-09 | Windows GUI/CLI console subsystem, installer/UAC/ProgramData and session activation |
+| OPEN-09 | Windows GUI/CLI console subsystem and installer/UAC/ProgramData; session activation retired |
 | OPEN-11 | Actual keyboard, text-scale and assistive-tech support |
 | OPEN-12 | Restrict save-only worker authorisation without allowing arbitrary config rewriting |
 
-The **policies A18–A32 are agreed**; the details above are implementation investigations, not invitations to silently reverse those user decisions.
+The completed prototype defines GUI scope. Retain applicable backend safeguards;
+do not turn historical A18–A32 or OPEN questions into extra interface requirements.
 
 ## Acceptance and next handoff
 

@@ -2,11 +2,17 @@
 
 ## Current state
 
-The approved target is one `hyper-gpu-support.exe`: no-argument Slint GUI, explicit
-headless CLI and restricted elevated-worker mode, sharing the existing Rust core.
-The current build still has separate CLI, Win32 prototype and SYSTEM runner binaries;
-no Slint dependency is present. [GUI_GUIDE](GUI_GUIDE.md) owns approved UX/policies,
-[ROADMAP](ROADMAP.md) milestone gates and [BACKLOG](BACKLOG.md) task status.
+`hyper-gpu-support.exe` now opens the approved Slint GUI with no arguments and
+runs explicit CLI commands through the existing headless path. Root `build.rs`
+compiles `ui/app.slint` with Fluent style; `src/gui/` owns the moved controller and
+explicit mock fixtures. Slint/slint-build are pinned to 1.18.1 with winit/software
+rendering and accessibility. The old Win32 entry/presentation was deleted.
+All GUI operational data and callbacks remain simulated. No backend/security
+boundary changed. The protected SYSTEM runner and guest/probe payloads remain
+separate; same-executable restricted worker and console packaging are pending.
+[GUI_GUIDE](GUI_GUIDE.md) freezes v1.0 scope; [BACKLOG](BACKLOG.md) owns integration.
+The console subsystem is retained to preserve CLI stdout/stderr and exit status.
+
 The proven NVIDIA/Windows 11 baseline remains research evidence.
 The rewritten product is not hardware-qualified by inheritance. Status and remaining
 acceptance work belong to [ARCH-001](BACKLOG.md#arch-001).
@@ -33,7 +39,7 @@ reference material, excluded from the shipped graph.
 | Protected enrollment, authentication and typed requests | `runner`, `windows_pipe`, `security` |
 | Opt-in Windows vault credentials | `credentials` |
 | Bounded execution, independent of verification | `process` |
-| Presentation only | CLI and `hyper-gpu-gui` |
+| Presentation only | `src/main.rs` GUI/CLI dispatch, `src/gui/`, root `ui/` |
 
 This table describes current modules. Consolidation replaces host presentation/
 runner entries, not the bounded ancillary guest preparation/probe payloads.
@@ -130,13 +136,14 @@ guest lifecycle does not.
 
 ## Display and presentation boundary
 
-Replace disposable `windows_gui.rs` presentation with modular Slint components and
-Rust adapters, following [GUI_GUIDE](GUI_GUIDE.md) and [SLINT_RULES](SLINT_RULES.md).
-Use VM cards, a persistent adjustable split with horizontal narrow-window overflow,
-independent panel scrolling, staged configuration and Review & Apply. Extend sound
-`gui_model` state/validation rather than copying Win32 event/layout machinery.
-All four Min/Optimal/Max groups and physical GPU selection belong to initial release;
-truthful provider units/readback are required, enforcement is not assumed.
+The completed prototype sources are the official GUI; preserve their existing
+Dashboard/System/Settings/About and controls. Navigation, drafts, dialogs, themes,
+splitter and scrolling work. Inventory, allocations, enrollment, graphics checks,
+Apply/progress/recovery, credentials and saves are mocked. Retain demo labels until
+each binding is real. No search/filter/Activity or additional GUI feature.
+Reuse sound `gui_model` state/validation during GUI-002 binding. The GPU Memory
+slider is a separate visual mock preference; no physical GB/enforcement meaning.
+Provider mapping for selector/allocation controls belongs to GPU-010.
 
 CORE-006's typed plan shares apply's read-only validation and decision calculation.
 It reports ordered semantic actions, settings before/after, raw allocation writes,
@@ -157,7 +164,7 @@ discovery errors and a human-readable effect summary remain integration work.
 
 ## Repository audit — 9 October 2026
 
-Source inspected only; no builds, tests or hardware queries were run for this audit.
+Historical pre-promotion source snapshot: inspected only; no builds, tests or hardware queries for that audit. Current presentation/dispatch is described above; retain this matrix as history, not current GUI status.
 Historical passes remain in existing cards/evidence and do not qualify new boundaries.
 
 | Existing implementation / evidence in source | Reuse and remaining work |

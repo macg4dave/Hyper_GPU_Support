@@ -1,6 +1,7 @@
-//! Thin CLI over the runtime product core.
+//! GUI/CLI dispatch over the shared runtime product core.
+mod gui;
 use std::process::ExitCode;
-const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n\nOptions:\n  --config FILE   Runtime TOML schema 2 (required except inventory/help/version)\n  --vm GUID       Select one target from the configuration\n  --help          Show this help\n  --version       Show version\n\nGUI: hyper-gpu-gui --config FILE\nVRAM values are provider-defined units, not proven hard memory limits.\n";
+const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n\nOptions:\n  --config FILE   Runtime TOML schema 2 (required except inventory/help/version)\n  --vm GUID       Select one target from the configuration\n  --help          Show this help\n  --version       Show version\n\nGUI: hyper-gpu-support (no arguments; sample workspace until backend integration)\nVRAM values are provider-defined units, not proven hard memory limits.\n";
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -12,7 +13,10 @@ fn main() -> ExitCode {
 }
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args.is_empty() || matches!(args.as_slice(),[v]if v=="--help"||v=="-h") {
+    if args.is_empty() {
+        return gui::run().map_err(|error| error.to_string());
+    }
+    if matches!(args.as_slice(),[v]if v=="--help"||v=="-h") {
         print!("{HELP}");
         return Ok(());
     }
