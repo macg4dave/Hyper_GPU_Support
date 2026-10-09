@@ -7,7 +7,7 @@ routine implementation choices do not need a decision record.
 
 ## DEC-001
 
-**Accepted, narrowed by DEC-026 | 2026-09-24 | Product scope**
+**Historical scope, superseded by DEC-028/029 | 2026-09-24 | Product scope**
 
 Rust-first CLI/core, TOML configuration, Windows 11 x64 host/guest, normal Generation
 2 Hyper-V and one configured RTX 5060 8 GB target. No GUI, multi-VM scheduler,
@@ -196,7 +196,7 @@ effects are rejected.
 
 ## DEC-019
 
-**Implemented, operator cleanup remains CORE-021 | 2026-09-30 | Typed configuration**
+**Historical lab configuration; product superseded by DEC-028/029 | 2026-09-30 | Typed configuration**
 
 Use `config/project.toml` as the sole hand-edited mutable, non-secret configuration.
 Validate at the boundary and pass typed values. Discover reliable Windows inventory.
@@ -337,7 +337,7 @@ correction is enough for ordinary implementation details.
 
 ## DEC-028
 
-**Accepted | 2026-10-07 | Runtime management core and narrow guest transport**
+**Accepted; GUI/resource sequencing superseded by DEC-029 | 2026-10-07 | Runtime management core and narrow guest transport**
 
 The user explicitly approved the architectural rebase: existing VM/GPU runtime
 selection, multiple managed VMs, incremental vendors, native GUI after the core,
@@ -383,3 +383,34 @@ not signed catalog members. Accept only protected native Windows DriverStore cac
 sources with a same-stem INF authenticated in the operation manifest. Their bytes
 rely on installed-Windows provenance and per-operation integrity. This exception
 does not extend to unrelated unsigned files or executable/runtime payloads.
+
+## DEC-029
+
+**Approved user policies, documented 2026-10-09 | Slint and consolidated host application**
+
+The user's recorded [GUI_GUIDE](GUI_GUIDE.md) decisions D01–D18/A18–A32 supersede
+Win32 direction and DEC-028's defaults-first/later-VRAM sequencing. Initial release
+uses one host `hyper-gpu-support.exe` for no-argument Slint, headless explicit CLI
+and a restricted per-operation elevated worker; bounded guest/probe payloads remain
+ancillary. Physical GPU selection and VRAM/compute/encode/decode Min/Optimal/Max
+are initial-release requirements, with truthful provider capabilities/units/readback.
+No guaranteed enforcement or sharing is inferred.
+
+Reuse working Rust models/backend, native selection/VRAM, workflow/preview, runner,
+Named Pipe, lock, journals and independent presentation state. Replace disposable
+Win32 presentation only; consolidation must preserve protected enrollment, artifact
+integrity, ACL/reparse, nonce/admission and bounded-execution safeguards. The changed
+SYSTEM-to-elevated-user launch/peer boundary requires independent review; existing
+owner-SID checks alone do not identify a particular same-user worker.
+
+Per-VM GUID-keyed ProgramData files, worker-only verified-success commits and
+save-only recovery follow [CONFIGURATION](CONFIGURATION.md). Host-wide mutation
+serialization remains separate from durable recovery holds. Interrupted startup
+opens the normal dashboard with warning and blocked modifications until explicit
+manual reconciliation; no automatic GPU rollback or blind retry. One GUI per session
+and deferred normal close protect active work. Session diagnostics do not remove
+protected audit/recovery records. DEC-028's narrow guest bridge remains accepted.
+
+These are approved requirements, not implemented/tested behavior. Technical OPEN
+questions and ownership remain in GUI_GUIDE/BACKLOG. Revisit only with evidence of
+a platform limitation or explicit product scope change; never silently reduce scope.

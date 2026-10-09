@@ -3,10 +3,19 @@
 ## Project
 
 Build a Rust GPU-PV management core for existing Windows Hyper-V Generation 2 VMs,
-with a thin CLI and native Windows GUI. Manage multiple selected VMs with one GPU
+with one `hyper-gpu-support.exe`: no arguments launch Slint, explicit commands run
+headlessly, and a restricted internal mode runs one elevated worker per approved
+operation. Both interfaces reuse the shared Rust core. Manage multiple selected VMs with one GPU
 each; GPU sharing requires qualification. Deliver NVIDIA preparation first, then
-incremental vendor adapters. GUI follows the working core; VRAM controls follow
-with truthful provider units/readback. See the revised [roadmap](docs/ROADMAP.md).
+incremental vendor adapters. Initial release includes physical GPU selection and
+Min/Optimal/Max for VRAM, compute, encode and decode, subject to truthful provider
+capability validation/readback. No invented units or enforcement promises. See the
+[roadmap](docs/ROADMAP.md) and approved [GUI guide](docs/GUI_GUIDE.md).
+
+The Win32 `windows_gui.rs` presentation is disposable; preserve sound `gui_model`,
+workflow, runner, Named Pipe, locking and journal contracts. Extend these rather
+than create a second operation/security system. The consolidated executable and
+Slint are planned, not implemented. See [current audit](docs/ARCHITECTURE.md#repository-audit--9-october-2026).
 
 Feasibility is established on the RTX 5060/Windows 11 baseline. Treat old code and
 experiments as research material, not contracts that must be preserved. Discover
@@ -49,6 +58,9 @@ Existing adapter decisions are historical context, not blanket v1 exemptions.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Validated recipe, component boundaries and operation contracts; read affected sections |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Important choices and rationale; only relevant decision IDs |
 | [docs/ENGINEERING.md](docs/ENGINEERING.md) | Authoritative Rust, testing, tooling and documentation rules; read for coding, tests, dependencies or CI |
+| [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md) | Approved Slint UX/architecture requirements and unresolved technical questions |
+| [docs/GUI_ROADMAP.md](docs/GUI_ROADMAP.md) | GUI slice mapping; no independent task status |
+| [docs/SLINT_RULES.md](docs/SLINT_RULES.md) | Slint practice; [implementation prompt](.github/prompts/SLINT_CODEX_PROMPT.md) |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Concise meaningful completed changes; append on completion, no routine history reread |
 | [scripts/README.md](scripts/README.md) | Maintained development/setup/diagnostic script layout; read before adding or running substantial shell procedures |
 
@@ -90,7 +102,9 @@ card. Historical evidence is outside normal startup reading. Prompts in
   Calling an existing Windows utility does not itself introduce another language.
 - Discover values through reliable Windows facilities when they are inventory rather
   than operator intent. Put remaining values expected to change between machines,
-  product intent in runtime schema 2 and contributor/test values in `config/project.toml`;
+  product intent in the versioned runtime schema (currently schema 2; planned
+  per-VM files follow [CONFIGURATION](docs/CONFIGURATION.md)) and contributor/test
+  values in `config/project.toml`;
   deserialize and validate once at the boundary, then pass typed values. Scripts
   consume the shared configuration or accept explicit overrides. Keep protocol/API
   constants and fixed safety limits in code; never store secrets in configuration. See

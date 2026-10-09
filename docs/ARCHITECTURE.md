@@ -2,8 +2,12 @@
 
 ## Current state
 
-The target is a reusable Rust core, thin CLI, installed bounded runner and native
-Windows GUI. The proven NVIDIA/Windows 11 baseline remains research evidence.
+The approved target is one `hyper-gpu-support.exe`: no-argument Slint GUI, explicit
+headless CLI and restricted elevated-worker mode, sharing the existing Rust core.
+The current build still has separate CLI, Win32 prototype and SYSTEM runner binaries;
+no Slint dependency is present. [GUI_GUIDE](GUI_GUIDE.md) owns approved UX/policies,
+[ROADMAP](ROADMAP.md) milestone gates and [BACKLOG](BACKLOG.md) task status.
+The proven NVIDIA/Windows 11 baseline remains research evidence.
 The rewritten product is not hardware-qualified by inheritance. Status and remaining
 acceptance work belong to [ARCH-001](BACKLOG.md#arch-001).
 
@@ -31,6 +35,9 @@ reference material, excluded from the shipped graph.
 | Bounded execution, independent of verification | `process` |
 | Presentation only | CLI and `hyper-gpu-gui` |
 
+This table describes current modules. Consolidation replaces host presentation/
+runner entries, not the bounded ancillary guest preparation/probe payloads.
+
 CLI/GUI → workflow → discovery/Hyper-V/preparation/verification → Windows APIs,
 guest transport and privilege runner. Production never invokes the laboratory.
 
@@ -50,6 +57,8 @@ CPU/RAM quantities, Secure Boot and security devices. Capture preimages of compa
 MMIO/cache/checkpoint settings and independently read back effects. Conservative NVIDIA
 MMIO values retain the measured recipe pending affected qualification. First-core
 attachment omits explicit resources; optional raw VRAM triples require provider limits.
+Initial release additionally requires physical GPU selection and all four resource
+triples; compute/encode/decode are not implemented or qualified yet (GPU-010).
 Attach using the selected GPU's discovered WMI object path, then map full/relative
 host-resource references against fresh local GPU inventory for interface readback.
 All-null adapter allocation fields mean provider defaults, not zero capacity.
@@ -82,6 +91,11 @@ DLLs or enumerating adapters does not prove support. CUDA/D3D12/stress remain op
 contributor diagnostics. No interop or enforced VRAM ceiling is claimed.
 
 ## Configuration and recovery contract
+
+The following describes the implemented baseline. Planned worker-owned per-VM
+configuration is defined in [CONFIGURATION](CONFIGURATION.md#approved-per-vm-contract-planned).
+CORE-028 replaces implicit pending-Apply recovery with explicit manual reconciliation
+and a host-wide unresolved-operation hold, extending existing journals/native guards.
 
 Parse runtime schema 2 once. Protected administrator enrollment independently
 authorizes VM/GPU pairs. The runner accepts fixed typed operations; no arbitrary
@@ -116,13 +130,13 @@ guest lifecycle does not.
 
 ## Display and presentation boundary
 
-Native controls consume actual discovery and the shared workflow. The
-[written GUI specification](gui_roadmap.md)
-defines layout and interaction. The current prototype uses Win32 controls through
-the existing `windows` crate. Reuse its background runner calls; add an explicit
-observed-state/draft split, shared fresh effect preview and bounded close/disconnect
-handling. GPU selection cannot broaden administrator enrollment. GiB sliders remain
-deferred until units/enforcement are established; no duplicate GUI backend is needed.
+Replace disposable `windows_gui.rs` presentation with modular Slint components and
+Rust adapters, following [GUI_GUIDE](GUI_GUIDE.md) and [SLINT_RULES](SLINT_RULES.md).
+Use VM cards, a persistent adjustable split with horizontal narrow-window overflow,
+independent panel scrolling, staged configuration and Review & Apply. Extend sound
+`gui_model` state/validation rather than copying Win32 event/layout machinery.
+All four Min/Optimal/Max groups and physical GPU selection belong to initial release;
+truthful provider units/readback are required, enforcement is not assumed.
 
 CORE-006's typed plan shares apply's read-only validation and decision calculation.
 It reports ordered semantic actions, settings before/after, raw allocation writes,
@@ -132,7 +146,7 @@ the shared summary; GUI Apply requests a fresh plan before its confirmation/cred
 step, then submits a separate apply that independently rechecks state/enrollment.
 Plan never saves a management journal or calls guest/VM mutators; protected audit
 records still apply. Enabled plans authenticate the payload, while status/inventory
-remain separate. Full GUI draft/refresh/close acceptance remains GUI-001 work.
+remain separate. Slint binding and process/UX acceptance belong to GUI-002/GUI-003.
 
 Inventory/status are dashboard reads, not guest verification. Status reports fresh
 Hyper-V state plus recorded journal state; a prepared digest or last-success timestamp
@@ -140,6 +154,38 @@ does not authenticate the current guest receipt or prove current graphics health
 Enable-plan currently validates/hashes the payload, so do not use it for periodic
 refresh. Runner requests write protected audit records even for reads. Per-VM partial
 discovery errors and a human-readable effect summary remain integration work.
+
+## Repository audit — 9 October 2026
+
+Source inspected only; no builds, tests or hardware queries were run for this audit.
+Historical passes remain in existing cards/evidence and do not qualify new boundaries.
+
+| Existing implementation / evidence in source | Reuse and remaining work |
+|---|---|
+| `src/model.rs`: schema-2 targets, GUID normalization, strict fields, `Allocation` ordering/provider bounds; `windows_hyperv.rs`: exact GPU WMI selection, optional VRAM readback and native setter with independent readback | GPU-010 extends these to four categories, new pair enrollment/reassignment and typed capabilities. Compute/encode/decode and partition-count display are missing; units/enforcement remain unverified. |
+| `src/workflow.rs`: shared decision/plan/apply/verify, typed effects, pre-effect journals, prepared digest invalidation, attributable settings restoration, fresh readback and power restoration; fake-backend ordering/failure tests | CORE-028 adds approved-plan binding, consent, real stage events and manual reconciliation. Current Apply can resume pending work and restores power on some failures; it is not the new host-wide manual-recovery contract. |
+| `src/runner.rs`: protected installed artifact hashes, separate enrollment, typed requests, nonce expiry/replay rejection, durable Started/Succeeded/Failed admission records, atomic JSON and no-reparse checks | SEC-001 adapts fixed SYSTEM scheduled-task execution to same-executable per-operation elevation. Current requests have no reviewed-plan revision, progress stream or SaveOnly operation. A worker flag alone must never grant authority. |
+| `src/windows_pipe.rs`: local-only first pipe instance, restrictive ACL excluding client server-instance creation, client token SID check via impersonation/reversion, client check of pipe owner SID, bounded framing/client deadlines; round-trip/wrong-peer/partial/oversized-frame tests | Preserve protections; adapt endpoint/identity and handshake for elevated user rather than SYSTEM, add session/operation binding and bounded progress/server waits. Owner SID alone does not authenticate a particular same-user worker. |
+| `src/runner.rs::execute`: exclusive `operation.lock` file handle (`share_mode(0)`) across requests, also used during install | OS-backed cross-process serialization already exists; extend its host-wide scope across new entry modes/sessions. It currently serializes reads too. Crash handle release does not resolve journals/audits. |
+| `src/gui_model.rs`: observed/saved/draft split, eligibility, single-draft retention, unsaved/readback gates, deliberate reapply, expected-content checks and flush/rename save; focused state/conflict tests | Reuse presentation state. CFG-001 moves persistence to protected per-VM worker path and makes pending-save recovery durable. GUI-002 adds first-time enrollment, GPU editor and switch confirmation. |
+| `src/main.rs`, `src/bin/hyper-gpu-gui.rs`, `src/bin/hyper-gpu-runner.rs`: separate CLI/Win32/SYSTEM entries; `tests/cli.rs`, opt-in `tests/m1_enrollment.rs` | APP-001 introduces dispatch/console handling and per-session activation. Existing tests are regression starting points, not Slint or consolidated-worker acceptance. |
+| `windows_driver`, `payload`, `trust`, `guest`, `probe`, `credentials`, `security`, `process`, `windows_wmi`: dynamic signed preparation, bounded bridge/guest logic, checked graphics, vault, protected paths and supervised native effects | Preserve working boundaries, DEC-028 and M1/M2 evidence. Qualify only affected paths. Discovery aborts on a failed VM inspection; CORE-012 adds partial unknown/denied results. |
+
+Recommended allocation extension: a typed resource category (VRAM/compute/encode/
+decode) with reusable available/unsupported/unknown capability results, provider
+provenance/freshness, raw bounds/defaults, unit evidence and readback support. Keep
+requested and observed triples separate; represent absent/default/partial values
+explicitly, not as zero. Reuse `Allocation` validation where appropriate; add category
+errors/provider constraints only when evidenced. No speculative vendor framework.
+
+Consolidation preserves enrollment, artifact integrity, replay/admission checks,
+ACL/reparse rules and bounded execution. SEC-001 independently reviews the changed
+trust boundary before live deployment. CFG-001 distinguishes saving from successful
+VM effects; save-only rechecks success/identity and stale file/provider state without
+GPU mutation. CORE-028 retains recovery holds across restarts and opens the normal
+dashboard with a persistent warning. GUI-003 defers normal close while work is active;
+crashes/disconnects stay uncertain. No automatic GPU rollback, blind retry or second
+IPC/locking/journaling stack.
 
 ## Native Windows boundaries
 

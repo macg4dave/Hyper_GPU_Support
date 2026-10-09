@@ -1,5 +1,14 @@
 ﻿# Changelog
 
+## 2026-10-09 - Slint documentation reconciliation
+
+- Reconciled single-executable GUI/CLI/restricted-worker direction, initial GPU
+  selection and four allocation triples, per-VM worker-owned saving and manual
+  recovery policies across current guides, roadmap and backlog.
+- Recorded source-backed reuse of runner/Named Pipe/lock/journals/workflow and GUI
+  state; assigned genuine gaps to existing cards and corrected prompt/link locations.
+- Documentation only; no source/config/script edits, builds or hardware tests.
+
 ## 2026-10-08 - Native GUI foundation (GUI-001)
 
 - Added sidebar/header/five-column VM dashboard, information panel/footer, real

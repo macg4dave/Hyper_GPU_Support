@@ -1,7 +1,11 @@
 # Hyper GPU Support
 
-Rust GPU-PV management for existing Hyper-V VMs, with a native Windows GUI using
-the same core. Select multiple Generation 2 VMs, one GPU each. NVIDIA preparation
+Rust GPU-PV management for existing Hyper-V VMs. The approved product uses one
+`hyper-gpu-support.exe`: no arguments launch Slint; explicit commands run headlessly;
+a restricted internal mode runs an elevated worker per approved operation. These
+consolidated modes and Slint are **planned**, not yet implemented. The current build
+has separate CLI, Win32 prototype and protected runner binaries using the same Rust
+core. Select multiple Generation 2 VMs, one GPU each. NVIDIA preparation
 is implemented first; discovery can list other vendors without claiming support.
 The historical RTX 5060/Windows 11 baseline proves feasibility, but the rewritten
 product still needs changed-boundary hardware qualification. See the
@@ -47,7 +51,7 @@ cargo test --locked --test m1_enrollment -- --ignored --test-threads=1
 This tests authentication, replay and unenrolled-target refusal, durable audit
 outcomes and protected write denial. It does not qualify guest rendering or sharing.
 
-## Runtime operation
+## Current runtime operation (before Slint consolidation)
 
 In an administrator console, read native inventory before initial enrollment:
 
@@ -73,7 +77,7 @@ Apply independently rechecks state and enrollment. Plan makes no VM/guest change
 but writes runner audit records; enabled plans authenticate the full current payload
 and should not be used for dashboard polling. Status does not verify guest graphics.
 
-The GUI dashboard retains one VM's staged change across selection and refresh.
+The experimental Win32 dashboard retains one VM's staged change across selection and refresh.
 Use **Discard Changes** to clear it, or **Reapply / Update** to stage current driver
 preparation for an already enabled VM. Settings provides runner/enrollment guidance
 and explicit credential-vault actions. A failed refresh leaves historical rows with
@@ -86,18 +90,41 @@ hyper-gpu-support apply --config my-vms.toml --vm VM-GUID
 hyper-gpu-support status --config my-vms.toml
 hyper-gpu-support verify --config my-vms.toml --vm VM-GUID
 hyper-gpu-support disable --config my-vms.toml --vm VM-GUID
-hyper-gpu-gui --config my-vms.toml
 ```
+
+The optional current prototype is `hyper-gpu-gui --config my-vms.toml`; it is
+disposable presentation code, not the product's implementation direction.
 
 Guest administrator credentials are prompted. `credentials --config FILE --vm GUID`
 explicitly stores an entry in the current user's Windows vault; `forget` deletes it.
 No credentials belong in TOML, command arguments or logs. Enable/prepare may gracefully
 restart guests automatically and restores initial power state. Disable keeps driver
-files. Interrupted preparation retains state; retry reconciles rather than recreating
-a VM or replacing disks. No forced power-off or host lifecycle action is exposed.
+files. Interrupted preparation retains state; the current workflow can reconcile
+it on a subsequent Apply. The approved architecture instead requires explicit
+manual reconciliation before further GPU modifications; that policy is not yet
+implemented. No forced power-off or host lifecycle action is exposed.
 
-VRAM defaults are used unless raw provider values are explicitly requested. Neither
-raw values nor UI mockup sliders promise GiB allocations or hard enforcement.
+Current allocation support is provider defaults or an optional raw VRAM triple.
+Compute, encode and decode fields are not implemented. Raw values do not promise
+GiB allocations or hard enforcement.
+
+## Approved Slint product
+
+Initial release includes physical GPU selection and Min/Optimal/Max for VRAM,
+compute, encode and decode, with unsupported/unknown capabilities shown truthfully.
+The modular UI uses VM cards, a persistent adjustable split view, one staged VM
+draft and fresh Review & Apply through the shared backend. Dashboard discovery/status
+stays separate from expensive driver validation/planning.
+
+Per-VM files keyed by Hyper-V GUID will live under
+`%ProgramData%\HyperGpuSupport\config\vms\`. Only the restricted elevated worker
+writes them after verified success; failed persistence offers save-only recovery.
+Enrollment and recovery records remain protected separately. Stale external changes
+block Apply/save. One modifying GPU operation runs per host, one GUI per Windows
+session; active work defers normal closure. Interrupted startup opens the dashboard
+with a persistent warning and blocked modifications, without automatic GPU rollback
+or blind retry. See [GUI requirements](docs/GUI_GUIDE.md),
+[configuration](docs/CONFIGURATION.md) and [audited gaps](docs/ARCHITECTURE.md#repository-audit--9-october-2026).
 
 ## Contributor laboratory
 

@@ -1,6 +1,6 @@
 # Configuration ownership
 
-## Product configuration
+## Implemented baseline
 
 CLI/GUI read `--config FILE`. [product.example.toml](../config/product.example.toml)
 documents runtime schema 2: selected VM GUID, exact GPU interface and enabled state.
@@ -16,6 +16,45 @@ Installation validates schema, target bounds and unique VM identities even for n
 callers, then requires each selected VM to be discovered as Generation 2 and each GPU
 interface to match current discovery before changing installed artifacts or task state.
 VM display names and discovered driver versions do not bind enrollment.
+
+Compute/encode/decode fields are not implemented. Current artifacts/enrollment/
+journals use protected `HyperGpuSupportProduct` known-folder directories, not the
+approved future configuration location. `src/gui_model.rs::save_configuration`
+checks expected contents, flushes a temporary file, rechecks conflicts and renames;
+its unsaved state prevents repeating successful GPU operations for save failure.
+This is client-side whole-file saving, not worker-only ProgramData persistence or
+durable save-only recovery. Reuse the separation/conflict logic under CFG-001.
+
+## Approved per-VM contract (planned)
+
+[GUI_GUIDE](GUI_GUIDE.md) owns approved A18–A32 policies; [CFG-001](BACKLOG.md#cfg-001)
+owns implementation. Exact format, schema version and import/migration remain
+OPEN-01. Prefer extending the existing typed TOML parser unless evidence justifies
+another format. No migration occurs in this documentation task.
+
+- One file per stable Hyper-V VM GUID under
+  `%ProgramData%\HyperGpuSupport\config\vms\`. Names are display data, never keys.
+- Desired intent includes physical GPU, enabled state and Min/Optimal/Max for VRAM,
+  compute, encode and decode. Discover inventory; unsupported/unknown capabilities
+  explicitly block unsafe requests. Raw values imply neither GiB nor enforcement.
+- Saved desired state, observed state and one in-memory GUI draft are separate.
+  Editing never writes configuration or changes Hyper-V.
+- Only the restricted elevated worker atomically commits machine-wide configuration
+  after independently verified successful operations. CLI and GUI use the same path.
+- Detect external file and relevant Hyper-V/provider changes before Apply and save;
+  block stale intent and require refresh, without silent merge or overwrite.
+- Verified GPU success followed by save failure retains a distinct pending-save
+  record. A fixed save-only request revalidates identity, successful operation,
+  current readback and expected file revision; it never repeats GPU modification.
+  Exact immutable binding and crash behavior remain OPEN-12.
+- Protected enrollment, operation/recovery journals and admission/audit records
+  remain separate from desired configuration. A config edit cannot clear a recovery
+  hold or authorize a new pair. Reuse existing ACL, atomic-write and reparse safeguards;
+  qualify changed location/ownership and migration before deployment.
+- Per-user appearance/window/split preferences are separate. Session-only human
+  diagnostics do not imply deleting protected security/recovery records.
+
+Host GPU partition count is observed/read-only. No credentials belong in files.
 
 ## Contributor configuration
 

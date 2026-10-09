@@ -3,9 +3,9 @@
 **Updated:** 9 October 2026  
 **Status:** Architecture rebase / planning; implementation not authorised by this document  
 **Platform:** Windows 11 x64 · Rust · Hyper-V GPU-P · Slint  
-**Related:** [BACKLOG.md](BACKLOG.md) · [GUI_GUIDE.md](GUI_GUIDE.md) · [GUI_ROADMAP.md](GUI_ROADMAP.md) · [GUI_PROMPT.md](GUI_PROMPT.md) · [SLINT_CODEX_PROMPT.md](SLINT_CODEX_PROMPT.md)
+**Related:** [BACKLOG.md](BACKLOG.md) · [GUI_GUIDE.md](GUI_GUIDE.md) · [GUI_ROADMAP.md](GUI_ROADMAP.md) · [GUI_PROMPT.md](GUI_PROMPT.md) · [Slint implementation prompt](../.github/prompts/SLINT_CODEX_PROMPT.md)
 
-> **Source of truth:** This roadmap owns product direction and milestone gates; `BACKLOG.md` owns work-card status and dependencies; `GUI_GUIDE.md` owns approved GUI/architecture decisions; `GUI_ROADMAP.md` owns detailed Slint implementation slices. Reconcile conflicting cards before work. Historical results below come from the **8 October 2026 roadmap review**, not a new repository audit or new hardware tests. No source, host or VM modification is authorised by this planning document.
+> **Ownership:** This roadmap owns product direction and milestone gates; `BACKLOG.md` owns status, dependencies and card acceptance; `GUI_GUIDE.md` owns approved UX/architecture policies; `GUI_ROADMAP.md` maps implementation slices to those cards. The [9 October source audit](ARCHITECTURE.md#repository-audit--9-october-2026) identifies reuse and gaps. Historical hardware results remain the 8 October evidence; no new hardware tests were run. This documentation update does not authorise implementation.
 
 ## 1. Product outcome
 
@@ -41,7 +41,14 @@ The experimental `windows_gui.rs` is **disposable**. Do not port its Win32 contr
 | Current GUI | Win32 prototype | **Replace with Slint**; no Win32 feature-parity requirement |
 | Allocation | Optional raw VRAM triple with range validation/native setter | Qualify units, unset values, readback, bounds, enforcement and all remaining fields |
 
-This table preserves claims from the supplied roadmap; **Codex must verify against the current repository and `BACKLOG.md`** before treating a capability as implemented. In particular, inventory reportedly fails as a whole when one VM inspection fails; status is not a fresh guest graphics test; enable-plan may hash a full driver payload and is not a lightweight dashboard poll. Existing runner calls may write protected audit records even for ostensibly read-only requests.
+The source audit confirms existing schema-2/VRAM validation, native discovery,
+shared workflow/preview, protected runner/enrollment, Named Pipe framing/authentication,
+exclusive file-handle locking, journals and GUI draft/save-conflict logic. See
+[ARCHITECTURE](ARCHITECTURE.md#repository-audit--9-october-2026) for concrete modules
+and gaps; the table's hardware outcomes remain historical claims. Inventory aborts
+on a failed VM inspection; status is not guest verification. Enabled planning hashes
+the driver payload, so dashboard polling must use discovery/status instead. Runner
+reads also write protected audit records and currently share the operation lock.
 
 Keep **DEC-028**'s limited PowerShell Direct transport/bootstrap bridge unless the current repository decisions supersede it. Preparation and application logic should remain native Rust; do not broaden the bridge into a general command API.
 
@@ -75,13 +82,13 @@ Keep **DEC-028**'s limited PowerShell Direct transport/bootstrap bridge unless t
 
 ## 4. Milestones and status
 
-| Milestone | Exit condition | State / mapping |
+| Milestone | Exit condition | Owning cards / evidence (current status in BACKLOG) |
 |---|---|---|
-| **M1 — Product boundary** | Native Rust boundary, protected runner and enrollment independent of lab | **Reported complete**; ARCH-001 |
-| **M2 — Reliable NVIDIA core** | Default attach/render/reapply/disable, clean preservation and bounded recovery | **Observed current-build repeat passed; affected fresh preparation still needs qualification**; ARCH-001, GPU-012 |
-| **M3 — Slint product + advanced per-VM GPU config** | New Slint UI, validated 12-field allocation and GPU selection, per-VM storage, secure worker/IPC, shared CLI, readback/recovery | **Planned architecture rebase**; GUI-001, GPU-010 plus new backend/security cards |
-| **R1 — Release candidate** | M2 + M3 gates, usable CLI/GUI, packaging, instructions and authorised candidate validation | **Not started/verify actual backlog**; CORE-017, DOC-003, GPU-014 |
-| **M4 — Further qualification/vendors** | Conditional two-VM shared-GPU validation and incremental additional vendor support | **Later**; GPU-015 and separately scoped vendor cards |
+| **M1 — Product boundary** | Native Rust boundary, protected runner and enrollment independent of lab | [ARCH-001](BACKLOG.md#arch-001), [M1 evidence](evidence/M1.md) |
+| **M2 — Reliable NVIDIA core** | Default attach/render/reapply/disable, clean preservation and bounded recovery | [ARCH-001](BACKLOG.md#arch-001), [GPU-012](BACKLOG.md#gpu-012), [M2 evidence](evidence/M2.md) |
+| **M3 — Slint product + advanced per-VM GPU config** | New Slint UI, validated 12-field allocation and GPU selection, per-VM storage, secure worker/IPC, shared CLI, readback/recovery | [M3 cards](BACKLOG.md#m3--slint-and-expanded-product-architecture) |
+| **R1 — Release candidate** | M2 + M3 gates, usable CLI/GUI, packaging, instructions and authorised candidate validation | [CORE-017](BACKLOG.md#core-017), [DOC-003](BACKLOG.md#doc-003), [GPU-014](BACKLOG.md#gpu-014) |
+| **M4 — Further qualification/vendors** | Conditional two-VM shared-GPU validation and incremental additional vendor support | [GPU-015](BACKLOG.md#gpu-015) and separately scoped vendor cards |
 
 **Scope change:** The old roadmap put advanced allocation after the defaults-based release. The user has now required editable physical GPU selection and the complete four-category, twelve-field allocation UI **from the start**. This moves allocation capability and its necessary backend verification into **M3/R1**. If a provider or Windows build cannot actually support an advertised field, document the limitation and request an explicit scope decision; **do not silently rebrand a read-only/defaults-only release as complete**. Vendor expansion remains later.
 
@@ -98,17 +105,21 @@ These are **planned work packages**, not approval to implement them. Keep indepe
 
 | Slice | Work | Exit / checkpoint |
 |---|---|---|
-| **M3.0 Audit** | Read current root Rust source, Cargo layout, project instructions, `BACKLOG.md`, configs, runner, existing journal, GPU provider and Slint capabilities. Identify what can be reused or simplified. | Reality/gap matrix; module plan; security/configuration open questions surfaced. **No code or live operation.** |
+| **M3.0 Audit** | Repository/source reconciliation recorded in ARCHITECTURE and PLAN-001. Provider/Slint runtime investigation remains with the owning implementation cards. | Source audit complete; no build, runtime or hardware verification claimed. |
 | **M3.1 Slint shell** | VS Code-previewable mock GUI: Fluent styling, navigation, VM cards, always-split adjustable panels, horizontal narrow-window scrolling and right-hand hybrid details. | Usable without Hyper-V; test long names, empty/unknown state, focus, scaling and scrolling. |
 | **M3.2 Executable + contracts** | No-argument GUI, explicit headless CLI, restricted worker routing; shared typed VM/GPU identity, desired/observed/draft and operation-state interfaces. | CLI output/exit codes preserved; GUI does not duplicate core rules. |
 | **M3.3 Configuration** | Per-VM schema/versioning after audit; ProgramData paths/ACLs; atomic worker-only writes, stale conflict detection, in-memory draft and independent save-only retry. | No config overwrite, identity mixup or mutation on mere editing. |
 | **M3.4 GPU configuration** | Host/VM capability discovery; GPU assignment, new VM enrollment, all four expandable allocation groups with min/optimal/max; validate provider semantics and readback. | Every editable field demonstrated on supported target or explicitly blocked with evidence and scope decision; CLI/GUI share validation. |
-| **M3.5 Privileged boundary** | Per-operation on-demand elevation, authenticated private Named Pipe, fixed request set, fresh-plan checks, host-wide cross-process lock and worker lifetime. | UAC denial/malformed/replayed/stale request cannot mutate; loss of pipe yields uncertainty. |
-| **M3.6 Execution + recovery** | Adaptive Review & Apply; distinct shutdown consent; real stage events; verified readback; safe optional power restoration; stop/manual recovery; minimal durable journal. | Injected partial failures/timeout/crash/save failure do not cause blind retry or rollback; restart shows recovery warning. |
+| **M3.5 Privileged boundary** | Adapt existing runner/Named Pipe/exclusive lock to same-executable elevation; preserve enrollment, hashes, ACLs, bounded framing, nonce/audit checks; add reviewed-plan/session binding and progress. | UAC denial/malformed/replayed/stale request cannot mutate; loss of pipe yields uncertainty; independent boundary review. |
+| **M3.6 Execution + recovery** | Extend existing workflow/plans/journals: shutdown consent, real stages, worker saving and durable save-only recovery, host-wide manual reconciliation hold. | Injected partial failures/timeout/crash/save failure do not cause blind retry or rollback; restart shows recovery warning. |
 | **M3.7 Connect UI** | Replace mocks gradually with real discovery, GPU editor, credentials, single-VM draft prompts, progress/recovery and system information. | GUI/CLI produce same effective plan; conflicts block; incidental updates preserve user selection and draft. |
 | **M3.8 Process + UX acceptance** | One GUI per session; activate-existing, deferred close, per-user preferences, renderer fallback, keyboard/accessibility, packaging inputs and negative tests. | Usable narrow/wide and at Windows scaling; no second GUI steals/drops state; tests gated before live qualification. |
 
-Keep the detailed design in [`GUI_GUIDE.md`](GUI_GUIDE.md) and milestone acceptance criteria in [`GUI_ROADMAP.md`](GUI_ROADMAP.md). Do not maintain a second competing GUI implementation specification here.
+Detailed design is in [GUI_GUIDE](GUI_GUIDE.md); [BACKLOG](BACKLOG.md) owns card
+acceptance/dependencies and [GUI_ROADMAP](GUI_ROADMAP.md) maps slices without a second
+status/gate register. Slice numbers are not a strict serial dependency chain: mock
+GUI can progress independently; CFG-001 format/conflict work can precede SEC-001,
+but protected commit integration requires it. CORE-028 integrates both.
 
 ## 6. R1 — Packaging and product acceptance
 
@@ -127,16 +138,20 @@ Keep the detailed design in [`GUI_GUIDE.md`](GUI_GUIDE.md) and milestone accepta
 
 ## 8. Backlog reconciliation and unresolved evidence
 
-Before implementation, Codex should **propose** (not silently execute) updates to `BACKLOG.md`:
-
-1. Replace the old **GUI-001 Win32/table** acceptance text with Slint mock-first architecture, VM cards, right-hand hybrid panel and new operation workflow.
-2. Bring **GPU-010** into the initial product's dependency path for all twelve validated allocation settings, keeping provider-specific uncertainty explicit.
-3. Add/re-scope work cards for **single-binary GUI/CLI/worker dispatch**, **per-VM ProgramData storage**, **private authenticated Named Pipe**, **host-wide lock**, **save-only retry** and **startup reconciliation**; avoid duplicating existing root Rust capabilities.
-4. Keep historical **M1/M2, BLK-005 and CORE-006** evidence/status accurately recorded; do not reopen completed diagnosis without reason.
-5. Update **CORE-017 / DOC-003 / GPU-014** dependencies and acceptance for the new M3 scope. Remove Win32-preservation and defaults-only-v1 language, but retain test/qualification safeguards.
+The 9 October documentation reconciliation retains task IDs and M1/M2/CORE-006/
+BLK-005 evidence. GUI-001 is the mock Slint shell; APP-001 owns dispatch; CFG-001
+extends current parser/save logic; GPU-010 extends existing allocation/selection;
+SEC-001 adapts existing runner/pipe/lock; CORE-028 extends workflow/journals and
+recovery policy. CORE-021 retains integration/documentation responsibility without
+duplicating those cards. No new implementation or test completion is claimed.
 
 **Still to verify against repo and Windows host:** configuration format/migration (`OPEN-01`); lock and privileged-worker handshake (`OPEN-03`, `OPEN-05`); Windows 11 provider/API support (`OPEN-04`, `OPEN-10`); renderer fallback (`OPEN-06`); drafts across app pages/close (`OPEN-07`); precise manual reconciliation (`OPEN-08`); hybrid executable packaging (`OPEN-09`); accessibility (`OPEN-11`); securely scoped save-only authorisation (`OPEN-12`). Approved policies A18–A32 are not open design choices.
 
-## 9. Immediate next step — planning only
+## 9. Next implementation selection (not begun)
 
-**M3.0: Repository reality check.** Ask Codex to inspect the current root code and backlog using [`GUI_PROMPT.md`](GUI_PROMPT.md). The deliverable is an evidence-backed gap matrix, a compact module plan, necessary backlog changes and milestone refinements. **Stop for review.** No Rust/Slint/Cargo edits, builds, installation, privileged tests, VM power changes or GPU operations without separate instruction. Never touch the host lifecycle without explicit authorisation.
+PLAN-001's repository/documentation audit is recorded. Once implementation is
+requested, select a card from [BACKLOG](BACKLOG.md); GUI-001 mock UI is independent
+of live Hyper-V effects. Resolve only the technical OPEN items needed for that card,
+without repeating this audit or reopening approved policies. Follow AGENTS for
+development/test authorisation and the immediate physical-host lifecycle boundary.
+This task ends with documentation edits; no implementation begins.

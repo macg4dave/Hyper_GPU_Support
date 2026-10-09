@@ -1,9 +1,9 @@
 # Hyper GPU Support — Slint GUI Guide
 
-**Status:** Working design draft (v0.2)  
+**Status:** Approved UX/architecture policies; technical implementation questions open
 **Updated:** 2026-10-09  
 **Target:** Windows desktop · Rust backend · Slint frontend · Hyper-V GPU partitioning (GPU-P)  
-**Companions:** [`GUI_PROMPT.md`](GUI_PROMPT.md) · [`GUI_ROADMAP.md`](GUI_ROADMAP.md) · [`SLINT_CODEX_PROMPT.md`](SLINT_CODEX_PROMPT.md)
+**Companions:** [docs-audit brief](GUI_PROMPT.md) · [delivery map](GUI_ROADMAP.md) · [Slint rules](SLINT_RULES.md) · [implementation prompt](../.github/prompts/SLINT_CODEX_PROMPT.md)
 
 > **Planning document, not an implementation order.** This records decisions made so far and sets boundaries for later Codex work. Items marked **OPEN** must be investigated and resolved deliberately; Codex must not infer approval to implement them.
 
@@ -69,6 +69,13 @@ IDs in this document are stable design-reference IDs; renumber only with explici
 
 These are **agreed behaviours**, not confirmation that current Rust code already implements them. Exact API choices and applicability of vendor/provider features still require repository and Windows-host verification.
 
+The [9 October repository audit](ARCHITECTURE.md#repository-audit--9-october-2026)
+records the implemented runner, Named Pipe, exclusive lock, journals, native VRAM
+and presentation state to reuse. Missing Slint/dispatch, expanded allocation,
+worker-owned saving and revised recovery admission remain planned. No new runtime
+verification was performed. This guide owns requirements/OPEN questions;
+ROADMAP owns product gates and BACKLOG owns task status/dependencies/acceptance.
+
 ## 3. Information architecture
 
 ### Navigation
@@ -109,6 +116,10 @@ Interaction:
 - Show all discovered VMs, including ineligible and unenrolled ones. The details panel explains why a VM cannot currently be configured.
 - Preserve selected VM through refresh when its stable ID remains present. Handle rename, removal, duplicate visible names and stale discovery without a crash.
 - Use stable VM identifiers, not row indices, names or order, in event handling and pending drafts.
+- Refresh cards with lightweight discovery/status. Never authenticate/hash the full
+  driver payload or run guest graphics verification merely to refresh the dashboard;
+  those belong to deliberate planning/Apply/Verify actions. Report partial access
+  failure per VM as unknown/denied, preserving valid rows and draft intent.
 - Consider a virtualised Slint `ListView` for a large collection rather than instantiating an unbounded number of cards.
 
 ## 5. Right-hand VM details panel
@@ -203,6 +214,9 @@ A plan becomes stale when the VM, selected GPU, provider capabilities, permissio
 ### Diagnostics policy
 
 - Session-only operational history/technical detail. No automatic 30-day logging, no retention configuration or background diagnostic archive.
+- Preserve existing protected admission/audit and recovery records needed for
+  security/reconciliation; they are not user-facing diagnostic history. Do not
+  delete them during consolidation merely to satisfy session-only presentation.
 - User can explicitly copy/export a report; remove passwords, tokens, credential material and other secrets.
 - Ordinary UI preferences may persist (theme, window placement/size and splitter ratio). Keep these separate from operational recovery state and diagnostic data.
 
@@ -279,14 +293,17 @@ Prefer many **coherent** modules over one giant `gui.rs`, but avoid making dozen
 - Use static/mock fixtures first: multiple VMs, no VMs, many VMs, missing GPU, long text, unknown state, partial failure, denied elevation, stale plan.
 - Keep UI-thread work minimal; deliver worker results via Slint's event-loop-safe mechanism, not a timer that repeatedly rebuilds all widgets.
 - Test one vertical slice at a time: UI action → typed request → fake backend → state transition → visual update.
-- No unattended live Hyper-V configuration, VM shutdown, privileged command or host restart while developing UI. Such testing requires explicit user permission.
+- Mock-backed UI work must not invoke Hyper-V effects. Separately selected live
+  testing follows AGENTS designated-disposable authorisation and identity checks;
+  immediate permission is always required for physical-host lifecycle. The current
+  documentation task permits no live access or implementation.
 - Do not introduce optional tooling, database, service, logging stack or complex code generation without evidence it solves a current requirement.
 
-## 14. Suggested implementation sequence (not yet approved)
+## 14. Implementation sequence summary (planned)
 
 The detailed, gated plan lives in [`GUI_ROADMAP.md`](GUI_ROADMAP.md). This section is a summary; roadmap steps cannot authorise implementation on their own.
 
-1. **Repo audit and architecture proposal.** Confirm actual current capabilities, constraints and scope; no code modifications.
+1. **Reuse the source audit.** PLAN-001 records the repository/docs result; investigate only remaining technical questions needed by the selected card.
 2. **UI prototype with mock data.** Slint shell, resizable/scrolled split, VM cards, hybrid details, centralised Fluent styling; prove VS Code preview.
 3. **Shared data/contracts.** Per-VM ProgramData config, desired/observed/draft state, typed operations, schema decision and no-argument GUI/explicit-CLI dispatch.
 4. **GPU selection/allocation backend.** Discovery, provider validation, all four resource groups and consistent CLI access.
@@ -295,7 +312,8 @@ The detailed, gated plan lives in [`GUI_ROADMAP.md`](GUI_ROADMAP.md). This secti
 7. **Verification.** Failure injection, preview staleness, narrow layout, keyboard/scaling, mock tests and explicitly approved live tests.
 8. **Documentation and cleanup.** Remove the disposable Win32 experiment when appropriate; do not expend effort preserving its structure or behaviour.
 
-Implementation milestones and ordering can change after a real repository audit. No work is authorised by this sequence alone.
+The delivery map links each slice to BACKLOG acceptance/dependencies; this summary
+does not create another gate/status register. No work is authorised by this sequence alone.
 
 ## 15. Acceptance criteria
 
@@ -328,10 +346,10 @@ A release candidate should demonstrate:
 
 | ID | Open technical detail | Required investigation |
 |---|---|---|
-| OPEN-01 | Per-VM schema and migration | Choose TOML/other format and versioning after reading current parser; map existing real configurations without accidental loss |
-| OPEN-03 | Host-wide lock implementation | Windows primitive, ownership, expiry/crash behaviour, worker handover, interaction with durable recovery state |
+| OPEN-01 | Per-VM schema and migration | CFG-001: extend existing schema-2 TOML/parser where sound; settle version/import without accidental loss |
+| OPEN-03 | Host-wide lock adaptation | SEC-001: reuse existing exclusive file-handle lock; verify all-mode/session scope, crash/handover and durable recovery admission; do not invent lock expiry as reconciliation |
 | OPEN-04 | Windows 11 GPU-P feature reality | Verify GPU selection, all twelve provider fields, guest prep, vendor/driver constraints on this host; classify unsupported actions truthfully |
-| OPEN-05 | Elevated worker security | Privileged fixed-operation contract, Named Pipe ACL/peer validation, session boundaries, authentication, launch handshake, timeouts |
+| OPEN-05 | Elevated worker security | SEC-001: adapt current SYSTEM runner and ACL/SID/framing/nonces/audit to same-exe elevation; bind a particular same-user worker, approved plan and session; bounded server/progress waits |
 | OPEN-06 | Renderer resilience | Select Slint renderer/software fallback and test on broken/absent GPU drivers |
 | OPEN-07 | Draft and non-VM navigation | Exact prompt/persistence when switching app pages and attempting to close with an unsaved draft |
 | OPEN-08 | Manual recovery reconciliation details | Define how to inspect/reconcile incomplete stages, clear recovery holds safely and handle partially successful save/restoration without GPU auto-fixes |
@@ -356,4 +374,6 @@ Consult current upstream documentation when implementation begins; links are gui
 
 ---
 
-**Next planning step:** Give Codex the read-only audit in `GUI_PROMPT.md`, comparing the actual repository to A18–A32 and the remaining OPEN items. Refine `GUI_ROADMAP.md` from its evidence before authorising any implementation.
+**Next step:** Use BACKLOG and the [implementation prompt](../.github/prompts/SLINT_CODEX_PROMPT.md)
+for an explicitly requested card. Reuse the recorded source audit; resolve the
+card's OPEN items with evidence. This documentation task begins no implementation.

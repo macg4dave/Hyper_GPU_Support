@@ -738,7 +738,7 @@ Runtime existing-VM architecture and small GPU-PV core.
 
 - Owner: Codex; prototype in progress since 2026-10-07. Win32 controls and background
   runner integration already exist in src/windows_gui.rs; reuse them.
-- Plan: [written GUI specification](gui_roadmap.md), G1 layout → G2 truthful reads →
+- Plan: [written GUI specification](GUI_ROADMAP.md), G1 layout → G2 truthful reads →
   G3 draft/shared preview → G4 operation/persistence/close handling → G5 setup/pages
   → G6 qualified usability/journey. These are substeps, not new task IDs.
 - Layout/read-only work may proceed; live GUI acceptance depends on M2 closure.

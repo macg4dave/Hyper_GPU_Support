@@ -1,78 +1,51 @@
-# Hyper GPU Support — Slint GUI Roadmap
+# Slint GUI delivery map
 
-**Status:** Planning-only v0.1  
-**Updated:** 2026-10-09  
-**Authoritative choices:** [`GUI_GUIDE.md`](GUI_GUIDE.md), especially architecture decisions A18–A32  
-**Codex planning brief:** [`GUI_PROMPT.md`](GUI_PROMPT.md)
+**Updated:** 9 October 2026. Slint implementation remains planned.
+[ROADMAP](ROADMAP.md) owns product milestone gates, [BACKLOG](BACKLOG.md) owns task
+status/dependencies/acceptance, [GUI_GUIDE](GUI_GUIDE.md) owns approved requirements,
+and [SLINT_RULES](SLINT_RULES.md) owns implementation practice. This file maps
+slices to those authorities; it does not grant implementation or live-test approval.
 
-> This roadmap authorises **no code, build, installation, elevation, VM power change or GPU operation**. Obtain explicit approval for an implementation milestone. `windows_gui.rs` is a disposable experiment; do not port it for compatibility.
+## Source audit and reuse
 
-## Principles and gates
+PLAN-001's repository/documentation audit is recorded in
+[ARCHITECTURE](ARCHITECTURE.md#repository-audit--9-october-2026). No build, runtime or
+hardware checks were performed. Preserve existing Rust backend, parser, native
+selection/VRAM setter, shared preview, protected runner, authenticated Named Pipe,
+exclusive operation lock, journals, credentials and sound `gui_model` state.
+Discard Win32 layout/event code; old GUI test results do not qualify Slint.
 
-- One Windows executable: default Slint GUI, explicit CLI subcommands, internal elevated worker mode; common Rust core and validation.
-- Per-VM configs in ProgramData keyed by VM GUID; draft in memory; protected worker writes only after Apply/readback. Save-only retry never repeats GPU operations.
-- GUI normally unelevated. One short-lived elevated worker per authorised operation; fixed typed operations via private local Windows Named Pipe.
-- Exactly one host-wide modifying GPU operation across GUI/CLI/workers; recovery hold remains distinct from lock state.
-- On failure, stop modifying GPU state; manual reconciliation only. Read-only discovery remains available; persistent recovery warning on startup.
-- Host GPU settings read-only. Physical GPU selection and per-VM VRAM/compute/encode/decode Min/Optimal/Max editable after capability validation.
-- No application code from this plan until a separate implementation task is authorised. The old Win32 GUI need not be preserved.
+## Implementation slices
 
-## Milestone 0 — Read-only repository and host capability audit
+Numbers correspond to M3 slices, not a mandatory serial chain. The backlog register
+owns exact prerequisites. Start with mocks; configuration format/conflict work can
+precede secure worker integration, but only that worker may commit machine-wide files.
 
-**Scope:** Inspect Cargo structure, CLI routing, core API, existing config/runner/permission/recovery contracts, tests and relevant roadmaps. Verify Microsoft GPU-P provider semantics and current Slint APIs; read only unless an explicit test is approved.
+| Slice / owner | Increment beyond existing code |
+|---|---|
+| M3.0 / [PLAN-001](BACKLOG.md#plan-001) | Source/docs audit complete in its scoped card. Runtime/API questions are assigned below, not a second broad audit. |
+| M3.1 / [GUI-001](BACKLOG.md#gui-001) | Modular Slint shell, Fluent styling, VM cards, persistent adjustable split, horizontal narrow-window overflow, independent vertical scrolling, hybrid details and four mock resource groups. No Hyper-V dependency. Verify APIs/tooling against the selected Slint version during implementation. |
+| M3.2 / [APP-001](BACKLOG.md#app-001) | One host executable: no-argument GUI, headless CLI and restricted elevated worker. Reuse models/core; investigate Windows console/subsystem and session activation. Ancillary guest/probe payloads remain bounded. |
+| M3.3 / [CFG-001](BACKLOG.md#cfg-001) | Extend parser and expected-content save logic to GUID-keyed ProgramData files, worker-only atomic commits, stale-change checks and durable save-only binding. Preserve separate protected enrollment/recovery and per-user preferences. |
+| M3.4 / [GPU-010](BACKLOG.md#gpu-010) | Extend native selected-GPU/VRAM support to VRAM/compute/encode/decode Min/Optimal/Max, typed capabilities and enrollment/reassignment planning. Host partition count is read-only. No fabricated units/defaults/enforcement. |
+| M3.5 / [SEC-001](BACKLOG.md#sec-001) | Adapt existing runner/pipe/lock to per-operation elevation in the same executable; preserve artifact/enrollment/replay/ACL safeguards, add reviewed-plan/session binding and bounded progress. Independent changed-boundary review before live deployment. |
+| M3.6 / [CORE-028](BACKLOG.md#core-028) | Extend workflow/preview/journals for explicit shutdown consent, real stage events, independent readback, worker saving and manual reconciliation holds. Failed save retries only saving. No automatic GPU rollback or blind retry. |
+| M3.7 / [GUI-002](BACKLOG.md#gui-002) | Reuse presentation state and credentials; progressively bind lightweight discovery/status, all GPUs/resource fields, one draft, switching confirmation, fresh Review & Apply and persistent recovery banner. Keep full driver validation/planning off dashboard refresh. |
+| M3.8 / [GUI-003](BACKLOG.md#gui-003) | Qualify one GUI per session/activate-existing, normal close deferral, crash/pipe-loss uncertainty, saved preferences, DPI/text/keyboard/accessibility and actual renderer fallback. |
+| R1 / [CORE-017](BACKLOG.md#core-017), [DOC-003](BACKLOG.md#doc-003), [GPU-014](BACKLOG.md#gpu-014) | Package/test actual consolidated behavior after M2/M3 acceptance. Reuse historical evidence and qualify changed paths only; no sharing claim without separate qualification. |
 
-**Deliver:** Reality-check matrix (existing / missing / unsupported / needs experimental verification); proposed compact module ownership; list of OPEN items with evidence and options; adjusted milestone estimates without pretending uncertain APIs are proven.
+CORE-012 owns partial discovery and truthful status/errors. CORE-021 owns residual
+cross-interface enrollment/configuration guidance and acceptance, without duplicating
+CFG-001, SEC-001 or GUI-002 implementation.
 
-**Gate:** Review findings and resolve security/configuration interface decisions before any core change.
+## Remaining technical questions
 
-## Milestone 1 — Slint visual shell with mock backend
+[GUI_GUIDE section 16](GUI_GUIDE.md#16-remaining-open-implementation-questions--resolve-from-repohost-evidence) is the single
+OPEN register. Schema/migration and immutable save-only authorization belong to
+CFG-001; lock/worker handshake to SEC-001; provider semantics to GPU-010; reconciliation
+to CORE-028; console/packaging to APP-001; renderer/accessibility to GUI-003.
+Settle questions when needed by the owning slice, without reopening approved A18–A32.
 
-**Scope:** Modular shell/navigation, VM cards, split layout (never collapses), resizable divider, horizontal scroll for narrow windows, hybrid right-hand panel, Fluent theme tokens and static/mock states.
-
-**Gate:** VS Code Slint preview; no Hyper-V needed; keyboard selection, focus, scroll, long names, multiple DPI/text scale and empty/error states visually checked.
-
-## Milestone 2 — Executable dispatch and shared domain contracts
-
-**Scope:** One executable routes no args to GUI, explicit args to CLI, restricted/internal worker to privileged path; common domain layer for VM identity, desired/observed/draft and typed operation states. No duplicate Hyper-V business rules in Slint.
-
-**Gate:** CLI remains headless with reliable output/exit status; GUI launch has no unwanted console; mock tests show both entry points reuse the same validation contracts.
-
-## Milestone 3 — Per-VM configuration persistence
-
-**Scope:** Settle schema/versioning based on repo evidence, ProgramData paths and ACLs, stable VM GUID file names, atomic write and conflict detection, per-user visual preferences separately. Reads not treated as privilege grants.
-
-**Gate:** No stale overwrite; safe rename/missing file handling; config edits stay in memory; only worker can commit; file-save failure is distinguishable from successful Hyper-V operation.
-
-## Milestone 4 — GPU capabilities and allocation model
-
-**Scope:** Detect eligible GPUs, current GPU identity and per-VM state; classify all twelve provider fields and input semantics; suggest values from real provider capabilities, not invented percentages. Host partition count displayed only.
-
-**Gate:** Every field has verified units, bounds, or an honest unsupported/unknown state; mock-backed card/editor validation and CLI parity.
-
-## Milestone 5 — Secure privileged execution boundary
-
-**Scope:** Reuse/reshape approved fixed-operation runner, one per-operation elevated instance, private local Named Pipe, access control, peer authentication, message framing/bounds/timeouts, strict identity/plan validation. Coordinate one host-wide modifying operation across processes.
-
-**Gate:** Denied UAC makes no VM change; malformed/untrusted/stale messages cannot run operations; simulated disconnection produces *uncertain*; locks do not erase durable unresolved recovery state.
-
-## Milestone 6 — Plan, apply, progress and manual recovery
-
-**Scope:** Adaptive Review & Apply, explicit guest-shutdown permission, stage progress, safe restoration of previously running state, independent readback, worker-owned post-success per-VM save, narrow save-only retry, minimal recovery journal. On GPU failure stop and require manual reconciliation.
-
-**Gate:** Fault-injected partial success, crashes, timeouts and save failures do not trigger automatic GPU retry/rollback; stage status is accurate; recovery warning blocks new modifications after restart.
-
-## Milestone 7 — Connect Slint controls to real backend
-
-**Scope:** Replace mocks incrementally for discovered VMs, selection/filtering, four expandable allocation groups, pending-draft prompt, progress/recovery notices and credentials; preserve single pending VM draft.
-
-**Gate:** UI and CLI produce the same plan for identical inputs; stale external file/Hyper-V changes block Apply; VM selection and unrelated refreshes preserve pending intent and scroll context.
-
-## Milestone 8 — Process lifetime, integration and release readiness
-
-**Scope:** Single GUI per Windows session with activate-existing behaviour, close deferral during active worker operation, crash/lost-pipe recovery, session-only diagnostics, GUI settings, installer path/ACLs and renderer fallback. Evaluate accessibility and actual Slint feature support.
-
-**Gate:** Ordinary close cannot abandon a known active operation; another GUI launch does not clear draft; CLI and worker modes unaffected; mock/negative tests pass. Real VM tests only with specific user permission; no host reboot/shutdown without approval.
-
-## Work that remains explicitly open
-
-See `GUI_GUIDE.md` section 16 for the current `OPEN-*` table. Codex should challenge assumptions with evidence, not re-open settled user choices. The next actionable step is **Milestone 0, read-only audit**, after the user chooses to initiate it.
+Mock development never invokes real Hyper-V effects. Future designated-disposable
+testing follows AGENTS authorization/identity checks; physical-host lifecycle requires
+immediate permission. This documentation reconciliation starts no implementation.

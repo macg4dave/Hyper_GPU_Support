@@ -2,14 +2,20 @@
 
 **Updated:** 9 October 2026  
 **Status:** Architecture/planning rebase. No implementation or live testing is authorised by this document.  
-**Companion documents:** [ROADMAP.md](ROADMAP.md) · [GUI_ROADMAP.md](GUI_ROADMAP.md) · [GUI_GUIDE.md](GUI_GUIDE.md) · [GUI_PROMPT.md](GUI_PROMPT.md) · [SLINT_CODEX_PROMPT.md](SLINT_CODEX_PROMPT.md)  
+**Companion documents:** [ROADMAP.md](ROADMAP.md) · [GUI_ROADMAP.md](GUI_ROADMAP.md) · [GUI_GUIDE.md](GUI_GUIDE.md) · [GUI_PROMPT.md](GUI_PROMPT.md) · [Slint implementation prompt](../.github/prompts/SLINT_CODEX_PROMPT.md)
 **Historical record:** [BACKLOG_HISTORY.md](BACKLOG_HISTORY.md) preserves the entire supplied 8 October backlog, including detailed card results, older scope, measurements and evidence references.
 
-> **Ownership:** `ROADMAP.md` owns product direction and milestones; this file owns **task IDs, current planned status, priorities and dependencies**; `GUI_GUIDE.md` owns the user's agreed requirements; `GUI_ROADMAP.md` details the gated Slint slices. The 8 October status/evidence is inherited from the supplied backlog, **not** freshly validated against the current repository or host. The new task breakdown is a planning proposal until Codex's read-only audit confirms ownership and feasibility.
+> **Ownership:** `ROADMAP.md` owns product milestones; this file owns task status,
+> dependencies and acceptance; `GUI_GUIDE.md` owns approved requirements;
+> `GUI_ROADMAP.md` maps slices to cards. The 9 October [source audit](ARCHITECTURE.md#repository-audit--9-october-2026)
+> confirms reuse/gaps, not new hardware results. Preserve 8 October evidence.
 
 ## Resume / next action
 
-**Next: PLAN-001, read-only repository reality check (M3.0).** Examine the actual root Rust code, project instructions and existing evidence against the approved Slint architecture. Return a concise capability/gap matrix, module ownership, API/Windows constraints, necessary task adjustments and any decisions requiring user approval. **Stop for review; do not implement.**
+**Source/documentation audit recorded under PLAN-001.** Next, when implementation
+is requested, start GUI-001's mock-backed Slint shell independently of Hyper-V,
+or an explicitly selected backend card. Technical provider/Slint/security checks
+remain with their owning cards; do not restart a broad repository audit.
 
 The earlier Win32 `windows_gui.rs` is a disposable prototype, **not** the foundation of M3. Its previously reported tests do not qualify the new Slint GUI. A new `hyper-gpu-support.exe` must support no-argument Slint startup, explicit headless CLI commands, and a restricted elevated-worker mode using the same Rust core.
 
@@ -20,10 +26,14 @@ The earlier Win32 `windows_gui.rs` is a disposable prototype, **not** the founda
 ## Status and work rules
 
 - **planned**: scoped but not authorised for implementation; **ready**: dependencies met for the stated, explicitly permitted action; **in progress**: evidence-backed ongoing work; **blocked**: observed impediment; **completed**: acceptance evidenced; **merged**: superseded/absorbed, not an independent gate; **deferred**: outside initial release; **cancelled**: no longer scheduled.
-- `PLAN-001` is the sole **ready planning task**. Other newly proposed M3 cards are **planned**, pending its audit and later explicit authorisation. Do not infer implementation approval from their priority.
+- PLAN-001's repository/documentation scope is complete. M3 implementation cards
+  remain planned; this docs-only task does not authorise code or live testing.
 - Before acting, read the chosen card, relevant source, `AGENTS.md` / `ENGINEERING.md` where present and applicable decisions. Claim shared work only when the repo workflow requires it. Avoid unnecessary historical experiments.
 - Reuse proven Rust contracts and native fixed-operation helpers. Product never depends on laboratory scripts, fixed VM slots, golden images, cloning/reset or arbitrary privileged commands. DEC-028's bounded PowerShell Direct bridge remains limited to the approved guest transport/bootstrap functions unless a new reviewed decision changes it.
-- Apply proportional tests and review **changed** privileged boundaries. No tests-of-tests, broad telemetry framework, speculative refactor or repeated investigation of closed findings. Real VM operations, elevation, driver staging or VM power changes require **separate explicit permission**. Never restart/shut down/log out the **host** without immediate permission.
+- Apply proportional tests and review changed privileged boundaries. Follow AGENTS
+  for designated-disposable testing authorisation and immediate host lifecycle
+  permission. Mock GUI development never triggers real Hyper-V effects. This
+  documentation task permits no build, elevation, credentials or VM operations.
 - Report what was inspected or tested versus what is merely planned. Record narrowly scoped results on the affected card; do not mark a gate complete from mocks, read-only parity or old Win32 evidence alone.
 
 ## Milestone status
@@ -42,19 +52,19 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 
 | ID | Milestone | Priority | Status | Prerequisites / notes |
 |---|---|---|---|---|
-| [PLAN-001](#plan-001) | M3.0 | P0 | **ready — read-only only** | Approved design docs and current repo available; no source edits |
+| [PLAN-001](#plan-001) | M3.0 | P0 | **completed — repository/docs scope** | 9 Oct source audit; runtime/provider feasibility remains on owning cards |
 | [ARCH-001](#arch-001) | M1/M2 | P0 | **in progress** | M1 completed; affected M2 fresh preparation still open |
 | [GPU-012](#gpu-012) | M2 | P1 | **in progress** | Explicitly authorised bounded test; existing M1/M2 evidence |
 | [CORE-012](#core-012) | M2/M3 | P1 | **ready (after task authorisation)** | Existing observed-state/journal/error contracts |
-| [CORE-021](#core-021) | M2/M3 | P1 | **in progress (rescope at audit)** | Schema-2 baseline; avoid duplicate CFG-001/GUI-002 ownership |
+| [CORE-021](#core-021) | M2/M3 | P1 | **in progress** | Integration/doc residuals; parser/storage CFG-001, enrollment SEC-001, UI GUI-002 |
 | [CORE-006](#core-006) | M2 | P1 | **completed (reported)** | Reuse shared plan/apply preview; extend only for new operations |
 | [GUI-001](#gui-001) | M3.1 | P1 | **planned — re-scoped** | PLAN-001; Slint mock shell, **not** Win32 continuation |
 | [APP-001](#app-001) | M3.2 | P0 | **planned — new** | PLAN-001; single exe GUI/CLI/worker routing |
 | [CFG-001](#cfg-001) | M3.3 | P0 | **planned — new** | PLAN-001, shared model audit; worker write integration depends on SEC-001 |
 | [GPU-010](#gpu-010) | M3.4 | P0 | **planned — promoted from M4** | PLAN-001; provider/API validation and selected-GPU capability model |
-| [SEC-001](#sec-001) | M3.5 | P0 | **planned — new** | PLAN-001, APP-001; fixed elevated worker, Named Pipe, host lock |
+| [SEC-001](#sec-001) | M3.5 | P0 | **planned — extension** | APP-001; adapt existing protected runner/pipe/lock, no replacement stack |
 | [CORE-028](#core-028) | M3.6 | P0 | **planned — new** | CORE-006, CFG-001, GPU-010, SEC-001; real progress/manual recovery |
-| [GUI-002](#gui-002) | M3.7 | P1 | **planned — new** | GUI-001, contracts + safe backend; incremental real binding |
+| [GUI-002](#gui-002) | M3.7 | P1 | **planned — new** | GUI-001, APP-001, CORE-012, CFG-001, GPU-010, SEC-001, CORE-028; mock binding can precede full integration |
 | [GUI-003](#gui-003) | M3.8 | P1 | **planned — new** | GUI-002 and APP-001; accessibility, lifetime, scaling and UX checks |
 | [CORE-017](#core-017) | R1 | P1 | **planned** | M2/M3 gate; packaging can be prepared independently |
 | [DOC-003](#doc-003) | R1 | P1 | **planned** | Verified CLI/GUI, configuration and recovery behaviour |
@@ -87,7 +97,11 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 
 **Configuration and enrollment UX — reconcile with new architecture.** Previously implemented runtime schema 2 and exact native enrollment are starting points, **not** an instruction to preserve a single config file or make the Win32 prototype authoritative. M3 requires per-VM GUID-keyed configuration, direct first-time GPU enrollment from the right-hand panel and one source of rules for CLI/GUI.
 
-**Audit action:** decide which existing parser, enrollment and credential pieces move under CFG-001 / GUI-002; eliminate duplicate ownership. Retain completed work/evidence. Do not mark CORE-021 complete until its residual contract/documentation responsibilities are explicitly assigned and tested.
+**Residual ownership:** CFG-001 extends parser/storage/conflict handling; SEC-001
+owns enrollment/elevated launch adaptation; GPU-010 owns selection/allocation;
+GUI-002 reuses credentials and presentation state. CORE-021 retains cross-interface
+configuration/enrollment guidance and integration acceptance; it does not build
+another parser, vault or enrollment backend. Retain completed work/evidence.
 
 ### CORE-006
 
@@ -97,11 +111,23 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 
 ### PLAN-001
 
-**Read-only repository reality check — next task.** Inspect `ROADMAP.md`, `GUI_GUIDE.md`, `GUI_ROADMAP.md`, applicable `AGENTS.md` / `ENGINEERING.md`, root Cargo manifests, CLI entry point, model/parser, inventory, workflow, runner, enrollment, journaling, guest writer and Windows API integration. Consult up-to-date Slint/provider documentation where assumptions depend on actual APIs.
+**Repository audit and documentation reconciliation — completed scoped result,
+9 October.** Inspected manifests, CLI/model/GUI state, native allocation, runner,
+Named Pipe, workflow/journals and relevant test source; corrected current docs.
+The [audit matrix](ARCHITECTURE.md#repository-audit--9-october-2026) records existing
+capabilities/gaps; GUI_GUIDE module responsibilities remain the compact UI plan.
+Existing IPC, lock, journals, parser and backend are reused. Historical passes were
+preserved, not rerun. No source/config/script edits, builds or host/VM access.
 
-**Deliver:** (1) evidence-backed existing/missing/conditional capabilities; (2) compact Rust/Slint module plan; (3) differences from approved A18–A32 policies; (4) security/IPC/config/schema feasibility and risk; (5) proposed revised card dependencies and explicit open decisions. Preserve proven functions and identify unnecessary compatibility/laboratory coupling.
+**Remaining investigation reassigned:** actual provider semantics/qualification to
+GPU-010; Slint version/layout/runtime checks to GUI-001/GUI-003; console/dispatch to
+APP-001; schema/save binding to CFG-001; elevation/handshake/coordination to SEC-001;
+manual reconciliation to CORE-028. Completion covers the requested source/docs audit,
+not live/API feasibility or implementation of those policies.
 
-**Exit:** independent review of the audit results **with the user**. No implementation, dependency edits, build, installation, elevated helper, guest credentials, VM/host operation or live GPU-P test under this card.
+**Scoped exit:** source-backed corrections and task ownership recorded; check local
+links/task dependencies and diff hygiene. No code, builds or live operations. The
+user can review the concrete documentation diff; implementation remains planned.
 
 ### GUI-001
 
@@ -131,6 +157,13 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 
 **Short-lived authorised worker, private Named Pipe and host-wide coordination.** One approved modifying operation launches a restricted elevated instance of the **same executable**. Reuse the protected runner/fixed-operation policy. The frontend and worker communicate through private local Windows Named Pipes with strict ACLs, authenticated peer/operation/plan identity, bounded versioned typed messages, exact VM/GPU identity checks, timeouts and replay rejection. The worker independently revalidates every request; it never accepts arbitrary scripts, files or shell commands.
 
+**Existing foundation:** `runner` already pins protected artifacts/enrollment,
+nonces and durable admission; `windows_pipe` supplies local ACL/SID authentication
+and bounded framing; exclusive file-handle locking already serializes requests.
+Adapt these to per-operation elevation, plan/progress/session binding and host-wide
+recovery admission. Owner SID alone cannot identify a particular same-user worker;
+review the launch handshake, server waits and artifact trust rather than adding IPC.
+
 **Coordination:** at most **one modifying GPU operation across the entire host**, including GUI, CLI and workers. Read-only inventory can continue where safe. Lock release after exit/crash is **not** equivalent to recovery resolution. Elevate before any VM shutdown; UAC denial retains the draft and causes no VM mutation. Distinguish UI approval, Windows elevation and guest credentials.
 
 **Exit:** mock/negative tests for denied UAC, malicious/malformed/oversized requests, stale plan and altered device identity, wrong peer/session, worker failure, timeouts, pipe loss and concurrent CLI/GUI requests. Confirm changed privileged boundary through repository-required independent review before any live use.
@@ -138,6 +171,11 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 ### CORE-028
 
 **Adaptive operation execution, progress, verified persistence and manual recovery.** Reuse CORE-006's shared planner for first-time enrollment, selected-GPU changes, four resource triples and enable/disable/reapply. For complex operations disclose approved protected actions and request **separate explicit graceful shutdown approval**. Before effects, record sufficient durable recovery intent; then execute validated fixed steps with real Pending/Running/Done/Failed/Unknown stage messages over the pipe. Read back real Hyper-V state; save the matching per-VM config via the worker after success.
+
+Extend `workflow`'s pre-effect journals/readback and native pending markers. Current
+Apply can resume pending work; change admission to explicit manual reconciliation
+and a durable host-wide hold. Reuse `gui_model`'s successful-but-unsaved separation;
+make save-only recovery protected and durable through CFG-001/SEC-001.
 
 **Failure policy:** stop further GPU modifications; report completed/uncertain stages; no blind retries, automatic GPU rollback, corrective reassignment or automatic recovery-record clearing. Restore originally running VM only when genuinely safe and already authorised; never silently force-off or modify host power. Worker crash/disconnect is **uncertain**. On restart keep a persistent dashboard recovery warning and block new GPU modifications until **manual reconciliation** verifies safety. Session-only human diagnostics are distinct from minimal durable recovery records.
 
@@ -173,7 +211,16 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 
 **Authorised end-to-end product qualification.** On explicitly selected disposable existing VM(s), exercise clean packaged startup, discovery, enrollment, GPU selection and supported custom twelve-field allocations, signed-driver preparation, exact attachment, PnP/checked D3D11, running no-op, reapply, disable/restoration, CLI/GUI parity and representative interrupted/recovery/save-only scenarios. Reuse earlier M1/M2 evidence and run only relevant changed paths. A second concurrent VM is **not** a gate unless sharing is advertised.
 
-**Exit:** reviewed actual run report, state/host safety, security boundaries, package/manual parity and no essential unresolved blocker. Any live VM or host-affecting action requires specific permission. No automatic host restart.
+**Exit:** reviewed actual run report, state/host safety, security boundaries, package/manual parity and no essential unresolved blocker. Follow AGENTS designated-target authorisation and identity checks; no automatic host restart.
+
+### GPU-015
+
+**Conditional sharing qualification — deferred M4.** Before advertising simultaneous
+same-GPU use, qualify two explicitly designated VMs independently and together,
+including removing one without disturbing the other. Define admission/support policy;
+multiple configuration files and serialized operations do not prove sharing safety.
+Reuse existing core and relevant evidence; no scheduler or new release gate unless
+sharing is advertised. Follow AGENTS target checks and testing authorisation.
 
 ## Deferred, merged and completed records
 
@@ -220,4 +267,6 @@ The **policies A18–A32 are agreed**; the details above are implementation inve
 
 A card closes only with its own acceptance evidence. M3 closes only after the common Rust core, Slint frontend, editable supported allocation, restricted worker, typed Named Pipe, host-wide coordination, ProgramData persistence, crash recovery and verified GUI/CLI behaviour pass their checks. R1 then requires actual packaging and explicitly authorised target qualification.
 
-**Immediate Codex prompt:** “Read `GUI_PROMPT.md`, `GUI_GUIDE.md`, `GUI_ROADMAP.md`, `ROADMAP.md` and `BACKLOG.md`. Perform **PLAN-001** only: read-only audit, gap matrix and proposed card refinements. Do not implement or test on real Hyper-V until separately approved.”
+**Next prompt:** [Slint implementation task](../.github/prompts/SLINT_CODEX_PROMPT.md)
+for an explicitly requested card. [GUI_PROMPT](GUI_PROMPT.md) is the docs-audit brief,
+not an instruction to repeat PLAN-001 or begin implementation.

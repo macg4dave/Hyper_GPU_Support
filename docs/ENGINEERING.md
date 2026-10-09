@@ -103,7 +103,8 @@ operation being performed.
 
 ## Configuration and mutable values
 
-Use runtime schema 2 for product intent. Laboratory tooling uses
+Use the versioned runtime schema for product intent (schema 2 currently; the planned
+per-VM transition is owned by [CONFIGURATION.md](CONFIGURATION.md)). Laboratory tooling uses
 [`config/project.toml`](../config/project.toml) as its single checked-in source
 for non-secret values expected to change with a machine, disposable VM, GPU/driver,
 image, tool input or test run. This includes target identities, artifact paths and

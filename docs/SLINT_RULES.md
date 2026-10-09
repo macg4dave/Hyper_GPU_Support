@@ -2,11 +2,17 @@
 
 **Project:** Hyper GPU Support (Rust / Windows / Hyper-V GPU-P)  
 **Status:** Development rules; **not** authorisation to implement  
-**Companion documents:** `GUI_GUIDE.md` (approved UX and open decisions), `GUI_PROMPT.md` (current Codex task)
+**Companions:** [GUI guide](GUI_GUIDE.md) (approved UX/OPEN register),
+[backlog](BACKLOG.md) (task acceptance),
+[implementation prompt](../.github/prompts/SLINT_CODEX_PROMPT.md)
 
 ## Instruction to Codex
 
-When reviewing, planning, implementing, or debugging the Slint frontend, follow these rules. Read `GUI_GUIDE.md` and the current task instructions first. **Do not write code or change project files until the user explicitly authorises implementation.** This document governs *how* Slint work should be done once authorised; it does not approve unresolved architecture decisions or host/VM operations.
+Follow these toolkit practices for Slint work; read GUI_GUIDE and the active task
+first. The user's requested scope determines whether documentation or code edits
+are authorised. A documentation request is not code/live-test approval. These rules
+do not add a separate approval gate to already authorised development. Approved
+product requirements live in GUI_GUIDE, not a competing checklist here.
 
 Use the installed official Slint skill for Codex when available. Consult the current Slint documentation for the version actually used by the repository. Do not invent properties, APIs, controls, or extension capabilities. If a requirement is not directly supported by Slint, identify that gap and propose the smallest viable solution before building it.
 
@@ -16,6 +22,9 @@ Use the installed official Slint skill for Codex when available. Consult the cur
 - Keep a small application window/composition layer and separate cohesive components for navigation, VM cards, VM details, allocation editor, review dialogs, and progress display. These are *responsibilities*, not a mandate for one file per widget.
 - Put GUI presentation state, commands, event handling, and background-operation coordination in appropriately scoped Rust modules.
 - Keep Hyper-V operations, validation, privileged enrollment, configuration persistence, and recovery in the shared Rust backend; the CLI and GUI must reuse those domain rules.
+- Extend existing `gui_model`, workflow/planner/journals, runner, `windows_pipe`
+  and exclusive operation lock; see the [source audit](ARCHITECTURE.md#repository-audit--9-october-2026).
+  Do not add a second IPC, security, locking or recovery system for Slint.
 - Expose a narrow, typed Rust–Slint boundary: display data and user-intent callbacks, not unrestricted backend objects or arbitrary commands.
 - Do not create another monolithic GUI source file, but also avoid unnecessary micro-modules and generic frameworks. Split when a file contains unrelated responsibilities or becomes hard to navigate and test.
 - The previous `windows_gui.rs` was experimental. Do not port its raw Win32 layout/event architecture or add compatibility scaffolding for it.
@@ -56,6 +65,8 @@ Use the installed official Slint skill for Codex when available. Consult the cur
 
 - Create and interact with Slint components on the UI/event-loop thread. Do not mutate UI handles from worker threads.
 - Run slow discovery, Hyper-V operations, file I/O, credential interactions, and validation requiring external processes without blocking rendering or input.
+- Dashboard refresh uses lightweight discovery/status; full driver payload
+  authentication and Apply planning remain explicit actions.
 - Deliver worker results back to the UI using Slint's documented event-loop facilities (for example `invoke_from_event_loop` / weak-handle methods as appropriate to the selected version).
 - Use weak component references in callbacks/workers where required to avoid ownership cycles and updates to destroyed windows.
 - Prefer typed progress/result messages over generic JSON blobs routed through arbitrary UI timers. Do not fabricate stage percentages or operation progress.
@@ -82,6 +93,8 @@ Use the installed official Slint skill for Codex when available. Consult the cur
 - Request explicit permission for graceful guest shutdown and safe restoration; never force power-off or modify host power state without separately scoped permission.
 - After changes, read back the real Hyper-V state. Preserve and report partial success, unknown outcomes, and recovery-required conditions; never blindly retry a possibly completed action.
 - User-facing progress/diagnostics last for the current session only. Minimal durable recovery records needed for interrupted operations are separate from diagnostic history.
+- Preserve existing protected admission/audit records as well as recovery state;
+  session-only UI history is not permission to remove security evidence.
 - Never expose or log guest credentials, passwords, sensitive tokens, or privileged request secrets.
 
 ## 8. Make Codex's visual iteration reliable
@@ -104,7 +117,7 @@ Use the installed official Slint skill for Codex when available. Consult the cur
 
 ## 10. Required Codex workflow
 
-1. **Read:** `GUI_GUIDE.md`, `GUI_PROMPT.md`, this file, repository instructions, and the relevant existing modules.
+1. **Read:** the active backlog card, `GUI_GUIDE.md`, this file, repository instructions and affected modules; reuse the recorded source audit. `GUI_PROMPT.md` is only the documentation-audit brief.
 2. **Verify:** Confirm the actual Slint version, available widgets/APIs, and any associated tooling in official documentation.
 3. **Scope:** State the components/modules affected, assumptions, unresolved design issues, and whether any privileged or live VM action would be required.
 4. **Plan:** Propose a small, independently testable change before implementation. Never silently settle `OPEN-*` questions from the guide.
