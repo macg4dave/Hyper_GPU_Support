@@ -9,6 +9,7 @@ fn help_does_not_load_laboratory_configuration() {
     assert!(result.status.success());
     let text = String::from_utf8(result.stdout).unwrap();
     assert!(text.contains("--config FILE"));
+    assert!(text.contains("--mock-gui"));
     assert!(!text.contains("declared but not implemented"));
     assert!(!text.contains("reset-slot"));
 }
@@ -76,6 +77,7 @@ fn explicit_cli_dispatch_preserves_output_and_validation_without_gui() {
         vec!["status"],
         vec!["--config", "missing.toml"],
         vec!["--internal-worker", "arbitrary-command"],
+        vec!["--mock-gui", "--config", "missing.toml"],
     ] {
         let result = Command::new(env!("CARGO_BIN_EXE_hyper-gpu-support"))
             .args(args)

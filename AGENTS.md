@@ -12,11 +12,16 @@ Min/Optimal/Max for VRAM, compute, encode and decode, subject to truthful provid
 capability validation/readback. No invented units or enforcement promises. See the
 [roadmap](docs/ROADMAP.md) and approved [GUI guide](docs/GUI_GUIDE.md).
 
-The completed Slint prototype is the authoritative v1.0 GUI, now in `ui/` and
+The completed Slint prototype is the authoritative v1.0 GUI, now in `src/gui/ui/` and
 `src/gui/`. No arguments launch it; explicit CLI commands retain the working Rust
 core. Do not redesign or restore removed pages, search/filters or other absent
-controls. Backend integration may connect existing controls only. GUI operations
-currently use labelled mocks. Win32 presentation is removed; preserve sound
+controls. Backend integration may connect existing controls only. Normal startup
+uses real inventory and supported real bindings; unconnected actions are blocked.
+`--mock-gui` explicitly selects rehearsal, currently with fixtures. As integration
+progresses it should read real data/plans but execute no effects or persistent
+writes, including config/credentials/journals/audits. Do not suppress mandatory
+runner audit; qualify a no-write data route separately. Preserve fixture scenarios
+for UI tests and clearly label simulated outcomes. Win32 is removed; preserve sound
 `gui_model`, workflow, runner, Named Pipe, locking and journal contracts.
 The protected runner remains separate; same-executable restricted worker and
 Windows console packaging are planned, not implemented. Prioritize binding the

@@ -7,11 +7,13 @@ The prototype defines the interface: no redesign or restoration of removed featu
 
 ## Delivery priorities
 
-1. Promote existing sources to the main executable: no arguments open Slint;
+1. Promote existing sources to the main executable: no arguments open live Slint;
    explicit CLI commands run headlessly. This dispatch is implemented.
 2. Preserve the current design and working interactions; fix integration defects.
-3. Bind existing controls to shared Rust discovery, plans, execution, credentials
-   and persistence where supported. Label all remaining mocks honestly.
+3. Bind existing live controls to shared Rust discovery, plans, execution,
+   credentials and persistence. `--mock-gui` explicitly selects no-write rehearsal:
+   fixtures initially, actual read-only data and the same plans as work progresses.
+   Live unconnected actions are blocked; simulated outcomes are never real success.
 4. Preserve CLI capabilities and backend security, validation and recovery.
 5. Finish backend gaps required by existing controls without adding interface.
 6. Package and validate the Windows application and necessary payloads/notices.
@@ -56,4 +58,3 @@ Activity, search/filters, extra actions/pages, persistent preferences and sessio
 activation. Retain historical task IDs/decisions/evidence in
 [BACKLOG_HISTORY](BACKLOG_HISTORY.md) and DEC-029. BLK-005's historical hang cause
 remains unknown and its investigation remains closed.
-

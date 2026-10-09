@@ -1,7 +1,7 @@
 # GUI documentation maintenance brief
 
 The approved completed prototype is now the main Slint application, in root
-`ui/` and `src/gui/`. [GUI_GUIDE](GUI_GUIDE.md) defines its v1.0 scope;
+`src/gui/ui/` and `src/gui/`. [GUI_GUIDE](GUI_GUIDE.md) defines its v1.0 scope;
 [ROADMAP](ROADMAP.md) owns priorities and [BACKLOG](BACKLOG.md) task status.
 Use this brief for requested documentation maintenance, not a repeated design audit.
 
@@ -10,9 +10,11 @@ Do not restore Activity, search/filters, extra pages/actions or a setup wizard.
 Keep historical task IDs, evidence and decisions as history, without treating
 superseded GUI planning as current requirements.
 
-Distinguish presentation promotion from backend integration: operational GUI data
-and callbacks remain mocked; CLI/backend functionality and protected runner remain
-working. Same-executable worker, secure persistence and real stages/recovery remain
+Normal GUI startup uses live data/supported bindings; unavailable actions never
+simulate success. `--mock-gui` selects rehearsal: fixtures now, real read-only data
+and shared plans progressively, with no effects or persistent writes. Preserve
+required runner audit and qualify a separate no-write data source. CLI/backend
+functionality remains working. Same-executable worker, persistence and real stages remain
 on existing cards. Preserve security and all CLI functionality regardless of GUI scope.
 
 Update current claims and links against source and actual tests. Do not invent

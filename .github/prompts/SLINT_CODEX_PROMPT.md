@@ -4,13 +4,17 @@ Follow [AGENTS](../../AGENTS.md), [ENGINEERING](../../docs/ENGINEERING.md),
 [GUI_GUIDE](../../docs/GUI_GUIDE.md), [SLINT_RULES](../../docs/SLINT_RULES.md)
 and the selected [BACKLOG](../../docs/BACKLOG.md) card. User scope is authoritative.
 
-The completed prototype, now in root `ui/` and `src/gui/`, defines v1.0. Preserve
+The completed prototype, now in `src/gui/ui/` and `src/gui/`, defines v1.0. Preserve
 its layout, controls, navigation, styling and behavior. Do not redesign, recreate
 removed Activity/search/filter features, or add pages/controls without approval.
 No Win32 parity requirement; that presentation has been removed.
 
-No arguments open Slint; explicit CLI commands retain the working headless path.
-Operational GUI callbacks currently use labelled mocks. Bind existing controls
+No arguments open live Slint with actual data and supported real bindings;
+unconnected actions remain unavailable. `--mock-gui` explicitly selects no-write
+rehearsal, currently fixtures, then real read-only data and shared plans as integration
+progresses. Simulate effects only in this mode; never persist config/credentials/
+enrollment/journals/audits or launch guest probes. Do not suppress required runner
+audit; qualify a no-write reader/snapshot separately. Bind existing controls
 incrementally to the shared Rust core, reusing sound `gui_model`, discovery,
 workflow/plans, configuration, credentials, runner, Named Pipe, lock and journals.
 Keep all CLI/backend capabilities, even when absent from the GUI. Do not create

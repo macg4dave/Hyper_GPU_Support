@@ -1,5 +1,22 @@
 ﻿# Changelog
 
+## 2026-10-09 - Main Slint application promotion
+
+- Split normal live startup from explicit `--mock-gui` rehearsal. Live cards,
+  Refresh and System use shared core discovery; unconnected effects are blocked
+  and discovery errors never fall back to samples. Mock mode remains fixture-based
+  and write-free; real-data no-write rehearsal is the documented next direction.
+
+- Promoted the approved prototype into the main executable: no arguments launch
+  Slint; explicit commands retain the shared Rust CLI/backend. Components/icons
+  now live in `src/gui/ui/`, with controller/mock fixtures in `src/gui/`.
+- Removed the standalone prototype Cargo package and obsolete Win32 GUI entry and
+  presentation; preserved `gui_model`, protected runner and backend contracts.
+- Made the completed interface the v1.0 specification, retired absent requirements
+  and completed prototype tasks, retained IDs/history and scheduled actual bindings.
+- Fixed Follow Windows surfaces to match Fluent's resolved theme for Unknown,
+  retaining approved colors/layout. Validation performed no VM/GPU mutation.
+
 ## 2026-10-09 - Slint prototype refinement
 
 - Simplified the VM header to its heading and Refresh row and added consistent

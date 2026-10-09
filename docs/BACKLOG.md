@@ -18,8 +18,10 @@ history. APP-001's promotion/GUI-CLI dispatch is implemented; protected worker a
 console packaging remain open. Next bind existing controls under GUI-002, starting
 with read-only cards/Refresh/System; no redesign or restored search/filter/Activity.
 
-Preserve M1/M2/CORE-006 evidence and BLK-005's closed investigation. All GUI effects
-remain clearly labelled mock behavior; no new hardware qualification is claimed.
+Preserve M1/M2/CORE-006 evidence and BLK-005's closed investigation. Normal startup
+uses actual discovery and blocks unconnected actions; `--mock-gui` selects rehearsal.
+Next reuse real read-only data/plans in mock mode without persistent writes.
+No new hardware qualification is claimed.
 The CLI/backend keep functionality absent from the interface. For this promotion
 task, live Hyper-V/GPU/driver/VM-power operations require explicit permission.
 
@@ -42,7 +44,7 @@ task, live Hyper-V/GPU/driver/VM-power operations require explicit permission.
 |---|---|---|
 | **M1 — Product boundary** | **Completed (reported 2026-10-08)** | ARCH-001; protected native runner, existing-VM enrollment, lab separation. [M1 evidence](evidence/M1.md). |
 | **M2 — NVIDIA core** | **In progress** | ARCH-001, GPU-012, CORE-012. Current-build observed repeat passed; fresh preparation under new limits remains. [M2 evidence](evidence/M2.md). |
-| **M3 — Slint and editable GPU config** | **In progress; approved prototype promoted** | PLAN-001, GUI-001, APP-001, CFG-001, GPU-010, SEC-001, CORE-028, GUI-002, GUI-003; main Slint GUI implemented with sample data; real bindings remain. |
+| **M3 — Slint and editable GPU config** | **In progress; approved prototype promoted** | PLAN-001, GUI-001, APP-001, CFG-001, GPU-010, SEC-001, CORE-028, GUI-002, GUI-003; main Slint GUI has live discovery and explicit mock rehearsal; configuration/effect bindings remain. |
 | **R1 — Packaged candidate** | **Planned** | CORE-017, DOC-003, GPU-014 after M2/M3 acceptance. |
 | **M4 — Sharing and vendors** | **Deferred** | GPU-015 and individually justified vendor/optional tasks. |
 
@@ -58,12 +60,12 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 | [CORE-012](#core-012) | M2/M3 | P1 | **ready (after task authorisation)** | Existing observed-state/journal/error contracts |
 | [CORE-021](#core-021) | M2/M3 | P1 | **in progress** | Integration/doc residuals; parser/storage CFG-001, enrollment SEC-001, UI GUI-002 |
 | [CORE-006](#core-006) | M2 | P1 | **completed (reported)** | Reuse shared plan/apply preview; extend only for new operations |
-| [APP-001](#app-001) | M3.2 | P0 | **in progress â€” GUI/CLI promotion implemented** | Existing prototype moved; console packaging and restricted worker still pending |
+| [APP-001](#app-001) | M3.2 | P0 | **in progress — GUI/CLI promotion implemented** | Existing prototype moved; console packaging and restricted worker still pending |
 | [CFG-001](#cfg-001) | M3.3 | P0 | **planned — new** | PLAN-001, shared model audit; worker write integration depends on SEC-001 |
 | [GPU-010](#gpu-010) | M3.4 | P0 | **planned — promoted from M4** | PLAN-001; provider/API validation and selected-GPU capability model |
 | [SEC-001](#sec-001) | M3.5 | P0 | **planned — extension** | APP-001; adapt existing protected runner/pipe/lock, no replacement stack |
 | [CORE-028](#core-028) | M3.6 | P0 | **planned — new** | CORE-006, CFG-001, GPU-010, SEC-001; real progress/manual recovery |
-| [GUI-002](#gui-002) | M3.7 | P0 | **planned â€” next priority** | APP-001 read-only slice, CORE-012; effects need CFG-001/GPU-010/SEC-001/CORE-028; bind existing controls only |
+| [GUI-002](#gui-002) | M3.7 | P0 | **in progress — live discovery and explicit mock mode** | Existing cards/Refresh/System; effects need CFG-001/GPU-010/SEC-001/CORE-028; no-write real-data rehearsal source remains |
 | [GUI-003](#gui-003) | M3.8 | P1 | **planned — new** | GUI-002 and APP-001; accessibility, lifetime, scaling and UX checks |
 | [CORE-017](#core-017) | R1 | P1 | **planned** | M2/M3 gate; packaging can be prepared independently |
 | [DOC-003](#doc-003) | R1 | P1 | **planned** | Verified CLI/GUI, configuration and recovery behaviour |
@@ -187,18 +189,19 @@ recovery. Prototype build, formatting, strict Clippy and its allocation test pas
 root formatting/strict Clippy and 69 core + 3 CLI tests pass (one privileged
 integration test remains ignored). Independent prototype review cleared.
 
-**Promotion:** Approved prototype sources moved to root `ui/` and `src/gui/`.
+**Promotion:** Approved prototype sources moved to `src/gui/ui/` and `src/gui/`.
 No further prototype design is scheduled. Search/filter/Activity requirements and
 Win32 parity are retired. Remaining visual/accessibility release checks belong to
 GUI-003, not unfinished prototype development.
 
 ### APP-001
 
-**Main application promotion â€” implemented dispatch; remaining consolidation open.**
+**Main application promotion — implemented dispatch; remaining consolidation open.**
 No arguments open the approved Slint GUI; explicit CLI commands execute the existing
 headless path. Sources were moved, not duplicated. Deleted old Win32 presentation
 and `hyper-gpu-gui` entry; retain `gui_model` and all shared core/runner functionality.
-Operational GUI callbacks still use explicit mock data, with no live calls.
+The original promotion used explicit mock callbacks. GUI-002 now owns normal live
+discovery and the isolated `--mock-gui` rehearsal path.
 
 **Remaining:** Windows console packaging preserving CLI stdout/stderr/exit codes;
 restricted same-executable worker with SEC-001 independent security review. Keep
@@ -206,11 +209,32 @@ the current protected SYSTEM runner until validated replacement. Second-instance
 activation and persistent preferences absent from the prototype are retired GUI
 requirements. No arbitrary internal worker mode is introduced by this promotion.
 
-**Validation:** Build/check/runtime results are recorded after promotion verification.
+**Validation (9 October promotion):** Windows x64 MSVC `cargo build --locked`,
+`cargo fmt --all -- --check`, strict workspace/all-target/all-feature Clippy and
+workspace/all-feature tests passed: 69 core, 2 GUI mock and 4 CLI process tests;
+one installed-runner enrollment test intentionally ignored. CLI tests exercise
+help/version/error paths with an invalid Slint backend to prove independent dispatch.
+No live CLI effect, GPU/driver modification or guest-power operation was performed.
+
+The main executable launched with no arguments. Development-only `slint/mcp`
+inspection checked all four pages, Light/Dark/Follow Windows controls, drafts across
+page navigation, VM-switch confirmation, discard, advanced allocation, technical
+review, mock Apply and failure/reconciliation. Renders inspected at 1240x860 and
+704x561; splitter drag readback moved x495 to x435. Corrected the Follow Windows
+Unknown-sentinel surface mismatch without changing palette colors or layout.
+Sources now use the user's final `src/gui/ui/` location; build and current links
+match. Local development evidence is under ignored `local/evidence/gui-promotion/`.
+
+Independent architecture review found no blocking issues and checked preserved
+UI/CLI/security contracts and corrected theme renders. It did not rerun the reported
+build/test suite. Documentation link/diff checks passed for 57 Markdown files.
+Screen readers, DPI/text scaling, multi-monitor, broken-driver rendering and live
+backend binding remain unqualified. `cargo-audit`/`cargo-deny` were unavailable;
+distribution license/advisory review remains part of CORE-017, not a claimed pass.
 
 ### CFG-001
 
-**Per-VM machine-wide configuration and safe saving.** Replace/extend schema 2 as justified by the repository audit; use stable Hyper-V VM GUID files under `%ProgramData%\HyperGpuSupport\config\vms\` (format/version **OPEN-01**). Keep **observed**, **committed desired** and **one in-memory draft** separate. Store per-user window/theme/split preferences elsewhere. Enrollment/operational recovery records remain protected separately, with appropriate installer-created ACLs.
+**Per-VM machine-wide configuration and safe saving.** Replace/extend schema 2 as justified by the repository audit; use stable Hyper-V VM GUID files under `%ProgramData%\HyperGpuSupport\config\vms\` (format/version **OPEN-01**). Keep **observed**, **committed desired** and **one in-memory draft** separate. Current appearance/window/split preferences remain session-only; persistence absent from the approved prototype is retired GUI scope. Enrollment/operational recovery records remain protected separately, with appropriate installer-created ACLs.
 
 **Exit:** no saving while merely editing; after authorised Apply and verified readback, **only the elevated worker** atomically commits the VM configuration. Detect externally modified files/VM state and **block with refresh**, never auto-merge. Verified GPU success followed by save failure offers **save-only retry**, never repeat Apply. Test wrong GUID/name collision, torn writes, ACL/reparse issues, external edits and recovery. Protected write integration requires SEC-001.
 
@@ -249,6 +273,29 @@ make save-only recovery protected and durable through CFG-001/SEC-001.
 **Exit:** fault-injected crash, timeout, partial state, unsafe restart, UAC refusal, stale plan, save failure and save-only retry; no GPU operation replay. Exact reconciliation mechanics remain **OPEN-08** until independently reviewed.
 
 ### GUI-002
+
+**Mode split:** no arguments launch live inventory; `--mock-gui` selects isolated
+fixture rehearsal. Live Refresh/System reuse native discovery when already elevated
+or the existing authenticated fixed runner for ordinary tokens. No installation or
+automatic elevation. Failed reads never substitute sample VMs. Enrollment, guest
+health and desired configuration are not inferred; unconnected actions are blocked.
+
+**Next:** read actual data/config/capabilities and validate the shared plan in mock
+mode, then rehearse stages without executing effects or persistent writes. Preserve
+fixture scenarios for isolated tests. The current runner audits reads; a strict
+no-write real-data route must use authorized native reads/an existing snapshot and
+be qualified without suppressing security records. Mock save/forget/credentials/
+recovery stay in memory; guest verification/probes and power transitions are effects.
+
+**Current gap:** real GUI Apply/Verify/enrollment/configuration/credential binding is
+still unavailable. Normal mode does not present demonstrations as real operations.
+
+**Validation (9 October mode split):** Windows x64 MSVC build, strict Clippy and
+77 tests passed (one privileged enrollment test ignored). Runtime checks covered
+normal inventory/Refresh/System, unavailable actions and mock-only settings;
+`--mock-gui` covered draft/review/progress/recovery and themes. Actual inventory
+reported the disposable VM and RTX 5060 driver 32.0.16.1692; no guest rendering or
+GPU sharing qualification is claimed. Independent source review found no blockers.
 
 **Connect the Slint interface to the verified shared Rust core.** Replace mock data incrementally: automatic discovery with partial-access states; GUID-keyed VM cards/selection; physical-GPU dropdown; expandable allocation editor; one draft; pending-draft dialog before **switching VMs**; fresh Review & Apply; UAC/downtime approvals; credential access through existing protected facilities; true progress and the existing recovery banner. No additional pages or controls. No full-list rebuild for incidental UI changes.
 

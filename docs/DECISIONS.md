@@ -424,7 +424,7 @@ a platform limitation or explicit product scope change; never silently reduce sc
 **Approved completed prototype defines v1.0 | 2026-10-09**
 
 The user approved the completed Slint prototype as the official main application
-GUI. Its existing files are moved to root `ui/` and `src/gui/`, compiled into
+GUI. Its existing files are moved to `src/gui/ui/` and `src/gui/`, compiled into
 `hyper-gpu-support.exe`; no arguments open Slint and explicit commands retain the
 headless CLI. Remove the obsolete Win32 presentation and separate GUI executable.
 Preserve sound `gui_model` and all shared Rust backend/security functionality.
@@ -450,3 +450,25 @@ driver installation and VM-power operations require explicit permission. Follow
 the user request over the repository's broader disposable-test authorization.
 Packaging/licensing, actual Windows UX and separately authorized changed-path
 backend qualification remain release work, not passes inferred from mocks.
+
+## DEC-031
+
+**Explicit mock rehearsal; normal startup is live | 2026-10-09**
+
+The user requested `--mock-gui` for simulation, with no-argument startup using the
+real backend. Implement the first live inventory/Refresh/System slice now; block
+unconnected actions instead of running demonstrations. Keep the approved design
+and all CLI capabilities. Mock mode remains isolated fixture rehearsal initially.
+
+As integration progresses, mock mode reads real data/config/capabilities and the
+same validated plans, then goes through stages without executing effects or
+persistent writes. It must not modify VMs/GPUs/drivers/guest power/files, config,
+credentials, enrollment, recovery holds, journals or audit files. A simulated result
+is not verification. Keep fixtures for failure/layout tests, not fallback after a
+real discovery failure. This supersedes DEC-030's all-mock startup sequencing.
+
+The existing protected runner writes mandatory audit records for Discover. Normal
+live mode retains that behavior. Strict no-write mock reads cannot use that route;
+qualify authorized native reads or existing snapshots without disabling audit or
+creating a parallel privileged backend. No live mutation binding or privilege
+change is claimed by this first read-only presentation slice.

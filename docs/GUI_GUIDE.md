@@ -1,7 +1,7 @@
 # Hyper GPU Support v1.0 GUI specification
 
 **Approved:** 9 October 2026. The completed Slint prototype is the authoritative
-v1.0 GUI. Sources now live in [ui/](../ui/app.slint) and
+v1.0 GUI. Sources now live in [src/gui/ui/](../src/gui/ui/app.slint) and
 [src/gui/](../src/gui/mod.rs). Preserve layout, navigation, styling, controls and
 interactions. Backend integration may make existing controls functional; it must
 not expand the interface without user approval.
@@ -34,14 +34,39 @@ No arguments to `hyper-gpu-support.exe` open Slint. Explicit CLI commands remain
 independent of GUI initialization. Navigation, themes, resizing, splitter, scrolling,
 draft editing/validation, selection prompts and dialogs are real UI behavior.
 Page navigation preserves the draft; switching VM or closing with edits prompts.
-Normal close is deferred while simulated progress runs.
+Normal close is deferred while simulated progress runs in mock mode.
 
-All inventory, eligibility, enrollment, provider values, graphics results, Apply
-stages, recovery, credentials and configuration saves remain simulated. Visible
-demo/sample labels remain. The GUI performs no Hyper-V calls, privileged launch,
-file saving or credential collection. The GPU Memory slider is a visual mock
-preference independent of advanced allocations: its GB label is no allocation or
-enforcement promise. Real mapping requires provider evidence.
+**Normal startup is live mode.** It reads actual VM/GPU inventory in the background
+through the shared core; Refresh repeats that read. Errors never fall back to
+fixtures. Attachment does not imply enrollment, guest health or saved intent.
+Unconnected configuration actions are unavailable, not simulated. The current
+live slice does not yet apply, verify, enroll or save from the GUI; the CLI retains
+its existing capabilities independently.
+
+**`--mock-gui` explicitly selects rehearsal.** It currently uses deterministic
+fixtures and simulates controls/review/stages/recovery in memory. No real effects
+or persistent writes occur. Scenario/reset controls appear only in this mode.
+The GPU Memory slider remains illustrative, independent of advanced allocation;
+its GB label promises no real allocation or enforcement.
+
+## Mock mode development direction
+
+As real bindings are added, mock mode should read the same actual inventory,
+capabilities and existing configuration as live mode, validate the same draft and
+show the same proposed plan, then rehearse stages without executing effects.
+Reads are real; execution outcomes are explicitly simulated, never presented as
+successful host/guest operations. Saving, forget, credentials and recovery clearance
+remain session-only. Never modify Hyper-V, guest power/files/registry, GPU/driver
+state, enrollment, configuration, vault entries, journals or audit files. Guest
+verification that launches probes is an effect, not a read-only rehearsal.
+Retain fixture scenarios for isolated/failure UI tests, not automatic fallback
+after failed real discovery. No extra pages or second backend implementation.
+
+**Current limitation:** ordinary-token live discovery uses the protected runner,
+which writes mandatory security audit records even for reads. Mock mode therefore
+does not call it yet. Qualify a no-write real-data source (authorized native reads
+or an existing read-only snapshot) before real-data mock discovery. Never suppress
+required security audit to satisfy rehearsal mode.
 
 ## Backend integration
 
@@ -73,4 +98,3 @@ search/filters, extra pages/actions, persistent preferences and session activati
 Backend security/persistence plans stay on existing cards without authorizing
 extra controls or weakening CLI behavior. Same-executable worker consolidation
 is still planned and requires independent boundary review.
-

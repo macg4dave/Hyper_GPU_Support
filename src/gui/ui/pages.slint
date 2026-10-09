@@ -1,8 +1,13 @@
 import { Button, ComboBox, CheckBox, ScrollView, Palette } from "std-widgets.slint";
 import { Theme, Heading, Label, Hint, Surface } from "theme.slint";
 
+export struct GpuRow { name: string, description: string }
+
 export component Pages inherits Rectangle {
     in property <int> page;
+    in property <bool> mock-mode: true;
+    in property <string> system-summary;
+    in property <[GpuRow]> gpu-information;
     in-out property <int> theme-index: 0;
     in-out property <int> scenario: 0;
     callback scenario-changed();
@@ -13,8 +18,13 @@ export component Pages inherits Rectangle {
         VerticalLayout {
             padding: 28px; spacing: 18px;
             Heading { text: root.page == 2 ? "Settings" : root.page == 1 ? "System information" : "About Hyper GPU Support"; }
-            Hint { text: root.page == 2 ? "Make the workspace yours. Prototype preferences reset on launch." : root.page == 1 ? "Read-only sample host capabilities. These values are not live discovery." : "A focused Windows workspace for existing Hyper-V virtual machines."; }
-            if root.page == 1 : VerticalLayout {
+            Hint { text: root.page == 2 ? "Make the workspace yours. Preferences reset on launch." : root.page == 1 ? (root.mock-mode ? "Read-only sample host capabilities. These values are not live discovery." : "Actual inventory from the shared Rust backend.") : "A focused Windows workspace for existing Hyper-V virtual machines."; }
+            if root.page == 1 && !root.mock-mode : VerticalLayout {
+                spacing: 18px;
+                Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: "Live discovery"; font-weight: 600; } Hint { text: root.system-summary; } } }
+                for gpu in root.gpu-information : Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: gpu.name; font-weight: 600; } Hint { text: gpu.description; } } }
+            }
+            if root.page == 1 && root.mock-mode : VerticalLayout {
                 spacing: 18px;
                 Surface { VerticalLayout { padding: 22px; spacing: 10px;
                     Label { text: "Host prerequisites · sample"; font-weight: 600; }
@@ -41,7 +51,7 @@ export component Pages inherits Rectangle {
                     CheckBox { enabled: !Theme.modal-active; text: "Show contextual help"; checked <=> Theme.show-help; }
                     Hint { text: "Fluent controls follow the selected palette immediately."; }
                 } }
-                Surface { VerticalLayout { padding: 22px; spacing: 12px;
+                if root.mock-mode : Surface { VerticalLayout { padding: 22px; spacing: 12px;
                     Label { text: "Prototype scenario"; font-weight: 600; }
                     scenario-picker := ComboBox { enabled: !Theme.modal-active; model: ["Normal inventory", "No virtual machines", "Many VMs & long names", "Recovery required", "GPU operation fails", "Worker disconnect / uncertain", "Configuration save fails", "External change / stale draft"]; current-index <=> root.scenario; selected => { root.scenario-changed(); } }
                     Hint { text: "Choose a scenario, then return to Dashboard. Failure scenarios take effect when you confirm a demonstration Apply."; }
@@ -62,9 +72,9 @@ export component Pages inherits Rectangle {
                 spacing: 18px;
                 Surface { VerticalLayout { padding: 24px; spacing: 14px;
                     Heading { text: "Hyper GPU Support"; }
-                    Label { text: "Slint exploratory prototype · 0.1.0"; }
-                    Hint { text: "Built with Rust and Slint 1.18.1, using Fluent widgets. This preview contains no Hyper-V connection, privileged runner, driver installation or persistent VM configuration."; }
-                    Hint { text: "Explore physical GPU selection, twelve allocation fields, first-time setup, review, progress and manual recovery. All device identities and outcomes are illustrative."; }
+                    Label { text: root.mock-mode ? "Mock GUI · 0.1.0" : "Hyper GPU Support · 0.1.0"; }
+                    Hint { text: root.mock-mode ? "Built with Rust and Slint 1.18.1, using Fluent widgets. This rehearsal performs no Hyper-V changes or persistent VM configuration writes." : "Built with Rust and Slint 1.18.1. Inventory is live; configuration actions are awaiting backend integration."; }
+                    Hint { text: root.mock-mode ? "Explore physical GPU selection, twelve allocation fields, first-time setup, review, progress and manual recovery. Current fixture identities and outcomes are illustrative." : "Explicit CLI commands retain their existing capabilities. Unconnected GUI operations never produce simulated success."; }
                     Label { text: "Designed for existing VMs"; font-weight: 600; }
                     Hint { text: "NVIDIA first. Further vendor support and simultaneous GPU sharing require independent qualification."; }
                     Button { enabled: !Theme.modal-active; text: "View prototype shortcuts"; clicked => { root.action("shortcuts"); } }

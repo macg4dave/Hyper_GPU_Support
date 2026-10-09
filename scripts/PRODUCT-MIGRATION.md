@@ -14,7 +14,7 @@ runtime enrollment or workflows. The root Cargo workspace builds only the produc
 | `src/guest.rs`, `bin/hyper-gpu-guest.rs` | Rust transfer verification, guest preparation, device health and checked graphics launch |
 | `src/guest_transport.ps1` | Fixed inbox PowerShell Direct session/transfer/launch and protected bootstrap only; DEC-028's explicit bounded exception |
 | `src/runner.rs`, `windows_pipe.rs`, `security.rs`, `process.rs` | Native install/enrollment, authenticated bounded requests, serialization, protected state and process supervision |
-| `src/credentials.rs`, `src/gui/`, `ui/` | Per-user optional Windows Credential Manager retained in the core; main Slint controls remain explicitly mocked until binding |
+| `src/credentials.rs`, `src/gui/`, `src/gui/ui/` | Per-user optional Windows Credential Manager retained in the core; main Slint controls remain explicitly mocked until binding |
 | `src/bin/d3d11-probe.rs`, `windows_probe.rs`, `probe.rs` | One checked hardware graphics workload and runtime identity |
 | `tools/lab/src`, `tools/lab/tests` | Preserved original application, historical experiments, optional extended diagnostics and regression fixtures |
 | `tools/test-harness/reset_*.rs` | Lab-only reset fragments; never imported by root product |

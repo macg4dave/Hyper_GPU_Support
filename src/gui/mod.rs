@@ -1,4 +1,5 @@
-//! Approved Slint presentation. Operational callbacks still use explicit mock data.
+//! Approved Slint presentation: live startup or explicitly selected mock rehearsal.
+mod live;
 mod mock;
 use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
 use std::{cell::RefCell, rc::Rc, time::Duration};
@@ -149,8 +150,12 @@ fn save_sample(ui: &AppWindow, session: &mut Session) {
     );
     refresh_inventory(ui, session);
 }
-pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
+pub(super) fn run(mock_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
     let ui = AppWindow::new()?;
+    ui.set_mock_mode(mock_mode);
+    if !mock_mode {
+        return live::run(ui);
+    }
     let session = Rc::new(RefCell::new(Session {
         inventory: mock::inventory(false),
         ..Session::default()

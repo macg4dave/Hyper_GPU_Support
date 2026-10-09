@@ -1,92 +1,110 @@
 # Hyper GPU Support
 
-Rust GPU-PV management for existing Hyper-V VMs. **The approved completed Slint
-prototype is now the main GUI:** run `hyper-gpu-support.exe` without arguments.
-Explicit CLI commands remain headless and retain the shared Rust backend.
-The GUI currently uses labelled sample inventory and mock operations; it does
-not call Hyper-V, collect credentials or save real configuration.
+Rust-based GPU-PV tooling for existing Windows Hyper-V Generation 2 virtual machines.
 
-v1.0 prioritizes connecting its existing controls and packaging/validation, without
-redesign or extra pages. The protected runner and guest/probe payloads remain
-separate binaries; restricted same-executable worker consolidation is still planned.
-The main binary currently retains the console subsystem for reliable CLI output;
-GUI console packaging is pending APP-001. See [GUI scope](docs/GUI_GUIDE.md),
-[roadmap](docs/ROADMAP.md) and [architecture](docs/ARCHITECTURE.md).
+This project is focused on one core problem: making it practical to prepare and manage GPU access for a selected VM without turning the host environment into a fragile one-off setup. The toolchain centers on a shared Rust backend, a protected Windows runner, and a GUI that reflects the product workflow while keeping the underlying architecture explicit and reviewable.
 
-## Build and checks
+## Why this project exists
 
-To launch the main GUI sample workspace without Hyper-V or elevation:
+Modern virtualization workflows often need more than just "install a driver". GPU passthrough and related VM preparation require careful handling of:
+
+- Hyper-V VM inventory and identity
+- GPU discovery and compatibility checks
+- Guest preparation and driver staging
+- Secure, audited admin operations
+- Recovery, status checks, and safe rollback boundaries
+
+Hyper GPU Support is designed around that model: it treats GPU enablement as an operational workflow rather than a loose collection of scripts.
+
+## Product status
+
+This repository is an active engineering project with a clear product direction:
+
+- The approved Slint GUI launches in live mode without arguments. `--mock-gui` explicitly selects simulated rehearsal.
+- The CLI uses the shared Rust backend; binding the existing GUI controls to that backend remains scheduled.
+- The CLI is still available for headless workflows and lower-level validation.
+- Live startup reads actual VM/GPU inventory; unconnected actions remain unavailable. Mock mode currently uses fixtures and simulated outcomes, with real-data read-only rehearsal planned as integration progresses.
+- Protected runner, guest worker, and transport boundaries remain intentionally separated as part of a staged, safe implementation approach.
+
+Restricted same-executable worker consolidation and Windows GUI console packaging
+remain planned. The current host binary retains the console subsystem so CLI
+stdout/stderr and exit codes remain reliable.
+
+## What is included
+
+### Core capabilities
+
+- Windows-focused VM and GPU inventory discovery
+- Protected administrator-side execution flow
+- Prepare/apply/verify/disable operation model
+- Shared Rust core retained for CLI operation and planned GUI binding
+- Reviewable, auditable operation logic for privileged tasks
+
+### Current product shape
+
+- GUI in the Slint app layer
+- Rust core logic in the main project sources
+- Separate host/guest artifacts and runner boundaries for security and safety
+- Contributor infrastructure kept distinctly outside the product path
+
+## Architecture at a glance
+
+The project is organized around a small set of operating principles:
+
+- Rust owns the application logic and workflow coordination.
+- Hyper-V and Windows inventory are discovered from native interfaces rather than hardcoded assumptions.
+- Security-sensitive operations are routed through the protected runner model.
+- The GUI and CLI share the same execution concepts, even when the UI is currently mocked for presentation and validation work.
+
+For deeper technical detail, see:
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/ROADMAP.md](docs/ROADMAP.md)
+- [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md)
+- [docs/ENGINEERING.md](docs/ENGINEERING.md)
+
+## Quick start
+
+To run the main GUI against actual inventory:
 
 ```powershell
 cargo run --locked
 ```
 
-Use the pinned Rust/MSVC/Windows SDK toolchain from `rust-toolchain.toml`.
-The Windows x64 Cargo configuration statically links the C runtime so the guest
-worker and graphics probe do not require a separately installed VC runtime.
-If overriding `RUSTFLAGS`, retain `-C target-feature=+crt-static`; the quality
-script and CI include it with warnings denied. See [Rust linkage](https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes).
+To run the mock GUI without persistent writes or real operations:
+
+```powershell
+cargo run --locked -- --mock-gui
+```
+
+Mock mode currently uses fixtures. Its target is real data and the same validated
+plans, with execution rehearsed without writes/effects; see
+[mode contract](docs/GUI_GUIDE.md#mock-mode-development-direction).
+Normal mode never substitutes simulated success for an unconnected operation.
+Ordinary-token live discovery retains the existing runner's required audit records;
+it does not automatically install or elevate a runner.
+
+To build the project and check the CLI surface:
 
 ```powershell
 cargo build --locked
 cargo run --locked -- --help
+```
+
+The repository also includes validation scripts for project checks:
+
+```powershell
 .\scripts\testing\check.ps1
 .\scripts\testing\check-docs.ps1
 ```
 
-Hardware-free builds/tests do not establish GPU support. Do not install the new
-privileged artifacts until their independent review and affected checks pass.
+## CLI usage
 
-The explicit M1 installation/enrollment test is separate from ordinary checks.
-After independent boundary review, run the following in an administrator console,
-using the built product artifact directory:
-
-```powershell
-.\scripts\testing\qualify-product-enrollment.ps1 -ArtifactDirectory PRODUCT-BUILD-DIRECTORY -OutputDirectory "$PWD\local\m1-enrollment"
-```
-
-The harness checks contributor-configured disposable identities before effects and
-writes a schema-2 target with no laboratory inputs. It exercises installation,
-interrupted-install refusal/recovery and discovery/status/preview without guest
-mutations. Then run the installed-runner contract test with the ordinary user token:
-
-```powershell
-$env:HYPER_GPU_M1_CONFIG = "$PWD\local\m1-enrollment\target.toml"
-cargo test --locked --test m1_enrollment -- --ignored --test-threads=1
-```
-
-This tests authentication, replay and unenrolled-target refusal, durable audit
-outcomes and protected write denial. It does not qualify guest rendering or sharing.
-
-## Supported CLI and backend operation
-
-In an administrator console, read native inventory before initial enrollment:
+The project retains headless CLI commands for operational flows. A typical admin workflow looks like this:
 
 ```powershell
 hyper-gpu-support inventory
 hyper-gpu-support install --config my-vms.toml
-```
-
-Use [config/product.example.toml](config/product.example.toml), replacing its example
-identities with actual discovery. Install requires the runner, guest worker and D3D11
-probe beside the CLI. It uses protected Windows installation/state locations and a
-fixed one-shot task; caller config never grants new administrator authorization.
-
-After enrollment, CLI commands use the authenticated installed runner:
-
-`plan` returns a shared effect preview: ordered attachment/preparation/verification
-actions, compatibility settings before/after, requested raw allocation, credential
-need, guest downtime, pending recovery and final power. An unchanged running VM
-is checked without a restart. To preview disable, set that target's `enabled = false`
-in runtime configuration; `disable` still directly executes disable. GUI Apply
-fetches a fresh plan and shows the same summary before credentials and execution.
-Apply independently rechecks state and enrollment. Plan makes no VM/guest changes,
-but writes runner audit records; enabled plans authenticate the full current payload
-and should not be used for dashboard polling. Status does not verify guest graphics.
-
-The Slint dashboard preserves one in-memory sample draft; all its operation results are simulated.
-
-```powershell
 hyper-gpu-support plan --config my-vms.toml
 hyper-gpu-support apply --config my-vms.toml --vm VM-GUID
 hyper-gpu-support status --config my-vms.toml
@@ -94,54 +112,57 @@ hyper-gpu-support verify --config my-vms.toml --vm VM-GUID
 hyper-gpu-support disable --config my-vms.toml --vm VM-GUID
 ```
 
-Guest administrator credentials are prompted. `credentials --config FILE --vm GUID`
-explicitly stores an entry in the current user's Windows vault; `forget` deletes it.
-No credentials belong in TOML, command arguments or logs. Enable/prepare may gracefully
-restart guests automatically and restores initial power state. Disable keeps driver
-files. Interrupted preparation retains state; the current workflow can reconcile
-it on a subsequent Apply. The approved architecture instead requires explicit
-manual reconciliation before further GPU modifications; that policy is not yet
-implemented. No forced power-off or host lifecycle action is exposed.
+Use the example configuration as a starting point:
 
-Current allocation support is provider defaults or an optional raw VRAM triple.
-Compute, encode and decode fields are not implemented. Raw values do not promise
-GiB allocations or hard enforcement.
+- [config/product.example.toml](config/product.example.toml)
 
-## Main Slint application
+The configuration model keeps machine-specific values out of the code and supports the project’s Windows-native operation flow.
 
-Sources are in `ui/` and `src/gui/`; the former prototype package is retired.
-Dashboard, System, Settings and About retain their completed design. All inventory,
-GPU/provider values, Apply/Verify/enrollment, progress/recovery, credentials and
-saves remain mocked. Editing, navigation, dialogs, scrolling, themes and draft
-prompts work. GPU Memory is a visual mock preference, not a physical GB allocation;
-its real provider mapping is unresolved. Advanced fields use illustrative units.
+## GUI preview
 
-Existing backend functionality will be bound through existing controls only.
-Per-VM persistence, same-executable worker, real progress/recovery and provider
-allocation gaps are scheduled on existing cards; they are not implemented by
-this promotion. No Activity, VM search/filter, extra wizard or diagnostic history.
-
-Preview the moved components with the existing Slint 1.18.1 viewer:
+The Slint UI is a first-class product surface and is the main GUI entry point for the project. It can be checked and previewed with the existing Slint tooling:
 
 ```powershell
-slint-viewer --check ui/app.slint
-slint-viewer --auto-reload ui/app.slint
+slint-viewer --check src/gui/ui/app.slint
+slint-viewer --auto-reload src/gui/ui/app.slint
 ```
 
-For development-only runtime inspection, enable `slint/mcp` on the command line
-and set `SLINT_EMIT_DEBUG_INFO=1` during build and `SLINT_MCP_PORT` during launch.
-Never enable this inspection server in packaged production builds. Slint licensing
-and dependency notices must be reviewed before distribution; icon attribution is
-preserved in [ui/icons](ui/icons/README.md).
+The approved design is preserved in both modes. Component preview uses fixture
+properties; normal executable startup uses actual discovery and `--mock-gui`
+selects the simulated callbacks.
 
-## Contributor laboratory
+## Safety and boundaries
 
-The previous application survives in [tools/lab](tools/lab/README.md). Golden images,
-disposable reset, extended D3D/CUDA probes and `config/project.toml` are contributor
-infrastructure. Keep its binaries separate from the product and reuse its guards.
+This project is intentionally careful about privileged operations:
 
-Product host artifacts/state use separate `HyperGpuSupportProduct` known-folder
-directories. Interrupted installation disables admission and requires rerunning
-administrator install; it never kills an active guest operation. Guest runtime
-files retain vetted Windows destination read/execute inheritance. Private worker
-bundles and state remain restricted to SYSTEM/Administrators.
+- GPU-PV and Hyper-V operations are treated as high-risk workflows.
+- Protected runner and guest-side boundaries are separate by design.
+- Product operations avoid broad, unsafe assumptions about host state.
+- Contributor tooling and lab automation remain separate from the runtime product path.
+
+The product manages existing user-selected VMs. Development hardware testing uses
+verified disposable targets; that laboratory setup is not an operator requirement.
+
+Slint and dependency licensing/notices must be reviewed before distribution.
+Local icon attribution is preserved in [src/gui/ui/icons](src/gui/ui/icons/README.md).
+
+## Repository layout
+
+- [src](src) — Rust runtime, workflow logic, Windows integration, and model types
+- [src/gui/ui](src/gui/ui) — Slint UI sources and presentation layer
+- [config](config) — configuration examples and product policy inputs
+- [docs](docs) — architecture, roadmap, engineering, and design artifacts
+- [scripts](scripts) — helper scripts and validation-oriented tooling
+- [tools/lab](tools/lab) — contributor lab automation and research-only assets
+
+## Documentation and next steps
+
+The roadmap and architecture docs are the authoritative source for product direction and boundaries:
+
+- [docs/ROADMAP.md](docs/ROADMAP.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md)
+- [docs/ENGINEERING.md](docs/ENGINEERING.md)
+- [docs/DECISIONS.md](docs/DECISIONS.md)
+
+This project is best understood as a serious Windows GPU virtualization workflow tool in active development: real enough to validate the architecture, clear enough to extend, and disciplined enough to keep privileged operations safe.

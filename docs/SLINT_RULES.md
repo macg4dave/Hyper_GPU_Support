@@ -8,7 +8,14 @@
 
 ## Instruction to Codex
 
-The completed prototype in root `ui/` is authoritative. Preserve its current design; no new pages/controls or restored Activity/search/filter requirements. Follow these toolkit practices for Slint work; read GUI_GUIDE and the active task
+Normal startup is live mode; use real data and real supported bindings, with
+unconnected actions unavailable. `--mock-gui` explicitly selects no-write rehearsal.
+Progressively share real read-only inventory/config/capability/plan inputs, simulate
+execution only, and preserve isolated fixtures for UI scenarios. No persistent
+mock writes or guest probes; required audit is not optional, so audited runner
+reads are not a strict no-write mock source.
+
+The completed prototype in `src/gui/ui/` is authoritative. Preserve its current design; no new pages/controls or restored Activity/search/filter requirements. Follow these toolkit practices for Slint work; read GUI_GUIDE and the active task
 first. The user's requested scope determines whether documentation or code edits
 are authorised. A documentation request is not code/live-test approval. These rules
 do not add a separate approval gate to already authorised development. Approved

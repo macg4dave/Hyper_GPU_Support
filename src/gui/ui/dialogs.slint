@@ -3,6 +3,7 @@ import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "th
 import { TechnicalOutput } from "technical-output.slint";
 
 export component DemoDialog inherits Rectangle {
+    in property <bool> mock-mode: true;
     in property <string> kind;
     in property <string> title;
     in property <string> body;
@@ -22,7 +23,7 @@ export component DemoDialog inherits Rectangle {
             max-width: 620px; min-width: 420px;
             VerticalLayout {
                 padding: 24px; spacing: 16px;
-                Label { text: "PROTOTYPE · NO REAL OPERATIONS"; font-size: 11px; font-weight: 600; color: Theme.muted; }
+                Label { text: root.mock-mode ? "MOCK · NO REAL OPERATIONS" : "LIVE APPLICATION"; font-size: 11px; font-weight: 600; color: Theme.muted; }
                 Heading { text: root.title; }
                 ScrollView {
                     vertical-stretch: 1;
@@ -36,7 +37,7 @@ export component DemoDialog inherits Rectangle {
                 }
                 if root.technical : TechnicalOutput {
                     max-height: min(220px, root.height / 3);
-                    text: "Source: deterministic in-memory mock provider.\nNo worker is launched.\nNo permissions, passwords or GPU API calls are used.\nTiming illustrates the proposed stage flow.\n\nDialog: " + root.title + "\n\nMock diagnostic context:\n" + root.body;
+                    text: root.mock-mode ? "Source: deterministic in-memory mock provider.\nNo worker is launched.\nNo permissions, passwords or GPU API calls are used.\nTiming illustrates the proposed stage flow.\n\nDialog: " + root.title + "\n\nMock diagnostic context:\n" + root.body : "Live application information:\n" + root.body;
                 }
                 HorizontalLayout {
                     spacing: 8px;

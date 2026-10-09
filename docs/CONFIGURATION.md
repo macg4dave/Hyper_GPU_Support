@@ -2,7 +2,12 @@
 
 ## Implemented baseline
 
-The CLI reads `--config FILE`. The main Slint GUI uses session-only mock configuration and accepts no config argument at startup. [product.example.toml](../config/product.example.toml)
+The CLI reads `--config FILE`. Normal GUI startup reads real inventory; configuration
+loading/editing is not connected yet. `--mock-gui` uses session-only simulated
+configuration and accepts no config argument. Future real-data reads must not write
+files, vault entries, journals, enrollment or audit records. Preserve mandatory
+runner audit; do not use audited discovery as a strict no-write mock source.
+[product.example.toml](../config/product.example.toml)
 documents runtime schema 2: selected VM GUID, exact GPU interface and enabled state.
 Optional VRAM triples use provider-defined units, not GiB/enforced ceilings. Normalize
 GUIDs; reject duplicate VMs and unknown fields. Several VMs may select the same GPU,

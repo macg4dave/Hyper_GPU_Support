@@ -4,11 +4,16 @@
 
 `hyper-gpu-support.exe` now opens the approved Slint GUI with no arguments and
 runs explicit CLI commands through the existing headless path. Root `build.rs`
-compiles `ui/app.slint` with Fluent style; `src/gui/` owns the moved controller and
+compiles `src/gui/ui/app.slint` with Fluent style; `src/gui/` owns the moved controller and
 explicit mock fixtures. Slint/slint-build are pinned to 1.18.1 with winit/software
 rendering and accessibility. The old Win32 entry/presentation was deleted.
-All GUI operational data and callbacks remain simulated. No backend/security
-boundary changed. The protected SYSTEM runner and guest/probe payloads remain
+Normal startup uses background native discovery when already elevated or the
+existing runner's Discover operation with an ordinary token. Refresh/System show
+actual data or an explicit failure, with no fixture fallback. Live mutation
+controls remain unavailable until binding. `--mock-gui` uses isolated simulated
+callbacks and fixtures with no persistent writes. Future real-data rehearsal needs
+an authorized no-write read route; audited discovery cannot satisfy that contract.
+No protected backend/security boundary changed. Runner and guest/probe payloads remain
 separate; same-executable restricted worker and console packaging are pending.
 [GUI_GUIDE](GUI_GUIDE.md) freezes v1.0 scope; [BACKLOG](BACKLOG.md) owns integration.
 The console subsystem is retained to preserve CLI stdout/stderr and exit status.
@@ -39,7 +44,7 @@ reference material, excluded from the shipped graph.
 | Protected enrollment, authentication and typed requests | `runner`, `windows_pipe`, `security` |
 | Opt-in Windows vault credentials | `credentials` |
 | Bounded execution, independent of verification | `process` |
-| Presentation only | `src/main.rs` GUI/CLI dispatch, `src/gui/`, root `ui/` |
+| Presentation only | `src/main.rs` GUI/CLI dispatch, `src/gui/`, `src/gui/ui/` |
 
 This table describes current modules. Consolidation replaces host presentation/
 runner entries, not the bounded ancillary guest preparation/probe payloads.
@@ -138,9 +143,10 @@ guest lifecycle does not.
 
 The completed prototype sources are the official GUI; preserve their existing
 Dashboard/System/Settings/About and controls. Navigation, drafts, dialogs, themes,
-splitter and scrolling work. Inventory, allocations, enrollment, graphics checks,
-Apply/progress/recovery, credentials and saves are mocked. Retain demo labels until
-each binding is real. No search/filter/Activity or additional GUI feature.
+splitter and scrolling work. In mock mode, inventory, allocations, enrollment, graphics checks,
+Apply/progress/recovery, credentials and saves are simulated only in `--mock-gui`;
+live mode does not claim those bindings. Inventory/System use actual discovery in
+normal mode. Keep mode/data provenance clear. No additional GUI feature.
 Reuse sound `gui_model` state/validation during GUI-002 binding. The GPU Memory
 slider is a separate visual mock preference; no physical GB/enforcement meaning.
 Provider mapping for selector/allocation controls belongs to GPU-010.
@@ -148,9 +154,9 @@ Provider mapping for selector/allocation controls belongs to GPU-010.
 CORE-006's typed plan shares apply's read-only validation and decision calculation.
 It reports ordered semantic actions, settings before/after, raw allocation writes,
 preparation drift, credential need, downtime and recorded restoration power. Pending
-verification alone does not imply preparation or restart. Both frontends consume
-the shared summary; GUI Apply requests a fresh plan before its confirmation/credential
-step, then submits a separate apply that independently rechecks state/enrollment.
+verification alone does not imply preparation or restart. The CLI consumes this
+shared summary. GUI-002 must bind the same fresh plan and independent execution
+rechecks; the promoted Slint review/apply is currently mocked.
 Plan never saves a management journal or calls guest/VM mutators; protected audit
 records still apply. Enabled plans authenticate the payload, while status/inventory
 remain separate. Slint binding and process/UX acceptance belong to GUI-002/GUI-003.
