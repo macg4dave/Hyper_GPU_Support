@@ -91,7 +91,26 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
     ui.set_stages(model(Vec::new()));
     ui.set_dialog_kind(kind.into());
     ui.set_dialog_title(title.into());
-    ui.set_dialog_body(body.into());
+    ui.set_dialog_body(if kind == "error" {
+        hyper_gpu_support::reporting::operator_error(title, body).into()
+    } else {
+        body.into()
+    });
+}
+fn mock_close_request(ui: &AppWindow) -> slint::CloseRequestResponse {
+    if ui.get_running() {
+        return slint::CloseRequestResponse::KeepWindowShown;
+    }
+    if ui.get_dirty() {
+        dialog(
+            ui,
+            "exit",
+            "Unapplied draft",
+            "Keep editing or discard the in-memory draft and close the prototype. Nothing has been applied to a real VM.",
+        );
+        return slint::CloseRequestResponse::KeepWindowShown;
+    }
+    slint::CloseRequestResponse::HideWindow
 }
 fn review(ui: &AppWindow) {
     if !ui.get_eligible() || ui.get_recovery() {
@@ -252,16 +271,10 @@ pub(super) fn run(mock_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
     });
     let weak = ui.as_weak();
     ui.window().on_close_requested(move || {
-        if let Some(ui) = weak.upgrade() {
-            if ui.get_running() {
-                return slint::CloseRequestResponse::KeepWindowShown;
-            }
-            if ui.get_dirty() {
-                dialog(&ui, "exit", "Unapplied draft", "Keep editing or discard the in-memory draft and close the prototype. Nothing has been applied to a real VM.");
-                return slint::CloseRequestResponse::KeepWindowShown;
-            }
-        }
-        slint::CloseRequestResponse::HideWindow
+        weak.upgrade()
+            .map_or(slint::CloseRequestResponse::HideWindow, |ui| {
+                mock_close_request(&ui)
+            })
     });
     ui.run()?;
     Ok(())
@@ -277,4 +290,101 @@ pub(super) fn run_snapshot(
     ui.set_snapshot_mode(true);
     ui.set_workspace_label("SNAPSHOT REHEARSAL · NO WRITES".into());
     live::run(ui, live::Source::Snapshot(path, configuration))
+}
+
+#[cfg(test)]
+mod layout_qualification {
+    use super::*;
+
+    // Opt-in: ordinary unit tests must not launch a renderer.
+    #[test]
+    #[ignore = "explicit software mock layout qualification; use SLINT_BACKEND=headless with slint/mcp"]
+    fn approved_ui_layout_qualification() {
+        let output = std::env::current_dir()
+            .unwrap()
+            .join("local/evidence/gui-003-layout");
+        std::fs::create_dir_all(&output).unwrap();
+        let ui = AppWindow::new().unwrap();
+        ui.set_mock_mode(true);
+        let session = Session {
+            inventory: mock::inventory(true),
+            ..Session::default()
+        };
+        refresh_inventory(&ui, &session);
+        select(&ui, &session, &session.inventory[0].id);
+        ui.show().unwrap();
+        for (name, width, height, page, review, scale_factor) in [
+            ("narrow-dashboard", 700, 520, 0, false, 1.0),
+            ("wide-dashboard", 1600, 1000, 0, false, 1.0),
+            ("system", 1240, 860, 1, false, 1.0),
+            ("settings", 1240, 860, 2, false, 1.0),
+            ("about", 1240, 860, 3, false, 1.0),
+            ("narrow-review", 700, 520, 0, true, 1.0),
+            ("narrow-review-150", 1050, 780, 0, true, 1.5),
+            ("narrow-review-200", 1400, 1040, 0, true, 2.0),
+        ] {
+            ui.set_page(page);
+            ui.window()
+                .dispatch_event(slint::platform::WindowEvent::ScaleFactorChanged { scale_factor });
+            ui.window()
+                .set_size(slint::PhysicalSize::new(width, height));
+            // The headless adapter's set_size uses scale 1. Supply the matching
+            // logical resize event explicitly for simulated DPI qualification.
+            ui.window()
+                .dispatch_event(slint::platform::WindowEvent::Resized {
+                    size: slint::LogicalSize::new(
+                        width as f32 / scale_factor,
+                        height as f32 / scale_factor,
+                    ),
+                });
+            if review {
+                dialog(
+                    &ui,
+                    "review",
+                    "Review historical draft · rehearsal",
+                    "Historical preview; no backend effects.\nDesired GPU support: Enabled\nVM ID: a5801e91-1083-4e79-a803-000000000001\nSelected GPU: \\\\?\\PCI#VEN_10DE&DEV_2D05#SAMPLE_GPU_A#{064092b3-625e-43bf-9eb5-dc845897dd59}\\GPUPARAV\nPreparation and guest verification required. Guest lifecycle consent required.",
+                );
+                ui.set_needs_shutdown(true);
+            }
+            let pixels = ui.window().take_snapshot().unwrap();
+            assert_eq!((pixels.width(), pixels.height()), (width, height));
+            // Uncompressed top-down BMP avoids a test-only image dependency.
+            // This buffer contains synthetic UI state, never live inventory.
+            let bytes = pixels.as_bytes();
+            let mut bitmap = vec![0u8; 54];
+            bitmap[..2].copy_from_slice(b"BM");
+            bitmap[2..6].copy_from_slice(&(54 + bytes.len() as u32).to_le_bytes());
+            bitmap[10..14].copy_from_slice(&54u32.to_le_bytes());
+            bitmap[14..18].copy_from_slice(&40u32.to_le_bytes());
+            bitmap[18..22].copy_from_slice(&(width as i32).to_le_bytes());
+            bitmap[22..26].copy_from_slice(&(-(height as i32)).to_le_bytes());
+            bitmap[26..28].copy_from_slice(&1u16.to_le_bytes());
+            bitmap[28..30].copy_from_slice(&32u16.to_le_bytes());
+            for pixel in bytes.chunks_exact(4) {
+                bitmap.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
+            }
+            std::fs::write(output.join(format!("{name}.bmp")), bitmap).unwrap();
+        }
+        let weak = ui.as_weak();
+        ui.window()
+            .on_close_requested(move || mock_close_request(&weak.upgrade().unwrap()));
+        ui.set_running(true);
+        ui.window()
+            .dispatch_event(slint::platform::WindowEvent::CloseRequested);
+        assert!(ui.window().is_visible(), "active work must defer close");
+        ui.set_running(false);
+        ui.set_dirty(true);
+        ui.window()
+            .dispatch_event(slint::platform::WindowEvent::CloseRequested);
+        assert!(
+            ui.window().is_visible(),
+            "an unapplied draft must defer close"
+        );
+        assert_eq!(ui.get_dialog_kind(), "exit");
+        ui.set_dirty(false);
+        ui.set_dialog_kind("".into());
+        ui.window()
+            .dispatch_event(slint::platform::WindowEvent::CloseRequested);
+        assert!(!ui.window().is_visible(), "idle clean windows may close");
+    }
 }

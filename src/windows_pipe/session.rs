@@ -334,3 +334,124 @@ impl Pipe {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static NEXT: AtomicU32 = AtomicU32::new(0);
+
+    // A user-owned fixture server lets the real overlapped transport run without
+    // elevation. Production accept retains its administrator-owned descriptor.
+    #[allow(unsafe_code)]
+    fn connected(expected_pid: u32) -> (Pipe, io::Result<Pipe>) {
+        let sid = super::super::current_user_sid_string().unwrap();
+        let name = format!(
+            r"\\.\pipe\HyperGpuSupport.Session.Test.{}.{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        );
+        let descriptor_text = wide_null(&format!("O:{sid}D:P(A;;GA;;;{sid})"));
+        let mut descriptor = PSECURITY_DESCRIPTOR::default();
+        // SAFETY: fixture descriptor allocation is freed after CreateNamedPipe.
+        unsafe {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                PCWSTR(descriptor_text.as_ptr()),
+                SDDL_REVISION_1,
+                &mut descriptor,
+                None,
+            )
+        }
+        .unwrap();
+        let attributes = SECURITY_ATTRIBUTES {
+            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: descriptor.0,
+            bInheritHandle: false.into(),
+        };
+        let wide_name = wide_null(&name);
+        let handle = unsafe {
+            CreateNamedPipeW(
+                PCWSTR(wide_name.as_ptr()),
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_OVERLAPPED,
+                PIPE_REJECT_REMOTE_CLIENTS,
+                1,
+                PIPE_BUFFER,
+                PIPE_BUFFER,
+                0,
+                Some(&attributes),
+            )
+        };
+        unsafe {
+            LocalFree(Some(HLOCAL(descriptor.0)));
+        }
+        assert!(!handle.is_invalid(), "{}", io::Error::last_os_error());
+        // SAFETY: valid sole-owned fixture handle moves into File once.
+        let server = Pipe {
+            file: unsafe { File::from_raw_handle(handle.0) },
+        };
+        let client = std::thread::spawn(move || Pipe::connect(&name, &sid, expected_pid));
+        let mut transfer = Transfer::new(Vec::new()).unwrap();
+        let started = unsafe { ConnectNamedPipe(handle, Some(&mut *transfer.overlapped)) };
+        if !started
+            .as_ref()
+            .is_err_and(|e| e.code() == ERROR_PIPE_CONNECTED.to_hresult())
+        {
+            perform(handle, transfer, |_| started, Duration::from_secs(5)).unwrap();
+        }
+        (server, client.join().unwrap())
+    }
+    #[test]
+    fn session_round_trip_authenticates_and_accepts_maximum_frame() {
+        let (server, client) = connected(std::process::id());
+        let client = client.unwrap();
+        let sender = std::thread::spawn(move || {
+            client.send(&vec![0x5a; FRAME_LIMIT]).unwrap();
+            assert_eq!(client.receive(Duration::from_secs(5)).unwrap(), b"reply");
+        });
+        assert_eq!(
+            server.receive(Duration::from_secs(5)).unwrap(),
+            vec![0x5a; FRAME_LIMIT]
+        );
+        server
+            .authenticate_client(&super::super::current_user_sid_string().unwrap())
+            .unwrap();
+        server.send(b"reply").unwrap();
+        sender.join().unwrap();
+    }
+    #[test]
+    fn session_rejects_wrong_server_process_before_request() {
+        let (server, client) = connected(0);
+        assert_eq!(
+            client.err().unwrap().kind(),
+            io::ErrorKind::PermissionDenied
+        );
+        assert!(server.receive(Duration::from_secs(1)).is_err());
+    }
+    #[test]
+    fn session_read_deadline_is_bounded_and_cancelled() {
+        let (server, _client) = connected(std::process::id());
+        let start = Instant::now();
+        assert!(server.receive(Duration::from_millis(100)).is_err());
+        assert!(start.elapsed() < Duration::from_secs(2));
+    }
+    #[test]
+    #[allow(unsafe_code)]
+    fn session_rejects_oversized_header_without_waiting_for_payload() {
+        let (server, client) = connected(std::process::id());
+        let client = client.unwrap();
+        let handle = HANDLE(client.file.as_raw_handle());
+        let transfer = Transfer::new(((FRAME_LIMIT as u32) + 1).to_le_bytes().to_vec()).unwrap();
+        // SAFETY: perform retains the fixture buffer through completion.
+        perform(
+            handle,
+            transfer,
+            |t| unsafe { WriteFile(handle, Some(&t.bytes), None, Some(&mut *t.overlapped)) },
+            Duration::from_secs(2),
+        )
+        .unwrap();
+        assert_eq!(
+            server.receive(Duration::from_secs(2)).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+}

@@ -108,15 +108,28 @@ fn read_optional_vram(o: &Object) -> Result<Option<Allocation>, String> {
 /// Enumerate all partitionable GPUs, without claiming preparation support for unimplemented vendors.
 pub fn discover() -> Result<Discovery, String> {
     let s = Session::new(TIMEOUT)?;
-    let vms = s
+    let entries = s
         .query("SELECT * FROM Msvm_ComputerSystem WHERE Caption='Virtual Machine'")?
         .into_iter()
-        .map(|v| inspect(&v.string("Name")?))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(Discovery {
-        vms,
-        gpus: discover_gpus(&s, "SELECT * FROM Msvm_PartitionableGpu")?,
-    })
+        .map(|v| {
+            let id = v.string("Name")?.to_ascii_lowercase();
+            let result = inspect(&id);
+            Ok((id, result))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let (vms, mut issues) = crate::reporting::collect_observations("VM inspection", entries);
+    let gpus = match discover_gpus(&s, "SELECT * FROM Msvm_PartitionableGpu") {
+        Ok(gpus) => gpus,
+        Err(error) => {
+            issues.push(crate::reporting::Diagnostic::observation(
+                "GPU provider",
+                None,
+                &error,
+            ));
+            Vec::new()
+        }
+    };
+    Ok(Discovery { issues, vms, gpus })
 }
 pub(crate) fn selected_gpu(t: &Target) -> Result<Gpu, String> {
     t.validate()?;

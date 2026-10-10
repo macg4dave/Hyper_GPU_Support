@@ -1,12 +1,26 @@
 //! GUI/CLI dispatch over the shared runtime product core.
+#![cfg_attr(windows, windows_subsystem = "windows")]
 mod gui;
 use std::process::ExitCode;
 const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n\nOptions:\n  --config FILE   Runtime TOML schema 2 (required except inventory/help/version)\n  --vm GUID       Select one target from the configuration\n  --help          Show this help\n  --version       Show version\n\nGUI: hyper-gpu-support (live inventory; unconnected actions unavailable)\n     hyper-gpu-support --mock-gui (no-write simulated workflow)\nVRAM values are provider-defined units, not proven hard memory limits.\n";
 fn main() -> ExitCode {
+    #[cfg(windows)]
+    {
+        let first = std::env::args().nth(1);
+        if first
+            .as_deref()
+            .is_some_and(|arg| arg != "--mock-gui" && arg != "--internal-worker")
+        {
+            hyper_gpu_support::console::attach_parent();
+        }
+    }
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("error: {e}");
+            eprintln!(
+                "error: {}",
+                hyper_gpu_support::reporting::operator_error("Command", &e)
+            );
             ExitCode::FAILURE
         }
     }
@@ -276,7 +290,7 @@ fn execute(args: &[String]) -> Result<(), String> {
         } else {
             Operation::Apply
         };
-        let result = if !status {
+        let mut result = if !status {
             let snapshot = hyper_gpu_support::configuration_store::read_committed();
             let expected = snapshot.revision(&t.vm_id)?;
             if command == "verify" {
@@ -326,6 +340,7 @@ fn execute(args: &[String]) -> Result<(), String> {
         } else {
             runner::submit(runner::request(operation, Some(t.clone()), None))?
         };
+        hyper_gpu_support::reporting::public_result(&mut result);
         println!(
             "{}",
             serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?

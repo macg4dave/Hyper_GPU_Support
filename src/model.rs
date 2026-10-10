@@ -241,6 +241,9 @@ pub struct Gpu {
 /// Discovery data used identically by CLI and GUI.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Discovery {
+    /// Isolated failures; omitted observations are unknown, never detached/off.
+    #[serde(default)]
+    pub issues: Vec<crate::reporting::Diagnostic>,
     /// Existing VMs; discovery itself does not enroll them.
     pub vms: Vec<VmState>,
     /// Partitionable GPUs, including vendors awaiting preparation adapters.

@@ -3,7 +3,7 @@ use crate::{
     model::{Configuration, Discovery, Power, Target, VmState},
     workflow::Journal,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
 
 /// Read-only runner discovery, including protected enrollment rather than inferred authorization.
@@ -20,7 +20,7 @@ pub struct Inventory {
 }
 
 /// Recorded preparation and graphics facts, never a fresh guest health result.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct RecordedState {
     /// Previous preparation; current driver parity requires a fresh plan.
     pub preparation: String,
@@ -39,6 +39,11 @@ impl Inventory {
             graphics: "Unknown; no matching graphics verification record was read".into(),
             recovery_required,
         };
+        if let Some(issue) = self.discovery.issues.iter().find(|issue| {
+            issue.stage == "Preparation record" && issue.target.as_deref() == Some(id)
+        }) {
+            return unknown(&issue.text(), true);
+        }
         match self.managed.get(id) {
             None => unknown("Preparation record unavailable", false),
             Some(None) => RecordedState {
@@ -180,6 +185,14 @@ impl View {
             return Err("Inventory is historical; refresh before further actions.".into());
         }
         let inventory = self.inventory.as_ref().ok_or("Refresh inventory first.")?;
+        if inventory
+            .discovery
+            .issues
+            .iter()
+            .any(|issue| issue.target.as_deref() == Some(&target.vm_id))
+        {
+            return Err("Selected VM observations are incomplete; correct access and refresh before applying.".into());
+        }
         let vm = self
             .vm(&target.vm_id)
             .ok_or("The selected VM is no longer present; refresh or discard.")?;
@@ -461,6 +474,7 @@ mod tests {
     fn inventory() -> Inventory {
         Inventory {
             discovery: Discovery {
+                issues: vec![],
                 vms: vec![vm(1), vm(2)],
                 gpus: vec![Gpu {
                     interface: target(1).gpu_interface,
@@ -522,6 +536,31 @@ mod tests {
         assert!(unprepared.graphics.contains("No recorded"));
         assert_ne!(unavailable, absent);
         assert_ne!(absent, unprepared);
+    }
+    #[test]
+    fn unread_record_blocks_only_its_target_and_cannot_claim_a_pass() {
+        let mut inventory = inventory();
+        let id = target(1).vm_id;
+        inventory.managed.insert(id.clone(), Some(journal()));
+        inventory
+            .discovery
+            .issues
+            .push(crate::reporting::Diagnostic::observation(
+                "Preparation record",
+                Some(id.clone()),
+                "Access denied: private-secret",
+            ));
+        let record = inventory.recorded_state(&id);
+        assert!(record.preparation.contains("Denied"));
+        assert!(!record.preparation.contains("private-secret"));
+        assert!(record.graphics.starts_with("Unknown"));
+        let mut view = View::new(Configuration {
+            schema: 2,
+            targets: vec![target(1), target(2)],
+        });
+        view.refresh(inventory);
+        assert!(view.eligibility(&target(1)).is_err());
+        assert!(view.eligibility(&target(2)).is_ok());
     }
     #[test]
     fn previous_preparation_and_rendering_never_claim_current_health_or_driver_parity() {

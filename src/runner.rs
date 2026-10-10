@@ -706,7 +706,22 @@ fn execute_operation(
         let mut managed = std::collections::BTreeMap::new();
         for target in &e.targets {
             target.validate()?;
-            managed.insert(target.vm_id.clone(), reader.journal(target)?);
+            match reader.journal(target) {
+                Ok(journal) => {
+                    managed.insert(target.vm_id.clone(), journal);
+                }
+                Err(error) => {
+                    let issue = crate::reporting::Diagnostic::observation(
+                        "Preparation record",
+                        Some(target.vm_id.clone()),
+                        &error,
+                    );
+                    inventory["issues"]
+                        .as_array_mut()
+                        .ok_or("invalid discovery issues")?
+                        .push(serde_json::to_value(issue).map_err(|e| e.to_string())?);
+                }
+            }
         }
         inventory["managed"] = serde_json::to_value(managed).map_err(|e| e.to_string())?;
         inventory["enrolled"] = serde_json::to_value(&e.targets).map_err(|e| e.to_string())?;
@@ -740,7 +755,21 @@ fn execute_operation(
     }
     let output = match request.operation {
         Operation::Discover => return Err("invalid operation".into()),
-        Operation::Status => Ok(serde_json::json!({"observed": backend.inspect(&target)?, "managed": backend.journal(&target)?})),
+        Operation::Status => {
+            let observed = backend.inspect(&target)?;
+            let mut issues = Vec::new();
+            let mut managed = std::collections::BTreeMap::new();
+            match backend.journal(&target) {
+                Ok(journal) => { managed.insert(target.vm_id.clone(), journal); }
+                Err(error) => issues.push(crate::reporting::Diagnostic::observation("Preparation record", Some(target.vm_id.clone()), &error)),
+            }
+            let inventory = crate::gui_model::Inventory {
+                discovery: crate::model::Discovery { vms: vec![observed.clone()], gpus: vec![], issues: issues.clone() },
+                managed,
+                enrolled: e.targets.clone(),
+            };
+            Ok(serde_json::json!({"desired": target, "observed": observed, "managed": inventory.managed.get(&target.vm_id), "recorded": inventory.recorded_state(&target.vm_id), "issues": issues, "provenance": "Fresh Hyper-V read; desired is supplied configuration, not committed intent. Preparation and last graphics verification are historical; current guest health unknown."}))
+        },
         Operation::Plan => serde_json::to_value(crate::workflow::plan(&mut backend, &target)?),
         Operation::VerifyPlan => serde_json::to_value(crate::workflow::plan_verification(&mut backend, &target)?),
         Operation::Apply | Operation::Verify => return Err("mutation requires the reviewed per-operation worker; update the frontend and installation".into()),
@@ -1061,6 +1090,7 @@ mod tests {
                 targets: vec![target],
             },
             Discovery {
+                issues: vec![],
                 vms: vec![vm],
                 gpus: vec![gpu],
             },

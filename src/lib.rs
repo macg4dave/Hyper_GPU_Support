@@ -1,6 +1,8 @@
 //! Runtime-configured GPU-PV management, independent of contributor laboratory tooling.
 pub mod configuration_store;
 #[cfg(windows)]
+pub mod console;
+#[cfg(windows)]
 pub mod credentials;
 #[cfg(windows)]
 pub mod guest;
@@ -10,6 +12,7 @@ pub mod payload;
 pub mod probe;
 #[cfg(windows)]
 pub mod process;
+pub mod reporting;
 #[cfg(windows)]
 pub mod runner;
 #[cfg(windows)]

@@ -1,6 +1,6 @@
 # Hyper GPU Support v1.0 roadmap
 
-**Updated:** 9 October 2026. **Primary objective:** deliver the completed Slint GUI
+**Updated:** 10 October 2026. **Primary objective:** deliver the completed Slint GUI
 as the main Windows application, using the existing Rust backend wherever appropriate.
 The prototype defines the interface: no redesign or restoration of removed features.
 [GUI_GUIDE](GUI_GUIDE.md) defines scope; [BACKLOG](BACKLOG.md) owns status.
@@ -21,10 +21,11 @@ The prototype defines the interface: no redesign or restoration of removed featu
 5. Finish backend gaps required by existing controls without adding interface.
 6. Package and validate the Windows application and necessary payloads/notices.
 
-The protected SYSTEM runner remains the current backend boundary. A restricted
-same-executable per-operation worker remains planned. Presentation promotion does
-not implement that consolidation. Guest/probe payloads remain bounded. Console
-packaging must preserve reliable CLI stdout/stderr and exit codes.
+The protected SYSTEM runner retains fixed discovery/planning operations. The
+restricted same-executable per-operation worker and GUI console packaging are
+implemented and independently reviewed under APP-001; installed exchange and
+CLI output/exit checks passed. Expanded enrollment/coordination acceptance remains
+on SEC-001. Guest/probe payloads remain bounded.
 
 ## Milestones and retained evidence
 
@@ -36,8 +37,8 @@ packaging must preserve reliable CLI stdout/stderr and exit codes.
 | R1 — packaged v1.0 | CORE-017/DOC-003/GPU-014: candidate, install/update/removal, licensing, GUI/CLI regressions and separately authorized hardware qualification. |
 | M4 — later qualification | Additional vendors and simultaneous sharing after supported-hardware qualification; no fairness or scheduler claim. |
 
-GUI-001 is completed history. APP-001 owns remaining console/worker consolidation;
-GUI-002 binds existing controls; CORE-012 handles discovery/errors; GPU-010 validates
+GUI-001, APP-001 and CORE-012 are completed for their existing acceptance scope.
+GUI-002 binds existing controls; GPU-010 validates
 existing allocations; CFG-001/CORE-021 cover persistence; SEC-001/CORE-028 reuse
 security/recovery; GUI-003 qualifies the approved UI. See [delivery map](GUI_ROADMAP.md).
 

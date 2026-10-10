@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-10 - Reporting and application closure
+
+- Completed shared CLI/Slint redacted diagnostics, partial inventory and truthful
+  state provenance; retained safe refresh/consent/recovery guidance.
+- Completed Windows GUI-subsystem packaging with parent-console/redirected CLI
+  output and installed restricted-worker checks; isolated protected configuration
+  from the older laboratory root without weakening trust admission.
+- Fixed Review text clipping and qualified snapshot rehearsal in the running Slint
+  app. Passed 123 tests, strict Clippy and Windows x64 build; independent review
+  cleared CORE-012 and APP-001. See [closure evidence](evidence/closure-sprint.md).
+
 ## 2026-10-09 - GUI/configuration validation
 
 - Passed 103 tests, strict Clippy, Windows x64 build and docs checks; added

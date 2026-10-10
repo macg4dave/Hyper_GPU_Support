@@ -108,7 +108,8 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
                     enrolled: vec![],
                 },
                 Some(format!(
-                    "Protected enrollment unavailable: {error}. Native inventory only; editing is blocked."
+                    "{}. Native inventory only; editing is blocked.",
+                    hyper_gpu_support::reporting::operator_error("Protected enrollment", &error)
                 )),
             ))
         }
@@ -289,7 +290,9 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
         ui.set_dirty(false);
     }
     if let Err(error) = eligibility {
-        ui.set_validation(error.into());
+        ui.set_validation(
+            hyper_gpu_support::reporting::operator_error("Configuration validation", &error).into(),
+        );
     } else if !ui.get_dirty() {
         ui.set_validation(draft_target(ui, state).err().unwrap_or_default().into());
     }
@@ -448,7 +451,13 @@ fn refresh(
                             state.view.needs_readback = true;
                             present(ui, state, false);
                             ui.set_eligible(false);
-                            ui.set_validation(error.clone().into());
+                            ui.set_validation(
+                                hyper_gpu_support::reporting::operator_error(
+                                    "Configuration validation",
+                                    &error,
+                                )
+                                .into(),
+                            );
                             return Err(error);
                         }
                         if let Some(committed) = committed
@@ -457,7 +466,13 @@ fn refresh(
                             state.view.needs_readback = true;
                             present(ui, state, false);
                             ui.set_eligible(false);
-                            ui.set_validation(error.clone().into());
+                            ui.set_validation(
+                                hyper_gpu_support::reporting::operator_error(
+                                    "Configuration validation",
+                                    &error,
+                                )
+                                .into(),
+                            );
                             return Err(error);
                         }
                         let rows = inventory
@@ -510,10 +525,23 @@ fn refresh(
                         } else {
                             "Actual Hyper-V inventory, protected enrollment and GUID-keyed committed configuration read. Graphics results remain historical."
                         }.into());
-                        ui.set_notice(warning.unwrap_or_else(|| "Protected inventory loaded. Enrolled pairs support drafts and fresh plan previews. Apply and guest verification await worker integration.".into()).into());
+                        let issues = &state
+                            .view
+                            .inventory
+                            .as_ref()
+                            .ok_or("inventory unavailable")?
+                            .discovery
+                            .issues;
+                        ui.set_notice(if issues.is_empty() {
+                            warning.unwrap_or_else(|| "Protected inventory loaded. Graphics results remain historical; operations require fresh approved plans.".into())
+                        } else {
+                            format!("Partial inventory: {}. Other successful observations remain available.", issues.iter().map(|issue| issue.text()).collect::<Vec<_>>().join(" "))
+                        }.into());
                         Ok(())
                     }
                     Err(error) => {
+                        let error =
+                            hyper_gpu_support::reporting::operator_error("Inventory read", &error);
                         state.view.needs_readback = true;
                         if let Some(inventory) = state.view.inventory.as_ref() {
                             ui.set_vms(model(
@@ -1077,7 +1105,13 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     Err(error) => {
                         // A marker retains the VM even for invalid text; raw edits stay in the UI.
                         state.view.draft = Some(state.target(ui.get_selected_id().as_str())?);
-                        ui.set_validation(error.into());
+                        ui.set_validation(
+                            hyper_gpu_support::reporting::operator_error(
+                                "Configuration validation",
+                                &error,
+                            )
+                            .into(),
+                        );
                     }
                 }
                 Ok(())
@@ -1261,6 +1295,7 @@ mod tests {
         let row = vm_row(
             &vm,
             &Discovery {
+                issues: vec![],
                 vms: vec![],
                 gpus: vec![],
             },
@@ -1297,6 +1332,7 @@ mod tests {
         };
         let mut inventory = Inventory {
             discovery: Discovery {
+                issues: vec![],
                 vms: vec![vm.clone()],
                 gpus: vec![],
             },

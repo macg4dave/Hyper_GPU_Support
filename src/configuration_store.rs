@@ -93,7 +93,10 @@ impl StoreSnapshot {
             .get("store")
             .or_else(|| self.errors.get(&format!("{id}.toml")))
         {
-            return Err(format!("committed configuration unavailable: {error}"));
+            return Err(crate::reporting::operator_error(
+                "Committed configuration unavailable",
+                error,
+            ));
         }
         Ok(self
             .documents

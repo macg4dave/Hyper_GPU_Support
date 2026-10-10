@@ -1,6 +1,6 @@
 # GPU-PV Product Backlog
 
-**Updated:** 9 October 2026  
+**Updated:** 10 October 2026
 **Status:** Main Slint GUI promotion implemented; backend binding and candidate validation remain.
 **Companion documents:** [ROADMAP.md](ROADMAP.md) · [GUI_ROADMAP.md](GUI_ROADMAP.md) · [GUI_GUIDE.md](GUI_GUIDE.md) · [GUI_PROMPT.md](GUI_PROMPT.md) · [Slint implementation prompt](../.github/prompts/SLINT_CODEX_PROMPT.md)
 **Historical record:** [BACKLOG_HISTORY.md](BACKLOG_HISTORY.md) preserves the entire supplied 8 October backlog, including detailed card results, older scope, measurements and evidence references.
@@ -14,8 +14,8 @@
 
 **v1.0 priority:** Deliver the approved completed Slint prototype as the main
 Windows application, using existing Rust backend functionality. GUI-001 is completed
-history. APP-001's promotion/GUI-CLI dispatch is implemented; protected worker and
-console packaging remain open. **OPEN-01's format/import contract is resolved;
+history. APP-001's GUI/CLI dispatch, restricted-worker integration and console
+packaging are completed and reviewed. **OPEN-01's format/import contract is resolved;
 CFG-001's storage implementation remains open.** Use the shared per-VM schema,
 samples and saved/observed/draft split in [CONFIGURATION](CONFIGURATION.md)
 when binding existing controls; no redesign or restored search/filter/Activity.
@@ -60,16 +60,16 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 | [PLAN-001](#plan-001) | M3.0 | P0 | **completed — repository/docs scope** | 9 Oct source audit; runtime/provider feasibility remains on owning cards |
 | [ARCH-001](#arch-001) | M1/M2 | P0 | **in progress** | M1 completed; affected M2 fresh preparation still open |
 | [GPU-012](#gpu-012) | M2 | P1 | **in progress** | Explicitly authorised bounded test; existing M1/M2 evidence |
-| [CORE-012](#core-012) | M2/M3 | P1 | **ready (after task authorisation)** | Existing observed-state/journal/error contracts |
+| [CORE-012](#core-012) | M2/M3 | P1 | **completed** | Shared truthful reporting, partial inventory and redaction qualified 10 October |
 | [CORE-021](#core-021) | M2/M3 | P1 | **in progress** | Integration/doc residuals; parser/storage CFG-001, enrollment SEC-001, UI GUI-002 |
 | [CORE-006](#core-006) | M2 | P1 | **completed (reported)** | Reuse shared plan/apply preview; extend only for new operations |
-| [APP-001](#app-001) | M3.2 | P0 | **in progress — GUI/CLI promotion implemented** | Existing prototype moved; console packaging and restricted worker still pending |
+| [APP-001](#app-001) | M3.2 | P0 | **completed** | GUI console packaging and installed restricted-worker integration qualified and reviewed 10 October |
 | [CFG-001](#cfg-001) | M3.3 | P0 | **in progress — format selected** | OPEN-01 format/import contract resolved; protected store/write integration depends on SEC-001 |
 | [GPU-010](#gpu-010) | M3.4 | P0 | **planned — promoted from M4** | PLAN-001; provider/API validation and selected-GPU capability model |
 | [SEC-001](#sec-001) | M3.5 | P0 | **planned — extension** | APP-001; adapt existing protected runner/pipe/lock, no replacement stack |
 | [CORE-028](#core-028) | M3.6 | P0 | **planned — new** | CORE-006, CFG-001, GPU-010, SEC-001; real progress/manual recovery |
 | [GUI-002](#gui-002) | M3.7 | P0 | **in progress — live discovery and explicit mock mode** | Existing cards/Refresh/System; effects need CFG-001/GPU-010/SEC-001/CORE-028; no-write real-data rehearsal source remains |
-| [GUI-003](#gui-003) | M3.8 | P1 | **planned — new** | GUI-002 and APP-001; accessibility, lifetime, scaling and UX checks |
+| [GUI-003](#gui-003) | M3.8 | P1 | **in progress** | Mock layout/themes/keyboard/draft/recovery checks qualified; lifetime and remaining Windows checks open |
 | [CORE-017](#core-017) | R1 | P1 | **planned** | M2/M3 gate; packaging can be prepared independently |
 | [DOC-003](#doc-003) | R1 | P1 | **planned** | Verified CLI/GUI, configuration and recovery behaviour |
 | [GPU-014](#gpu-014) | R1 | P1 | **planned** | M2, M3, CORE-017, DOC-003; authorised candidate-only VM test |
@@ -104,6 +104,12 @@ Task IDs and backend work remain; no duplicate design cards or restored controls
 **Truthful observed state and operator errors.** Distinguish desired configuration, observed GPU attachment, previous driver preparation, pending recovery and **last** successful graphics verification. Report missing/denied/unavailable/unsupported/unknown separately; avoid turning one VM inventory failure into an empty result for all. Provide bounded, redacted stage/error and safe-next-action messages, shared by CLI and Slint.
 
 **Exit:** isolated partial-access, stale-state, missing-provider and secret-redaction tests; accurately explained provenance/freshness; no persistent diagnostic database. Ordinary visible history is session-only; minimal durable recovery records remain separate.
+
+**Completed, 10 October:** shared public diagnostics and recorded-state provenance;
+partial failures preserve available inventory, raw errors are redacted and recovery
+guidance remains conditional. Isolated behavior tests, CLI processes and actual
+Slint rehearsal passed; independent review cleared the result. See
+[closure evidence](evidence/closure-sprint.md).
 
 ### CORE-021
 
@@ -199,16 +205,20 @@ GUI-003, not unfinished prototype development.
 
 ### APP-001
 
-**Main application promotion — implemented dispatch; remaining consolidation open.**
+**Main application promotion — completed.**
 No arguments open the approved Slint GUI; explicit CLI commands execute the existing
 headless path. Sources were moved, not duplicated. Deleted old Win32 presentation
 and `hyper-gpu-gui` entry; retain `gui_model` and all shared core/runner functionality.
 The original promotion used explicit mock callbacks. GUI-002 now owns normal live
 discovery and the isolated `--mock-gui` rehearsal path.
 
-**Remaining:** Windows console packaging preserving CLI stdout/stderr/exit codes;
-restricted same-executable worker with SEC-001 independent security review. Keep
-the current protected SYSTEM runner until validated replacement. Second-instance
+**Completed, 10 October:** Windows GUI-subsystem packaging preserves redirected
+CLI stdout/stderr/exit codes and actual parent-console output. The existing
+restricted same-executable worker was independently reviewed and exercised through
+an installed authenticated exchange; bounded pipe and internal-mode rejection tests
+passed. The protected SYSTEM runner remains for its existing fixed-operation role.
+See [closure evidence](evidence/closure-sprint.md). Expanded SEC-001 enrollment and
+coordination acceptance remains on its own card. Second-instance
 activation and persistent preferences absent from the prototype are retired GUI
 requirements. No arbitrary internal worker mode is introduced by this promotion.
 
@@ -325,6 +335,11 @@ make save-only recovery protected and durable through CFG-001/SEC-001.
 bindings and approved-control parity, including Review text wrapping. Dependencies
 SEC-001/CORE-028/GPU-010 remain acceptance gates, not exemptions.
 
+**10 October scoped result:** fixed Review clipping and inspected the enabled
+historical plan in the actual Slint executable; snapshot rehearsal/conflict/no-write
+checks passed. [Closure evidence](evidence/closure-sprint.md). Broader dependency
+acceptance and narrow/DPI/accessibility checks remain open.
+
 **9 October configuration/recorded-plan rehearsal slice:** stopped treating
 enrollment as saved desired configuration. Added optional
 `--mock-gui --snapshot FILE --config GUID.toml` via the production per-VM reader;
@@ -413,6 +428,13 @@ preferences, session activation or Win32 parity gate.
 
 **Exit:** Actual mock interaction/render checks and recorded Windows qualification
 limitations; no screen-reader parity claim without testing.
+
+**10 October scoped result:** opt-in software-renderer checks cover the 700x520
+minimum, 1600x1000 workspace, 35-VM inventory, all four pages and wrapped Review.
+Actual MCP mock interactions passed Light/Dark/Windows themes, Tab/Return navigation,
+draft-switch protection and uncertain-outcome recovery. Lifecycle/close deferral,
+splitter/pane interactions, Windows text scaling and screen-reader behavior are
+not claimed. See [closure evidence](evidence/closure-sprint.md).
 
 ## R1 — Packaging and candidate acceptance
 

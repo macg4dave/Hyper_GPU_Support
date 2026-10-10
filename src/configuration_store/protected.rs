@@ -6,10 +6,11 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
 };
-use windows::Win32::UI::Shell::FOLDERID_ProgramData;
 
 fn directories() -> Result<[PathBuf; 3], String> {
-    let root = runner::folder(&FOLDERID_ProgramData)?.join("HyperGpuSupport");
+    // Product intent shares the protected product ancestor, never the contributor
+    // laboratory's directory or its broader development permissions.
+    let root = runner::data_directory()?;
     Ok([root.clone(), root.join("config"), root.join("config/vms")])
 }
 fn verify_directories() -> Result<Option<PathBuf>, String> {

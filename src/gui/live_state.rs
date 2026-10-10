@@ -199,6 +199,7 @@ mod tests {
         };
         Inventory {
             discovery: Discovery {
+                issues: vec![],
                 vms: vec![VmState {
                     vm_id: target.vm_id.clone(),
                     name: "Renamable VM".into(),
@@ -385,6 +386,18 @@ mod tests {
         assert!(s.draft(id(&s), true, 0, &old).is_err());
         assert!(s.draft(id(&s), true, 0, &values("10", "50", "100")).is_ok());
         assert!(s.draft(id(&s), false, 0, &values("", "", "")).is_ok());
+    }
+    #[test]
+    fn malformed_committed_configuration_cannot_echo_secrets_into_validation() {
+        let mut s = state();
+        let vm_id = id(&s).to_owned();
+        s.committed.insert(
+            &format!("{vm_id}.toml"),
+            Ok("password='private-parser-secret'".into()),
+        );
+        let error = s.editor_eligibility(&vm_id).unwrap_err();
+        assert!(error.contains("Committed configuration"));
+        assert!(!error.contains("private-parser-secret"));
     }
 
     #[test]

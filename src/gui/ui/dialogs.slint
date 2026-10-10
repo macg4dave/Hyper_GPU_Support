@@ -23,7 +23,7 @@ export component DemoDialog inherits Rectangle {
         padding: 24px;
         Rectangle { horizontal-stretch: 1; }
         Surface {
-            max-width: 620px; min-width: 420px;
+            max-width: 620px; min-width: 420px; preferred-width: 620px;
             VerticalLayout {
                 padding: 24px; spacing: 16px;
                 Label { text: root.snapshot-mode ? "HISTORICAL REHEARSAL · NO WRITES" : root.mock-mode ? "MOCK · NO REAL OPERATIONS" : "LIVE APPLICATION"; font-size: 11px; font-weight: 600; color: Theme.muted; }
@@ -32,10 +32,10 @@ export component DemoDialog inherits Rectangle {
                     vertical-stretch: 1;
                     horizontal-scrollbar-policy: always-off;
                     content-width: self.visible-width;
-                    VerticalLayout { spacing: 14px; alignment: start;
+                    VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
                         width: body-scroll.visible-width;
-                        Hint { text: root.body; font-size: 14px; min-width: 0px; horizontal-stretch: 1; }
-                        for stage in root.stages : Label { text: stage; font-size: 13px; }
+                        Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: char-wrap; }
+                        for stage in root.stages : Hint { text: stage; font-size: 13px; width: max(0px, body-scroll.visible-width - 8px); wrap: char-wrap; }
                         if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox { text: root.mock-mode || root.snapshot-mode ? "Demonstrate graceful guest shutdown & restore" : "Approve graceful guest shutdown and safe restoration"; checked <=> root.consent; }
                         if root.running : ProgressIndicator { indeterminate: true; }
                     }

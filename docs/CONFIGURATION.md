@@ -45,7 +45,7 @@ durable save-only recovery. Reuse the separation/conflict logic under CFG-001.
 
 **Selected for implementation, 9 October 2026 (DEC-032); not a completed persistence gate.** Keep
 schema-2 TOML and the existing `Configuration` / `Target` / `Allocation` models.
-Each `%ProgramData%\HyperGpuSupport\config\vms\<vm-guid>.toml` contains exactly
+Each `%ProgramData%\HyperGpuSupportProduct\config\vms\<vm-guid>.toml` contains exactly
 one target. The array envelope is retained deliberately so the CLI parser,
 validation and serialization remain identical; a new flat JSON/TOML model buys
 no behavior and would require migration. No separate mock configuration format.
@@ -226,7 +226,7 @@ The backend persistence direction from historical DEC-029 remains scoped here;
 format choice, not protected write or expanded-resource acceptance.
 
 - One file per stable Hyper-V VM GUID under
-  `%ProgramData%\HyperGpuSupport\config\vms\`. Names are display data, never keys.
+  `%ProgramData%\HyperGpuSupportProduct\config\vms\`. Names are display data, never keys.
 - Desired intent includes physical GPU, enabled state and Min/Optimal/Max for VRAM,
   compute, encode and decode. Discover inventory; unsupported/unknown capabilities
   explicitly block unsafe requests. Raw values imply neither GiB nor enforcement.

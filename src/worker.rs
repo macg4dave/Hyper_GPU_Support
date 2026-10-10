@@ -318,7 +318,14 @@ fn submit(
             Message::Complete {
                 session: actual,
                 result,
-            } if actual == session => return result,
+            } if actual == session => {
+                return result.map(|mut outcome| {
+                    outcome.save_error = outcome.save_error.map(|error| {
+                        crate::reporting::operator_error("Configuration publication", &error)
+                    });
+                    outcome
+                });
+            }
             _ => return Err("worker session identity mismatch; inspect recovery".into()),
         }
     }
