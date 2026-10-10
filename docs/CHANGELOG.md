@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-10 - Four-category live allocation source
+
+- Extended shared intent to schema 3 with optional raw Compute/Encode/Decode
+  triples alongside VRAM; retain schema-2 input and historical VRAM snapshots.
+- Native capability discovery, planning, category writes/readback and protected
+  save/reconciliation compare all requested categories. Unknown capability blocks
+  its category; omission requests no explicit write and partial failures retain recovery.
+- Bound existing Details editors, Review, observed/saved labels and System to the
+  shared model. Snapshot rehearsal uses recorded capabilities and remains no-write.
+- Independent static boundary review found no remaining blocker. Authored focused
+  regressions and formatted source; tests/builds/UI/live validation and installation deferred.
+
+## 2026-10-10 - Live GUI recovery refresh
+
+- Refresh synchronizes save-only state after external publication/reconciliation,
+  requiring matching readable committed intent before clearing verified-unsaved
+  presentation. Preserve drafts, separate Verify/import holds and block uncertain reads.
+- Added focused regressions; tests, builds and live GUI validation remain deferred.
+
 ## 2026-10-10 - GUI build and installed startup
 
 - Fixed serialization of the fixed setup inventory reply. The authorized product

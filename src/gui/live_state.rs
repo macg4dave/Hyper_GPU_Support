@@ -1,7 +1,7 @@
 //! Live presentation decisions reuse protected enrollment and shared validation.
 use hyper_gpu_support::{
     gui_model::{Inventory, View},
-    model::{Allocation, Configuration, Target},
+    model::{Allocation, Configuration, Resource, Target},
     workflow::Plan,
 };
 
@@ -55,6 +55,47 @@ impl Default for State {
 }
 
 impl State {
+    /// Synchronize presentation only after successful inventory/store/record reads.
+    /// Record absence alone cannot prove that verified intent was published.
+    pub fn sync_recovery(
+        &mut self,
+        recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
+        import_recovery: Option<hyper_gpu_support::configuration_store::ImportRecord>,
+        enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
+    ) -> Result<(), String> {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        self.recovery = recovery;
+        self.import_recovery = import_recovery;
+        self.enrollment_recovery = enrollment_recovery;
+        self.rehearsal_plan = None;
+        self.verification_plan = None;
+        if let Some(record) = &self.recovery {
+            self.view.unsaved =
+                record.publication_required && matches!(record.phase, SavePhase::Verified(_));
+            self.view.verified_unsaved = self.view.unsaved.then(|| record.target.clone());
+            return Ok(());
+        }
+        if let Some(target) = &self.view.verified_unsaved {
+            let published = self.committed.revision(&target.vm_id).is_ok()
+                && self
+                    .committed
+                    .documents
+                    .get(&target.vm_id)
+                    .is_some_and(|document| document.target == *target);
+            if !published {
+                self.view.needs_readback = true;
+                return Err("Recovery record is absent, but verified intent is not confirmed in readable committed configuration. Refresh and inspect before another operation.".into());
+            }
+        } else if self.view.unsaved {
+            self.view.needs_readback = true;
+            return Err("Unsaved outcome has no verified target. Refresh and inspect before another operation.".into());
+        }
+        // Do not use View::published here: an external save must preserve any draft.
+        self.view.unsaved = false;
+        self.view.verified_unsaved = None;
+        Ok(())
+    }
+
     pub fn refresh(&mut self, inventory: Inventory) {
         let selected = self.view.selected.clone();
         if let Some(draft) = &self.view.draft
@@ -106,6 +147,9 @@ impl State {
                         .find(|g| vm.gpus == [g.interface.clone()])?
                 };
                 Some(Target {
+                    compute: None,
+                    encode: None,
+                    decode: None,
                     vm_id: id.into(),
                     gpu_interface: gpu.interface.clone(),
                     enabled: false,
@@ -171,7 +215,7 @@ impl State {
         // Pair eligibility must allow correcting a now-invalid old allocation or
         // disabling an unsupported preparation adapter. Draft validation is separate.
         pair.enabled = false;
-        pair.vram = None;
+        pair.clear_allocations();
         self.proposal_eligibility(&pair)
     }
     /// Accept fresh readable intent; an error means the retained draft is blocked,
@@ -240,25 +284,24 @@ impl State {
             .ok_or("Select an available physical GPU.")?;
         target.gpu_interface = gpu.interface.clone();
         target.enabled = enabled;
-        if values.len() != 12 || values[3..].iter().any(|v| !v.trim().is_empty()) {
-            return Err(
-                "Compute, encode and decode allocation are not supported by the current backend."
-                    .into(),
-            );
+        if values.len() != 12 {
+            return Err("Expected four complete allocation triples".into());
         }
-        let vram = &values[..3];
-        target.vram = if vram.iter().all(|v| v.trim().is_empty()) {
-            None
-        } else {
-            let parsed = vram.iter().map(|v| v.trim().parse::<u64>()
-                .map_err(|_| "Enter all three VRAM values as unsigned provider integers, or leave all three empty.".to_owned()))
-                .collect::<Result<Vec<_>, _>>()?;
-            Some(Allocation {
-                minimum: parsed[0],
-                optimal: parsed[1],
-                maximum: parsed[2],
-            })
-        };
+        for (resource, values) in Resource::ALL.into_iter().zip(values.chunks_exact(3)) {
+            let value = if values.iter().all(|v| v.trim().is_empty()) {
+                None
+            } else {
+                let parsed = values.iter().map(|v| v.trim().parse::<u64>()
+                    .map_err(|_| format!("Enter all three {} values as unsigned provider integers, or leave all three empty.", resource.name())))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Some(Allocation {
+                    minimum: parsed[0],
+                    optimal: parsed[1],
+                    maximum: parsed[2],
+                })
+            };
+            target.set_allocation(resource, value);
+        }
         self.proposal_eligibility(&target)?;
         Ok(target)
     }
@@ -266,10 +309,12 @@ impl State {
 
 pub(super) fn allocation_values(target: &Target) -> Vec<String> {
     let mut values = vec![String::new(); 12];
-    if let Some(vram) = &target.vram {
-        values[0] = vram.minimum.to_string();
-        values[1] = vram.optimal.to_string();
-        values[2] = vram.maximum.to_string();
+    for (index, resource) in Resource::ALL.into_iter().enumerate() {
+        if let Some(value) = target.allocation(resource) {
+            values[index * 3] = value.minimum.to_string();
+            values[index * 3 + 1] = value.optimal.to_string();
+            values[index * 3 + 2] = value.maximum.to_string();
+        }
     }
     values
 }
@@ -283,8 +328,31 @@ pub(super) fn review_text(plan: &Plan) -> String {
         plan.preview.allocation.as_ref(),
         "No allocation write planned; existing/provider values are not explicitly reset",
     );
+    let extended = [
+        (Resource::Compute, plan.preview.compute.as_ref()),
+        (Resource::Encode, plan.preview.encode.as_ref()),
+        (Resource::Decode, plan.preview.decode.as_ref()),
+    ]
+    .into_iter()
+    .map(|(resource, planned)| {
+        format!(
+            "{} draft (Minimum / Optimal / Maximum): {}\nPlanned {} write: {}",
+            resource.name(),
+            allocation_description(
+                plan.desired.allocation(resource),
+                "Unspecified; no explicit request"
+            ),
+            resource.name(),
+            allocation_description(
+                planned,
+                "No explicit category write; new/recreated attachments use provider defaults"
+            ),
+        )
+    })
+    .collect::<Vec<_>>()
+    .join("\n");
     format!(
-        "VM: {}\nVM ID: {}\nGPU interface: {}\nDesired GPU support: {}\nVRAM draft (Minimum / Optimal / Maximum): {requested}\nPlanned allocation write: {planned}\n\n{}\n\nAllocation units: {}\n\nPreview from the shared CLI planner. No VM or guest changes have been performed during review.",
+        "VM: {}\nVM ID: {}\nGPU interface: {}\nDesired GPU support: {}\nVRAM draft (Minimum / Optimal / Maximum): {requested}\nPlanned allocation write: {planned}\n{extended}\n\n{}\n\nAllocation units: {}\nConfiguration publication: schema 3, retaining schema-2 input compatibility.\n\nPreview from the shared CLI planner. No VM or guest changes have been performed during review.",
         plan.observed.name,
         plan.desired.vm_id,
         plan.desired.gpu_interface,
@@ -312,6 +380,9 @@ mod tests {
 
     fn inventory() -> Inventory {
         let target = Target {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: "12345678-1234-1234-1234-123456789abc".into(),
             gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#fixture\GPUPARAV".into(),
             enabled: true,
@@ -321,6 +392,9 @@ mod tests {
             discovery: Discovery {
                 issues: vec![],
                 vms: vec![VmState {
+                    compute: None,
+                    encode: None,
+                    decode: None,
                     vm_id: target.vm_id.clone(),
                     name: "Renamable VM".into(),
                     power: Power::Off,
@@ -335,6 +409,9 @@ mod tests {
                     },
                 }],
                 gpus: vec![Gpu {
+                    compute: Default::default(),
+                    encode: Default::default(),
+                    decode: Default::default(),
                     interface: target.gpu_interface.clone(),
                     name: "Identical GPU name".into(),
                     vendor: 0x10de,
@@ -345,7 +422,8 @@ mod tests {
                         minimum: 10,
                         optimal: 50,
                         maximum: 100,
-                    },
+                    }
+                    .into(),
                 }],
             },
             enrolled: vec![target],
@@ -448,6 +526,105 @@ mod tests {
             store.insert(&filename, Ok(format!("{source}\n# {comment}\n")));
         }
         store
+    }
+
+    fn save_record(s: &State) -> hyper_gpu_support::configuration_store::SaveRecord {
+        use hyper_gpu_support::configuration_store::{Revision, SavePhase, SaveRecord};
+        let observed = s.view.vm(id(s)).unwrap().clone();
+        SaveRecord {
+            schema: 1,
+            operation_id: "test-operation".into(),
+            target: s.target(id(s)).unwrap(),
+            expected: Revision::Missing,
+            driver_version: "test-driver".into(),
+            payload_digest: None,
+            plan_revision: Revision::Missing,
+            intended_source: String::new(),
+            publication_required: true,
+            initial: observed.clone(),
+            initial_journal: None,
+            expected_settings: observed.settings.clone(),
+            phase: SavePhase::Verified(observed),
+        }
+    }
+
+    #[test]
+    fn external_save_clears_save_only_state_and_preserves_conflicting_draft() {
+        let mut s = state();
+        let target = s.target(id(&s)).unwrap();
+        s.view.applied(&target).unwrap();
+        let mut draft = target.clone();
+        draft.enabled = !draft.enabled;
+        s.view.draft = Some(draft.clone());
+        assert!(
+            s.load_committed(committed(vec![target], "external save"))
+                .is_err()
+        );
+        s.refresh(inventory());
+        s.sync_recovery(None, None, None).unwrap();
+        assert!(!s.view.unsaved);
+        assert!(s.view.verified_unsaved.is_none());
+        assert_eq!(s.view.draft, Some(draft));
+        assert!(s.editor_eligibility(id(&s)).is_err());
+    }
+
+    #[test]
+    fn absent_recovery_requires_matching_readable_committed_intent() {
+        for unreadable in [false, true] {
+            let mut s = state();
+            let target = s.target(id(&s)).unwrap();
+            s.view.applied(&target).unwrap();
+            if unreadable {
+                s.committed
+                    .errors
+                    .insert("store".into(), "access denied".into());
+            }
+            s.refresh(inventory());
+            assert!(s.sync_recovery(None, None, None).is_err());
+            assert!(s.view.unsaved);
+            assert_eq!(s.view.verified_unsaved, Some(target));
+            assert!(s.view.needs_readback);
+        }
+    }
+
+    #[test]
+    fn standalone_verify_does_not_offer_publication_and_external_reconcile_releases_hold() {
+        let mut s = state();
+        let mut record = save_record(&s);
+        record.publication_required = false;
+        s.sync_recovery(Some(record), None, None).unwrap();
+        assert!(!s.view.unsaved);
+        assert!(s.view.verified_unsaved.is_none());
+        assert!(s.editor_eligibility(id(&s)).is_err());
+        s.refresh(inventory());
+        s.sync_recovery(None, None, None).unwrap();
+        assert!(s.editor_eligibility(id(&s)).is_ok());
+        assert!(s.view.configuration.targets.is_empty());
+    }
+
+    #[test]
+    fn verified_record_derives_save_only_state_and_import_holds_edits() {
+        let mut s = state();
+        let record = save_record(&s);
+        let target = record.target.clone();
+        s.sync_recovery(Some(record), None, None).unwrap();
+        assert!(s.view.unsaved);
+        assert_eq!(s.view.verified_unsaved, Some(target.clone()));
+        s.load_committed(committed(vec![target], "external save"))
+            .unwrap();
+        let import = hyper_gpu_support::configuration_store::ImportRecord {
+            schema: 1,
+            operation_id: "test-import".into(),
+            source_revision: hyper_gpu_support::configuration_store::Revision::Missing,
+            documents: Default::default(),
+        };
+        s.refresh(inventory());
+        s.sync_recovery(None, Some(import), None).unwrap();
+        assert!(!s.view.unsaved);
+        assert!(s.editor_eligibility(id(&s)).is_err());
+        s.refresh(inventory());
+        s.sync_recovery(None, None, None).unwrap();
+        assert!(s.editor_eligibility(id(&s)).is_ok());
     }
 
     #[test]
@@ -567,6 +744,45 @@ mod tests {
         );
         assert!(s.draft(id(&s), true, 0, &v[..3]).is_err());
     }
+
+    #[test]
+    fn supported_compute_draft_survives_unavailable_vram_and_preserves_observations() {
+        use hyper_gpu_support::model::ResourceCapability;
+        let mut s = state();
+        let gpu = &mut s.view.inventory.as_mut().unwrap().discovery.gpus[0];
+        gpu.vram = ResourceCapability::Unavailable("VRAM range unreadable".into());
+        gpu.compute = ResourceCapability::Supported(Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 100,
+        });
+        let mut raw = values("", "", "");
+        raw[3..6].clone_from_slice(&["10".into(), "50".into(), "100".into()]);
+        let target = s.draft(id(&s), true, 0, &raw).unwrap();
+        assert_eq!(allocation_values(&target), raw);
+        assert_eq!(target.compute.as_ref().unwrap().optimal, 50);
+        assert!(target.vram.is_none());
+        assert!(s.view.vm(id(&s)).unwrap().compute.is_none());
+        assert!(
+            s.view.inventory.as_ref().unwrap().enrolled[0]
+                .compute
+                .is_none()
+        );
+        let mut invalid = raw.clone();
+        invalid[4] = "101".into();
+        assert!(s.draft(id(&s), true, 0, &invalid).is_err());
+        invalid[3] = "".into();
+        assert!(s.draft(id(&s), true, 0, &invalid).is_err());
+        raw[6..9].clone_from_slice(&["10".into(), "50".into(), "100".into()]);
+        assert!(
+            s.draft(id(&s), true, 0, &raw)
+                .unwrap_err()
+                .contains("Encode")
+        );
+        assert!(s.draft(id(&s), false, 0, &raw).is_ok());
+        raw[6..9].fill(String::new());
+        assert!(s.draft(id(&s), true, 0, &raw).is_ok());
+    }
     #[test]
     fn duplicate_gpu_names_do_not_grant_a_different_pair() {
         let mut s = state();
@@ -659,6 +875,9 @@ mod tests {
             managed: None,
             preparation: None,
             preview: EffectPreview {
+                compute: None,
+                encode: None,
+                decode: None,
                 actions: vec![],
                 settings: None,
                 settings_preserved: false,

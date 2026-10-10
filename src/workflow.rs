@@ -1,5 +1,5 @@
 //! One selected-VM workflow shared by CLI and GUI; laboratory tooling is not a dependency.
-use crate::model::{Allocation, Gpu, Power, Settings, Target, VmState};
+use crate::model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState};
 use serde::{Deserialize, Serialize};
 
 /// Durable, per-VM ownership and interrupted-operation state.
@@ -59,8 +59,13 @@ pub trait Backend {
     fn assign(&mut self, target: &Target, enabled: bool) -> Result<(), String>;
     /// Change only GPU compatibility settings, preserving CPU/RAM/security devices.
     fn settings(&mut self, target: &Target, settings: &Settings) -> Result<(), String>;
-    /// Apply supported provider VRAM values and verify readback.
-    fn allocation(&mut self, target: &Target, value: &Allocation) -> Result<(), String>;
+    /// Apply one supported raw provider category and verify independent readback.
+    fn allocation(
+        &mut self,
+        target: &Target,
+        resource: Resource,
+        value: &Allocation,
+    ) -> Result<(), String>;
     /// Prepare the current payload in the running guest; return independently verified digest.
     fn prepare(&mut self, target: &Target) -> Result<String, String>;
     /// Prepare with (acknowledged bytes, total bytes, completed files, total files).
@@ -98,8 +103,8 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
     if target.enabled && !gpu.preparation_supported {
         return Err("automatic guest preparation is not implemented for this GPU vendor".into());
     }
-    if let Some(vram) = &target.vram {
-        vram.validate(&gpu.vram)?;
+    if target.enabled {
+        target.validate_allocations(&gpu)?;
     }
     let old = backend.journal(target)?;
     if old.as_ref().is_some_and(|j| {
@@ -151,11 +156,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
     let stale = target.enabled && journal.prepared != digest;
     let assignment = !initial.gpus.is_empty();
     let settings_change = target.enabled && initial.settings != desired;
-    let allocation_change = target.enabled
-        && target
-            .vram
-            .as_ref()
-            .is_some_and(|v| initial.vram.as_ref() != Some(v));
+    let allocation_change = target.enabled && !target.allocations_match(&initial);
     let needs_changes = assignment != target.enabled
         || stale
         || settings_change
@@ -166,7 +167,11 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
             && initial.settings != journal.original);
     // Any changed enabled path writes the requested allocation after attachment,
     // including refresh when the old adapter already had matching raw values.
-    let allocation_change = needs_changes && target.enabled && target.vram.is_some();
+    let allocation_change = needs_changes
+        && target.enabled
+        && Resource::ALL
+            .into_iter()
+            .any(|r| target.allocation(r).is_some());
     Ok(Decision {
         initial,
         gpu,
@@ -253,6 +258,15 @@ pub struct EffectPreview {
     pub settings_preserved: bool,
     /// Raw allocation written by apply, including reapplication after attachment refresh.
     pub allocation: Option<Allocation>,
+    /// Explicit compute write, absent when omitted or no change path is needed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compute: Option<Allocation>,
+    /// Explicit encode write.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encode: Option<Allocation>,
+    /// Explicit decode write.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decode: Option<Allocation>,
     /// Guest administrator credentials are required, from a prompt or stored vault entry.
     pub credentials_required: bool,
     /// The currently running guest must be stopped; no duration estimate is promised.
@@ -392,10 +406,21 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
         summary.push("Preserve compatibility settings changed by another manager.".into());
     }
     if d.allocation_change {
-        summary.push("Apply requested raw VRAM values in provider-defined units; no GiB or hard-limit claim.".into());
+        for resource in Resource::ALL {
+            if let Some(value) = target.allocation(resource) {
+                summary.push(format!(
+                    "{} write (Minimum / Optimal / Maximum): {} / {} / {}; raw provider units, no enforcement claim.",
+                    resource.name(), value.minimum, value.optimal, value.maximum
+                ));
+            }
+        }
     }
-    if target.enabled && target.vram.is_none() {
-        summary.push("Use provider defaults for a new attachment; retain the existing attachment's allocation otherwise.".into());
+    if target.enabled
+        && Resource::ALL
+            .into_iter()
+            .any(|r| target.allocation(r).is_none())
+    {
+        summary.push("Omitted categories request no allocation write. A new or recreated attachment uses provider defaults; an attachment retained in place keeps its existing values.".into());
     }
     if target.enabled {
         summary.push("Guest administrator credentials are required (stored vault entry or local prompt). Check PnP health and hardware D3D11 rendering.".into());
@@ -415,6 +440,12 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
             digest,
         }),
         preview: EffectPreview {
+            compute: d
+                .allocation_change
+                .then(|| target.compute.clone())
+                .flatten(),
+            encode: d.allocation_change.then(|| target.encode.clone()).flatten(),
+            decode: d.allocation_change.then(|| target.decode.clone()).flatten(),
             actions,
             settings,
             settings_preserved: d.settings_preserved,
@@ -576,8 +607,10 @@ fn execute_decision(
                         .assign(target, true)
                         .map_err(|e| format!("attach selected GPU: {e}"))?;
                 }
-                if let Some(vram) = &target.vram {
-                    backend.allocation(target, vram)?;
+                for resource in Resource::ALL {
+                    if let Some(value) = target.allocation(resource) {
+                        backend.allocation(target, resource, value)?;
+                    }
                 }
             } else {
                 if assignment {
@@ -609,11 +642,7 @@ fn execute_decision(
             || effective.power != restore_power
             || (target.enabled && effective.settings != desired)
             || (!target.enabled && effective.settings != disabled_settings)
-            || (target.enabled
-                && target
-                    .vram
-                    .as_ref()
-                    .is_some_and(|v| effective.vram.as_ref() != Some(v)))
+            || (target.enabled && !target.allocations_match(&effective))
         {
             return Err("independent final state verification failed".into());
         }
@@ -918,9 +947,16 @@ mod tests {
         journal_writes: usize,
         fail_payload: bool,
         allocation_writes: usize,
+        resource_capability: crate::model::ResourceCapability,
+        allocation_calls: Vec<Resource>,
+        fail_allocation: Option<Resource>,
+        corrupt_resource: Option<Resource>,
     }
     fn target() -> Target {
         Target {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: "11111111-1111-1111-1111-111111111111".into(),
             gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#test\GPUPARAV".into(),
             enabled: true,
@@ -930,6 +966,9 @@ mod tests {
     fn fake() -> Fake {
         Fake {
             state: VmState {
+                compute: None,
+                encode: None,
+                decode: None,
                 vm_id: target().vm_id,
                 name: "renamed VM".into(),
                 power: Power::Running,
@@ -956,6 +995,14 @@ mod tests {
             journal_writes: 0,
             fail_payload: false,
             allocation_writes: 0,
+            resource_capability: crate::model::ResourceCapability::Supported(Allocation {
+                minimum: 0,
+                optimal: 50,
+                maximum: 100,
+            }),
+            allocation_calls: vec![],
+            fail_allocation: None,
+            corrupt_resource: None,
         }
     }
     #[test]
@@ -1121,6 +1168,9 @@ mod tests {
         }
         fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
             Ok(Gpu {
+                compute: self.resource_capability.clone(),
+                encode: self.resource_capability.clone(),
+                decode: self.resource_capability.clone(),
                 interface: t.gpu_interface.clone(),
                 name: "GPU".into(),
                 vendor: 0x10de,
@@ -1131,7 +1181,8 @@ mod tests {
                     minimum: 0,
                     maximum: 100,
                     optimal: 50,
-                },
+                }
+                .into(),
             })
         }
         fn payload(&mut self, _: &Target) -> Result<String, String> {
@@ -1180,9 +1231,23 @@ mod tests {
             self.state.settings = s.clone();
             Ok(())
         }
-        fn allocation(&mut self, _: &Target, v: &Allocation) -> Result<(), String> {
+        fn allocation(
+            &mut self,
+            _: &Target,
+            resource: Resource,
+            v: &Allocation,
+        ) -> Result<(), String> {
+            self.allocation_calls.push(resource);
+            if self.fail_allocation == Some(resource) {
+                return Err("provider category write failed".into());
+            }
             self.allocation_writes += 1;
-            self.state.vram = Some(v.clone());
+            match resource {
+                Resource::Vram => self.state.vram = Some(v.clone()),
+                Resource::Compute => self.state.compute = Some(v.clone()),
+                Resource::Encode => self.state.encode = Some(v.clone()),
+                Resource::Decode => self.state.decode = Some(v.clone()),
+            }
             Ok(())
         }
         fn prepare(&mut self, _: &Target) -> Result<String, String> {
@@ -1194,6 +1259,14 @@ mod tests {
             }
         }
         fn verify(&mut self, _: &Target, _: &Gpu) -> Result<(), String> {
+            if let Some(resource) = self.corrupt_resource {
+                match resource {
+                    Resource::Vram => self.state.vram = None,
+                    Resource::Compute => self.state.compute = None,
+                    Resource::Encode => self.state.encode = None,
+                    Resource::Decode => self.state.decode = None,
+                }
+            }
             self.events.push("graphics");
             if self.fail_verify {
                 return Err("graphics failed".into());
@@ -1215,6 +1288,112 @@ mod tests {
                 PreviewAction::Settings | PreviewAction::Allocation => None,
             })
             .collect()
+    }
+
+    fn extended_target() -> Target {
+        let mut target = target();
+        for resource in [Resource::Compute, Resource::Encode, Resource::Decode] {
+            target.set_allocation(
+                resource,
+                Some(Allocation {
+                    minimum: 10,
+                    optimal: 50,
+                    maximum: 90,
+                }),
+            );
+        }
+        target
+    }
+
+    #[test]
+    fn extended_resources_plan_write_in_order_and_independently_read_back() {
+        let mut f = fake();
+        let target = extended_target();
+        let approved = plan(&mut f, &target).unwrap();
+        assert_eq!(approved.preview.compute, target.compute);
+        assert_eq!(approved.preview.encode, target.encode);
+        assert_eq!(approved.preview.decode, target.decode);
+        assert!(approved.preview.allocation.is_none());
+        let result = apply(&mut f, &target).unwrap();
+        assert_eq!(
+            f.allocation_calls,
+            [Resource::Compute, Resource::Encode, Resource::Decode]
+        );
+        assert!(target.allocations_match(&result.effective));
+        assert!(!f.journal.as_ref().unwrap().pending);
+    }
+
+    #[test]
+    fn omitted_categories_are_not_written_or_reset_on_existing_attachment() {
+        let mut f = fake();
+        let mut target = extended_target();
+        apply(&mut f, &target).unwrap();
+        let retained = f.state.encode.clone();
+        target.encode = None;
+        target.decode = None;
+        target.compute.as_mut().unwrap().optimal = 60;
+        f.allocation_calls.clear();
+        apply(&mut f, &target).unwrap();
+        assert_eq!(f.allocation_calls, [Resource::Compute]);
+        assert_eq!(f.state.encode, retained);
+        assert!(f.state.decode.is_some());
+    }
+
+    #[test]
+    fn partial_category_failure_retains_pending_recovery_and_never_skips_forward() {
+        let mut f = fake();
+        f.fail_allocation = Some(Resource::Encode);
+        let target = extended_target();
+        assert!(apply(&mut f, &target).is_err());
+        assert_eq!(f.allocation_calls, [Resource::Compute, Resource::Encode]);
+        assert_eq!(f.state.compute, target.compute);
+        assert!(f.state.decode.is_none());
+        assert!(f.journal.as_ref().unwrap().pending);
+    }
+
+    #[test]
+    fn unknown_capability_and_capability_drift_block_before_effects() {
+        let target = extended_target();
+        let mut f = fake();
+        let approved = plan(&mut f, &target).unwrap();
+        f.resource_capability = crate::model::ResourceCapability::Unknown;
+        assert!(admit_approved(&mut f, &approved).is_err());
+        assert!(plan(&mut f, &target).is_err());
+        assert!(f.events.is_empty());
+        assert_eq!(f.journal_writes, 0);
+        assert_eq!(f.allocation_writes, 0);
+        let mut omitted = target.clone();
+        omitted.clear_allocations();
+        assert!(plan(&mut f, &omitted).is_ok());
+        let mut disabled = target;
+        disabled.enabled = false;
+        assert!(plan(&mut f, &disabled).is_ok());
+    }
+
+    #[test]
+    fn capability_drift_after_admission_refuses_effects_even_within_new_range() {
+        let mut f = fake();
+        let approved = plan(&mut f, &extended_target()).unwrap();
+        let (_, admitted) = admit_approved(&mut f, &approved).unwrap();
+        f.resource_capability = crate::model::ResourceCapability::Supported(Allocation {
+            minimum: 0,
+            optimal: 60,
+            maximum: 100,
+        });
+        assert!(apply_admitted(&mut f, admitted).is_err());
+        assert!(f.events.is_empty());
+        assert_eq!(f.journal_writes, 0);
+        assert_eq!(f.allocation_writes, 0);
+    }
+
+    #[test]
+    fn independent_extended_readback_failure_retains_pending_recovery() {
+        for resource in [Resource::Compute, Resource::Encode, Resource::Decode] {
+            let mut f = fake();
+            f.corrupt_resource = Some(resource);
+            assert!(apply(&mut f, &extended_target()).is_err());
+            assert!(f.journal.as_ref().unwrap().pending);
+        }
     }
 
     #[test]

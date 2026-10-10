@@ -1350,8 +1350,8 @@ impl Backend for NativeBackend {
     fn settings(&mut self, t: &Target, s: &Settings) -> Result<(), String> {
         windows_hyperv::configure(t, s)
     }
-    fn allocation(&mut self, t: &Target, v: &Allocation) -> Result<(), String> {
-        windows_hyperv::allocation(t, v)
+    fn allocation(&mut self, t: &Target, resource: Resource, v: &Allocation) -> Result<(), String> {
+        windows_hyperv::allocation(t, resource, v)
     }
     fn prepare(&mut self, t: &Target) -> Result<String, String> {
         crate::guest::prepare(
@@ -1500,12 +1500,18 @@ mod tests {
 
     fn fixture() -> (Configuration, Discovery) {
         let target = Target {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: "abcdef01-2345-6789-abcd-ef0123456789".into(),
             gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#test\GPUPARAV".into(),
             enabled: true,
             vram: None,
         };
         let vm = VmState {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: target.vm_id.to_ascii_uppercase(),
             name: "An existing user VM".into(),
             power: Power::Off,
@@ -1520,6 +1526,9 @@ mod tests {
             vram: None,
         };
         let gpu = Gpu {
+            compute: Default::default(),
+            encode: Default::default(),
+            decode: Default::default(),
             interface: target.gpu_interface.clone(),
             name: "Discovered GPU".into(),
             vendor: 0x10de,
@@ -1529,7 +1538,8 @@ mod tests {
                 minimum: 0,
                 maximum: 100,
                 optimal: 50,
-            },
+            }
+            .into(),
             preparation_supported: true,
         };
         (

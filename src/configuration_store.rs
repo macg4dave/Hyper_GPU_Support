@@ -82,7 +82,7 @@ impl StoreSnapshot {
     /// Loaded intent for presentation. Errors remain separate and must gate edits.
     pub fn configuration(&self) -> Configuration {
         Configuration {
-            schema: 2,
+            schema: 3,
             targets: self.documents.values().map(|d| d.target.clone()).collect(),
         }
     }
@@ -228,12 +228,11 @@ impl SaveRecord {
             || (!self.publication_required && state.gpus != self.initial.gpus)
             || (self.publication_required
                 && self.target.enabled
-                && self
-                    .target
-                    .vram
-                    .as_ref()
-                    .is_some_and(|a| state.vram.as_ref() != Some(a)))
-            || (!self.publication_required && state.vram != self.initial.vram)
+                && !self.target.allocations_match(state))
+            || (!self.publication_required
+                && crate::model::Resource::ALL.into_iter().any(|resource| {
+                    state.allocation(resource) != self.initial.allocation(resource)
+                }))
         {
             return Err("recorded outcome is not independently established; partial state requires administrator reconciliation, never Apply replay".into());
         }
@@ -290,12 +289,7 @@ impl SaveRecord {
             || effective.generation != 2
             || (self.target.enabled && effective.gpus != vec![self.target.gpu_interface.clone()])
             || (!self.target.enabled && !effective.gpus.is_empty())
-            || (self.target.enabled
-                && self
-                    .target
-                    .vram
-                    .as_ref()
-                    .is_some_and(|v| effective.vram.as_ref() != Some(v)))
+            || (self.target.enabled && !self.target.allocations_match(effective))
         {
             return Err("verified readback changed; save-only retry cannot modify the VM".into());
         }
@@ -403,6 +397,9 @@ mod tests {
     fn save_only_requires_verified_exact_readback_and_original_revision() {
         let target = Configuration::parse(SOURCE).unwrap().targets.remove(0);
         let effective = VmState {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: ID.into(),
             name: "same name".into(),
             power: crate::model::Power::Off,
@@ -490,5 +487,85 @@ mod tests {
                 .validate_save_only(&changed, "driver", &Revision::Missing)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn recovery_and_save_only_refuse_any_requested_resource_drift() {
+        use crate::model::{Allocation, Power, Resource, Settings};
+        let mut configuration = Configuration::parse(SOURCE)
+            .unwrap()
+            .into_schema3()
+            .unwrap();
+        for resource in Resource::ALL {
+            configuration.targets[0].set_allocation(
+                resource,
+                Some(Allocation {
+                    minimum: 10,
+                    optimal: 50,
+                    maximum: 100,
+                }),
+            );
+        }
+        let target = configuration.targets[0].clone();
+        let effective = VmState {
+            vm_id: target.vm_id.clone(),
+            name: "VM".into(),
+            power: Power::Off,
+            generation: 2,
+            gpus: vec![target.gpu_interface.clone()],
+            settings: Settings {
+                low_mmio: 3072,
+                high_mmio: 32768,
+                cache_types: true,
+                automatic_checkpoints: false,
+            },
+            vram: target.vram.clone(),
+            compute: target.compute.clone(),
+            encode: target.encode.clone(),
+            decode: target.decode.clone(),
+        };
+        let mut record = SaveRecord {
+            schema: 1,
+            operation_id: "resource-operation".into(),
+            target,
+            expected: Revision::Missing,
+            driver_version: "driver".into(),
+            payload_digest: None,
+            plan_revision: Revision::of(b"plan"),
+            intended_source: configuration
+                .vm_documents()
+                .unwrap()
+                .into_values()
+                .next()
+                .unwrap(),
+            publication_required: true,
+            initial: effective.clone(),
+            initial_journal: None,
+            expected_settings: effective.settings.clone(),
+            phase: SavePhase::Verified(effective.clone()),
+        };
+        assert!(
+            record
+                .validate_save_only(&effective, "driver", &Revision::Missing)
+                .is_ok()
+        );
+        for resource in Resource::ALL {
+            let mut changed = effective.clone();
+            match resource {
+                Resource::Vram => changed.vram = None,
+                Resource::Compute => changed.compute = None,
+                Resource::Encode => changed.encode = None,
+                Resource::Decode => changed.decode = None,
+            }
+            assert!(record.validate_reconciliation(&changed, "driver").is_err());
+            assert!(
+                record
+                    .validate_save_only(&changed, "driver", &Revision::Missing)
+                    .is_err()
+            );
+            record.publication_required = false;
+            assert!(record.validate_reconciliation(&changed, "driver").is_err());
+            record.publication_required = true;
+        }
     }
 }

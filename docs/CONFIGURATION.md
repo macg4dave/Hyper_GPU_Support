@@ -3,7 +3,7 @@
 ## Implemented baseline
 
 The CLI reads `--config FILE` through `Configuration::parse`. Normal GUI startup
-reads real inventory; saved-file loading is not connected to its controller yet.
+reads real inventory and protected committed per-VM intent separately from enrollment.
 `Configuration::read_vm_file` now provides a bounded read-only per-VM boundary;
 `View::from_vm_file` / `saved_desired_text` let GUI-002 load/display the same intent
 without observation or draft inference. Reader/serializer and state separation
@@ -11,7 +11,8 @@ passed [9 October testing](evidence/GUI-002-testing.md); protected saving remain
 Plain `--mock-gui` still uses the earlier session-only simulated
 configuration and accepts no config argument. `--mock-gui --snapshot FILE` reads
 an existing inventory JSON capture through the real-data presentation, with all
-observations historical and no editing, plan or credential/backend requests. It
+observations historical and no effects or persistent writes. It supports shared
+recorded-input draft/plan rehearsal, without credential/backend effects. It
 does not import desired configuration or authorize enrollment. The optional
 `--config GUID.toml` loads candidate intent separately for recorded-plan rehearsal.
 This implemented route passed scoped automated/headless runtime testing; full
@@ -19,8 +20,9 @@ desktop and protected-effect qualification remain open. Future real-data reads m
 files, vault entries, journals, enrollment or audit records. Preserve mandatory
 runner audit; do not use audited discovery as a strict no-write mock source.
 [product.example.toml](../config/product.example.toml)
-documents runtime schema 2: selected VM GUID, exact GPU interface and enabled state.
-Optional VRAM triples use provider-defined units, not GiB/enforced ceilings. Normalize
+retains compatible runtime schema 2: selected VM GUID, exact GPU interface and enabled state.
+Schema 3 additionally accepts optional Compute/Encode/Decode triples alongside VRAM.
+All triples use raw provider-defined units, not GiB/percentages/enforced ceilings. Normalize
 GUIDs; reject duplicate VMs and unknown fields. Several VMs may select the same GPU,
 subject to qualification. Parse once and pass typed values; no product config is embedded.
 
@@ -33,18 +35,21 @@ callers, then requires each selected VM to be discovered as Generation 2 and eac
 interface to match current discovery before changing installed artifacts or task state.
 VM display names and discovered driver versions do not bind enrollment.
 
-Compute/encode/decode fields are not implemented. Current artifacts/enrollment/
+Compute/encode/decode schema, capability, plan, write/readback and existing GUI
+editor bindings are implemented in source, pending tests/build/UI/live validation.
+Current artifacts/enrollment/
 journals use protected `HyperGpuSupportProduct` known-folder directories, not the
-approved future configuration location. `src/gui_model.rs::save_configuration`
-checks expected contents, flushes a temporary file, rechecks conflicts and renames;
-its unsaved state prevents repeating successful GPU operations for save failure.
-This is client-side whole-file saving, not worker-only ProgramData persistence or
-durable save-only recovery. Reuse the separation/conflict logic under CFG-001.
+approved future configuration location. Protected worker publication/import and
+durable save-only recovery exist in `configuration_store{,/protected}.rs` and
+`worker.rs`; their expanded acceptance remains pending. The older client-side
+`gui_model::save_configuration` helper retains conflict logic but is not the
+protected live publisher. Save failure never grants authority to replay GPU effects.
 
 ## OPEN-01: per-VM format
 
 **Selected for implementation, 9 October 2026 (DEC-032); not a completed persistence gate.** Keep
-schema-2 TOML and the existing `Configuration` / `Target` / `Allocation` models.
+schema-2 input compatibility and the existing `Configuration` / `Target` / `Allocation` models;
+DEC-033 adds schema 3 for four-category intent.
 Each `%ProgramData%\HyperGpuSupportProduct\config\vms\<vm-guid>.toml` contains exactly
 one target. The array envelope is retained deliberately so the CLI parser,
 validation and serialization remain identical; a new flat JSON/TOML model buys
@@ -69,13 +74,14 @@ with synthetic identities and illustrative raw integers, not measured limits.
 
 | Field | Required / meaning |
 |---|---|
-| `schema` | Required integer, exactly `2`; unknown versions fail |
+| `schema` | Required integer, `2` or `3`; unknown versions fail; schema 2 rejects Compute/Encode/Decode intent |
 | `targets` | Required array; exactly one entry for a per-VM file |
 | `targets.vm_id` | Required canonical GUID syntax; normalize content to lowercase, bind to the lowercase filename |
 | `targets.gpu_interface` | Required exact partitionable physical GPU interface; reuse current syntax validation, then fresh discovery/enrollment checks before effects |
 | `targets.enabled` | Required boolean expressing desired support, never inferred from attachment |
-| `targets.vram` | Optional table; omission requests **no allocation write**, preserving existing/provider values rather than resetting them |
-| `minimum`, `optimal`, `maximum` | All required if VRAM table exists; unsigned `u64`, minimum ≤ optimal ≤ maximum; zero is an explicit value, not absence |
+| `targets.vram` | Optional table; omission requests **no explicit allocation write**, with provider defaults for new/recreated adapters and retained values for adapters kept in place |
+| `targets.compute`, `targets.encode`, `targets.decode` | Optional schema-3 tables; each omitted category requests no explicit category write |
+| `minimum`, `optimal`, `maximum` | All required if a resource table exists; unsigned `u64`, minimum ≤ optimal ≤ maximum; zero is an explicit value, not absence |
 
 No VM display name, disks, CPU/RAM, guest OS, power, Secure Boot, driver version,
 payload digest, capabilities, verification timestamp, credential reference,
@@ -83,21 +89,29 @@ enrollment authority, recovery flags or GUI theme/slider preference goes in this
 intent document. Discover those facts or store them in their existing separate
 protected records. Credentials remain keyed to VM GUID in the vault, never files.
 
-Compute/encode/decode triples are **missing from schema 2**, not silently dropped
-or represented as zero. Their presence currently fails strict parsing. The initial
-release still requires GPU-010 to extend the shared intent/capability/readback
-model. A schema-3 extension and an explicit schema-2→3 import will be needed if
-those fields are introduced; no sample should pretend current execution supports
-them. The GPU Memory slider has no validated persistent/provider mapping yet.
+Compute/encode/decode triples remain **rejected in schema 2**. Schema 3 keeps this
+envelope and reuses `Allocation` for optional `[targets.compute]`, `[targets.encode]`
+and `[targets.decode]` tables. Parsing and `vm_documents` preserve the declared
+version; reading never rewrites or imports a file. `into_schema3` explicitly upgrades
+typed intent in memory. Protected publication after separately reviewed Apply writes
+schema 3, stated in Review; explicit imports retain their supplied schema and exact
+source/revision contract. Mixed protected files produce a schema-3 in-memory view,
+without changing source files or granting authority.
 
-The recommended future extension keeps this envelope and reuses `Allocation`
-for optional `[targets.compute]`, `[targets.encode]` and `[targets.decode]`
-tables, each with the same required three integers. It must use a new declared
-schema version and explicit import; do not add accepted-but-ignored fields to
-schema 2. File decoding may preserve unsupported intent, but plans/effects must
-reject any requested category without qualified input semantics and readback.
-This future shape is a proposal, not implemented parser support or a capability
-claim. Current samples intentionally contain only fields production accepts today.
+File decoding preserves structurally valid unsupported intent. Enabled plans reject
+requested categories without complete ordered provider ranges. Disabled intent may
+retain those requests but performs no resource writes. Native writes use fresh
+`Msvm_PartitionableGpu` limits and `Msvm_GpuPartitionSettingData` read/write properties
+for each category; final readback, save-only and reconciliation compare every request.
+See Microsoft's [capability properties](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-partitionablegpu)
+and [partition settings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-gpupartitionsettingdata).
+Missing/malformed category capability is unavailable, independently of other
+categories; old snapshots' direct VRAM ranges remain readable, with missing new
+capabilities unknown. Omitted observed values mean unobserved/unset, never zero.
+An omitted request performs no explicit category write; new/recreated attachments
+use provider defaults, and attachments retained in place keep existing values.
+Provider semantics and enforcement remain unqualified. All new source remains
+untested; the GPU Memory slider still has no validated mapping.
 
 ## Read and validation contract
 

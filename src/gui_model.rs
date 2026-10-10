@@ -1,6 +1,6 @@
 //! Native GUI presentation state; drafts never grant enrollment or mutate Hyper-V.
 use crate::{
-    model::{Configuration, Discovery, Power, Target, VmState},
+    model::{Configuration, Discovery, Power, Resource, Target, VmState},
     workflow::Journal,
 };
 use serde::{Deserialize, Serialize};
@@ -121,18 +121,12 @@ impl View {
             .map_or_else(
                 || "No saved desired configuration loaded".into(),
                 |target| {
-                    let allocation = target.vram.as_ref().map_or_else(
-                        || {
-                            "No explicit VRAM request; existing/provider values are not reset"
-                                .into()
-                        },
-                        |value| {
-                            format!(
-                                "VRAM provider integers: {} / {} / {}",
-                                value.minimum, value.optimal, value.maximum
-                            )
-                        },
-                    );
+                    let allocation = Resource::ALL.into_iter().map(|resource| {
+                        target.allocation(resource).map_or_else(
+                            || format!("No explicit {} request; existing/provider values are not reset", resource.name()),
+                            |value| format!("{} provider integers: {} / {} / {}", resource.name(), value.minimum, value.optimal, value.maximum),
+                        )
+                    }).collect::<Vec<_>>().join("; ");
                     format!(
                         "GPU {}; {}; {allocation}",
                         if target.enabled {
@@ -239,8 +233,8 @@ impl View {
             return Err("Guest preparation is not supported for this GPU vendor.".into());
         }
         target.validate()?;
-        if let Some(vram) = &target.vram {
-            vram.validate(&gpu.vram)?;
+        if target.enabled {
+            target.validate_allocations(gpu)?;
         }
         Ok(())
     }
@@ -354,6 +348,8 @@ impl View {
             .targets
             .retain(|old| old.vm_id != target.vm_id);
         self.configuration.targets.push(target.clone());
+        // Protected publication explicitly writes schema 3; never rewrite on read.
+        self.configuration.schema = 3;
         self.verified_unsaved = None;
         self.unsaved = false;
         if self
@@ -457,6 +453,9 @@ mod tests {
     use crate::model::{Allocation, Gpu, Settings};
     fn target(n: u8) -> Target {
         Target {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: format!("00000000-0000-0000-0000-{n:012}"),
             gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#fixture\GPUPARAV".into(),
             enabled: true,
@@ -465,6 +464,9 @@ mod tests {
     }
     fn vm(n: u8) -> VmState {
         VmState {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: target(n).vm_id,
             name: format!("VM {n}"),
             generation: 2,
@@ -485,6 +487,9 @@ mod tests {
                 issues: vec![],
                 vms: vec![vm(1), vm(2)],
                 gpus: vec![Gpu {
+                    compute: Default::default(),
+                    encode: Default::default(),
+                    decode: Default::default(),
                     interface: target(1).gpu_interface,
                     name: "GPU".into(),
                     vendor: 0x10de,
@@ -494,7 +499,8 @@ mod tests {
                         minimum: 0,
                         optimal: 50,
                         maximum: 100,
-                    },
+                    }
+                    .into(),
                     preparation_supported: true,
                 }],
             },

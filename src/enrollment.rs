@@ -20,6 +20,9 @@ impl PairReview {
     /// Enrollment carries identity only, never requested effects or allocation.
     pub fn target(&self) -> Result<Target, String> {
         let target = Target {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: self.vm_id.clone(),
             gpu_interface: self.gpu_interface.clone(),
             enabled: false,

@@ -1,7 +1,7 @@
 //! Read-only rehearsal input. Snapshot contents never authorize backend operations.
 use hyper_gpu_support::{
     gui_model::Inventory,
-    model::{Allocation, Gpu, Power, Settings, Target, VmState},
+    model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState},
     workflow::{self, Backend, Journal, Plan},
 };
 use std::{io::Read, path::Path};
@@ -127,7 +127,7 @@ impl Backend for RecordedBackend {
     fn settings(&mut self, _: &Target, _: &Settings) -> Result<(), String> {
         Err("Rehearsal effects are blocked".into())
     }
-    fn allocation(&mut self, _: &Target, _: &Allocation) -> Result<(), String> {
+    fn allocation(&mut self, _: &Target, _: Resource, _: &Allocation) -> Result<(), String> {
         Err("Rehearsal effects are blocked".into())
     }
     fn prepare(&mut self, _: &Target) -> Result<String, String> {
@@ -162,6 +162,9 @@ mod tests {
 
     fn inputs() -> (serde_json::Value, Target) {
         let target = Target {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: "12345678-1234-1234-1234-123456789abc".into(),
             gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#fixture\GPUPARAV".into(),
             enabled: true,
@@ -174,6 +177,9 @@ mod tests {
             automatic_checkpoints: true,
         };
         let vm = VmState {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: target.vm_id.clone(),
             name: "Synthetic VM".into(),
             generation: 2,
@@ -183,6 +189,9 @@ mod tests {
             vram: None,
         };
         let gpu = Gpu {
+            compute: Default::default(),
+            encode: Default::default(),
+            decode: Default::default(),
             interface: target.gpu_interface.clone(),
             name: "Synthetic GPU".into(),
             vendor: 0x10de,
@@ -193,10 +202,49 @@ mod tests {
                 minimum: 10,
                 optimal: 50,
                 maximum: 100,
-            },
+            }
+            .into(),
         };
         let value = serde_json::json!({"vms": [vm], "gpus": [gpu], "enrolled": [target], "managed": {(target.vm_id.clone()): null}});
         (value, target)
+    }
+
+    #[test]
+    fn historical_resources_require_recorded_positive_capability_and_never_write() {
+        let (mut value, mut target) = inputs();
+        target.enabled = false;
+        // Disable requests no category write even when unsupported intent is retained.
+        target.compute = Some(Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 100,
+        });
+        assert!(plan_bytes(&serde_json::to_vec(&value).unwrap(), &target, None).is_ok());
+        target.enabled = true;
+        let mut base = target.clone();
+        base.compute = None;
+        let inventory = parse(&serde_json::to_vec(&value).unwrap()).unwrap();
+        let recorded = workflow::plan(
+            &mut RecordedBackend {
+                inventory,
+                digest: Some("historical-payload".into()),
+            },
+            &base,
+        )
+        .unwrap();
+        value["plans"] = serde_json::to_value(vec![recorded]).unwrap();
+        assert!(
+            plan_bytes(&serde_json::to_vec(&value).unwrap(), &target, None)
+                .unwrap_err()
+                .contains("Compute")
+        );
+        value["gpus"][0]["compute"] =
+            serde_json::to_value(hyper_gpu_support::model::ResourceCapability::Supported(
+                target.compute.clone().unwrap(),
+            ))
+            .unwrap();
+        let plan = plan_bytes(&serde_json::to_vec(&value).unwrap(), &target, None).unwrap();
+        assert_eq!(plan.preview.compute, target.compute);
     }
 
     #[test]
@@ -280,7 +328,11 @@ mod tests {
         assert!(backend.power(&target, Power::Off).is_err());
         assert!(backend.assign(&target, true).is_err());
         assert!(backend.settings(&target, &vm.settings).is_err());
-        assert!(backend.allocation(&target, &gpu.vram).is_err());
+        assert!(
+            backend
+                .allocation(&target, Resource::Vram, gpu.limits(Resource::Vram).unwrap())
+                .is_err()
+        );
         assert!(backend.prepare(&target).is_err());
         assert!(backend.verify(&target, &gpu).is_err());
         let journal = Journal {

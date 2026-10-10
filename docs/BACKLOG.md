@@ -4,11 +4,11 @@
 
 ## Next implementation action
 
-**Start `CORE-028.1`: synchronize GUI recovery state after external completion.** Exact-pair enrollment, fixed first-install setup and the Details enrollment journey have independently reviewed source implementations. The explicitly authorized non-elevated quality gate now passes; the protected installation was updated and live GUI startup/discovery confirmed. Enrollment/setup interruption and GPU-effect acceptance remain pending. Existing GPU replacement and full-resource allocation work remains in the queue.
+**Start `SEC-001.3 / CORE-028`: reviewed physical GPU replacement through the existing selector.** CORE-028.1 recovery presentation and GPU-010.1–2 / GUI-002.3 four-category allocation are implemented pending validation. The allocation boundary received independent static review with no remaining blocker. The previously authorized quality gate and installed GUI startup/discovery apply to the earlier enrollment build; new recovery/allocation source remains unbuilt, untested and uninstalled. Enrollment/setup interruption and GPU-effect acceptance remain pending.
 
-Continue **`GPU-010.1` (full-resource schema/capabilities)** after the ready recovery-state fix. Source implementation is not authority to build, launch, install or exercise a runner. Inspect named modules and reuse working contracts; do not repeat a project audit.
+Continue **`SEC-001.4` / `GUI-002.4` (Forget pairing)** after reviewed replacement. Source implementation is not authority to build, launch, install or exercise a runner. Inspect named modules and reuse working contracts; do not repeat a project audit.
 
-If recovery-state work is blocked by a concrete external prerequisite, record it once and take **`GPU-010.1`** or **`GUI-003.1`**, which are independent ready source tasks. Do not substitute qualification or test infrastructure work.
+If replacement work is blocked by a concrete external prerequisite, record it once and take **`SEC-001.4`** or **`GUI-003.1`**, which are independent ready source tasks. Do not substitute qualification or test infrastructure work.
 
 ## Status and selection rules
 
@@ -28,10 +28,10 @@ Suffixes below are executable slices of existing IDs, not replacement projects. 
 | 2 | SEC-001.2 — fixed first-install bootstrap | implemented pending validation | SEC-001.1 source implemented |
 | 3 | GUI-002.1 — first-time Details enrollment | implemented pending validation | SEC-001.1–2 source implemented |
 | 4 | GUI-002.2 — truthful action availability/text | implemented pending validation | Existing live action handlers |
-| 5 | CORE-028.1 — synchronize GUI recovery state | ready | Existing recovery/store reads |
-| 6 | GPU-010.1 — shared full-resource capability/schema | ready | Existing raw VRAM model/native provider adapter |
-| 7 | GPU-010.2 — resource planning/write/readback | blocked | GPU-010.1 |
-| 8 | GUI-002.3 — bind supported allocation fields | blocked | GPU-010.2 |
+| 5 | CORE-028.1 — synchronize GUI recovery state | implemented pending validation | Existing recovery/store reads |
+| 6 | GPU-010.1 — shared full-resource capability/schema | implemented pending validation | Existing raw VRAM model/native provider adapter |
+| 7 | GPU-010.2 — resource planning/write/readback | implemented pending validation | GPU-010.1 source implemented |
+| 8 | GUI-002.3 — bind supported allocation fields | implemented pending validation | GPU-010.2 source implemented |
 | 9 | SEC-001.3 / CORE-028 — reviewed GPU replacement | ready | SEC-001.1, GUI-002.1 source implemented |
 | 10 | SEC-001.4 — protected Forget pairing backend | ready | SEC-001.1 source implemented |
 | 11 | GUI-002.4 — bind Forget pairing dialog | blocked | SEC-001.4 |
@@ -84,28 +84,32 @@ Ready does not mean qualified. Provider-dependent fields may remain unavailable 
 
 - **What / Why:** synchronize GUI state with durable recovery across Refresh. Current `refresh` sets `view.unsaved`/`verified_unsaved` only when a recovery record exists; after CLI save/reconciliation removes it, stale in-memory save-only state can remain.
 - **Where:** `src/gui/live.rs::{refresh,save_only_live,reconcile_live}`, `src/gui/live_state.rs`, `src/gui_model.rs::{View,apply_target,published}`.
-- **Depends on / Status:** existing durable records/committed reads; **ready**.
+- **Depends on / Status:** existing durable records/committed reads; **implemented pending validation**.
+- **Result (10 October):** Refresh derives save-only presentation from fresh durable records. An absent record clears retained verified-unsaved intent only after matching readable committed intent; missing/unreadable/mismatched publication blocks execution. External completion preserves drafts and existing revision conflicts. Standalone Verify never offers configuration publication; import/enrollment records retain their separate holds. Failed reads retain loaded recovery and invalidate readiness. Four focused regressions authored; no tests, builds, GUI launches or live validation run.
 - **Done when:** successful fresh reads derive unsaved/recovery state for record-present, record-absent, standalone Verify and import cases. Confirm committed/readback facts before releasing any hold; read errors never imply absence. Preserve or explicitly conflict an existing draft when another frontend completes publication. Clear stale review/execution readiness after failed/changed reads. Add regression coverage for external save/reconcile and unreadable records; never replay effects or automatically clear durable recovery.
 
 ### GPU-010.1 — shared full-resource schema and capabilities
 
-- **What / Why:** represent supported VRAM/Compute/Encode/Decode triples and observed limits. `Target`, `Gpu` and `VmState` currently expose VRAM only.
-- **Where:** `src/model.rs`, `src/windows_hyperv.rs::{discover_gpus,inspect,read_vram}`, `src/configuration_store.rs`, `src/gui_model.rs`; affected schema contract in `docs/CONFIGURATION.md`.
-- **Depends on / Status:** existing native WMI/model/parser; **ready**.
+- **What / Why:** represent supported VRAM/Compute/Encode/Decode triples and observed limits through the shared model.
+- **Where:** `src/model.rs`, `src/windows_hyperv.rs::{discover_gpus,inspect,read_optional_resource}`, `src/configuration_store.rs`, `src/gui_model.rs`; affected schema contract in `docs/CONFIGURATION.md`.
+- **Depends on / Status:** existing native WMI/model/parser; **implemented pending validation**.
+- **Result (10 October):** schema 3 adds optional raw Compute/Encode/Decode triples; schema 2 remains readable and rejects new intent. Parsing/splitting preserve versions; typed upgrade is explicit, and new reviewed publication writes schema 3. All four native capabilities isolate missing/malformed ranges; legacy VRAM snapshot ranges remain readable and missing capabilities stay unknown. Official Microsoft property contracts checked. Parser/round-trip/u64/legacy-capture regressions authored; no tests/builds/live validation run. DEC-033 records the contract.
 - **Done when:** verify relevant official provider property contracts as part of implementation; typed capabilities distinguish supported, unavailable/unknown and unset per category. Version the intent extension explicitly, retaining schema-2 input support and deliberate upgrade/serialization rules. Preserve omission as no write, reject partial/out-of-order/out-of-range/unknown input, and use the same parser for CLI/GUI/fixtures. No guessed bytes/percentages or enforcement promises. Unknown provider evidence blocks only the affected category, recorded once.
 
 ### GPU-010.2 — plan, apply and read back resource triples
 
-- **What / Why:** complete native backend behavior for the new categories; current `Backend::allocation` and setter/readback cover raw VRAM only.
+- **What / Why:** complete native backend behavior for all four categories through the existing operation boundary.
 - **Where:** `src/workflow.rs::{Backend,decision,Plan,apply_approved,reconcile_observed}`, `src/windows_hyperv.rs::allocation`, `src/runner.rs::NativeBackend`, `src/worker.rs`, `src/configuration_store.rs` verified receipts.
-- **Depends on / Status:** GPU-010.1; **blocked on model**.
+- **Depends on / Status:** GPU-010.1; **implemented pending validation**.
+- **Result (10 October):** typed category writes recheck fresh native ranges and independent category readback. Shared review enumerates exact triples; admission retains mutable-state checks; final verification/save-only/reconciliation compare every request. Omission performs no explicit write; new/recreated adapters retain provider-default behavior. Authored ordering/omission/unknown-capability/drift/partial-failure/readback/receipt regressions. Independent static boundary review findings fixed and re-reviewed; no remaining blocker. Tests/builds/provider behavior remain unverified; no protected installation/effect exercised.
 - **Done when:** reviews enumerate exact per-category writes; fresh limits/identity are checked before effects, each requested triple has independent readback, and save-only/reconciliation compares all requested categories. Omitted resources are retained/no-write, not reset to zero. Preserve default behavior, separate consent and recovery on partial writes. Author focused fake-backend ordering/drift/failure tests; hardware enforcement remains unclaimed.
 
 ### GUI-002.3 — supported allocation editor bindings
 
-- **What / Why:** connect nine currently rejected/disabled fields alongside existing VRAM. `State::draft` rejects nonempty Compute/Encode/Decode values; Slint permits those editors only in fixtures.
+- **What / Why:** connect the existing twelve allocation fields to the shared category capabilities and backend.
 - **Where:** `src/gui/live_state.rs::{draft,allocation_values,review_text}`, `src/gui/live.rs::{present,refresh}`, `src/gui/ui/{details,resources}.slint`, `src/gui/snapshot.rs`.
-- **Depends on / Status:** GPU-010.2; **blocked on backend**.
+- **Depends on / Status:** GPU-010.2; **implemented pending validation**.
+- **Result (10 October):** Details binds each supported raw triple, preserves invalid text, allows clearing existing unsupported requests, and distinguishes capability absence from omitted intent. Review, observed/saved labels and System display all categories. Disabled targets perform no resource writes. Snapshot rehearsal requires recorded positive capability and retains no-write behavior; old snapshots cannot invent new support. Source formatted and focused GUI/snapshot regressions authored; no builds/tests/render/UI launch/live acceptance run. Approved controls/layout preserved.
 - **Done when:** each category's editability, raw values, bounds, validation, review and readback use shared capability/types; unsupported/unknown stays truthful. Retain invalid raw text, one selected-VM draft and stale/conflict behavior. Snapshot rehearsal accepts only recorded supported capabilities, with no live discovery/effects or new mock format.
 
 ### SEC-001.3 / CORE-028 — reviewed physical GPU replacement
@@ -184,7 +188,7 @@ Ready does not mean qualified. Provider-dependent fields may remain unavailable 
 | SEC-001 | Trusted artifacts, authenticated pipes, `runner::operation_lock`, `require_no_recovery`, worker commands | implemented pending validation for expanded scope; add named enrollment/removal boundaries only |
 | CORE-028 | `live.rs` Apply/Verify/progress/save-only/reconcile; `worker.rs` durable phases and shared admitted execution/readback | implemented pending validation; named state/transfer/replacement gaps remain |
 | CORE-021 | Shared configuration/parser/enrollment rules and CLI operation paths | existing core implemented; aggregate GUI parity closes with owning slices, no parallel parser/backend project |
-| GPU-010 | Raw VRAM model/range checks/native setter/readback; exact GPU discovery | partial implementation; remaining four-category/selector/slider work above |
+| GPU-010 | Shared four-category schema/capabilities/plan/native writes/readback and existing editor bindings; exact GPU discovery | implemented pending validation for GPU-010.1–2 / GUI-002.3; replacement and slider mapping remain |
 | GUI-003 | Reported scoped mock/software-renderer sizing/page/Review checks | scoped historical result; current live/UI milestone acceptance pending |
 | PLAN-001 | Previous scoped architecture/source/document review | completed; no recurring audit prerequisite |
 

@@ -20,6 +20,8 @@ export component VmDetails inherits Rectangle {
     in-out property <int> gpu-index;
     in-out property <int> memory-gb: 4;
     in-out property <[string]> values;
+    in property <[bool]> resource-available;
+    in property <[string]> resource-hints;
     in property <string> validation;
     private property <bool> technical: false;
     private property <bool> advanced-expanded: false;
@@ -62,7 +64,7 @@ export component VmDetails inherits Rectangle {
                         }
                         HorizontalLayout { Hint { text: root.mock-mode ? "1 GB" : "—"; } Hint { text: root.mock-mode ? "8 GB" : "—"; horizontal-alignment: right; } }
                         Hint { text: root.mock-mode ? "Visual mock preference only. Does not change the advanced fields or allocate physical VRAM." : "Real memory mapping is not implemented. No allocation or physical GB amount is claimed."; }
-                        Hint { visible: Theme.show-help; text: root.snapshot-mode ? "Historical draft rehearsal only. Review uses recorded inputs; stages are simulated and nothing is saved or executed." : root.mock-mode ? "Changes stay in memory. Shared GPU use is not qualified." : "Drafts stay in memory. Review reads a fresh shared plan; execution is unavailable. Shared GPU use is not qualified."; }
+                        Hint { visible: Theme.show-help; text: root.snapshot-mode ? "Historical draft rehearsal only. Review uses recorded inputs; stages are simulated and nothing is saved or executed." : root.mock-mode ? "Changes stay in memory. Shared GPU use is not qualified." : "Drafts stay in memory. Review reads a fresh shared plan; approved execution uses the protected worker. Shared GPU use is not qualified."; }
                     }
                 }
                 if root.status == "Setup required" : Surface {
@@ -86,11 +88,11 @@ export component VmDetails inherits Rectangle {
                 }
                 if root.advanced-expanded : VerticalLayout {
                     spacing: 14px;
-                    Hint { text: root.mock-mode ? "All numbers below are mock capabilities, not current GPU limits. Minimum ≤ Optimal ≤ Maximum." : "VRAM uses raw provider integers; System shows current bounds. Leave all three empty for provider defaults. Compute, encode and decode are unavailable."; }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "VRAM"; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; editable: root.eligible && !root.recovery; edited(index, value) => { root.values[index] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Compute"; minimum : root.values[3]; optimal : root.values[4]; maximum : root.values[5]; editable: root.mock-mode && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 3] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Encode"; minimum : root.values[6]; optimal : root.values[7]; maximum : root.values[8]; editable: root.mock-mode && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 6] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Decode"; minimum : root.values[9]; optimal : root.values[10]; maximum : root.values[11]; editable: root.mock-mode && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 9] = value; root.edited(); } }
+                    Hint { text: root.mock-mode ? "All numbers below are mock capabilities, not current GPU limits. Minimum ≤ Optimal ≤ Maximum." : "Raw provider integers; Minimum ≤ Optimal ≤ Maximum. Leave all three empty for no explicit write. New/recreated attachments use provider defaults; attachments retained in place keep existing values."; }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "VRAM"; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; editable: (root.mock-mode || root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.values[index] = value; root.edited(); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Compute"; capability-text: root.resource-hints[1]; minimum : root.values[3]; optimal : root.values[4]; maximum : root.values[5]; editable: (root.mock-mode || root.resource-available[1] || root.values[3] != "" || root.values[4] != "" || root.values[5] != "") && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 3] = value; root.edited(); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Encode"; capability-text: root.resource-hints[2]; minimum : root.values[6]; optimal : root.values[7]; maximum : root.values[8]; editable: (root.mock-mode || root.resource-available[2] || root.values[6] != "" || root.values[7] != "" || root.values[8] != "") && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 6] = value; root.edited(); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Decode"; capability-text: root.resource-hints[3]; minimum : root.values[9]; optimal : root.values[10]; maximum : root.values[11]; editable: (root.mock-mode || root.resource-available[3] || root.values[9] != "" || root.values[10] != "" || root.values[11] != "") && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 9] = value; root.edited(); } }
                 }
                 if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }
                 HorizontalLayout {

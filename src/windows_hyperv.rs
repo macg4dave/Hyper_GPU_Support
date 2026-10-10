@@ -37,8 +37,11 @@ pub fn inspect(id: &str) -> Result<VmState, String> {
             .flatten()
             .collect()
     };
-    let vram = gpus.first().map(read_optional_vram).transpose()?.flatten();
+    let vram = observed_resource(gpus.first(), Resource::Vram);
     Ok(VmState {
+        compute: observed_resource(gpus.first(), Resource::Compute),
+        encode: observed_resource(gpus.first(), Resource::Encode),
+        decode: observed_resource(gpus.first(), Resource::Decode),
         vm_id: vm.string("Name")?.to_ascii_lowercase(),
         name: vm.string("ElementName")?,
         power: match vm.number("EnabledState")? {
@@ -83,26 +86,40 @@ fn selected_gpu_interface(
     }
     Ok(interface.clone())
 }
-fn read_vram(o: &Object) -> Result<Allocation, String> {
-    Ok(Allocation {
-        minimum: o.number("MinPartitionVRAM")?,
-        maximum: o.number("MaxPartitionVRAM")?,
-        optimal: o.number("OptimalPartitionVRAM")?,
-    })
-}
-fn read_optional_vram(o: &Object) -> Result<Option<Allocation>, String> {
+fn read_optional_resource(o: &Object, resource: Resource) -> Result<Option<Allocation>, String> {
+    let name = resource.name();
     match (
-        o.optional_number("MinPartitionVRAM")?,
-        o.optional_number("MaxPartitionVRAM")?,
-        o.optional_number("OptimalPartitionVRAM")?,
+        o.optional_number(&format!("MinPartition{name}"))?,
+        o.optional_number(&format!("MaxPartition{name}"))?,
+        o.optional_number(&format!("OptimalPartition{name}"))?,
     ) {
         (None, None, None) => Ok(None),
-        (Some(minimum), Some(maximum), Some(optimal)) => Ok(Some(Allocation {
-            minimum,
-            maximum,
-            optimal,
-        })),
-        _ => Err("GPU allocation readback is partially specified".into()),
+        (Some(minimum), Some(maximum), Some(optimal)) => {
+            let value = Allocation {
+                minimum,
+                maximum,
+                optimal,
+            };
+            value.validate(&value)?;
+            Ok(Some(value))
+        }
+        _ => Err(format!("{name} allocation readback is partially specified")),
+    }
+}
+fn observed_resource(o: Option<&Object>, resource: Resource) -> Option<Allocation> {
+    // Missing/malformed observations stay unknown. Requested writes require a
+    // successful independent read below; this never manufactures zero/defaults.
+    o.and_then(|o| read_optional_resource(o, resource).ok().flatten())
+}
+fn resource_capability(o: &Object, resource: Resource) -> ResourceCapability {
+    match read_optional_resource(o, resource) {
+        Ok(Some(limits)) => ResourceCapability::Supported(limits),
+        Ok(None) => {
+            ResourceCapability::Unavailable("Provider did not report a complete range".into())
+        }
+        Err(_) => {
+            ResourceCapability::Unavailable("Provider range could not be read or validated".into())
+        }
     }
 }
 /// Enumerate all partitionable GPUs, without claiming preparation support for unimplemented vendors.
@@ -174,6 +191,9 @@ fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
         };
         let vendor = pci("VEN_")?;
         gpus.push(Gpu {
+            compute: resource_capability(&o, Resource::Compute),
+            encode: resource_capability(&o, Resource::Encode),
+            decode: resource_capability(&o, Resource::Decode),
             interface,
             name: row.get("DeviceName").ok_or("missing GPU name")?.clone(),
             driver_version: row
@@ -182,7 +202,7 @@ fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
                 .clone(),
             vendor,
             device: pci("DEV_")?,
-            vram: read_vram(&o)?,
+            vram: resource_capability(&o, Resource::Vram),
             preparation_supported: vendor == 0x10de,
         });
     }
@@ -279,31 +299,34 @@ pub fn configure(t: &Target, value: &Settings) -> Result<(), String> {
     }
     Ok(())
 }
-/// Apply provider-defined VRAM values, with actual range validation and readback.
-pub fn allocation(t: &Target, value: &Allocation) -> Result<(), String> {
+/// Apply one raw provider resource with fresh range validation and readback.
+pub fn allocation(t: &Target, resource: Resource, value: &Allocation) -> Result<(), String> {
     require_off(t)?;
     let s = Session::new(TIMEOUT)?;
     let gpu = s.one(&format!(
         "SELECT * FROM Msvm_PartitionableGpu WHERE Name='{}'",
         quoted(&t.gpu_interface)
     ))?;
-    value.validate(&read_vram(&gpu)?)?;
+    let limits = read_optional_resource(&gpu, resource)?
+        .ok_or_else(|| format!("{} capability unavailable", resource.name()))?;
+    value.validate(&limits)?;
     let cfg = settings(&s, &t.vm_id)?;
     let adapter = one(s.related(&cfg, "Msvm_GpuPartitionSettingData")?)?;
-    for (name, n) in [
-        ("MinPartitionVRAM", value.minimum),
-        ("MaxPartitionVRAM", value.maximum),
-        ("OptimalPartitionVRAM", value.optimal),
+    let name = resource.name();
+    for (property, n) in [
+        (format!("MinPartition{name}"), value.minimum),
+        (format!("MaxPartition{name}"), value.maximum),
+        (format!("OptimalPartition{name}"), value.optimal),
     ] {
-        adapter.set_number(name, n)?;
+        adapter.set_number(&property, n)?;
     }
     s.modify(
         &s.one("SELECT * FROM Msvm_VirtualSystemManagementService")?,
         &adapter,
         false,
     )?;
-    if inspect(&t.vm_id)?.vram.as_ref() != Some(value) {
-        return Err("VRAM allocation readback failed".into());
+    if inspect(&t.vm_id)?.allocation(resource) != Some(value) {
+        return Err(format!("{name} allocation readback failed"));
     }
     Ok(())
 }

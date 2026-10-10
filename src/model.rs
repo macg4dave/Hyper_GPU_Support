@@ -23,6 +23,83 @@ pub struct Target {
     /// Optional provider-defined VRAM triple; absent requests no allocation write.
     #[serde(default)]
     pub vram: Option<Allocation>,
+    /// Optional raw compute request; omission performs no compute write.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compute: Option<Allocation>,
+    /// Optional raw encode request; omission performs no encode write.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encode: Option<Allocation>,
+    /// Optional raw decode request; omission performs no decode write.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decode: Option<Allocation>,
+}
+/// Fixed provider resource categories, in the approved editor order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub enum Resource {
+    /// Video memory, in raw provider units.
+    Vram,
+    /// Compute engines, in raw provider units.
+    Compute,
+    /// Encode engines, in raw provider units.
+    Encode,
+    /// Decode engines, in raw provider units.
+    Decode,
+}
+impl Resource {
+    /// All resource categories in editor order.
+    pub const ALL: [Self; 4] = [Self::Vram, Self::Compute, Self::Encode, Self::Decode];
+    /// Provider property suffix and operator label.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Vram => "VRAM",
+            Self::Compute => "Compute",
+            Self::Encode => "Encode",
+            Self::Decode => "Decode",
+        }
+    }
+}
+/// Capability evidence; unavailable is distinct from an omitted request.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub enum ResourceCapability {
+    /// Older captures or missing provider evidence cannot authorize writes.
+    #[default]
+    Unknown,
+    /// A complete ordered native provider range was read.
+    Supported(Allocation),
+    /// The category could not be read/validated; other categories remain usable.
+    Unavailable(String),
+}
+impl ResourceCapability {
+    /// Report usable raw limits only for positively observed capability.
+    pub fn limits(&self) -> Option<&Allocation> {
+        match self {
+            Self::Supported(limits) if limits.validate(limits).is_ok() => Some(limits),
+            _ => None,
+        }
+    }
+}
+impl From<Allocation> for ResourceCapability {
+    fn from(value: Allocation) -> Self {
+        Self::Supported(value)
+    }
+}
+fn deserialize_vram_capability<'de, D>(deserializer: D) -> Result<ResourceCapability, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    // Historical captures stored the positive VRAM range directly. Missing
+    // capability remains Unknown; no range is inferred for other categories.
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Recorded {
+        Capability(ResourceCapability),
+        Legacy(Allocation),
+    }
+    Ok(match Recorded::deserialize(deserializer)? {
+        Recorded::Capability(value) => value,
+        Recorded::Legacy(value) => value.into(),
+    })
 }
 /// Provider-defined values, not a claim of bytes, percentages or a hard limit.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -43,13 +120,20 @@ impl Allocation {
             || self.minimum < limits.minimum
             || self.maximum > limits.maximum
         {
-            return Err("VRAM request is outside the provider's reported range".into());
+            return Err("resource request is outside the provider's reported range".into());
         }
         Ok(())
     }
 }
 impl Configuration {
-    /// Prepare canonical per-VM documents for an explicit schema-2 import.
+    /// Explicit read-only upgrade; existing files are never rewritten by parsing.
+    /// New category intent may be added to the returned schema-3 configuration.
+    pub fn into_schema3(mut self) -> Result<Self, String> {
+        self.validate()?;
+        self.schema = 3;
+        Ok(self)
+    }
+    /// Prepare canonical per-VM documents, preserving the declared schema version.
     /// Reuses the production serializer and validates programmatically supplied
     /// intent. This is a read-only transformation: no publication, enrollment or
     /// VM operation occurs. Destination conflict/trust checks belong to the writer.
@@ -72,7 +156,7 @@ impl Configuration {
             .collect()
     }
 
-    /// Parse a GUID-keyed per-VM file with the existing production schema-2 parser.
+    /// Parse a GUID-keyed per-VM file with the shared production schema parser.
     /// The filename is canonical lowercase `<vm-guid>.toml`; it must match the
     /// sole target. This validates intent syntax, not enrollment or provider state.
     pub fn parse_vm_file(text: &str, filename: &str) -> Result<Self, String> {
@@ -124,12 +208,15 @@ impl Configuration {
 
     /// Validate runtime intent, including values constructed by native callers.
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != 2 || self.targets.is_empty() || self.targets.len() > 128 {
-            return Err("configuration requires schema 2 and 1..128 targets".into());
+        if !matches!(self.schema, 2 | 3) || self.targets.is_empty() || self.targets.len() > 128 {
+            return Err("configuration requires schema 2 or 3 and 1..128 targets".into());
         }
         let mut ids = std::collections::BTreeSet::new();
         for target in &self.targets {
             target.validate()?;
+            if self.schema == 2 && target.has_extended_resources() {
+                return Err("Compute/Encode/Decode intent requires explicit schema 3".into());
+            }
             if !ids.insert(target.vm_id.to_ascii_lowercase()) {
                 return Err("each VM may occur only once".into());
             }
@@ -138,6 +225,55 @@ impl Configuration {
     }
 }
 impl Target {
+    /// Read a requested category; omission always means no explicit write.
+    pub fn allocation(&self, resource: Resource) -> Option<&Allocation> {
+        match resource {
+            Resource::Vram => self.vram.as_ref(),
+            Resource::Compute => self.compute.as_ref(),
+            Resource::Encode => self.encode.as_ref(),
+            Resource::Decode => self.decode.as_ref(),
+        }
+    }
+    /// Stage a typed request without effects or configuration publication.
+    pub fn set_allocation(&mut self, resource: Resource, value: Option<Allocation>) {
+        match resource {
+            Resource::Vram => self.vram = value,
+            Resource::Compute => self.compute = value,
+            Resource::Encode => self.encode = value,
+            Resource::Decode => self.decode = value,
+        }
+    }
+    /// Extended requests require schema 3 when explicitly published/imported.
+    pub fn has_extended_resources(&self) -> bool {
+        self.compute.is_some() || self.encode.is_some() || self.decode.is_some()
+    }
+    /// Clear requests only for identity/proposal checks, never committed intent.
+    pub fn clear_allocations(&mut self) {
+        for resource in Resource::ALL {
+            self.set_allocation(resource, None);
+        }
+    }
+    /// Independently compare every requested category; omitted categories are ignored.
+    pub fn allocations_match(&self, state: &VmState) -> bool {
+        Resource::ALL.into_iter().all(|resource| {
+            self.allocation(resource)
+                .is_none_or(|value| state.allocation(resource) == Some(value))
+        })
+    }
+    /// Validate each requested category against its fresh provider evidence.
+    pub fn validate_allocations(&self, gpu: &Gpu) -> Result<(), String> {
+        for resource in Resource::ALL {
+            if let Some(value) = self.allocation(resource) {
+                let limits = gpu.limits(resource).ok_or_else(|| {
+                    format!("{} capability is unavailable or unknown", resource.name())
+                })?;
+                value
+                    .validate(limits)
+                    .map_err(|error| format!("{}: {error}", resource.name()))?;
+            }
+        }
+        Ok(())
+    }
     /// Validate target syntax before queries or privileged effects.
     pub fn validate(&self) -> Result<(), String> {
         let id = self.vm_id.as_bytes();
@@ -159,12 +295,13 @@ impl Target {
         {
             return Err("invalid VM GUID or GPU partition interface".into());
         }
-        if self
-            .vram
-            .as_ref()
-            .is_some_and(|v| v.minimum > v.optimal || v.optimal > v.maximum)
-        {
-            return Err("invalid VRAM allocation ordering".into());
+        for resource in Resource::ALL {
+            if self
+                .allocation(resource)
+                .is_some_and(|v| v.minimum > v.optimal || v.optimal > v.maximum)
+            {
+                return Err(format!("invalid {} allocation ordering", resource.name()));
+            }
         }
         Ok(())
     }
@@ -219,6 +356,26 @@ pub struct VmState {
     pub settings: Settings,
     /// Effective partition VRAM settings if assigned.
     pub vram: Option<Allocation>,
+    /// Observed compute triple; absent means not observed/unset, never zero.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compute: Option<Allocation>,
+    /// Observed encode triple.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encode: Option<Allocation>,
+    /// Observed decode triple.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decode: Option<Allocation>,
+}
+impl VmState {
+    /// Read an independently observed resource triple.
+    pub fn allocation(&self, resource: Resource) -> Option<&Allocation> {
+        match resource {
+            Resource::Vram => self.vram.as_ref(),
+            Resource::Compute => self.compute.as_ref(),
+            Resource::Encode => self.encode.as_ref(),
+            Resource::Decode => self.decode.as_ref(),
+        }
+    }
 }
 /// Partitionable host GPU discovery.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -233,10 +390,60 @@ pub struct Gpu {
     pub device: u32,
     /// Current driver version.
     pub driver_version: String,
-    /// Reported VRAM allocation range.
-    pub vram: Allocation,
+    /// VRAM capability; historical positive ranges remain readable.
+    #[serde(default, deserialize_with = "deserialize_vram_capability")]
+    pub vram: ResourceCapability,
+    /// Compute capability; missing historical fields default to unknown.
+    #[serde(default)]
+    pub compute: ResourceCapability,
+    /// Encode capability.
+    #[serde(default)]
+    pub encode: ResourceCapability,
+    /// Decode capability.
+    #[serde(default)]
+    pub decode: ResourceCapability,
     /// Whether automatic guest preparation is implemented for this vendor.
     pub preparation_supported: bool,
+}
+impl Gpu {
+    /// Complete validated limits, without inventing units or missing capability.
+    pub fn limits(&self, resource: Resource) -> Option<&Allocation> {
+        match resource {
+            Resource::Vram => self.vram.limits(),
+            Resource::Compute => self.compute.limits(),
+            Resource::Encode => self.encode.limits(),
+            Resource::Decode => self.decode.limits(),
+        }
+    }
+    /// Present actual category bounds or the reason capability is unavailable.
+    pub fn resource_text(&self, resource: Resource) -> String {
+        if let Some(limits) = self.limits(resource) {
+            return format!(
+                "{} raw provider range: {} .. {} (optimal {}); no physical GB or enforcement claim",
+                resource.name(),
+                limits.minimum,
+                limits.maximum,
+                limits.optimal
+            );
+        }
+        let capability = match resource {
+            Resource::Vram => &self.vram,
+            Resource::Compute => &self.compute,
+            Resource::Encode => &self.encode,
+            Resource::Decode => &self.decode,
+        };
+        let reason = match capability {
+            ResourceCapability::Unknown => {
+                "Capability unknown; new nonempty requests unavailable; clear existing values to omit"
+            }
+            ResourceCapability::Unavailable(reason) => reason.as_str(),
+            ResourceCapability::Supported(_) => "Invalid provider range; editing unavailable",
+        };
+        format!(
+            "{}: {reason}. Clear an existing request to omit this category.",
+            resource.name()
+        )
+    }
 }
 /// Discovery data used identically by CLI and GUI.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -259,6 +466,30 @@ vm_id = "ABCDEF01-2345-6789-ABCD-EF0123456789"
 gpu_interface = '\\?\PCI#VEN_10DE&DEV_2D05#test\GPUPARAV'
 enabled = true
 "#;
+    #[test]
+    fn historical_gpu_ranges_remain_readable_and_missing_categories_are_unknown() {
+        let raw = serde_json::json!({
+            "interface": "synthetic", "name": "GPU", "vendor": 4318, "device": 1,
+            "driver_version": "historical", "preparation_supported": true,
+            "vram": {"minimum": 10, "optimal": 50, "maximum": 100}
+        });
+        let historical: Gpu = serde_json::from_value(raw).unwrap();
+        assert!(historical.limits(Resource::Vram).is_some());
+        assert!(historical.limits(Resource::Compute).is_none());
+        assert_eq!(historical.compute, ResourceCapability::Unknown);
+        let mut current = historical;
+        current.vram = ResourceCapability::Unavailable("VRAM unknown".into());
+        current.compute = Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 100,
+        }
+        .into();
+        let round_trip: Gpu =
+            serde_json::from_slice(&serde_json::to_vec(&current).unwrap()).unwrap();
+        assert!(round_trip.limits(Resource::Vram).is_none());
+        assert!(round_trip.limits(Resource::Compute).is_some());
+    }
     #[test]
     fn normalizes_vm_ids_and_rejects_case_insensitive_duplicates() {
         let configuration = Configuration::parse(CONFIG).unwrap();

@@ -39,6 +39,8 @@ export component AppWindow inherits Window {
     in-out property <int> gpu-index: 0;
     in-out property <int> memory-gb: 4;
     in-out property <[string]> values: ["100", "500", "1000", "100", "500", "1000", "100", "500", "1000", "100", "500", "1000"];
+    in property <[bool]> resource-available: [false, false, false, false];
+    in property <[string]> resource-hints: ["Capability unknown", "Capability unknown", "Capability unknown", "Capability unknown"];
     in-out property <string> validation;
     in-out property <string> notice: "Explore safely. This workspace uses sample VMs and GPUs.";
     in-out property <string> dialog-kind;
@@ -118,6 +120,7 @@ export component AppWindow inherits Window {
                             observed: root.observed; desired: root.desired; verification: root.verification;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
                             gpu-enabled <=> root.gpu-enabled; gpu-index <=> root.gpu-index; values <=> root.values;
+                            resource-available: root.resource-available; resource-hints: root.resource-hints;
                             memory-gb <=> root.memory-gb;
                             validation: root.validation;
                             edited => { root.edited(); }

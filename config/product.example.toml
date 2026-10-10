@@ -1,5 +1,8 @@
 # Operator intent only. Obtain stable IDs from native inventory after runner setup,
 # or Hyper-V Manager / the operating system. Never put credentials in this file.
+# Schema 2 remains supported. Select schema 3 explicitly before adding optional
+# [targets.compute], [targets.encode] or [targets.decode] triples with the same
+# three keys as VRAM below. Populate only fresh provider-supported raw values.
 schema = 2
 
 [[targets]]
@@ -8,7 +11,8 @@ gpu_interface = '\\?\PCI#VEN_10DE&DEV_2D05#INSTANCE#{064092b3-625e-43bf-9eb5-dc8
 enabled = true
 
 # Advanced allocation uses actual provider-defined units. Omit for no explicit
-# allocation write; existing/provider values are not reset.
+# allocation write. New/recreated adapters use provider defaults; an adapter
+# retained in place keeps its existing values. No physical GB or enforcement claim.
 # [targets.vram]
 # minimum = 0
 # optimal = 0

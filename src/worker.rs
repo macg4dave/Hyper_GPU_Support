@@ -3,7 +3,7 @@
 use crate::{
     configuration_store::{self, Revision, SavePhase, SaveRecord},
     credentials::Credential,
-    model::{Allocation, Configuration, Gpu, Power, Settings, Target, VmState},
+    model::{Allocation, Configuration, Gpu, Power, Resource, Settings, Target, VmState},
     runner::{self, NativeBackend},
     windows_pipe::{self, session::Pipe},
     workflow::{self, Backend, Journal, OperationResult, Plan},
@@ -673,7 +673,7 @@ fn execute(
                     &serde_json::to_vec(&current).map_err(|e| e.to_string())?,
                 ),
                 intended_source: Configuration {
-                    schema: 2,
+                    schema: 3,
                     targets: vec![approved.desired.clone()],
                 }
                 .vm_documents()?
@@ -776,7 +776,7 @@ fn execute(
                     &serde_json::to_vec(&approved).map_err(|e| e.to_string())?,
                 ),
                 intended_source: Configuration {
-                    schema: 2,
+                    schema: 3,
                     targets: vec![approved.target.clone()],
                 }
                 .vm_documents()?
@@ -926,7 +926,7 @@ fn execute(
             let mut checked_target = record.target.clone();
             if !record.publication_required {
                 checked_target.enabled = true;
-                checked_target.vram = None;
+                checked_target.clear_allocations();
             }
             let result = workflow::reconcile_observed(
                 &mut ObservedBackend {
@@ -1186,8 +1186,8 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
     fn settings(&mut self, t: &Target, s: &Settings) -> Result<(), String> {
         self.effect("Compatibility settings", |b| b.settings(t, s))
     }
-    fn allocation(&mut self, t: &Target, a: &Allocation) -> Result<(), String> {
-        self.effect("Provider allocation", |b| b.allocation(t, a))
+    fn allocation(&mut self, t: &Target, resource: Resource, a: &Allocation) -> Result<(), String> {
+        self.effect("Provider allocation", |b| b.allocation(t, resource, a))
     }
     fn prepare(&mut self, t: &Target) -> Result<String, String> {
         if let Some(before) = &mut self.before_effect {

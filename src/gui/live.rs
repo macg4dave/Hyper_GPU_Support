@@ -6,7 +6,7 @@ use super::{
 };
 use hyper_gpu_support::{
     gui_model::Inventory,
-    model::{Discovery, Power, Target, VmState},
+    model::{Discovery, Power, Resource, Target, VmState},
     workflow::Plan,
 };
 use slint::{ComponentHandle, Model};
@@ -259,18 +259,31 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     );
     ui.set_observed(
         format!(
-            "{}{}; {}{}; {}",
+            "{}{}; {}; {}",
             if state.view.needs_readback || state.historical {
                 "Historical: "
             } else {
                 ""
             },
             row.gpu,
-            hyper_gpu_support::gui_model::allocation_text(vm),
-            vm.vram.as_ref().map_or(String::new(), |v| format!(
-                ": {} / {} / {}",
-                v.minimum, v.optimal, v.maximum
-            )),
+            Resource::ALL
+                .into_iter()
+                .map(|resource| {
+                    vm.allocation(resource).map_or_else(
+                        || format!("{}: unobserved or provider default", resource.name()),
+                        |value| {
+                            format!(
+                                "{} readback: {} / {} / {} (raw)",
+                                resource.name(),
+                                value.minimum,
+                                value.optimal,
+                                value.maximum
+                            )
+                        },
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; "),
             recorded.preparation,
         )
         .into(),
@@ -313,6 +326,7 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
         ));
         ui.set_dirty(false);
     }
+    resource_controls(ui, state);
     if let Err(error) = eligibility {
         ui.set_validation(
             hyper_gpu_support::reporting::operator_error("Configuration validation", &error).into(),
@@ -320,6 +334,34 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     } else if !ui.get_dirty() {
         ui.set_validation(draft_target(ui, state).err().unwrap_or_default().into());
     }
+}
+
+fn resource_controls(ui: &AppWindow, state: &State) {
+    let gpu = state.view.inventory.as_ref().and_then(|inventory| {
+        usize::try_from(ui.get_gpu_index())
+            .ok()
+            .and_then(|index| inventory.discovery.gpus.get(index))
+    });
+    ui.set_resource_available(model(
+        Resource::ALL
+            .into_iter()
+            .map(|resource| {
+                !state.view.needs_readback && gpu.is_some_and(|gpu| gpu.limits(resource).is_some())
+            })
+            .collect(),
+    ));
+    ui.set_resource_hints(model(
+        Resource::ALL
+            .into_iter()
+            .map(|resource| {
+                gpu.map_or_else(
+                    || "Select an available physical GPU; capability unknown".into(),
+                    |gpu| gpu.resource_text(resource),
+                )
+                .into()
+            })
+            .collect(),
+    ));
 }
 
 fn with_state(
@@ -447,25 +489,10 @@ fn refresh(
                         import_recovery,
                         enrollment_recovery,
                     )) => {
-                        #[cfg(windows)]
-                        ui.set_execution_ready(
-                            !historical && hyper_gpu_support::worker::available().is_ok(),
-                        );
-                        state.recovery = recovery;
-                        state.import_recovery = import_recovery;
-                        state.enrollment_recovery = enrollment_recovery;
+                        ui.set_execution_ready(false);
                         state.enrollment_review = None;
                         state.setup_artifacts = None;
                         state.enrollment_recovery_revision = None;
-                        if let Some(record) = &state.recovery {
-                            state.view.unsaved = record.publication_required
-                                && matches!(
-                                    record.phase,
-                                    hyper_gpu_support::configuration_store::SavePhase::Verified(_)
-                                );
-                            state.view.verified_unsaved =
-                                state.view.unsaved.then(|| record.target.clone());
-                        }
                         state.rehearsal_plan = None;
                         state.verification_plan = None;
                         if state.view.draft.is_some() && snapshot != state.snapshot_source {
@@ -503,7 +530,7 @@ fn refresh(
                         ui.set_vms(model(rows));
                         ui.set_gpu_information(model(inventory.discovery.gpus.iter().map(|gpu| GpuRow {
                         name: gpu.name.clone().into(),
-                        description: format!("Interface: {}\nDriver: {}\nVRAM provider range: {} .. {} (optimal {})\nPreparation adapter: {}\nCompute / encode / decode: not exposed by the current backend.\nAttachment does not prove guest graphics health; sharing is not qualified.", gpu.interface, gpu.driver_version, gpu.vram.minimum, gpu.vram.maximum, gpu.vram.optimal, if gpu.preparation_supported { "available" } else { "not implemented" }).into(),
+                        description: format!("Interface: {}\nDriver: {}\n{}\nPreparation adapter: {}\nAttachment does not prove guest graphics health; sharing is not qualified.", gpu.interface, gpu.driver_version, Resource::ALL.into_iter().map(|resource| gpu.resource_text(resource)).collect::<Vec<_>>().join("\n"), if gpu.preparation_supported { "available" } else { "not implemented" }).into(),
                     }).collect()));
                         ui.set_gpu_options(model(
                             inventory
@@ -514,6 +541,15 @@ fn refresh(
                                 .collect(),
                         ));
                         state.refresh(inventory);
+                        let recovery_warning = state
+                            .sync_recovery(recovery, import_recovery, enrollment_recovery)
+                            .err();
+                        #[cfg(windows)]
+                        ui.set_execution_ready(
+                            !historical
+                                && recovery_warning.is_none()
+                                && hyper_gpu_support::worker::available().is_ok(),
+                        );
                         state.snapshot_source = snapshot;
                         // Imported enrollment is display data, never execution authorization.
                         state.historical = historical;
@@ -564,6 +600,9 @@ fn refresh(
                             )
                         };
                         if let Some(warning) = configuration_warning {
+                            notice.push_str(&format!(" {warning}"));
+                        }
+                        if let Some(warning) = recovery_warning {
                             notice.push_str(&format!(" {warning}"));
                         }
                         if !state.committed.errors.is_empty() {
@@ -1344,6 +1383,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                             .and_then(|index| i.discovery.gpus.get(index))
                     })
                     .map(|g| g.interface.clone());
+                resource_controls(&ui, state);
                 match draft_target(&ui, state) {
                     Ok(target) => {
                         state.view.draft = Some(target);
@@ -1493,9 +1533,9 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             }
             "shortcuts" => {
                 let help = if action_source.historical() {
-                    "Select a recorded enrolled VM, edit raw VRAM or enable/disable intent and Review. The shared planner uses recorded inputs only; enabled previews require snapshot plans with a matching historical payload digest. Optional --config reads one GUID-keyed candidate file. Refresh rereads inputs; credentials, verification and execution remain blocked."
+                    "Select a recorded enrolled VM, edit categories with recorded raw provider capabilities or enable/disable intent and Review. Missing category capability is unknown. The shared planner uses recorded inputs only; enabled previews require snapshot plans with a matching historical payload digest. Optional --config reads one schema-2 or schema-3 GUID-keyed candidate file. Refresh rereads inputs; credentials, verification and execution remain blocked."
                 } else {
-                    "Select a real VM and physical GPU, then enable GPU support in the draft. Review & Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Review & Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. Enrolled pairs support toggles and raw VRAM, Apply and separate Verify. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable. --mock-gui rehearses fixtures without writes."
+                    "Select a real VM and physical GPU, then enable GPU support in the draft. Review & Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Review & Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. Enrolled pairs support toggles and provider-supported raw VRAM/Compute/Encode/Decode triples, Apply and separate Verify. Leave an entire triple empty for no explicit category write. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable. --mock-gui rehearses fixtures without writes."
                 };
                 dialog(&ui, "info", "Application help", help); Ok(())
             },
@@ -1525,6 +1565,9 @@ mod tests {
         let source = Source::Snapshot("unused-snapshot.json".into(), None);
         assert!(source.historical());
         let target = Target {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: "12345678-1234-1234-1234-123456789abc".into(),
             gpu_interface: "untrusted-snapshot-interface".into(),
             enabled: true,
@@ -1541,6 +1584,9 @@ mod tests {
     #[test]
     fn unknown_health_enrollment_and_unresolved_attachment_are_not_samples() {
         let vm = VmState {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: "12345678-1234-1234-1234-123456789abc".into(),
             name: "Actual name".into(),
             power: Power::Other(42),
@@ -1573,6 +1619,9 @@ mod tests {
     #[test]
     fn historical_rows_keep_identity_and_do_not_claim_current_power() {
         let vm = VmState {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: "12345678-1234-1234-1234-123456789abc".into(),
             name: "Actual VM".into(),
             power: Power::Running,
@@ -1587,6 +1636,9 @@ mod tests {
             },
         };
         let target = Target {
+            compute: None,
+            encode: None,
+            decode: None,
             vm_id: vm.vm_id.clone(),
             gpu_interface: "actual-interface".into(),
             enabled: true,

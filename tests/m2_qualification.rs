@@ -96,6 +96,9 @@ fn reapply_with_durable_diagnostics() {
     let lab: toml::Value =
         toml::from_str(&fs::read_to_string("config/project.toml").unwrap()).unwrap();
     let target = Target {
+        compute: None,
+        encode: None,
+        decode: None,
         vm_id: lab["slot"]["vm_id"].as_str().unwrap().into(),
         gpu_interface: lab["slot"]["gpu_interface"].as_str().unwrap().into(),
         enabled: true,
@@ -143,6 +146,9 @@ fn fresh_preparation_and_installed_worker_contract() {
     let lab: toml::Value =
         toml::from_str(&fs::read_to_string("config/project.toml").unwrap()).unwrap();
     let target = Target {
+        compute: None,
+        encode: None,
+        decode: None,
         vm_id: lab["slot"]["vm_id"].as_str().unwrap().into(),
         gpu_interface: lab["slot"]["gpu_interface"].as_str().unwrap().into(),
         enabled: true,

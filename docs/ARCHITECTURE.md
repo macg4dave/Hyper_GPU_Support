@@ -96,9 +96,13 @@ Require Generation 2 and stable Running/Off state before mutations. Preserve dis
 CPU/RAM quantities, Secure Boot and security devices. Capture preimages of compatibility
 MMIO/cache/checkpoint settings and independently read back effects. Conservative NVIDIA
 MMIO values retain the measured recipe pending affected qualification. First-core
-attachment omits explicit resources; optional raw VRAM triples require provider limits.
-Initial release additionally requires physical GPU selection and all four resource
-triples; compute/encode/decode are not implemented or qualified yet (GPU-010).
+attachment omits explicit resources; optional raw category triples require fresh
+provider limits. GPU-010.1–2 / GUI-002.3 now implement all four categories in source,
+using schema-3 intent with schema-2 input compatibility and isolated capability
+evidence. Each native category write is independently read back; final verification,
+save-only and reconciliation compare every requested category. Partial failure keeps
+durable recovery. Independent static boundary review found no remaining blocker;
+tests/build/UI/provider validation and protected installation remain deferred.
 Attach using the selected GPU's discovered WMI object path, then map full/relative
 host-resource references against fresh local GPU inventory for interface readback.
 All-null adapter allocation fields mean provider defaults, not zero capacity.
@@ -145,7 +149,7 @@ configuration is defined in [CONFIGURATION](CONFIGURATION.md#approved-per-vm-con
 CORE-028 replaces implicit pending-Apply recovery with explicit manual reconciliation
 and a host-wide unresolved-operation hold, extending existing journals/native guards.
 
-Parse runtime schema 2 once. Protected administrator enrollment independently
+Parse runtime schema 2 or 3 once. Protected administrator enrollment independently
 authorizes VM/GPU pairs. The runner accepts fixed typed operations; no arbitrary
 commands, caller file sources or host lifecycle operations are exposed.
 Global mutation serialization and per-VM journals retain original/applied settings,
@@ -218,7 +222,7 @@ Historical passes remain in existing cards/evidence and do not qualify new bound
 
 | Existing implementation / evidence in source | Reuse and remaining work |
 |---|---|
-| `src/model.rs`: schema-2 targets, GUID normalization, strict fields, `Allocation` ordering/provider bounds; `windows_hyperv.rs`: exact GPU WMI selection, optional VRAM readback and native setter with independent readback | GPU-010 extends these to four categories, new pair enrollment/reassignment and typed capabilities. Compute/encode/decode and partition-count display are missing; units/enforcement remain unverified. |
+| `src/model.rs`: schema-2 input/schema-3 four-category targets, GUID normalization, strict fields and `ResourceCapability`; `windows_hyperv.rs`: exact GPU WMI selection, isolated category ranges/readback and native setters | GPU-010.1–2 and GUI-002.3 source is implemented pending validation. GPU replacement/slider mapping remain separate work; units/enforcement remain unqualified. |
 | `src/workflow.rs`: shared decision/plan/apply/verify, typed effects, pre-effect journals, prepared digest invalidation, attributable settings restoration, fresh readback and power restoration; fake-backend ordering/failure tests | CORE-028 adds approved-plan binding, consent, real stage events and manual reconciliation. Current Apply can resume pending work and restores power on some failures; it is not the new host-wide manual-recovery contract. |
 | `src/runner.rs`: protected installed artifact hashes, separate enrollment, typed requests, nonce expiry/replay rejection, durable Started/Succeeded/Failed admission records, atomic JSON and no-reparse checks | SEC-001 adapts fixed SYSTEM scheduled-task execution to same-executable per-operation elevation. Current requests have no reviewed-plan revision, progress stream or SaveOnly operation. A worker flag alone must never grant authority. |
 | `src/windows_pipe.rs`: local-only first pipe instance, restrictive ACL excluding client server-instance creation, client token SID check via impersonation/reversion, client check of pipe owner SID, bounded framing/client deadlines; round-trip/wrong-peer/partial/oversized-frame tests | Preserve protections; adapt endpoint/identity and handshake for elevated user rather than SYSTEM, add session/operation binding and bounded progress/server waits. Owner SID alone does not authenticate a particular same-user worker. |
@@ -227,12 +231,11 @@ Historical passes remain in existing cards/evidence and do not qualify new bound
 | `src/main.rs`, `src/bin/hyper-gpu-gui.rs`, `src/bin/hyper-gpu-runner.rs`: separate CLI/Win32/SYSTEM entries; `tests/cli.rs`, opt-in `tests/m1_enrollment.rs` | APP-001 introduces dispatch/console handling and per-session activation. Existing tests are regression starting points, not Slint or consolidated-worker acceptance. |
 | `windows_driver`, `payload`, `trust`, `guest`, `probe`, `credentials`, `security`, `process`, `windows_wmi`: dynamic signed preparation, bounded bridge/guest logic, checked graphics, vault, protected paths and supervised native effects | Preserve working boundaries, DEC-028 and M1/M2 evidence. Qualify only affected paths. Discovery aborts on a failed VM inspection; CORE-012 adds partial unknown/denied results. |
 
-Recommended allocation extension: a typed resource category (VRAM/compute/encode/
-decode) with reusable available/unsupported/unknown capability results, provider
-provenance/freshness, raw bounds/defaults, unit evidence and readback support. Keep
-requested and observed triples separate; represent absent/default/partial values
-explicitly, not as zero. Reuse `Allocation` validation where appropriate; add category
-errors/provider constraints only when evidenced. No speculative vendor framework.
+Implemented allocation extension (DEC-033): typed VRAM/Compute/Encode/Decode
+categories, positive/unavailable/unknown capability results, raw ranges and separate
+requested/observed triples. Missing observations remain unobserved, never zero.
+Enabled requests validate fresh category limits; unsupported saved values may be
+cleared through existing fields. Provider enforcement remains unqualified.
 
 Consolidation preserves enrollment, artifact integrity, replay/admission checks,
 ACL/reparse rules and bounded execution. SEC-001 independently reviews the changed
@@ -270,16 +273,16 @@ automatic rollback/retry. Final locked-handle validation before launch remains.
 Publication is per file, not an atomic executable pair. These changes are untested;
 see [M2 source containment](evidence/m2-source-containment-20261010.md).
 
-CFG-001 / OPEN-01's [selected configuration contract](CONFIGURATION.md) retains schema-2
+CFG-001 / OPEN-01's [selected configuration contract](CONFIGURATION.md) retains schema-2 input
 TOML with one target per GUID-keyed file. `Configuration::read_vm_file` is a
 read-only syntax/filename boundary; `View::from_vm_file` keeps saved intent
 separate from observations/drafts. Neither authenticates protected storage or
 grants enrollment. Synthetic files use the production parser, not a mock schema.
-Live `State::refresh` still substitutes enrollment for configuration and the old
-mock `Saved` representation remains transitional; GUI-002 must replace those
-when binding saved configuration. `Configuration::vm_documents` prepares an
-explicit schema-2 split without publication. Protected TOML publication/import and full-resource
-extension are unimplemented; the new parser/fixtures are untested.
+Live Refresh reads committed intent independently of enrollment and preserves
+conflicting drafts. The old fixture `Saved` representation remains transitional
+(GUI-002.5). `Configuration::vm_documents` splits validated intent without writes
+and preserves its declared schema. Protected publication/import and schema-3
+four-category bindings exist in source; expanded validation remains deferred.
 
 Keep COM/VARIANT/job handling and native security in focused adapters. Supervised
 process deadlines bound synchronous-provider/remoting limitations. Timeout means

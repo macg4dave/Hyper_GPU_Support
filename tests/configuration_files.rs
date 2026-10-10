@@ -90,6 +90,65 @@ fn optional_allocation_round_trip_distinguishes_no_write_from_explicit_zero() {
 }
 
 #[test]
+fn schema3_resources_require_explicit_version_and_preserve_omission_and_u64_values() {
+    use hyper_gpu_support::model::Resource;
+    let source = include_str!("../config/samples/vms/a5801e91-1083-4e79-a803-000000000001.toml");
+    let filename = format!("{}.toml", IDS[0]);
+    let legacy = Configuration::parse_vm_file(source, &filename).unwrap();
+    let upgraded = legacy.clone().into_schema3().unwrap();
+    assert_eq!(legacy.schema, 2);
+    assert_eq!(upgraded.schema, 3);
+    assert_eq!(legacy.targets, upgraded.targets);
+    for resource in [Resource::Compute, Resource::Encode, Resource::Decode] {
+        let category = resource.name().to_ascii_lowercase();
+        let triple = format!(
+            "\n[targets.{category}]\nminimum = 0\noptimal = 1\nmaximum = 18446744073709551615\n"
+        );
+        assert!(Configuration::parse(&format!("{source}{triple}")).is_err());
+        let explicit = Configuration::parse(&format!(
+            "{}{triple}",
+            source.replacen("schema = 2", "schema = 3", 1)
+        ))
+        .unwrap();
+        assert_eq!(
+            explicit.targets[0].allocation(resource).unwrap().maximum,
+            u64::MAX
+        );
+        let documents = explicit.vm_documents().unwrap();
+        let round_trip = Configuration::parse_vm_file(&documents[&filename], &filename).unwrap();
+        assert_eq!(round_trip.schema, 3);
+        assert_eq!(round_trip.targets, explicit.targets);
+        let json = serde_json::to_vec(&explicit).unwrap();
+        let json_round_trip: Configuration = serde_json::from_slice(&json).unwrap();
+        assert_eq!(json_round_trip.targets, explicit.targets);
+        assert!(explicit.targets[0].vram.is_none());
+        for invalid in [
+            "minimum = 0\noptimal = 1",
+            "minimum = 2\noptimal = 1\nmaximum = 3",
+            "minimum = -1\noptimal = 1\nmaximum = 3",
+            "minimum = 0\noptimal = 1\nmaximum = 18446744073709551616",
+            "minimum = 0\noptimal = 1\nmaximum = 3\nunits = 'percent'",
+        ] {
+            assert!(
+                Configuration::parse(&format!(
+                    "{}\n[targets.{category}]\n{invalid}\n",
+                    source.replacen("schema = 2", "schema = 3", 1)
+                ))
+                .is_err()
+            );
+        }
+    }
+    let zero = format!(
+        "{}\n[targets.compute]\nminimum = 0\noptimal = 0\nmaximum = 0\n",
+        source.replacen("schema = 2", "schema = 3", 1)
+    );
+    let explicit = Configuration::parse(&zero).unwrap();
+    assert!(explicit.targets[0].compute.is_some());
+    assert!(explicit.targets[0].encode.is_none());
+    assert!(explicit.targets[0].decode.is_none());
+}
+
+#[test]
 fn cli_and_gui_read_the_same_production_format_without_creating_observations_or_drafts() {
     for id in IDS {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -499,3 +499,35 @@ requires explicit destination conflict resolution, trusted per-file publication,
 partial-import recovery and preservation of the legacy source; no import command
 or publisher is added. See [format/import contract and audit](CONFIGURATION.md). No builds, tests,
 GUI launch or deployment performed during this investigation.
+
+## DEC-033
+
+**Implemented in source, validation pending | 2026-10-10 | Four-category raw resource intent**
+
+Extend the existing TOML envelope to schema 3 with optional `Allocation` triples
+for VRAM/Compute/Encode/Decode. Schema 2 remains readable and rejects new category
+intent. Parsing/splitting preserves versions and files; `into_schema3` is an explicit
+read-only typed upgrade. Separately reviewed protected Apply publication writes
+schema 3, stated in Review; imports preserve their supplied version/revision.
+Capabilities, observations, enrollment and recovery never enter intent files.
+
+Use a fixed `Resource` category and `ResourceCapability::{Supported,Unavailable,Unknown}`
+for all native ranges, so one failed category cannot hide usable others. Deserialize
+old snapshot VRAM ranges as positive historical evidence; missing capabilities stay
+unknown. Use Microsoft's documented [partitionable GPU properties](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-partitionablegpu)
+and [partition settings](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-gpupartitionsettingdata)
+through the existing Rust WMI adapter. Raw uint64 values claim no GiB/percent mapping
+or enforcement. Missing/malformed observed triples remain unobserved, never zero.
+
+Enabled requests require fresh complete ordered ranges, exact identity/admission,
+per-category independent readback and final requested-value comparison. Omission
+means no explicit category write; new/recreated adapters use provider defaults,
+while retained adapters keep their values. Disabled intent performs no allocation
+writes and may retain structurally valid unavailable requests. Recovery/save-only
+compares all requested categories; partial outcomes never become automatic replay.
+Existing Details fields can clear unsupported requests without inventing capability.
+
+Independent static boundary review findings fixed and re-reviewed with no remaining
+blocker. Focused regressions authored and source formatted. No tests/builds/UI launches,
+provider effects or protected installation executed for this extension; acceptance
+and hardware semantics remain deferred. Preserve the GPU Memory slider mapping hold.

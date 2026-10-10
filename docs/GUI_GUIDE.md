@@ -52,8 +52,14 @@ the original operator/pair/package pins; GUI recovery requires that original
 package and a discoverable eligible original pair. GPU replacement remains blocked.
 The CLI retains its existing capabilities independently.
 
-Enrolled pairs support in-memory toggles/raw VRAM drafts and fresh shared plan
-previews; the native credential dialog can store an opt-in credential. Live
+Enrolled pairs have source bindings for in-memory toggles and all four raw resource
+triples, enabled per category only with complete provider capability evidence.
+Existing unsupported requests can be cleared; structurally valid disabled intent
+performs no category writes. Review enumerates each write and schema-3 publication,
+and observed/saved labels plus System show category values/bounds or unknown state.
+Independent static boundary review found no remaining blocker; new source is
+unbuilt, untested and uninstalled. Older installed startup checks do not validate it.
+Fresh shared plan previews and the native credential dialog reuse the existing core. Live
 details distinguish unread, absent and previous preparation records from pending
 recovery. Graphics timestamps are historical records for the enrolled pair,
 never current health or current-driver parity. A failed Refresh marks retained
@@ -70,7 +76,9 @@ its GB label promises no real allocation or enforcement.
 view, labels observations historical and only rereads that file on Refresh.
 Missing managed/enrollment data remains unknown; it is never inferred. Snapshot
 contents cannot authorize live plans, credentials, verification or execution.
-Recorded enrolled pairs support raw VRAM/toggle drafts and the shared Rust planner.
+Recorded enrolled pairs support raw category/toggle drafts and the shared Rust planner.
+Missing new capabilities remain unknown; older direct VRAM ranges remain readable.
+Positive recorded capability is required for every nonempty enabled category request.
 The optional candidate configuration is read through the production per-VM parser;
 it is labelled candidate intent, never trusted machine-wide committed state.
 Enrollment is not substituted for saved desired configuration. Enabled previews
