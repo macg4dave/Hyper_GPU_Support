@@ -5,8 +5,8 @@ use crate::windows_com::{
 };
 use std::{collections::BTreeMap, path::PathBuf, time::Instant};
 use windows::{
-    Win32::System::Wmi::{IWbemServices, WBEM_GENERIC_FLAG_TYPE},
-    core::BSTR,
+    Win32::System::Wmi::{IWbemServices, WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_S_TIMEDOUT},
+    core::{BSTR, HRESULT, Interface},
 };
 fn exactly_one(
     mut rows: Vec<BTreeMap<String, String>>,
@@ -94,6 +94,7 @@ pub fn discover_driver_environment(
             associated_files.push(PathBuf::from(dependent_file_name(
                 &cim,
                 &take(&mut file, "Dependent")?,
+                deadline,
             )?));
         }
         Ok(DriverDiscovery {
@@ -129,32 +130,126 @@ fn associated_file_query(antecedent: &str) -> String {
 fn dependent_file_name(
     services: &IWbemServices,
     path: &str,
+    deadline: Instant,
 ) -> Result<String, DriverDiscoveryError> {
     let mut trace = crate::diagnostics::Span::start("resolve-associated-file", path)
         .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
     let result = (|| {
-        let mut object = None;
+        lookup_wait_ms(deadline, Instant::now())?;
+        let mut pending = None;
         // SAFETY: live services, provider-returned path and initialized output. WMI
         // resolves quoted/backslash-containing file references rather than our parser.
         unsafe {
             services.GetObject(
                 &BSTR::from(path),
-                WBEM_GENERIC_FLAG_TYPE(0),
+                WBEM_FLAG_RETURN_IMMEDIATELY,
                 None,
-                Some(&mut object),
                 None,
+                Some(&mut pending),
             )
         }
         .map_err(|error| native("resolve associated data file", error))?;
-        property(
-            &object.ok_or(DriverDiscoveryError::Invalid(
-                "associated file object absent",
-            ))?,
-            "Name",
-        )
+        let pending = pending.ok_or(DriverDiscoveryError::Invalid(
+            "associated file call result absent",
+        ))?;
+        loop {
+            let wait = lookup_wait_ms(deadline, Instant::now())?;
+            let mut operation = 0;
+            // SAFETY: live apartment-owned call result, writable HRESULT output.
+            // Use the vtable to preserve WBEM_S_TIMEDOUT (a success HRESULT),
+            // which the generated Result wrapper otherwise discards.
+            let status = unsafe {
+                (pending.vtable().GetCallStatus)(pending.as_raw(), wait, &mut operation)
+            };
+            if lookup_complete(status, HRESULT(operation))? {
+                break;
+            }
+        }
+        lookup_wait_ms(deadline, Instant::now())?;
+        // SAFETY: GetCallStatus confirmed completion; zero means never wait for
+        // the object. The generated interface owns/releases the returned object.
+        let object = unsafe { pending.GetResultObject(0) }
+            .map_err(|error| native("retrieve associated data file", error))?;
+        property(&object, "Name")
     })();
     trace
         .finish(&result)
         .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
     result
+}
+
+fn lookup_wait_ms(deadline: Instant, now: Instant) -> Result<i32, DriverDiscoveryError> {
+    let remaining = deadline.saturating_duration_since(now);
+    if remaining.is_zero() {
+        return Err(DriverDiscoveryError::Timeout);
+    }
+    // One-second slices keep each provider wait within the discovery budget.
+    // Sub-millisecond remainder polls rather than rounding beyond the deadline.
+    Ok(remaining.as_millis().min(1000) as i32)
+}
+
+fn lookup_complete(status: HRESULT, operation: HRESULT) -> Result<bool, DriverDiscoveryError> {
+    if status == HRESULT(WBEM_S_TIMEDOUT.0) {
+        return Ok(false);
+    }
+    status
+        .ok()
+        .map_err(|error| native("wait for associated data file", error))?;
+    if status != HRESULT(0) {
+        return Err(DriverDiscoveryError::Invalid(
+            "unexpected associated file completion status",
+        ));
+    }
+    operation
+        .ok()
+        .map_err(|error| native("resolve associated data file", error))?;
+    if operation != HRESULT(0) {
+        return Err(DriverDiscoveryError::Invalid(
+            "associated file operation did not complete",
+        ));
+    }
+    Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn lookup_wait_never_exceeds_remaining_discovery_budget() {
+        let now = Instant::now();
+        assert!(matches!(
+            lookup_wait_ms(now, now),
+            Err(DriverDiscoveryError::Timeout)
+        ));
+        assert!(lookup_wait_ms(now, now + Duration::from_secs(1)).is_err());
+        assert_eq!(
+            lookup_wait_ms(now + Duration::from_secs(10), now).unwrap(),
+            1000
+        );
+        assert_eq!(
+            lookup_wait_ms(now + Duration::from_millis(35), now).unwrap(),
+            35
+        );
+        assert_eq!(
+            lookup_wait_ms(now + Duration::from_micros(50), now).unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn lookup_timeout_is_pending_and_native_failures_are_preserved() {
+        let failed = HRESULT(0x80041002_u32 as i32);
+        assert!(!lookup_complete(HRESULT(WBEM_S_TIMEDOUT.0), failed).unwrap());
+        assert!(lookup_complete(HRESULT(0), HRESULT(0)).unwrap());
+        for (status, operation) in [(failed, HRESULT(0)), (HRESULT(0), failed)] {
+            match lookup_complete(status, operation).unwrap_err() {
+                DriverDiscoveryError::Native { source, .. } => assert_eq!(source.code(), failed),
+                other => panic!("native error was lost: {other}"),
+            }
+        }
+        assert!(lookup_complete(HRESULT(1), HRESULT(0)).is_err());
+        assert!(lookup_complete(HRESULT(0), HRESULT(1)).is_err());
+    }
 }

@@ -6,7 +6,54 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
+    time::{Duration, Instant},
 };
+
+// Fail visibly before processing an excessive discovered package. These are
+// safety ceilings, not expected driver sizes or operator configuration pins.
+const MAX_PAYLOAD_BYTES: u64 = 16 * 1024 * 1024 * 1024;
+const PAYLOAD_PROCESSING_TIMEOUT: Duration = Duration::from_secs(300);
+
+fn within_deadline(deadline: Instant) -> Result<(), String> {
+    if Instant::now() >= deadline {
+        return Err("payload expansion/hashing exceeded its safety deadline".into());
+    }
+    Ok(())
+}
+
+fn add_payload_bytes(total: u64, bytes: u64) -> Result<u64, String> {
+    total
+        .checked_add(bytes)
+        .filter(|sum| *sum <= MAX_PAYLOAD_BYTES)
+        .ok_or_else(|| "discovered driver payload exceeds byte safety limit".into())
+}
+
+fn hash_payload_reader(
+    reader: &mut impl Read,
+    expected: u64,
+    deadline: Instant,
+) -> Result<String, String> {
+    let mut digest = Sha256::new();
+    let mut buffer = [0; 65536];
+    let mut bytes = 0_u64;
+    loop {
+        within_deadline(deadline)?;
+        let n = reader.read(&mut buffer).map_err(|e| e.to_string())?;
+        within_deadline(deadline)?;
+        if n == 0 {
+            break;
+        }
+        bytes = bytes
+            .checked_add(n as u64)
+            .filter(|sum| *sum <= expected)
+            .ok_or("preparation file grew while hashing")?;
+        digest.update(&buffer[..n]);
+    }
+    if bytes != expected {
+        return Err("preparation file length changed while hashing".into());
+    }
+    Ok(hex(&digest.finalize()))
+}
 
 /// Associated installed-driver facts returned by Windows.
 pub struct DriverDiscovery {
@@ -171,6 +218,7 @@ pub fn no_reparse(path: &Path) -> Result<(), String> {
 }
 /// Expand the complete associated payload without historical package pins or file counts.
 pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, String> {
+    let deadline = Instant::now() + PAYLOAD_PROCESSING_TIMEOUT;
     let prefix = format!("{}\\", root.to_string_lossy().trim_end_matches('\\'));
     let relative = |path: &Path| -> Result<String, String> {
         let text = path.to_string_lossy();
@@ -198,13 +246,15 @@ pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, Str
             packages.insert(package);
         }
     }
-    fn walk(path: &Path, sources: &mut Vec<PathBuf>) -> Result<(), String> {
+    fn walk(path: &Path, sources: &mut Vec<PathBuf>, deadline: Instant) -> Result<(), String> {
+        within_deadline(deadline)?;
         no_reparse(path)?;
         for entry in fs::read_dir(path).map_err(|e| e.to_string())? {
+            within_deadline(deadline)?;
             let path = entry.map_err(|e| e.to_string())?.path();
             no_reparse(&path)?;
             if path.is_dir() {
-                walk(&path, sources)?;
+                walk(&path, sources, deadline)?;
             } else if path.is_file() {
                 sources.push(path);
             } else {
@@ -216,8 +266,11 @@ pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, Str
         }
         Ok(())
     }
+    if sources.len() > 65536 {
+        return Err("driver inventory exceeds safety limit".into());
+    }
     for package in packages {
-        walk(&root.join(package), &mut sources)?;
+        walk(&root.join(package), &mut sources, deadline)?;
     }
     // CIM associations and directory enumeration use different path casing for
     // the same installed Windows file. Fold identities before hashing/mapping.
@@ -226,15 +279,38 @@ pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, Str
         a.to_string_lossy()
             .eq_ignore_ascii_case(&b.to_string_lossy())
     });
+    // Admit the complete deduplicated byte total before any payload hashing.
+    let mut total = 0;
+    let mut sized_sources = Vec::with_capacity(sources.len());
+    for source in sources {
+        within_deadline(deadline)?;
+        no_reparse(&source)?;
+        let metadata = fs::metadata(&source).map_err(|e| e.to_string())?;
+        if !metadata.is_file() {
+            return Err("non-file driver input".into());
+        }
+        total = add_payload_bytes(total, metadata.len())?;
+        sized_sources.push((source, metadata.len()));
+    }
     let mut files = BTreeMap::new();
     let mut catalogs = Vec::new();
-    for source in sources {
+    for (source, bytes) in sized_sources {
+        within_deadline(deadline)?;
         no_reparse(&source)?;
         let rel = relative(&source)?;
         let mapped = destination(&rel)?;
+        #[cfg(windows)]
+        let mut trace = crate::diagnostics::Span::start("hash-file", &source.to_string_lossy())?;
+        let result = hash_payload_reader(
+            &mut fs::File::open(&source).map_err(|e| format!("read preparation file: {e}"))?,
+            bytes,
+            deadline,
+        );
+        #[cfg(windows)]
+        trace.finish(&result)?;
         let entry = CopyFile {
-            bytes: fs::metadata(&source).map_err(|e| e.to_string())?.len(),
-            sha256: hash_file(&source)?,
+            bytes,
+            sha256: result?,
             source: source.clone(),
             destination: mapped.clone(),
         };
@@ -269,6 +345,31 @@ pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, Str
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn payload_byte_admission_rejects_excess_and_overflow() {
+        assert_eq!(
+            add_payload_bytes(MAX_PAYLOAD_BYTES - 1, 1).unwrap(),
+            MAX_PAYLOAD_BYTES
+        );
+        assert!(add_payload_bytes(MAX_PAYLOAD_BYTES, 1).is_err());
+        assert!(add_payload_bytes(0, MAX_PAYLOAD_BYTES + 1).is_err());
+        assert!(add_payload_bytes(u64::MAX, 1).is_err());
+    }
+    #[test]
+    fn hashing_refuses_changed_lengths_and_expired_budget() {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut input = std::io::Cursor::new(b"driver");
+        let hash = hash_payload_reader(&mut input, 6, deadline).unwrap();
+        assert_eq!(hash, hex(&Sha256::digest(b"driver")));
+        for expected in [5, 7] {
+            assert!(
+                hash_payload_reader(&mut std::io::Cursor::new(b"driver"), expected, deadline).is_err()
+            );
+        }
+        assert!(
+            hash_payload_reader(&mut std::io::Cursor::new(b"driver"), 6, Instant::now()).is_err()
+        );
+    }
     #[test]
     fn maps_packages_and_preserves_associated_runtime_paths() {
         assert_eq!(

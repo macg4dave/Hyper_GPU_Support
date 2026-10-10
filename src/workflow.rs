@@ -423,7 +423,8 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
 /// Apply one selected target after independently reading and validating current state.
 /// Failures retain recovery intent; no disk recreation or forced shutdown is attempted.
 pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
-    apply_with_plan(backend, target, None)
+    let d = decision(backend, target)?;
+    execute_decision(backend, target, d)
 }
 /// Execute only when independently gathered state still matches the approved plan.
 /// This check precedes journal admission and every GPU/guest effect.
@@ -431,25 +432,82 @@ pub fn apply_approved(
     backend: &mut impl Backend,
     approved: &Plan,
 ) -> Result<OperationResult, String> {
-    apply_with_plan(backend, &approved.desired, Some(approved))
+    let (_, admitted) = admit_approved(backend, approved)?;
+    apply_admitted(backend, admitted)
 }
-fn apply_with_plan(
+
+/// In-process admission evidence. Private fields, no serialization or cloning:
+/// callers cannot turn a frontend plan into authenticated execution inputs.
+/// The restricted worker retains this only under its existing operation lock.
+pub(crate) struct AdmittedApply {
+    target: Target,
+    decision: Decision,
+}
+impl AdmittedApply {
+    pub(crate) fn driver_version(&self) -> &str {
+        &self.decision.gpu.driver_version
+    }
+}
+
+/// Independently authenticate current inputs and bind them to the approved plan.
+/// This is the worker's single pre-effect payload pass, never a persistent cache.
+pub(crate) fn admit_approved(
+    backend: &mut impl Backend,
+    approved: &Plan,
+) -> Result<(Plan, AdmittedApply), String> {
+    let target = &approved.desired;
+    let d = decision(backend, target)?;
+    let actual = plan_from_decision(d.clone(), target);
+    if serde_json::to_value(&actual).map_err(|e| e.to_string())?
+        != serde_json::to_value(approved).map_err(|e| e.to_string())?
+    {
+        return Err("approved plan is stale; refresh and review before effects".into());
+    }
+    if d.journal.pending {
+        return Err("pending recovery requires manual reconciliation, not Apply".into());
+    }
+    Ok((
+        actual,
+        AdmittedApply {
+            target: target.clone(),
+            decision: d,
+        },
+    ))
+}
+
+/// Consume authenticated admission in the same locked worker/backend instance.
+/// Recheck mutable VM/GPU/journal facts before any journal write or effect, without
+/// rediscovering and reauthenticating the already retained payload. Guest transfer
+/// still verifies the admitted file hashes; the worker independently validates the
+/// current full payload again after effects before committing configuration.
+pub(crate) fn apply_admitted(
+    backend: &mut impl Backend,
+    admitted: AdmittedApply,
+) -> Result<OperationResult, String> {
+    let AdmittedApply {
+        target,
+        decision: d,
+    } = admitted;
+    let current = backend.inspect(&target)?;
+    let gpu = backend.gpu(&target)?;
+    let journal = backend.journal(&target)?;
+    if serde_json::to_value(&current).map_err(|e| e.to_string())?
+        != serde_json::to_value(&d.initial).map_err(|e| e.to_string())?
+        || serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+            != serde_json::to_value(&d.gpu).map_err(|e| e.to_string())?
+        || serde_json::to_value(&journal).map_err(|e| e.to_string())?
+            != serde_json::to_value(&d.managed).map_err(|e| e.to_string())?
+    {
+        return Err("admitted state changed; refresh and review before effects".into());
+    }
+    execute_decision(backend, &target, d)
+}
+
+fn execute_decision(
     backend: &mut impl Backend,
     target: &Target,
-    approved: Option<&Plan>,
+    d: Decision,
 ) -> Result<OperationResult, String> {
-    let d = decision(backend, target)?;
-    if let Some(approved) = approved {
-        let actual = plan_from_decision(d.clone(), target);
-        if serde_json::to_value(&actual).map_err(|e| e.to_string())?
-            != serde_json::to_value(approved).map_err(|e| e.to_string())?
-        {
-            return Err("approved plan is stale; refresh and review before effects".into());
-        }
-        if d.journal.pending {
-            return Err("pending recovery requires manual reconciliation, not Apply".into());
-        }
-    }
     let Decision {
         initial,
         gpu,
@@ -845,6 +903,7 @@ mod tests {
         fail_shutdown: bool,
         fail_start_after_effect: bool,
         driver: &'static str,
+        gpu_driver: &'static str,
         payload_reads: usize,
         journal_writes: usize,
         fail_payload: bool,
@@ -882,6 +941,7 @@ mod tests {
             fail_shutdown: false,
             fail_start_after_effect: false,
             driver: "current",
+            gpu_driver: "new",
             payload_reads: 0,
             journal_writes: 0,
             fail_payload: false,
@@ -909,6 +969,80 @@ mod tests {
         let mut backend = fake();
         let approved = plan(&mut backend, &target()).unwrap();
         assert!(apply_approved(&mut backend, &approved).unwrap().verified);
+    }
+    #[test]
+    fn admitted_apply_authenticates_once_for_fresh_reapply_and_disable() {
+        for scenario in ["fresh", "reapply", "disable"] {
+            let mut backend = fake();
+            let mut target = target();
+            if scenario != "fresh" {
+                apply(&mut backend, &target).unwrap();
+            }
+            if scenario == "disable" {
+                target.enabled = false;
+            }
+            backend.payload_reads = 0;
+            backend.events.clear();
+            let approved = plan(&mut backend, &target).unwrap();
+            let (_, admitted) = admit_approved(&mut backend, &approved).unwrap();
+            assert_eq!(backend.payload_reads, if target.enabled { 2 } else { 0 });
+            let before = backend.payload_reads;
+            let result = apply_admitted(&mut backend, admitted).unwrap();
+            assert_eq!(
+                backend.payload_reads, before,
+                "duplicate execution payload pass: {scenario}"
+            );
+            assert_eq!(result.prepared, scenario == "fresh");
+            assert_eq!(result.verified, target.enabled);
+            assert_eq!(result.effective.power, Power::Running);
+            assert_eq!(result.effective.gpus.len(), usize::from(target.enabled));
+        }
+    }
+    #[test]
+    fn admitted_apply_rejects_vm_driver_and_journal_drift_before_writes() {
+        for changed in 0..4 {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let approved = plan(&mut backend, &target()).unwrap();
+            let (_, admitted) = admit_approved(&mut backend, &approved).unwrap();
+            backend.events.clear();
+            backend.journal_writes = 0;
+            match changed {
+                0 => backend.state.power = Power::Off,
+                1 => backend.gpu_driver = "updated-driver",
+                2 => backend.journal.as_mut().unwrap().prepared = None,
+                _ => backend.journal.as_mut().unwrap().pending = true,
+            }
+            assert!(
+                apply_admitted(&mut backend, admitted)
+                    .unwrap_err()
+                    .contains("changed")
+            );
+            assert!(backend.events.is_empty());
+            assert_eq!(backend.journal_writes, 0);
+        }
+    }
+    #[test]
+    fn admission_rejects_payload_drift_and_pending_recovery_without_effects() {
+        for changed in 0..3 {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let mut approved = plan(&mut backend, &target()).unwrap();
+            backend.events.clear();
+            backend.journal_writes = 0;
+            match changed {
+                0 => backend.driver = "changed-payload",
+                1 => backend.fail_payload = true,
+                _ => {
+                    backend.journal.as_mut().unwrap().pending = true;
+                    // Even a matching reviewed pending plan must not admit Apply.
+                    approved = plan(&mut backend, &target()).unwrap();
+                }
+            }
+            assert!(admit_approved(&mut backend, &approved).is_err());
+            assert!(backend.events.is_empty());
+            assert_eq!(backend.journal_writes, 0);
+        }
     }
     #[test]
     fn reviewed_verification_rejects_stale_state_before_power_or_journal_effects() {
@@ -981,7 +1115,7 @@ mod tests {
                 name: "GPU".into(),
                 vendor: 0x10de,
                 device: 1,
-                driver_version: "new".into(),
+                driver_version: self.gpu_driver.into(),
                 preparation_supported: true,
                 vram: Allocation {
                     minimum: 0,

@@ -21,7 +21,7 @@ are authorised. A documentation request is not code/live-test approval. These ru
 do not add a separate approval gate to already authorised development. Approved
 product requirements live in GUI_GUIDE, not a competing checklist here.
 
-Use the installed official Slint skill for Codex when available. Consult the current Slint documentation for the version actually used by the repository. Do not invent properties, APIs, controls, or extension capabilities. If a requirement is not directly supported by Slint, identify that gap and propose the smallest viable solution before building it.
+Use the installed official Slint skill when relevant. Consult documentation for the pinned version when introducing an API; do not invent properties or capabilities. Resolve routine implementation choices independently and record concrete toolkit blockers without starting another planning cycle.
 
 ## 1. Keep the architecture small and modular
 
@@ -92,7 +92,7 @@ Use the installed official Slint skill for Codex when available. Consult the cur
 
 ## 7. GPU-P-specific guardrails
 
-- GPU selection and all twelve resource fields (Min / Optimal / Max for VRAM, compute, encode, decode) are editable by design, but values require backend validation before Apply.
+- The approved interface contains GPU selection and twelve allocation fields. Enable only fields the shared backend can represent and validate; unsupported categories remain clearly blocked. Never treat an existing input as provider support.
 - Use reported GPU provider capabilities only as labelled suggestions. Do not invent ranges, percentages, GiB values, or performance guarantees from opaque provider units.
 - First-time setup happens in the **existing right-hand details panel**, not in a separate setup wizard.
 - Reassignment/enrollment must go through a restricted, explicitly authorised elevated path. The normal GUI runs unelevated. Never execute arbitrary elevated shell commands assembled from UI values.
@@ -127,31 +127,19 @@ requires an explanation and permission first; task completion is not a milestone
 - During debugging, isolate the failing layer (Slint binding/layout, Rust presentation state, shared backend, elevated helper) before changing unrelated modules.
 - Fix root causes rather than adding polling, arbitrary delays, repeated refreshes, suppressions, or extra logging layers that disguise a state bug.
 
-## 10. Required Codex workflow
+## 10. Codex implementation workflow
 
-1. **Read:** the active backlog card, `GUI_GUIDE.md`, this file, repository instructions and affected modules; reuse the recorded source audit. `GUI_PROMPT.md` is only the documentation-audit brief.
-2. **Verify:** Confirm the actual Slint version, available widgets/APIs, and any associated tooling in official documentation.
-3. **Scope:** State the components/modules affected, assumptions, unresolved design issues, and whether any privileged or live VM action would be required.
-4. **Plan:** Propose a small, independently testable change before implementation. Resolve backend integration questions on their owning cards without expanding the approved interface.
-5. **Implement only when authorised:** Keep `.slint` responsible for presentation and Rust responsible for state/operations. Use mocks for first-pass UI work.
-6. **Check at milestone completion or on explicit request:** Run relevant checks once; preview visually and exercise keyboard, resize, scrolling, and failure states. After failures, rerun only necessary checks.
-7. **Report:** Summarise files changed, what was verified, what is still unverified, and any deviations from this file or `GUI_GUIDE.md`.
+Read the selected BACKLOG card, affected source and only necessary contracts.
+ROADMAP owns priorities; GUI_GUIDE fixes the interface. Check the pinned Slint
+version when introducing an API, reuse working Rust bindings and implement directly.
+Resolve routine choices independently. No proposal, global audit or render is a
+prerequisite to authorised source work.
 
-**Stop and ask for a decision** if a proposed change contradicts an approved UX decision, depends on undocumented Slint behaviour, expands privilege scope, or modifies live VM/host state without authorisation.
-
-## Review checklist (use before marking any Slint task complete)
-
-- [ ] UI markup is modular; no new all-in-one `.slint` or Rust GUI file.
-- [ ] Layout uses constraints/containers rather than fragile absolute coordinates.
-- [ ] Permanent two-panel UI, draggable split, and horizontal overflow behave as agreed.
-- [ ] VM cards are model-backed; selection uses stable VM IDs.
-- [ ] Scroll, focus, selection, and pending changes survive unrelated redraws.
-- [ ] GUI shows observed vs desired vs staged state accurately.
-- [ ] No blocking external work on the UI thread; no unsafe cross-thread UI access.
-- [ ] Fluent styling is consistent; accessibility/keyboard support is checked.
-- [ ] No Hyper-V business logic or privileged shortcuts have leaked into Slint components.
-- [ ] Mocks, visual checks, and relevant tests were run and truthfully reported.
-- [ ] No unapproved VM/host changes, destructive commands, or file migrations occurred.
+Preserve stable IDs, drafts, state separation, responsive UI/event-loop ownership,
+privilege and recovery boundaries. Record an exact blocker and take another safe
+GUI slice if needed. Author tests only for meaningful new behavior; execute checks
+under AGENTS milestone/explicit-request policy. Report unvalidated behavior honestly.
+Live tests and host lifecycle follow AGENTS permission rules.
 
 ## Official references (check current version)
 

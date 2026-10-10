@@ -4,7 +4,7 @@ description: Replace one product PowerShell capability with demonstrated native 
 ---
 
 Implement the requested native migration card from
-[BACKLOG.md](../../docs/BACKLOG.md), or select the next ready migration card if no
+[BACKLOG.md](../../docs/BACKLOG.md), only when explicitly requested; otherwise use the next GUI action if no
 ID is given. Follow [AGENTS.md](../../AGENTS.md) and
 [ENGINEERING.md](../../docs/ENGINEERING.md); claim the selected work and preserve
 overlapping edits. Read the affected [audit](../../scripts/PRODUCT-MIGRATION.md)
@@ -21,9 +21,8 @@ row and source, not unrelated historical experiments.
 - Preserve exact targets, golden parent, isolation, credentials, ACL/reparse
   guards, preimages and uncertain-state reconciliation. Use the approved runner
   for known privileged testing; host lifecycle still requires explicit permission.
-- Add meaningful success/failure/identity/timeout tests, compare affected output
-  with the working implementation and qualify changed behavior against the proven
-  baseline. Obtain independent review when the repository workflow requires it.
+- Add meaningful success/failure/identity/timeout tests, retain compatibility coverage for the working implementation.
+  Defer execution/qualification to the authorised milestone gate. Obtain independent review when the repository workflow requires it.
 - Remove the production dependency only after the replacement is demonstrated.
   Keep a script only if useful as optional tooling. Record narrow interface
   limitations under DEC-027 with alternatives, exact invocation, validation,
@@ -31,36 +30,6 @@ row and source, not unrelated historical experiments.
 - Report actual changes/checks and remaining debt. Current adapter qualification
   does not prove native migration or close a port card.
 
-GPU-PV feasibility is established; implement and validate the product for an
-existing selected VM. Reuse disposable-VM tooling for tests. Golden-image copying,
-cloning, disk reset and laboratory setup stay outside the production path unless
-an explicit user-facing roadmap task requires them. Test tooling may depend on
-product code; product code must not depend on test tooling.
-
-The user-approved architecture rebase takes precedence over historical task scope.
-Use runtime existing-VM identities and the revised core → native GUI → allocation/
-vendor roadmap. Old fixed-slot code is research/contributor tooling in `tools/lab/`.
-Do not preserve laboratory coupling, baseline driver pins or repeated diagnosis as
-product architecture. Default operation verifies health plus checked graphics;
-extended CUDA/stress remain optional. The core never imports the laboratory.
-
-## Testing Policy — Codex
-
-Stop running tests, builds, compilation checks, or launching the UI after every small change.
-
-Follow these rules:
-
-1. **During development:** Make changes without automatically running tests, `cargo check`, `cargo test`, `cargo build`, or launching the GUI.
-2. **At milestone completion:** Run relevant tests and build checks once, after all work for that milestone is complete.
-3. **On explicit request:** Run tests whenever I specifically instruct you to.
-4. **Small changes:** Do not test individual edits, UI adjustments, layout changes, refactoring, or documentation updates.
-5. **Failures:** If a milestone test fails, fix the relevant issue and rerun only the necessary checks. Avoid repeatedly running the entire test suite.
-6. **Exceptions:** If you believe immediate testing is essential, explain why and request permission first.
-
-Prioritise implementing the planned work over repeatedly validating intermediate states.
-
-**Important:** Do not interpret completing an individual task or subtask as completing a milestone. A milestone is complete only when all its planned tasks are finished.
-
-At the end of each task, briefly report what changed and whether it remains untested. Do not automatically start validation.
-
-This policy overrides existing instructions to test continuously unless I explicitly tell you otherwise.
+[ROADMAP](../../docs/ROADMAP.md) and [BACKLOG](../../docs/BACKLOG.md) own priorities.
+Follow [AGENTS testing and permission rules](../../AGENTS.md#testing-policy--codex);
+report deferred validation. This prompt does not authorise live tests.

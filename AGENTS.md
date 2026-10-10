@@ -1,5 +1,14 @@
 # Repository Agent Guide
 
+## Development priorities
+
+[ROADMAP](docs/ROADMAP.md) is authoritative for delivery order and milestone gates;
+[BACKLOG](docs/BACKLOG.md#next-implementation-action) owns task selection/status.
+Default to the next ready functional GUI slice. Inspect existing Rust code, then
+implement the missing behavior through approved controls. Do not restart completed
+workers, feasibility, diagnostics, historical investigations or laboratory work.
+If blocked, record the exact reason once and take another safe GUI slice.
+
 ## Project
 
 Build a Rust GPU-PV management core for existing Windows Hyper-V Generation 2 VMs,
@@ -20,12 +29,12 @@ uses real inventory and supported real bindings; unconnected actions are blocked
 `--mock-gui` explicitly selects rehearsal, currently with fixtures. As integration
 progresses it should read real data/plans but execute no effects or persistent
 writes, including config/credentials/journals/audits. Do not suppress mandatory
-runner audit; qualify a no-write data route separately. Preserve fixture scenarios
+runner audit; use the existing no-write fixture/snapshot routes. Preserve fixture scenarios
 for UI tests and clearly label simulated outcomes. Win32 is removed; preserve sound
 `gui_model`, workflow, runner, Named Pipe, locking and journal contracts.
-The protected runner remains separate; same-executable restricted worker and
-Windows console packaging are planned, not implemented. Prioritize binding the
-approved GUI and validating/packaging it; CLI functionality absent from the GUI
+The protected runner and same-executable restricted worker already exist;
+inspect their current handlers before extending integration. Prioritize making
+the approved GUI functional; CLI functionality absent from the GUI
 remains supported. See [GUI scope](docs/GUI_GUIDE.md).
 
 Feasibility is established on the RTX 5060/Windows 11 baseline. Treat old code and
@@ -55,7 +64,8 @@ transfer, bootstrap-integrity and worker-launch bridge; application logic remain
 The [migration audit](scripts/PRODUCT-MIGRATION.md) maps current debt to
 CORE-024/025/026/027; read its affected row when porting or reviewing that boundary.
 Preserve working Rust and replace adapters incrementally, with focused tests and
-affected baseline qualification before removing production dependencies. Keep
+demonstrated replacement before removing production dependencies; defer
+execution/qualification under the testing and permission policy below. Keep
 scripts optional for development/manual diagnostics. Do not improve product
 PowerShell except for necessary correctness/safety fixes or a bounded comparison
 needed for the port. Any retained external interface requires DEC-027's concrete
@@ -70,12 +80,12 @@ Existing adapter decisions are historical context, not blanket v1 exemptions.
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Important choices and rationale; only relevant decision IDs |
 | [docs/ENGINEERING.md](docs/ENGINEERING.md) | Authoritative Rust, testing, tooling and documentation rules; read for coding, tests, dependencies or CI |
 | [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md) | Approved Slint UX/architecture requirements and unresolved technical questions |
-| [docs/GUI_ROADMAP.md](docs/GUI_ROADMAP.md) | GUI slice mapping; no independent task status |
+| [docs/GUI_ROADMAP.md](docs/GUI_ROADMAP.md) | Historical cross-reference; not a task queue |
 | [docs/SLINT_RULES.md](docs/SLINT_RULES.md) | Slint practice; [implementation prompt](.github/prompts/SLINT_CODEX_PROMPT.md) |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Concise meaningful completed changes; append on completion, no routine history reread |
 | [scripts/README.md](scripts/README.md) | Maintained development/setup/diagnostic script layout; read before adding or running substantial shell procedures |
 
-The backlog register owns status and dependencies; cards own objective,
+The active backlog owns status and dependencies; cards own objective,
 acceptance and concise results. Correct trivial drift in place without a new
 card. Historical evidence is outside normal startup reading. Prompts in
 `.github/prompts/` add task-specific guidance only when invoked or relevant.
@@ -84,21 +94,23 @@ card. Historical evidence is outside normal startup reading. Prompts in
 
 1. Read the selected task row/card and relevant source. Read a dependency result,
    architecture section or blocker only when it affects implementation or safety.
-   Use Resume/ROADMAP when selecting work or closing a milestone.
+   Use BACKLOG next action and ROADMAP delivery order for task selection.
+   Historical evidence and Resume are not normal startup prerequisites.
 2. Check Git state and overlapping ownership before editing. Claim a backlog card
    when work is scheduled/shared or spans a handover. A small direct request, bug
    fix or documentation correction may proceed without inventing a card.
 3. Implement the smallest coherent product step. Preserve unrelated work and avoid
    speculative abstractions or refactors. Resolve routine implementation choices
    during coding.
-4. Add focused tests for meaningful logic and run checks proportional to the
-   change. Normal testing against the designated disposable VM proceeds under the
-   authorization below. Update documentation after behavior changes;
+4. Author focused tests for meaningful new logic; defer execution under the
+   milestone testing policy below. Live tests require explicit permission.
+   Update documentation after behavior changes;
    do not make prose, evidence files or cross-document reconciliation a prerequisite
    for ordinary coding.
-5. Use independent `architecture_reviewer` review for an implementation milestone
-   or materially changed privileged/security boundary. Supply the relevant contract,
-   diff and actual tests; fix blocking findings. Routine patches need no review gate.
+5. Use independent `architecture_reviewer` review at an implementation milestone
+   or before live use of a materially changed privileged/security boundary. Supply
+   the affected contract, diff and actual validation status; fix blocking findings.
+   Routine patches need no review gate or architecture proposal.
 6. On completion, record a short result on an existing card when one owns the work,
    update only affected architecture/decisions, and add a changelog entry only for
    a meaningful product or process change. Refresh Resume only for a real handover;
@@ -125,6 +137,10 @@ At the end of each task, briefly report what changed and whether it remains unte
 
 This policy overrides existing instructions to test continuously unless I explicitly tell you otherwise.
 
+An active instruction to defer validation takes precedence over default milestone
+timing. M3 and release validation follow ROADMAP's explicit-authorisation gates;
+an implemented slice is not a milestone or permission to start validation.
+
 ## Mandatory rules
 
 - Application logic, CLI, configuration, diagnostics, GPU/Hyper-V management and
@@ -134,7 +150,7 @@ This policy overrides existing instructions to test continuously unless I explic
   Calling an existing Windows utility does not itself introduce another language.
 - Discover values through reliable Windows facilities when they are inventory rather
   than operator intent. Put remaining values expected to change between machines,
-  product intent in the versioned runtime schema (currently schema 2; planned
+  product intent in the versioned runtime schema (currently schema 2;
   per-VM files follow [CONFIGURATION](docs/CONFIGURATION.md)) and contributor/test
   values in `config/project.toml`;
   deserialize and validate once at the boundary, then pass typed values. Scripts
@@ -166,27 +182,22 @@ This policy overrides existing instructions to test continuously unless I explic
 
 ## Development and test authorization
 
-The AI may autonomously perform normal project development and approved testing
-against the designated disposable VM. This includes building and running project
-code; installing, updating and executing the controlled privileged runner;
-configuring Hyper-V and GPU-PV; changing GPU resources; starting, stopping,
-restarting, resetting or recreating the disposable guest; replacing its
-differencing disk and configuration; provisioning and modifying guest files,
-registry and NVIDIA components; running PowerShell Direct, probes and diagnostics;
-and repeating experiments. Administrative access and non-rebooting host changes
-needed for that workflow do not require another permission prompt.
+Normal repository development is authorised. Tests, builds and GUI launches follow
+the milestone/explicit-request policy above. For this GUI implementation push,
+live Hyper-V/GPU/driver/VM-power testing, runner installation/update/exercise and
+guest modifications require explicit user permission. Earlier disposable-VM
+authorisation does not override this hold. Do not reproduce the unresolved Reapply
+host lockup or bypass uncertain-state recovery holds.
 
-Immediately verify the configured disposable VM, GPU and path identities before
-effects. Never experimentally modify the golden parent or an unrelated VM/disk,
-and keep destructive actions confined to the verified disposable target. These are
-targeting requirements, not additional approval gates.
+When live testing is explicitly authorised, verify the configured disposable VM,
+GPU and path identities immediately before effects. Keep destructive actions
+confined to that target; never modify the golden parent or unrelated VM/disk.
+Use the approved controlled runner and preserve enrollment, audit and recovery.
 
-The sole recurring approval boundary for the agreed workflow is physical-host
-lifecycle: never restart or shut down the Windows host, log out or terminate its
-interactive session, schedule such an action, or accept an automatic restart
-without the user's explicit permission immediately beforehand. If an installer,
-feature, driver or update reports that a host restart is required, stop before the
-restart and ask. Guest lifecycle is not host lifecycle.
+Never restart/shut down the Windows host, log out/terminate its interactive session,
+schedule such an action or accept an automatic restart without explicit permission
+immediately beforehand. If an installer/feature/driver requires restart, stop
+before the restart and ask. Guest lifecycle does not grant host-lifecycle authority.
 
 Repository instructions cannot expand the active Codex/VS Code sandbox or
 approval policy. Obey platform enforcement and report a configuration blocker
@@ -196,9 +207,9 @@ Codex tool/sandbox approval is not Windows UAC elevation. User membership in
 Administrators, the current process token and the operation's required privilege
 are separate facts. Use the project's controlled privileged runner where applicable;
 its administrator-owned executable
-and policy pin one disposable slot, the current VM-GUID enrollment, GPU identity,
+and policy bind exact enrolled VM GUIDs, GPU identities,
 allowed operations, paths and audit output. Installing, updating, exercising or
-removing that runner is normal project testing and may proceed autonomously.
+removing that runner follows the live-test permission limit above.
 It must not accept caller-selected arbitrary commands or target the golden parent.
 
 Report concrete changes and test outcomes. Do not routinely report that host,

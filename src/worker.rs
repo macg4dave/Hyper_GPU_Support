@@ -568,20 +568,14 @@ fn execute(
                 manifest: None,
                 data: data.clone(),
             };
-            let gpu = backend.gpu(&approved.desired)?;
-            let current = workflow::plan(&mut backend, &approved.desired)?;
-            if serde_json::to_value(&approved).map_err(|e| e.to_string())?
-                != serde_json::to_value(&current).map_err(|e| e.to_string())?
-                || current.preview.pending_recovery
-            {
-                return Err("approved plan changed; Refresh and review before effects".into());
-            }
+            let (current, admitted) = workflow::admit_approved(&mut backend, &approved)?;
+            let driver_version = admitted.driver_version().to_owned();
             let mut record = SaveRecord {
                 schema: 1,
                 operation_id: session.into(),
                 target: approved.desired.clone(),
                 expected,
-                driver_version: gpu.driver_version.clone(),
+                driver_version: driver_version.clone(),
                 payload_digest: current.preparation.as_ref().map(|p| p.digest.clone()),
                 plan_revision: Revision::of(
                     &serde_json::to_vec(&current).map_err(|e| e.to_string())?,
@@ -612,13 +606,13 @@ fn execute(
                 }
                 Ok(())
             };
-            let result = workflow::apply_approved(
+            let result = workflow::apply_admitted(
                 &mut ObservedBackend {
                     backend: &mut backend,
                     notify: &mut notify,
                     before_effect: Some(&mut mark_effects),
                 },
-                &approved,
+                admitted,
             )?;
             if serde_json::to_value(backend.inspect(&record.target)?).map_err(|e| e.to_string())?
                 != serde_json::to_value(&result.effective).map_err(|e| e.to_string())?
@@ -627,7 +621,7 @@ fn execute(
                     "final independent readback changed; manual reconciliation required".into(),
                 );
             }
-            if backend.gpu(&record.target)?.driver_version != gpu.driver_version {
+            if backend.gpu(&record.target)?.driver_version != driver_version {
                 return Err("driver changed during effects; manual reconciliation required".into());
             }
             if let Some(digest) = &record.payload_digest

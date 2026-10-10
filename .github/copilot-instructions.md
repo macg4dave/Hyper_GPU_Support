@@ -1,16 +1,17 @@
 # Copilot repository instructions
 
-Follow [AGENTS.md](../AGENTS.md) and relevant sections of
-[ENGINEERING.md](../docs/ENGINEERING.md). Read the selected
-[backlog](../docs/BACKLOG.md) card and affected source, implement, test and update
-the result. Use a task prompt only when relevant.
+Follow [AGENTS](../AGENTS.md) and affected [ENGINEERING](../docs/ENGINEERING.md)
+sections. [ROADMAP](../docs/ROADMAP.md) owns delivery order;
+[BACKLOG](../docs/BACKLOG.md#next-implementation-action) owns task selection.
 
-The normal Gen 2 Hyper-V RTX 5060 baseline already passes sustained Code 0,
-`nvidia-smi`, D3D11, D3D12 and CUDA computation. Implement our validated recipe;
-do not reopen feasibility or reference research. Keep mutable values in shared
-runtime intent, and discover inventory. DEC-028 and the revised roadmap supersede
-the historical one-slot CLI-only scope: multiple enrolled VMs, NVIDIA preparation,
-then the native GUI and qualified VRAM/vendor extensions. The standalone laboratory
-is never a production dependency. Approved-runner testing and disposable-guest lifecycle are
-autonomous; physical-host restart, shutdown, logout or session termination require
-explicit permission immediately beforehand.
+Implement the next ready functional GUI slice using existing Rust backend code.
+Preserve the approved [Slint interface](../docs/GUI_GUIDE.md), CLI, exact protected
+enrollment, privilege/IPC/trust boundaries, recovery and host-lifecycle rules.
+Inspect source first; do not restart completed research, diagnostics or lab work.
+Record concrete blockers and move to another safe implementation slice.
+
+Author focused tests for meaningful new logic. Follow AGENTS milestone testing
+policy: no automatic tests/builds/GUI launches after edits or individual tasks.
+Live Hyper-V/GPU/driver/VM-power tests require explicit permission; host restart,
+shutdown or session termination always requires immediate explicit permission.
+Report actual changes and deferred validation; keep documentation updates narrow.

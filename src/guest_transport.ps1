@@ -74,8 +74,8 @@ try {
     Write-Stage 'bootstrap-path' 'done' $root $timer.ElapsedMilliseconds
     $timer.Restart()
     Write-Stage 'bootstrap-leaves' 'start' $root
-    # Validate existing leaf objects before removing only the link/name, then copy
-    # into the protected parent. Never overwrite a pre-existing reparse/hard link.
+    # Validate existing leaves, but retain them until a complete authenticated
+    # replacement is ready. Never copy over a pre-existing reparse/hard link.
     $destinations = @()
     foreach ($a in $r.artifacts) { $destinations += Join-Path $root $a.name }
     Invoke-Command -Session $session -ArgumentList (,$destinations) -ScriptBlock {
@@ -86,22 +86,58 @@ try {
                 if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe bootstrap leaf' }
                 $owner = (Get-Acl -LiteralPath $path).GetOwner([Security.Principal.SecurityIdentifier]).Value
                 if ($owner -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted bootstrap leaf owner' }
-                [IO.File]::Delete($path)
             }
         }
     }
     Write-Stage 'bootstrap-leaves' 'done' $root $timer.ElapsedMilliseconds
     foreach ($a in $r.artifacts) {
-        Copy-Logged (Join-Path $r.install $a.name) (Join-Path $root $a.name)
-        $timer.Restart()
-        Write-Stage 'bootstrap-acl' 'start' $a.name
-        Invoke-Command -Session $session -ArgumentList (Join-Path $root $a.name) -ScriptBlock {
+        $destination = Join-Path $root $a.name
+        $staged = Join-Path $root ($a.name + '-' + [guid]::NewGuid().ToString('N') + '.staged')
+        Invoke-Command -Session $session -ArgumentList $staged -ScriptBlock {
             param($path)
-            $acl = Get-Acl -LiteralPath $path
-            $acl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
-            Set-Acl -LiteralPath $path -AclObject $acl
+            # CreateNew refuses collisions; the protected parent prevents ordinary
+            # guest users substituting a link while Copy-Item opens this leaf.
+            $file = [IO.File]::Open($path, 'CreateNew', 'Write', 'None')
+            $file.Dispose()
+            Set-Acl -LiteralPath $path -AclObject (Get-Acl -LiteralPath (Split-Path $path))
         }
-        Write-Stage 'bootstrap-acl' 'done' $a.name $timer.ElapsedMilliseconds
+        Copy-Logged (Join-Path $r.install $a.name) $staged
+        $timer.Restart()
+        Write-Stage 'bootstrap-publication' 'start' $a.name
+        Invoke-Command -Session $session -ArgumentList $staged, $destination, $a.hash -ScriptBlock {
+            param($staged, $destination, $expectedHash)
+            $ErrorActionPreference = 'Stop'
+            $item = Get-Item -LiteralPath $staged -Force
+            if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe staged bootstrap leaf' }
+            if ((Get-Acl -LiteralPath $staged).GetOwner([Security.Principal.SecurityIdentifier]).Value -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted staged bootstrap owner' }
+            $handle = [IO.File]::Open($staged, 'Open', 'Read', 'Read')
+            try {
+                if ((Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expectedHash) { throw 'Staged bootstrap integrity failure' }
+            } finally { $handle.Dispose() }
+            # Release the write/delete-denying validation handle only for atomic
+            # publication inside the protected parent. There is no delete/copy gap.
+            if (Test-Path -LiteralPath $destination) {
+                $item = Get-Item -LiteralPath $destination -Force
+                if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe bootstrap leaf' }
+                if ((Get-Acl -LiteralPath $destination).GetOwner([Security.Principal.SecurityIdentifier]).Value -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted bootstrap leaf owner' }
+                # A backup preserves the old bytes through ReplaceFile failure
+                # modes; retain it on any uncertain publication/ACL/hash outcome.
+                [IO.File]::Replace($staged, $destination, ($staged + '.previous'))
+            } else {
+                [IO.File]::Move($staged, $destination)
+            }
+            # Replace may retain the old leaf's ACL. Apply the protected parent's
+            # exact ACL before the later locked-handle hash check and worker launch.
+            Set-Acl -LiteralPath $destination -AclObject (Get-Acl -LiteralPath (Split-Path $destination))
+            $handle = [IO.File]::Open($destination, 'Open', 'Read', 'Read')
+            try {
+                if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expectedHash) { throw 'Published bootstrap integrity failure' }
+                # Delete only our exact backup leaf after successful publication;
+                # failures above leave it for explicit recovery, never rollback.
+                [IO.File]::Delete($staged + '.previous')
+            } finally { $handle.Dispose() }
+        }
+        Write-Stage 'bootstrap-publication' 'done' $a.name $timer.ElapsedMilliseconds
     }
     $timer.Restart()
     Write-Stage 'bundle-path' 'start' $root

@@ -16,6 +16,8 @@ pub(super) struct State {
     pub rehearsal_plan: Option<Plan>,
     pub verification_plan: Option<hyper_gpu_support::workflow::VerificationPlan>,
     pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
+    /// A draft's original committed revision changed; only discard releases it.
+    committed_conflict: Option<String>,
     pub recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
     pub import_recovery: Option<hyper_gpu_support::configuration_store::ImportRecord>,
 }
@@ -35,6 +37,7 @@ impl Default for State {
             rehearsal_plan: None,
             verification_plan: None,
             committed: Default::default(),
+            committed_conflict: None,
             recovery: None,
             import_recovery: None,
         }
@@ -71,6 +74,9 @@ impl State {
     }
 
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
+        if self.committed_conflict.as_deref() == Some(id) {
+            return Err("Committed configuration changed or became unavailable. Draft preserved; discard it to reload the latest committed intent.".into());
+        }
         if self.recovery.is_some() || self.import_recovery.is_some() {
             return Err(
                 "A host-wide operation requires manual reconciliation or save-only retry.".into(),
@@ -84,21 +90,47 @@ impl State {
         pair.vram = None;
         self.view.eligibility(&pair)
     }
+    /// Accept fresh readable intent; an error means the retained draft is blocked,
+    /// not that the new store snapshot or unrelated inventory should be discarded.
     pub fn load_committed(
         &mut self,
         committed: hyper_gpu_support::configuration_store::StoreSnapshot,
     ) -> Result<(), String> {
-        if let Some(draft) = &self.view.draft
-            && self.committed.revision(&draft.vm_id)? != committed.revision(&draft.vm_id)?
-        {
-            return Err(
-                "Committed configuration changed externally. Draft preserved; discard and Refresh."
-                    .into(),
-            );
+        if let Some(draft) = &self.view.draft {
+            let unchanged = match (
+                self.committed.revision(&draft.vm_id),
+                committed.revision(&draft.vm_id),
+            ) {
+                (Ok(previous), Ok(current)) => previous == current,
+                _ => false,
+            };
+            if !unchanged {
+                self.committed_conflict = Some(draft.vm_id.clone());
+                self.rehearsal_plan = None;
+            }
         }
+        // Refresh all readable intent even when one draft conflicts. This never
+        // changes the draft or grants enrollment, and the conflict remains latched.
         self.view.configuration = committed.configuration();
         self.committed = committed;
+        if let Some(id) = &self.committed_conflict {
+            return self.editor_eligibility(id);
+        }
         Ok(())
+    }
+
+    pub fn discard(&mut self) {
+        self.view.discard();
+        self.committed_conflict = None;
+        self.rehearsal_plan = None;
+        self.draft_gpu = None;
+    }
+
+    pub fn saved_desired_text(&self, id: &str) -> String {
+        match self.committed.revision(id) {
+            Ok(_) => self.view.saved_desired_text(id),
+            Err(_) => "Committed configuration unavailable; saved intent is unknown. Editing is blocked until the file can be read and validated.".into(),
+        }
     }
 
     pub fn draft(
@@ -108,6 +140,7 @@ impl State {
         gpu_index: i32,
         values: &[String],
     ) -> Result<Target, String> {
+        self.editor_eligibility(id)?;
         let mut target = self.target(id)?;
         let inventory = self
             .view
@@ -277,6 +310,96 @@ mod tests {
         v[1] = b.into();
         v[2] = c.into();
         v
+    }
+
+    fn committed(
+        targets: Vec<Target>,
+        comment: &str,
+    ) -> hyper_gpu_support::configuration_store::StoreSnapshot {
+        let configuration = Configuration {
+            schema: 2,
+            targets,
+        };
+        let mut store = hyper_gpu_support::configuration_store::StoreSnapshot::default();
+        for (filename, source) in configuration.vm_documents().unwrap() {
+            store.insert(&filename, Ok(format!("{source}\n# {comment}\n")));
+        }
+        store
+    }
+
+    #[test]
+    fn committed_conflict_preserves_draft_but_refreshes_other_intent_and_inventory() {
+        let mut s = state();
+        let vm_id = id(&s).to_owned();
+        let original = s.target(&vm_id).unwrap();
+        s.load_committed(committed(vec![original.clone()], "original"))
+            .unwrap();
+        let draft = s.draft(&vm_id, false, 0, &values("", "", "")).unwrap();
+        s.view.draft = Some(draft.clone());
+        s.load_committed(committed(vec![original.clone()], "original"))
+            .unwrap();
+
+        let mut updated = original.clone();
+        updated.vram = Some(Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 100,
+        });
+        let mut other = original;
+        other.vm_id = "12345678-1234-1234-1234-000000000002".into();
+        let latest = committed(vec![updated.clone(), other.clone()], "external edit");
+        assert!(s.load_committed(latest.clone()).is_err());
+        let mut fresh = inventory();
+        fresh.discovery.vms[0].name = "Fresh VM name".into();
+        s.refresh(fresh);
+        assert_eq!(s.view.vm(&vm_id).unwrap().name, "Fresh VM name");
+        assert!(!s.view.needs_readback);
+        assert_eq!(s.view.draft, Some(draft));
+        assert_eq!(s.target(&vm_id).unwrap(), updated);
+        assert_eq!(s.target(&other.vm_id).unwrap(), other);
+        assert!(s.saved_desired_text(&vm_id).contains("10 / 50 / 100"));
+        assert!(s.draft(&vm_id, true, 0, &values("", "", "")).is_err());
+        // A second Refresh must not silently accept the conflicting revision.
+        assert!(s.load_committed(latest).is_err());
+        s.discard();
+        assert!(s.view.draft.is_none());
+        assert!(s.editor_eligibility(&vm_id).is_ok());
+    }
+
+    #[test]
+    fn unreadable_committed_intent_is_unknown_and_draft_stays_blocked_after_repair() {
+        let mut s = state();
+        let vm_id = id(&s).to_owned();
+        let target = s.target(&vm_id).unwrap();
+        let original = committed(vec![target.clone()], "original");
+        s.load_committed(original.clone()).unwrap();
+        s.view.draft = Some(target.clone());
+        let mut unreadable = hyper_gpu_support::configuration_store::StoreSnapshot::default();
+        unreadable.insert(&format!("{vm_id}.toml"), Err("access denied".into()));
+        assert!(s.load_committed(unreadable).is_err());
+        assert!(s.saved_desired_text(&vm_id).contains("unknown"));
+        assert!(!s.saved_desired_text(&vm_id).contains("No saved"));
+        assert_eq!(s.view.draft, Some(target));
+        assert!(s.load_committed(original).is_err());
+        assert!(s.editor_eligibility(&vm_id).is_err());
+        s.discard();
+        assert!(s.editor_eligibility(&vm_id).is_ok());
+    }
+
+    #[test]
+    fn removed_committed_file_does_not_become_a_new_draft_baseline_until_discard() {
+        let mut s = state();
+        let vm_id = id(&s).to_owned();
+        let target = s.target(&vm_id).unwrap();
+        s.load_committed(committed(vec![target.clone()], "original"))
+            .unwrap();
+        s.view.draft = Some(target.clone());
+        assert!(s.load_committed(Default::default()).is_err());
+        assert!(s.saved_desired_text(&vm_id).contains("No saved"));
+        assert_eq!(s.view.draft, Some(target));
+        assert!(s.draft(&vm_id, false, 0, &values("", "", "")).is_err());
+        s.discard();
+        assert!(s.draft(&vm_id, false, 0, &values("", "", "")).is_ok());
     }
 
     #[test]

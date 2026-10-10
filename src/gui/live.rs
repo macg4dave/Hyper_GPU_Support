@@ -255,10 +255,10 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
         if state.historical && state.configuration_source.is_some() {
             format!(
                 "Candidate file (read-only rehearsal): {}",
-                state.view.saved_desired_text(id)
+                state.saved_desired_text(id)
             )
         } else {
-            state.view.saved_desired_text(id)
+            state.saved_desired_text(id)
         }
         .into(),
     );
@@ -460,21 +460,10 @@ fn refresh(
                             );
                             return Err(error);
                         }
-                        if let Some(committed) = committed
-                            && let Err(error) = state.load_committed(committed)
-                        {
-                            state.view.needs_readback = true;
-                            present(ui, state, false);
-                            ui.set_eligible(false);
-                            ui.set_validation(
-                                hyper_gpu_support::reporting::operator_error(
-                                    "Configuration validation",
-                                    &error,
-                                )
-                                .into(),
-                            );
-                            return Err(error);
-                        }
+                        // A conflicting draft blocks that editor, not fresh VM/GPU
+                        // observations or readable intent for other VMs.
+                        let configuration_warning = committed
+                            .and_then(|committed| state.load_committed(committed).err());
                         let rows = inventory
                             .discovery
                             .vms
@@ -532,11 +521,18 @@ fn refresh(
                             .ok_or("inventory unavailable")?
                             .discovery
                             .issues;
-                        ui.set_notice(if issues.is_empty() {
+                        let mut notice = if issues.is_empty() {
                             warning.unwrap_or_else(|| "Protected inventory loaded. Graphics results remain historical; operations require fresh approved plans.".into())
                         } else {
                             format!("Partial inventory: {}. Other successful observations remain available.", issues.iter().map(|issue| issue.text()).collect::<Vec<_>>().join(" "))
-                        }.into());
+                        };
+                        if let Some(warning) = configuration_warning {
+                            notice.push_str(&format!(" {warning}"));
+                        }
+                        if !state.committed.errors.is_empty() {
+                            notice.push_str(" Some committed configuration could not be read or validated. Affected intent remains unknown; other readable VM files are available.");
+                        }
+                        ui.set_notice(notice.into());
                         Ok(())
                     }
                     Err(error) => {
@@ -1170,9 +1166,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             "exit" => { ui.set_dirty(false); slint::quit_event_loop().map_err(|e| e.to_string()) },
             "discard" | "switch" => {
                 with_state(&ui, &action_state, |state| {
-                    state.view.discard();
-                    state.rehearsal_plan = None;
-                    state.draft_gpu = None;
+                    state.discard();
                     if action == "switch" { state.view.selected = state.pending_selection.take(); }
                     present(&ui, state, true); ui.set_dirty(false); ui.set_dialog_kind("".into());
                     ui.set_notice("Draft discarded. No configuration was saved or VM state changed.".into()); Ok(())
@@ -1182,7 +1176,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 let body = if action_source.historical() {
                     "Reapply rehearses an enabled draft against historical inputs. Verification and forgetting remain blocked. No backend effect or persistent write will occur."
                 } else {
-                    "Reapply / Update reads a fresh shared plan for the current draft. Guest verification and forgetting pairing remain unavailable until worker and protected configuration bindings are ready."
+                    "Reapply / Update reviews a fresh shared plan. Verify reviews a separate graphics check; both require the protected worker and any guest downtime consent. Forget pairing is not connected."
                 };
                 dialog(&ui, "more", "VM actions", body); Ok(())
             },
@@ -1233,7 +1227,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 let help = if action_source.historical() {
                     "Select a recorded enrolled VM, edit raw VRAM or enable/disable intent and Review. The shared planner uses recorded inputs only; enabled previews require snapshot plans with a matching historical payload digest. Optional --config reads one GUID-keyed candidate file. Refresh rereads inputs; credentials, verification and execution remain blocked."
                 } else {
-                    "Select a real VM, inspect System, or Refresh protected inventory. Enrolled pairs support in-memory toggles and raw VRAM drafts with fresh CLI planner previews. Settings opens the native credential dialog for the selected enrolled VM. Apply, Verify and enrollment await worker integration. --mock-gui rehearses fixtures without writes."
+                    "Select a real VM and Refresh protected inventory. Enrolled pairs support in-memory toggles and raw VRAM drafts with fresh shared plan review, protected Apply and separate Verify. Failed saving permits save-only retry; uncertain operations require manual reconciliation. Settings opens the native credential dialog. First-time enrollment and forget pairing are not connected. --mock-gui rehearses fixtures without writes."
                 };
                 dialog(&ui, "info", "Application help", help); Ok(())
             },

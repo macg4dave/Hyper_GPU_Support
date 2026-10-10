@@ -81,8 +81,8 @@ the token check at the start rather than rediscovering it during each step.
 Never disable or weaken UAC, bypass consent, silently approve a prompt, or create
 an unrestricted elevated command channel. The fixed runner accepts bounded typed
 operations, validates the enrolled disposable target and arguments, and records
-requests and results. Work already within its authorized scope does not need a new
-permission prompt. Administrator privilege is distinct from authorization: the
+requests and results. Follow AGENTS' current live-test permission limit; runner
+scope alone does not grant testing permission. Administrator privilege is distinct from authorization: the
 physical host must never be restarted, shut down, logged out or have its interactive
 session terminated without explicit user permission immediately beforehand. Stop
 and ask if an otherwise authorized operation reports that a host restart is needed.
@@ -262,7 +262,7 @@ Keep these lanes distinct (workload checks are specified in
 |---|---|
 | Hardware-independent Windows tests | Unit, component integration, configuration, regression and doc tests with no administrator, Hyper-V, GPU or network prerequisite. Codex runs at milestone completion or on explicit request; retain PR checks. |
 | Native Windows integration | Test actual API/adapter contracts and OS failure behavior. Run safe unprivileged cases in Windows CI where available; explicitly invoke environment/privilege-dependent cases only on a prepared target. |
-| Hyper-V and GPU workloads | Explicitly selected runs on the designated disposable target with exact environment, inputs and checked output. These runs may install/update the runner and mutate/recreate the guest without another approval. Enumeration, loading a DLL or compiling does not prove GPU support. |
+| Hyper-V and GPU workloads | Explicitly selected runs on the designated disposable target with exact environment, inputs and checked output. These runs require explicit permission under the current AGENTS live-test hold; target scope does not grant approval. Enumeration, loading a DLL or compiling does not prove GPU support. |
 
 The measured normal Hyper-V Code 0, `nvidia-smi`, D3D11/D3D12 and CUDA baseline
 is established. Hardware testing now verifies changed Rust behavior, clean-child
@@ -346,8 +346,8 @@ of invoking an invalid combination or silently reducing coverage.
 - Report commands actually run, outcome, material failures, missing prerequisites
   and remaining validation. Do not rerun an unchanged check merely to reproduce an
   old evidence record. Fix introduced problems before completion; if technically
-  blocked, record the exact next action. Installing tools and mutating the designated
-  disposable target are part of normal project validation.
+  blocked, record the exact next action. Mutating the designated disposable target
+  requires permission under the current AGENTS live-test hold.
 
 ## Documentation
 

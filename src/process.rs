@@ -2,6 +2,7 @@
 use std::{
     io::{Read, Write},
     process::{Command, Stdio},
+    sync::Arc,
     thread,
     time::{Duration, Instant},
 };
@@ -307,6 +308,59 @@ fn drain(mut reader: impl Read, limit: usize) -> Result<Vec<u8>, BoundedProcessE
         bytes.extend_from_slice(&buf[..count]);
     }
 }
+
+/// Fixed bridge control records are consumed independently of diagnostic output.
+/// Implementations must not block while checking deadlines or holding state locks.
+pub(crate) trait StderrMonitor: Send + Sync {
+    fn line(&self, line: &[u8]) -> Result<bool, String>;
+    fn check(&self, now: Instant) -> Result<(), String>;
+    fn finish(&self) -> Result<(), String>;
+}
+
+fn drain_monitored(
+    mut reader: impl Read,
+    limit: usize,
+    monitor: &dyn StderrMonitor,
+) -> Result<Vec<u8>, BoundedProcessError> {
+    let mut bytes = Vec::new();
+    let mut line = Vec::new();
+    let mut buf = [0; 1024];
+    loop {
+        let count = reader.read(&mut buf).map_err(|e| e.to_string())?;
+        if count == 0 {
+            if !line.is_empty() {
+                capture_monitored_line(&line, &mut bytes, limit, monitor)?;
+            }
+            return Ok(bytes);
+        }
+        for byte in &buf[..count] {
+            line.push(*byte);
+            // Bound partial records too, without an unbounded read_until buffer.
+            if line.len() > 4096 {
+                return Err(BoundedProcessError::OutputTooLarge);
+            }
+            if *byte == b'\n' {
+                capture_monitored_line(&line, &mut bytes, limit, monitor)?;
+                line.clear();
+            }
+        }
+    }
+}
+
+fn capture_monitored_line(
+    line: &[u8],
+    bytes: &mut Vec<u8>,
+    limit: usize,
+    monitor: &dyn StderrMonitor,
+) -> Result<(), BoundedProcessError> {
+    if !monitor.line(line)? {
+        if line.len() > limit.saturating_sub(bytes.len()) {
+            return Err(BoundedProcessError::OutputTooLarge);
+        }
+        bytes.extend_from_slice(line);
+    }
+    Ok(())
+}
 /// Execute a fixed process with bounded streams, deadline and descendant cleanup.
 /// # Errors
 /// Launch, timeout, output overflow and malformed UTF-8 remain explicit failures.
@@ -317,10 +371,30 @@ pub fn bounded_process(command: Command, timeout: Duration) -> Result<ProcessOut
 
 /// Same suspended launch/kill-job supervisor with a caller's fixed stream limit.
 pub fn bounded_process_with_limit(
+    command: Command,
+    timeout: Duration,
+    limit: usize,
+    input: &[u8],
+) -> Result<ProcessOutput, BoundedProcessError> {
+    supervise(command, timeout, limit, input, None)
+}
+
+pub(crate) fn bounded_process_with_monitor(
+    command: Command,
+    timeout: Duration,
+    limit: usize,
+    input: &[u8],
+    monitor: Arc<dyn StderrMonitor>,
+) -> Result<ProcessOutput, BoundedProcessError> {
+    supervise(command, timeout, limit, input, Some(monitor))
+}
+
+fn supervise(
     mut command: Command,
     timeout: Duration,
     limit: usize,
     input: &[u8],
+    monitor: Option<Arc<dyn StderrMonitor>>,
 ) -> Result<ProcessOutput, BoundedProcessError> {
     let end = Instant::now() + timeout;
     use std::os::windows::process::CommandExt;
@@ -362,8 +436,12 @@ pub fn bounded_process_with_limit(
         let result = drain(out, limit);
         let _ = sender.send((true, result));
     });
+    let stderr_monitor = monitor.clone();
     let error_thread = thread::spawn(move || {
-        let result = drain(err, limit);
+        let result = match stderr_monitor {
+            Some(monitor) => drain_monitored(err, limit, &*monitor),
+            None => drain(err, limit),
+        };
         let _ = sender2.send((false, result));
     });
     let mut stdout = None;
@@ -383,6 +461,12 @@ pub fn bounded_process_with_limit(
             }
         }
         if failure.is_some() || Instant::now() >= end {
+            break None;
+        }
+        if let Some(monitor) = &monitor
+            && let Err(error) = monitor.check(Instant::now())
+        {
+            failure = Some(BoundedProcessError::Execution(error));
             break None;
         }
         match child.try_wait() {
@@ -412,7 +496,11 @@ pub fn bounded_process_with_limit(
                     stderr = Some(bytes);
                 }
             }
-            Err(e) => failure = Some(e),
+            Err(e) => {
+                if failure.is_none() {
+                    failure = Some(e);
+                }
+            }
         }
     }
     if let Some(e) = failure {
@@ -424,6 +512,9 @@ pub fn bounded_process_with_limit(
     // hide them. A successful child must still have accepted the complete input.
     if status.success() {
         write_result.map_err(|e| e.to_string())?;
+        if let Some(monitor) = &monitor {
+            monitor.finish()?;
+        }
     }
     Ok(ProcessOutput {
         exit_code: status.code(),

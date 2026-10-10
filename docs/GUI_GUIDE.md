@@ -39,9 +39,10 @@ Normal close is deferred while simulated progress runs in mock mode.
 **Normal startup is live mode.** It reads actual VM/GPU inventory in the background
 through the shared core; Refresh repeats that read. Errors never fall back to
 fixtures. Attachment does not imply enrollment, guest health or saved intent.
-Unconnected configuration actions are unavailable, not simulated. The current
-live slice does not yet apply, verify, enroll or save from the GUI; the CLI retains
-its existing capabilities independently.
+Unconnected configuration actions are unavailable, not simulated. Current source
+includes protected Apply, Verify, save-only retry and manual reconciliation;
+end-to-end acceptance remains pending. First-time GUI enrollment is not connected.
+The CLI retains its existing capabilities independently.
 
 Enrolled pairs support in-memory toggles/raw VRAM drafts and fresh shared plan
 previews; the native credential dialog can store an opt-in credential. Live

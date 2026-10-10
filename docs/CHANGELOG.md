@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-10-10 - GUI delivery instructions and configuration refresh
+
+- Aligned active AI prompts with the rewritten roadmap/backlog; centralized
+  testing/permission policy and removed stale worker status and research queues.
+- GUI Refresh now retains and blocks a conflicting draft while updating inventory
+  and readable committed intent. Unreadable intent is unknown rather than missing;
+  discard releases the conflict against the latest read. Corrected stale live help.
+  Added focused regression test source; tests, builds and GUI/live runs deferred.
+
+## 2026-10-10 - M2 source containment
+
+- Bound requested associated-file WMI waits by the discovery deadline; admit
+  complete payload bytes before hashing and reject length drift under cooperative
+  processing limits.
+- Stage and hash-check guest bootstrap replacements before publication, with
+  protected backups retained on uncertain failure. Added regression test source;
+  builds/tests remain unrun and the live-test hold remains in force.
+
+## 2026-10-10 - Reapply payload-pass reduction
+
+- Reuse the restricted worker's authenticated admission decision for execution,
+  removing one of four full enabled payload passes. Retain fresh state checks,
+  guest content verification and independent final payload authentication.
+  Added regression tests and passed static security review; builds, tests and
+  live timing are deferred.
+
 ## 2026-10-10 - Reapply diagnostic instrumentation
 
 - Added opt-in crash-persistent stage, driver lookup, hash/trust and file-copy

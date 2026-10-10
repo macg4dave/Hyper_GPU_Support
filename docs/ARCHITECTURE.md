@@ -206,7 +206,32 @@ dashboard with a persistent warning. GUI-003 defers normal close while work is a
 crashes/disconnects stay uncertain. No automatic GPU rollback, blind retry or second
 IPC/locking/journaling stack.
 
+Restricted-worker Apply retains its freshly authenticated admission decision under
+the existing exclusive operation lock and consumes it once for execution. The
+in-process admission type cannot be supplied over IPC or deserialized from a plan.
+Full approved-plan matching and pending-recovery rejection precede admission;
+fresh VM/GPU/journal checks precede workflow writes/effects. This removes the
+duplicate execution payload pass while preserving guest file-hash verification
+and independent full post-effect payload validation before configuration commit.
+An enabled operation therefore has three full payload passes: frontend preview,
+worker admission and final validation. The optimization is not yet built or tested.
+
 ## Native Windows boundaries
+
+Associated-driver-file resolution uses semisynchronous WMI completion with
+one-second waits capped by the remaining discovery deadline, preserving positive
+timeout status and native operation failures. Complete deduplicated payload bytes
+are admitted against a 16 GiB safety ceiling before hashing; expansion/hashing
+share a 300-second cooperative budget and reject file-length drift. These do not
+interrupt blocked COM/filesystem/trust calls or contain host-wide GPU activity.
+
+DEC-028 bootstrap publication copies to unique protected staged leaves, checks
+hashes under write/delete-denying handles, then replaces/moves the fixed leaf.
+Replacement retains a unique backup until protected ACLs and the published hash
+are validated. Failures retain uncertainty and staging/backup artifacts; no
+automatic rollback/retry. Final locked-handle validation before launch remains.
+Publication is per file, not an atomic executable pair. These changes are untested;
+see [M2 source containment](evidence/m2-source-containment-20261010.md).
 
 CFG-001 / OPEN-01's [selected configuration contract](CONFIGURATION.md) retains schema-2
 TOML with one target per GUID-keyed file. `Configuration::read_vm_file` is a
