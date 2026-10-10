@@ -55,8 +55,8 @@ impl Default for State {
 }
 
 impl State {
-    /// Native adapter VRAM follows Microsoft's byte parameter contract. Historical
-    /// captures contain raw values without unit provenance, so cannot use this route.
+    /// Physical-equivalent preference; raw provider intent remains authoritative.
+    /// Historical captures cannot grant current physical capacity provenance.
     pub fn memory_slider(
         &self,
         gpu_index: i32,
@@ -70,7 +70,7 @@ impl State {
         if self.view.needs_readback {
             return Err("Refresh VM and GPU information before using the memory slider.".into());
         }
-        let limits = self
+        let gpu = self
             .view
             .inventory
             .as_ref()
@@ -79,11 +79,21 @@ impl State {
                     .ok()
                     .and_then(|index| inventory.discovery.gpus.get(index))
             })
-            .and_then(|gpu| gpu.limits(Resource::Vram))
+            .ok_or("Selected GPU is unavailable. Use Refresh to retry.")?;
+        let limits = gpu
+            .limits(Resource::Vram)
             .ok_or("VRAM bounds are unavailable. Use Refresh to retry.")?;
         let current =
             super::memory::request(values.get(..3).ok_or("VRAM fields are unavailable.")?)?;
-        super::memory::MemorySlider::new(limits, current.as_ref())
+        super::memory::MemorySlider::scaled(
+            limits,
+            current.as_ref(),
+            gpu.physical_vram_bytes.ok_or(
+                "Physical GPU memory is unavailable or ambiguous. Use Advanced Allocation.",
+            )?,
+            gpu.total_vram
+                .ok_or("Provider memory scale is unavailable. Use Advanced Allocation.")?,
+        )
     }
 
     /// Compare intent without treating validation, navigation or formatting as edits.
@@ -539,6 +549,8 @@ mod tests {
                     vendor: 0x10de,
                     device: 1,
                     driver_version: "fixture".into(),
+                    physical_vram_bytes: None,
+                    total_vram: None,
                     preparation_supported: true,
                     vram: Allocation {
                         minimum: 10,
@@ -608,6 +620,9 @@ mod tests {
             maximum: 8_000_000_000,
         }
         .into();
+        s.view.inventory.as_mut().unwrap().discovery.gpus[0].physical_vram_bytes =
+            Some(8_000_000_000);
+        s.view.inventory.as_mut().unwrap().discovery.gpus[0].total_vram = Some(8_000_000_000);
         let mut raw = values("2000000000", "4000000000", "6000000000");
         let selected = s.memory_slider(0, &raw).unwrap().select(55).unwrap();
         raw[1] = selected.optimal.to_string();

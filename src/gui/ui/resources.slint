@@ -42,6 +42,7 @@ export component AllocationDisclosure inherits Rectangle {
 component AllocationField inherits Rectangle {
     in property <string> label;
     in property <string> value;
+    in property <string> default-value;
     in property <bool> editable;
     callback edited(string);
     changed value => { input.text = root.value; }
@@ -52,6 +53,7 @@ component AllocationField inherits Rectangle {
             accessible-label: root.label + " allocation";
             enabled: !Theme.modal-active && root.editable;
             text: root.value;
+            placeholder-text: root.default-value == "" ? "Not specified" : root.default-value + " (default)";
             edited => { root.edited(self.text); }
         }
     }
@@ -65,6 +67,9 @@ export component ResourceEditor inherits Surface {
     in property <string> minimum: "100";
     in property <string> optimal: "500";
     in property <string> maximum: "1000";
+    in property <string> default-minimum;
+    in property <string> default-optimal;
+    in property <string> default-maximum;
     in-out property <bool> expanded: true;
     in property <bool> editable: true;
     callback edited(int, string);
@@ -79,9 +84,9 @@ export component ResourceEditor inherits Surface {
             Hint { text: root.mock-mode ? root.units + " · illustrative bounds 0–1000; no hardware guarantees" : root.capability-text; }
             HorizontalLayout {
                 spacing: 12px;
-                AllocationField { label: "Minimum"; value: root.minimum; editable: root.editable; edited(value) => { root.edited(0, value); } }
-                AllocationField { label: "Optimal"; value: root.optimal; editable: root.editable; edited(value) => { root.edited(1, value); } }
-                AllocationField { label: "Maximum"; value: root.maximum; editable: root.editable; edited(value) => { root.edited(2, value); } }
+                AllocationField { label: "Minimum"; value: root.minimum; default-value: root.default-minimum; editable: root.editable; edited(value) => { root.edited(0, value); } }
+                AllocationField { label: "Optimal"; value: root.optimal; default-value: root.default-optimal; editable: root.editable; edited(value) => { root.edited(1, value); } }
+                AllocationField { label: "Maximum"; value: root.maximum; default-value: root.default-maximum; editable: root.editable; edited(value) => { root.edited(2, value); } }
             }
         }
     }

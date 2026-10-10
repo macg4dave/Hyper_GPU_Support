@@ -30,6 +30,16 @@ details. Do not restore removed features or require Win32 parity.
 
 ## Implemented and simulated behavior
 
+BUGS-002 source repairs (10 October, acceptance pending) keep automatic status
+reads non-modal and update existing model rows in place where counts match.
+Provider allocation defaults are labelled suggestions until explicitly edited;
+viewing them does not create a draft. The memory slider spans the provider's
+validated request range and expands draft bounds only on explicit movement.
+Physical VRAM capacity is not inferred from that range. Failure Technical Details
+retain stages, classified backend context and available native error codes;
+untrusted adapter text remains omitted to protect credentials. Full safe component
+messages and physical-capacity mapping remain open in BUGS-002.
+
 No arguments to `hyper-gpu-support.exe` open Slint. Explicit CLI commands remain
 independent of GUI initialization. Navigation, themes, resizing, splitter, scrolling,
 draft editing/validation, selection prompts and dialogs are real UI behavior.

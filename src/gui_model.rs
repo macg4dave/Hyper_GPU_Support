@@ -495,6 +495,8 @@ mod tests {
                     vendor: 0x10de,
                     device: 1,
                     driver_version: "fixture".into(),
+                    physical_vram_bytes: None,
+                    total_vram: None,
                     vram: Allocation {
                         minimum: 0,
                         optimal: 50,

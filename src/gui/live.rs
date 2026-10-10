@@ -17,6 +17,26 @@ use std::sync::{
 type SharedState = Arc<Mutex<State>>;
 type InventoryRead = (Inventory, Option<String>, Option<Vec<u8>>);
 
+// Preserve repeated UI elements and editor focus when an inventory read only
+// changes row contents. Rebuild only when the number of rows changes.
+fn update_model<T: Clone + PartialEq + 'static>(
+    current: slint::ModelRc<T>,
+    rows: Vec<T>,
+) -> slint::ModelRc<T> {
+    if current.row_count() == rows.len()
+        && let Some(vector) = current.as_any().downcast_ref::<slint::VecModel<T>>()
+    {
+        for (index, row) in rows.into_iter().enumerate() {
+            if vector.row_data(index).as_ref() != Some(&row) {
+                vector.set_row_data(index, row);
+            }
+        }
+        current
+    } else {
+        model(rows)
+    }
+}
+
 #[derive(Clone)]
 pub(super) enum Source {
     Protected,
@@ -230,6 +250,12 @@ fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool) -> VmRow 
 }
 
 fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
+    ui.set_presenting(true);
+    present_inner(ui, state, reset_draft);
+    ui.set_presenting(false);
+}
+
+fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(id) = state.view.selected.as_ref() else {
         ui.set_selected_id("".into());
         ui.set_eligible(false);
@@ -377,7 +403,8 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
                 })
                 .map_or(-1, |i| i as i32),
         );
-        ui.set_values(model(
+        ui.set_values(update_model(
+            ui.get_values(),
             enrolled
                 .as_ref()
                 .map_or_else(|| vec![String::new(); 12], allocation_values)
@@ -417,10 +444,39 @@ fn resource_controls(ui: &AppWindow, state: &State) {
             .map(|resource| {
                 gpu.map_or_else(
                     || "Select an available physical GPU; capability unknown".into(),
-                    |gpu| gpu.resource_text(resource),
+                    |gpu| {
+                        let mut text = gpu.resource_text(resource);
+                        if resource == Resource::Vram {
+                            if let Some(bytes) = gpu.physical_vram_bytes {
+                                text.push_str(&format!(
+                                    "; physical dedicated memory: {}",
+                                    super::memory::format_gib(bytes)
+                                ));
+                            }
+                        }
+                        text
+                    },
                 )
                 .into()
             })
+            .collect(),
+    ));
+    ui.set_resource_defaults(model(
+        Resource::ALL
+            .into_iter()
+            .flat_map(|resource| {
+                gpu.and_then(|gpu| gpu.limits(resource)).map_or_else(
+                    || vec![String::new(); 3],
+                    |value| {
+                        vec![
+                            value.minimum.to_string(),
+                            value.optimal.to_string(),
+                            value.maximum.to_string(),
+                        ]
+                    },
+                )
+            })
+            .map(Into::into)
             .collect(),
     ));
     let values = ui
@@ -437,7 +493,7 @@ fn resource_controls(ui: &AppWindow, state: &State) {
             ui.set_memory_label(slider.label.into());
             ui.set_memory_range_start(slider.range_start.into());
             ui.set_memory_range_end(slider.range_end.into());
-            ui.set_memory_hint("Adjusts Optimal in 0.1 GB steps; keeps Minimum/Maximum, or uses provider bounds for a new request. Requested memory, not a guaranteed physical limit.".into());
+            ui.set_memory_hint("Memory preference based on the selected card's physical capacity. Translated proportionally into the driver's allocation range; this is not a guaranteed memory reservation. Advanced Allocation shows the exact driver values.".into());
         }
         Err(reason) => {
             ui.set_memory_available(false);
@@ -490,17 +546,20 @@ fn background<T: Send + 'static>(
         return Err("Another GUI operation is still running.".into());
     }
     let silent = title == "Updating VM status";
-    ui.set_running(true);
+    if !silent {
+        ui.set_running(true);
+    }
     if !silent {
         dialog(
             ui,
             "progress",
             title,
-            if title == "Apply approved changes"
-                || title == "Verify approved graphics"
-                || title == "Reconcile observed outcome"
-            {
+            if title == "Apply approved changes" {
+                "Preparing to apply the changes you approved. If access inside the VM is needed, sign in with its guest administrator account. Windows will also ask for approval before the protected operation. Actual steps will appear as they run."
+            } else if title == "Verify approved graphics" || title == "Reconcile observed outcome" {
                 "Requesting Windows elevation before the approved operation. Actual stages will appear as the shared backend executes."
+            } else if title == "Building fresh plan" {
+                "Preparing your changes may take some time. Checking the selected VM, GPU and installed driver files before showing the changes for approval. Nothing is being applied yet."
             } else if title == "Retry configuration save only" {
                 "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
             } else {
@@ -518,8 +577,8 @@ fn background<T: Send + 'static>(
             if weak
                 .upgrade_in_event_loop(move |ui| {
                     completion_busy.store(false, Ordering::Release);
-                    ui.set_running(false);
                     if !silent {
+                        ui.set_running(false);
                         ui.set_dialog_kind("".into());
                     }
                     complete(&ui, result);
@@ -531,8 +590,8 @@ fn background<T: Send + 'static>(
         })
     {
         busy.store(false, Ordering::Release);
-        ui.set_running(false);
         if !silent {
+            ui.set_running(false);
             ui.set_dialog_kind("".into());
         }
         return Err(format!("Cannot start backend task: {error}"));
@@ -627,18 +686,20 @@ fn refresh(
                         // observations or readable intent for other VMs.
                         let configuration_warning =
                             committed.and_then(|committed| state.load_committed(committed).err());
+                        ui.set_presenting(true);
                         let rows = inventory
                             .discovery
                             .vms
                             .iter()
                             .map(|vm| observed_row(vm, &inventory, historical))
                             .collect();
-                        ui.set_vms(model(rows));
-                        ui.set_gpu_information(model(inventory.discovery.gpus.iter().map(|gpu| GpuRow {
+                        ui.set_vms(update_model(ui.get_vms(), rows));
+                        ui.set_gpu_information(update_model(ui.get_gpu_information(), inventory.discovery.gpus.iter().map(|gpu| GpuRow {
                         name: gpu.name.clone().into(),
                         description: format!("Interface: {}\nDriver: {}\n{}\nPreparation adapter: {}\nAttachment does not prove guest graphics health; sharing is not qualified.", gpu.interface, gpu.driver_version, Resource::ALL.into_iter().map(|resource| gpu.resource_text(resource)).collect::<Vec<_>>().join("\n"), if gpu.preparation_supported { "available" } else { "not implemented" }).into(),
                     }).collect()));
-                        ui.set_gpu_options(model(
+                        ui.set_gpu_options(update_model(
+                            ui.get_gpu_options(),
                             inventory
                                 .discovery
                                 .gpus
@@ -646,6 +707,7 @@ fn refresh(
                                 .map(|gpu| gpu.name.clone().into())
                                 .collect(),
                         ));
+                        ui.set_presenting(false);
                         state.refresh(inventory);
                         let recovery_warning = state
                             .sync_recovery(recovery, import_recovery, enrollment_recovery)
@@ -850,21 +912,42 @@ fn review(
                             .map(|gpu| gpu.name.clone())
                     })
                     .unwrap_or_else(|| plan.desired.gpu_interface.clone());
+                let memory_scale = review_state.lock().ok().and_then(|state| {
+                    let gpu = state
+                        .view
+                        .inventory
+                        .as_ref()?
+                        .discovery
+                        .gpus
+                        .iter()
+                        .find(|gpu| gpu.interface == plan.desired.gpu_interface)?;
+                    Some((gpu.physical_vram_bytes?, gpu.total_vram?))
+                });
+                let memory_display = |raw| {
+                    memory_scale
+                        .and_then(|(physical, total)| {
+                            super::memory::equivalent(raw, physical, total)
+                        })
+                        .map_or_else(
+                            || "Unknown equivalent; see raw values below".into(),
+                            super::memory::format_gib,
+                        )
+                };
                 let memory_summary = if historical {
                     String::new()
                 } else if let Some(write) = &plan.preview.allocation {
                     format!(
-                        "GPU Memory (Optimal request): {} → {}\n",
-                        plan.observed.vram.as_ref().map_or_else(
-                            || "Unknown".into(),
-                            |v| super::memory::format_gb(v.optimal)
-                        ),
-                        super::memory::format_gb(write.optimal)
+                        "GPU Memory preference (physical equivalent): {} → {}\n",
+                        plan.observed
+                            .vram
+                            .as_ref()
+                            .map_or_else(|| "Unknown".into(), |v| memory_display(v.optimal)),
+                        memory_display(write.optimal)
                     )
                 } else if let Some(request) = &plan.desired.vram {
                     format!(
-                        "GPU Memory (Optimal request): {}. No VRAM write is planned.\n",
-                        super::memory::format_gb(request.optimal)
+                        "GPU Memory preference (physical equivalent): {}. No VRAM write is planned.\n",
+                        memory_display(request.optimal)
                     )
                 } else {
                     "GPU Memory: no explicit request.\n".into()
@@ -955,17 +1038,14 @@ fn review_enrollment(
             Ok((approved, artifacts)) => {
                 let setup = artifacts.is_some();
                 let mut summary = format!(
-                    "Allow GPU management for this VM and device:\n\nVM: {}\nVM ID: {}\nPhysical GPU: {}\nDevice ID: {}\nAllowed Windows account: {}\n\nOther VM permissions are preserved. This step does not enable GPU support or change guest power. Your draft is retained; GPU changes require a separate review after setup.",
+                    "Allow this application to manage the selected GPU for this virtual machine:\n\nVirtual machine: {}\nGPU: {}\n\nThis saves permission only. GPU support and the VM's power state will not change. Your draft stays available; you will review GPU changes separately afterward. Permissions for other VMs are preserved.",
                     ui.get_vm_name(),
-                    approved.vm_id,
                     ui.get_gpu_options()
                         .row_data(usize::try_from(ui.get_gpu_index()).unwrap_or(usize::MAX))
                         .unwrap_or_default(),
-                    approved.gpu_interface,
-                    approved.operator_sid,
                 );
                 if setup {
-                    summary.push_str("\n\nInstall or finish setting up this reviewed application package in Program Files, create protected application data and register its background management task. Windows approval is required. Interrupted setup must match its original VM, device and package; existing permissions are preserved.");
+                    summary.push_str("\n\nThe application also needs to install or finish setting up its management components on this Windows host. Windows will ask for administrator approval. If setup was interrupted, the original VM, GPU and application package must still match.");
                 } else {
                     summary.push_str("\n\nWindows approval is required to save this permission.");
                 }
@@ -1118,6 +1198,21 @@ fn reconcile_enrollment_live(
 fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support::worker::Progress) {
     move |progress| {
         let _ = weak.upgrade_in_event_loop(move |ui| {
+            let stage = match progress.stage.as_str() {
+                "Persist operation recovery" => "Saving recovery information",
+                "Prepare current signed payload" => "Installing the GPU driver files in the VM",
+                "Compatibility settings" => "Updating GPU compatibility settings",
+                "Provider allocation" => "Applying your GPU resource settings",
+                "Graceful guest shutdown" => "Shutting down the VM safely",
+                "Start guest" => "Starting the VM",
+                _ => progress.stage.as_str(),
+            };
+            let status = match progress.status {
+                hyper_gpu_support::worker::StageStatus::Running => "In progress",
+                hyper_gpu_support::worker::StageStatus::Done => "Complete",
+                hyper_gpu_support::worker::StageStatus::Failed => "Failed",
+            };
+            ui.set_dialog_body(format!("{stage} — {status}.\nPlease wait while the approved changes or checks finish. This can take some time.").into());
             let mut rows: Vec<_> = ui.get_stages().iter().collect();
             if progress.stage.starts_with("Transfer acknowledged:")
                 && rows
@@ -1125,13 +1220,13 @@ fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support:
                     .is_some_and(|row| row.starts_with("Transfer acknowledged:"))
             {
                 if let Some(row) = rows.last_mut() {
-                    *row = format!("{} · {:?}", progress.stage, progress.status).into();
+                    *row = format!("{stage} · {status}").into();
                 }
             } else {
                 if rows.len() >= 256 {
                     rows.remove(0);
                 }
-                rows.push(format!("{} · {:?}", progress.stage, progress.status).into());
+                rows.push(format!("{stage} · {status}").into());
             }
             ui.set_stages(model(rows));
         });
@@ -1199,7 +1294,7 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                         ui,
                         "info",
                         "Operation verified and configuration saved",
-                        "Independent GPU readback and protected configuration publication completed. Refresh shows current observations and committed intent.",
+                        "The GPU changes were checked and your settings were saved. Use Refresh to see the latest VM information.",
                     );
                 } else {
                     dialog(
@@ -1214,6 +1309,7 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                 }
             }
             Err(error) => {
+                let stages: Vec<_> = ui.get_stages().iter().collect();
                 with_state(ui, &finished_state, |state| {
                     state.recovery = hyper_gpu_support::runner::recovery_record()?;
                     state.view.needs_readback = true;
@@ -1221,6 +1317,8 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                     present(ui, state, false);
                     Ok(())
                 });
+                ui.set_stages(model(stages));
+                let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
                 dialog(
                     ui,
                     "error",
@@ -1229,6 +1327,12 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                         "{error}\nYour draft is retained. Inspect recovery and refresh before retrying an uncertain operation."
                     ),
                 );
+                let reason =
+                    hyper_gpu_support::reporting::operator_error("Applying changes", &error);
+                ui.set_dialog_body(format!(
+                    "{reason}\n{}\nYour draft is retained. Changes may have started; the final VM state has not been confirmed. Use Refresh and inspect recovery before trying again. Do not repeat Apply while recovery is required.",
+                    last_stage.map_or_else(|| "No execution stage was reported.".into(), |stage| format!("Last reported step: {stage}")),
+                ).into());
             }
         },
     )
@@ -1524,7 +1628,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     let weak = ui.as_weak();
     let selection_state = state.clone();
     ui.on_select_vm(move |id| {
-        if let Some(ui) = weak.upgrade() { with_state(&ui, &selection_state, |state| {
+        if let Some(ui) = weak.upgrade() { if ui.get_presenting() { return; } with_state(&ui, &selection_state, |state| {
             if ui.get_running() || id == ui.get_selected_id() { return Ok(()); }
             if ui.get_dirty() {
                 state.pending_selection = Some(id.to_string());
@@ -1537,6 +1641,9 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     let edit_state = state.clone();
     ui.on_edited(move || {
         if let Some(ui) = weak.upgrade() {
+            if ui.get_presenting() {
+                return;
+            }
             with_state(&ui, &edit_state, |state| {
                 state.rehearsal_plan = None;
                 state.enrollment_review = None;
@@ -1600,7 +1707,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         let Some(ui) = weak.upgrade() else {
             return;
         };
-        if ui.get_running() || !ui.get_dialog_kind().is_empty() {
+        if ui.get_presenting() || ui.get_running() || !ui.get_dialog_kind().is_empty() {
             return;
         }
         let mut values = ui
@@ -1637,6 +1744,12 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     let action_source = source.clone();
     ui.on_action(move |action| {
         let Some(ui) = weak.upgrade() else { return; }; if ui.get_running() { return; }
+        if action_busy.load(Ordering::Acquire)
+            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "reconcile-enrollment" | "save-only" | "credentials")
+        {
+            ui.set_notice("VM information is updating. You can keep editing; try this action when the update finishes.".into());
+            return;
+        }
         let result = match action.as_str() {
             "refresh" => refresh(&ui, &action_state, &action_busy, &action_source, false),
             "review" => review(&ui, &action_state, &action_busy, &action_source),

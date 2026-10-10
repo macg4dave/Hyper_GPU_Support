@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-10 - GUI repair build and installed update
+
+- Fixed a Slint duplicate modal-state binding caught by the authorized build.
+- Built all product binaries for Windows x64/MSVC debug and updated the protected
+  installation through native Rust install. All four built/installed/policy hashes
+  match; original operator and enrollment were preserved.
+- Tests, GUI acceptance and provider/guest effects remain unexercised.
+
 ## 2026-10-10 - Native VRAM GB request mapping source
 
 - Connected the real GPU Memory slider to the existing VRAM Optimal draft field
@@ -394,3 +402,13 @@ The existing CLI/backend remains intact; product integration is still planned.
 - Native Rust discovery matched the full measured manifest. Full writer/settings integration and repeatable product automation remain delivery work.
 
 Earlier completed changes are retained in the [historical changelog](evidence/CHANGELOG-HISTORY.md); read it only for a specific historical result.
+## 2026-10-10 - BUGS-002 GUI source repairs
+
+- Removed global UI disabling during status polling and preserved unchanged model rows.
+- Guarded presentation updates from draft edits; displayed provider default suggestions
+  and used the full reported VRAM request range with explicit draft-bound expansion.
+- Simplified enrollment, planning, guest credential and Apply stage messages; retained
+  failure stages, uncertainty guidance and safe native error codes in Technical Details.
+- Physical-capacity mapping and full safe component error text remain open. Tests,
+  builds, renders, installation and live acceptance are deferred.
+

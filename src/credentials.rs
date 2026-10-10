@@ -131,7 +131,7 @@ pub fn prompt(vm: &str, parent: windows::Win32::Foundation::HWND) -> Result<Cred
     }
     let caption = prompt_wide("Hyper GPU Support — guest credentials");
     let message = prompt_wide(
-        "Guest administrator credentials. Remember saves them in your Windows Credential Manager for this VM only.",
+        "Sign in with an administrator account inside the selected virtual machine, NOT your Windows host account. The application uses it to install GPU driver files or check graphics inside that VM. Remember saves it in your Windows Credential Manager for this VM only.",
     );
     let target = prompt_wide(&format!("HyperGpuSupport/guest/{vm}"));
     let info = CREDUI_INFOW {

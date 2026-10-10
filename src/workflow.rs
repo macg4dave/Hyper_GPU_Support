@@ -1176,6 +1176,8 @@ mod tests {
                 vendor: 0x10de,
                 device: 1,
                 driver_version: self.gpu_driver.into(),
+                physical_vram_bytes: None,
+                total_vram: None,
                 preparation_supported: true,
                 vram: Allocation {
                     minimum: 0,

@@ -32,6 +32,8 @@ export component VmDetails inherits Rectangle {
     in-out property <[string]> values;
     in property <[bool]> resource-available;
     in property <[string]> resource-hints;
+    in property <[string]> resource-defaults;
+    in property <bool> presenting;
     in property <string> validation;
     private property <bool> technical: false;
     private property <bool> advanced-expanded: false;
@@ -40,6 +42,22 @@ export component VmDetails inherits Rectangle {
     callback edited();
     callback memory-edited(int);
     callback action(string);
+    function edit-allocation(index: int, value: string) {
+        // Defaults are suggestions until the user edits an omitted triple.
+        if !root.mock-mode && value != "" {
+            if index < 3 && root.values[0] == "" && root.values[1] == "" && root.values[2] == "" {
+                root.values[0] = root.resource-defaults[0]; root.values[1] = root.resource-defaults[1]; root.values[2] = root.resource-defaults[2];
+            } else if index >= 3 && index < 6 && root.values[3] == "" && root.values[4] == "" && root.values[5] == "" {
+                root.values[3] = root.resource-defaults[3]; root.values[4] = root.resource-defaults[4]; root.values[5] = root.resource-defaults[5];
+            } else if index >= 6 && index < 9 && root.values[6] == "" && root.values[7] == "" && root.values[8] == "" {
+                root.values[6] = root.resource-defaults[6]; root.values[7] = root.resource-defaults[7]; root.values[8] = root.resource-defaults[8];
+            } else if index >= 9 && root.values[9] == "" && root.values[10] == "" && root.values[11] == "" {
+                root.values[9] = root.resource-defaults[9]; root.values[10] = root.resource-defaults[10]; root.values[11] = root.resource-defaults[11];
+            }
+        }
+        root.values[index] = value;
+        root.edited();
+    }
     background: Theme.canvas;
     VerticalLayout {
         padding: 18px; spacing: 14px;
@@ -61,18 +79,18 @@ export component VmDetails inherits Rectangle {
                         Hint { text: root.mock-mode ? "Physical GPU · sample" : "Physical GPU"; }
                         ComboBox { enabled: !Theme.modal-active && (root.eligible && !root.recovery); model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
                         HorizontalLayout {
-                            Label { text: "GPU Memory"; font-weight: 600; }
+                            Label { text: root.mock-mode ? "GPU Memory" : "GPU Memory preference"; font-weight: 600; }
                             Label { text: root.mock-mode ? root.memory-gb + " GB" : root.memory-label; font-weight: 600; horizontal-alignment: right; }
                         }
                         memory-slider := Slider {
-                            accessible-label: root.mock-mode ? "Sample GPU memory preference in GB" : "Requested VRAM Optimal in tenths of a GB";
+                            accessible-label: root.mock-mode ? "Sample GPU memory preference in GB" : "Physical-equivalent GPU memory preference";
                             accessible-value-step: 1;
                             minimum: root.mock-mode ? 1 : root.memory-minimum; maximum: root.mock-mode ? 8 : root.memory-maximum; step: 1;
                             value: root.mock-mode ? root.memory-gb : root.memory-position;
                             enabled: !Theme.modal-active && (root.mock-mode || root.memory-available) && root.eligible && !root.recovery;
                             changed(value) => {
                                 if root.mock-mode { root.memory-gb = max(1, min(8, round(value))); self.value = root.memory-gb; root.edited(); }
-                                else { root.memory-edited(round(value)); self.value = root.memory-position; }
+                                else if !root.presenting && round(value) != root.memory-position { root.memory-edited(round(value)); self.value = root.memory-position; }
                             }
                         }
                         HorizontalLayout { Hint { text: root.mock-mode ? "1 GB" : root.memory-range-start; } Hint { text: root.mock-mode ? "8 GB" : root.memory-range-end; horizontal-alignment: right; } }
@@ -101,11 +119,11 @@ export component VmDetails inherits Rectangle {
                 }
                 if root.advanced-expanded : VerticalLayout {
                     spacing: 14px;
-                    Hint { text: root.mock-mode ? "All numbers below are mock capabilities, not current GPU limits. Minimum ≤ Optimal ≤ Maximum." : "Raw provider integers; Minimum ≤ Optimal ≤ Maximum. Leave all three empty for no explicit write. New/recreated attachments use provider defaults; attachments retained in place keep existing values."; }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "VRAM"; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; editable: (root.mock-mode || root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.values[index] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Compute"; capability-text: root.resource-hints[1]; minimum : root.values[3]; optimal : root.values[4]; maximum : root.values[5]; editable: (root.mock-mode || root.resource-available[1] || root.values[3] != "" || root.values[4] != "" || root.values[5] != "") && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 3] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Encode"; capability-text: root.resource-hints[2]; minimum : root.values[6]; optimal : root.values[7]; maximum : root.values[8]; editable: (root.mock-mode || root.resource-available[2] || root.values[6] != "" || root.values[7] != "" || root.values[8] != "") && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 6] = value; root.edited(); } }
-                    ResourceEditor { mock-mode: root.mock-mode; title: "Decode"; capability-text: root.resource-hints[3]; minimum : root.values[9]; optimal : root.values[10]; maximum : root.values[11]; editable: (root.mock-mode || root.resource-available[3] || root.values[9] != "" || root.values[10] != "" || root.values[11] != "") && root.eligible && !root.recovery; edited(index, value) => { root.values[index + 9] = value; root.edited(); } }
+                    Hint { text: root.mock-mode ? "All numbers below are mock capabilities, not current GPU limits. Minimum ≤ Optimal ≤ Maximum." : "Minimum ≤ Optimal ≤ Maximum. Grey default values are suggestions reported by the selected GPU. Editing an empty group fills its other defaults. Clear all three fields for no explicit write; an existing attachment keeps its current values."; }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "VRAM"; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.mock-mode || root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index, value); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Compute"; capability-text: root.resource-hints[1]; minimum : root.values[3]; optimal : root.values[4]; maximum : root.values[5]; default-minimum: root.resource-defaults[3]; default-optimal: root.resource-defaults[4]; default-maximum: root.resource-defaults[5]; editable: (root.mock-mode || root.resource-available[1] || root.values[3] != "" || root.values[4] != "" || root.values[5] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index + 3, value); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Encode"; capability-text: root.resource-hints[2]; minimum : root.values[6]; optimal : root.values[7]; maximum : root.values[8]; default-minimum: root.resource-defaults[6]; default-optimal: root.resource-defaults[7]; default-maximum: root.resource-defaults[8]; editable: (root.mock-mode || root.resource-available[2] || root.values[6] != "" || root.values[7] != "" || root.values[8] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index + 6, value); } }
+                    ResourceEditor { mock-mode: root.mock-mode; title: "Decode"; capability-text: root.resource-hints[3]; minimum : root.values[9]; optimal : root.values[10]; maximum : root.values[11]; default-minimum: root.resource-defaults[9]; default-optimal: root.resource-defaults[10]; default-maximum: root.resource-defaults[11]; editable: (root.mock-mode || root.resource-available[3] || root.values[9] != "" || root.values[10] != "" || root.values[11] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index + 9, value); } }
                 }
                 if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }
                 HorizontalLayout {
@@ -119,7 +137,7 @@ export component VmDetails inherits Rectangle {
                         Hint { text: "Saved configuration: " + root.desired; }
                         Hint { text: "Graphics: " + root.verification; }
                         Hint { text: root.inventory-details; }
-                        if !root.mock-mode && !root.snapshot-mode : Hint { text: "GPU Memory converts the native VRAM byte request to decimal GB (1 GB = 1,000,000,000 bytes). Advanced Allocation retains exact integer values; non-grid Optimal values are not rounded unless the slider is edited."; }
+                        if !root.mock-mode && !root.snapshot-mode : Hint { text: "GPU Memory expresses a proportional preference against physical dedicated memory in GiB (1 GiB = 1,073,741,824 bytes). The driver-reported total defines the allocation scale. Advanced Allocation and saved configuration retain exact provider integers; no physical quota or driver enforcement is established by this conversion."; }
                         Hint { text: root.snapshot-mode ? "Recorded enrollment/status: " + root.status : root.mock-mode ? "Enrollment: " + root.status + " (mock)" : "Protected enrollment: " + root.status; }
                         Hint { text: root.mock-mode ? "Driver: illustrative NVIDIA signed package · provider: sample GPU-P" : "Observed attachment: " + root.observed; }
                         Hint { text: root.mock-mode ? "Host partition count: 32 (sample, read only)\nSecure Boot: On · Generation: " + (root.status == "Unsupported" ? "1" : "2") + "\nCPU, RAM and disks are outside this editor." : "Host partition count and Secure Boot: not queried. CPU, RAM and disks are outside this editor."; }

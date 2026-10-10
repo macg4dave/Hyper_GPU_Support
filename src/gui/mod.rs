@@ -89,8 +89,22 @@ fn select(ui: &AppWindow, session: &Session, id: &str) {
     ui.set_validation("".into());
 }
 fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
+    let previous_stages: Vec<_> = ui
+        .get_stages()
+        .iter()
+        .map(|stage| stage.to_string())
+        .collect();
     ui.set_stages(model(Vec::new()));
-    ui.set_dialog_details("".into());
+    ui.set_dialog_details(if kind == "error" {
+        let mut details = hyper_gpu_support::reporting::technical_error(title, body);
+        if !previous_stages.is_empty() {
+            details.push_str("\n\nLast reported stages:\n");
+            details.push_str(&previous_stages.join("\n"));
+        }
+        details.into()
+    } else {
+        "".into()
+    });
     ui.set_dialog_kind(kind.into());
     ui.set_dialog_title(title.into());
     ui.set_dialog_body(if kind == "error" {

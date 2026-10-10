@@ -24,11 +24,11 @@ export component DemoDialog inherits Rectangle {
         padding: 24px;
         Rectangle { horizontal-stretch: 1; }
         Surface {
-            max-width: 620px; min-width: 420px; preferred-width: 620px;
+            max-width: 620px; min-width: 0px; preferred-width: 620px;
             VerticalLayout {
                 padding: 24px; spacing: 16px;
                 Label { text: root.snapshot-mode ? "HISTORICAL PREVIEW · NO CHANGES" : root.mock-mode ? "DEMONSTRATION · NO CHANGES" : "Hyper GPU Support"; font-size: 11px; font-weight: 600; color: Theme.muted; }
-                Heading { text: root.title; }
+                Heading { text: root.title; wrap: word-wrap; }
                 body-scroll := ScrollView {
                     vertical-stretch: 1;
                     horizontal-scrollbar-policy: always-off;
@@ -55,7 +55,7 @@ export component DemoDialog inherits Rectangle {
                     if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
                     if root.kind == "forget" : Button { text: root.mock-mode ? "Forget sample pairing" : "Forget pairing"; primary: true; enabled: root.mock-mode; clicked => { root.action("confirm-forget"); } }
                     if root.kind == "enroll-review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
-                    if root.kind == "enroll-review" : Button { text: "Enroll reviewed pair"; primary: true; enabled: !root.mock-mode && !root.snapshot-mode && root.execution-ready; clicked => { root.action("confirm-enroll"); } }
+                    if root.kind == "enroll-review" : Button { text: "Allow GPU management"; primary: true; enabled: !root.mock-mode && !root.snapshot-mode && root.execution-ready; clicked => { root.action("confirm-enroll"); } }
                     if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: !root.mock-mode && !root.snapshot-mode && root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
                     if root.kind == "review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
                     if root.kind == "review" : Button { text: root.snapshot-mode ? "Rehearse recorded stages" : root.mock-mode ? "Confirm demonstration" : root.execution-ready ? "Apply approved changes" : "Apply unavailable"; primary: true; enabled: (root.mock-mode || root.snapshot-mode || root.execution-ready) && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }

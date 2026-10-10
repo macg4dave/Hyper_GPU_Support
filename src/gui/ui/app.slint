@@ -51,6 +51,8 @@ export component AppWindow inherits Window {
     in-out property <[string]> values: ["100", "500", "1000", "100", "500", "1000", "100", "500", "1000", "100", "500", "1000"];
     in property <[bool]> resource-available: [false, false, false, false];
     in property <[string]> resource-hints: ["Capability unknown", "Capability unknown", "Capability unknown", "Capability unknown"];
+    in property <[string]> resource-defaults: ["", "", "", "", "", "", "", "", "", "", "", ""];
+    in property <bool> presenting: false;
     in-out property <string> validation;
     in-out property <string> notice: "Explore safely. This workspace uses sample VMs and GPUs.";
     in-out property <string> dialog-kind;
@@ -60,8 +62,8 @@ export component AppWindow inherits Window {
     in-out property <[string]> stages;
     in-out property <bool> running: false;
     in-out property <bool> needs-shutdown: false;
-    private property <bool> modal-active <=> Theme.modal-active;
-    modal-active: root.dialog-kind != "" || root.running;
+    private property <bool> modal-active: root.dialog-kind != "" || root.running;
+    changed modal-active => { Theme.modal-active = root.modal-active; }
     private property <length> split: 310px;
     callback select-vm(string);
     callback edited();
@@ -134,6 +136,7 @@ export component AppWindow inherits Window {
                             support-summary: root.support-summary;
                             inventory-details: root.inventory-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
+                            presenting: root.presenting; resource-defaults: root.resource-defaults;
                             gpu-enabled <=> root.gpu-enabled; gpu-index <=> root.gpu-index; values <=> root.values;
                             resource-available: root.resource-available; resource-hints: root.resource-hints;
                             memory-gb <=> root.memory-gb;

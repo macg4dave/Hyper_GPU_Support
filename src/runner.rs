@@ -1534,6 +1534,8 @@ mod tests {
             vendor: 0x10de,
             device: 0x2d05,
             driver_version: "current discovered version".into(),
+            physical_vram_bytes: None,
+            total_vram: None,
             vram: Allocation {
                 minimum: 0,
                 maximum: 100,

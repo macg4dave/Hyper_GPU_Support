@@ -112,6 +112,37 @@ pub fn operator_error(stage: &str, error: &str) -> String {
     Diagnostic::observation(stage, None, error).text()
 }
 
+/// Preserve native error codes and classified context without echoing untrusted
+/// adapter text, which can contain credential material even without key labels.
+pub fn technical_error(stage: &str, error: &str) -> String {
+    let mut codes = Vec::new();
+    let lower = error.to_ascii_lowercase();
+    if !["password", "token", "secret", "credential", "bearer"]
+        .iter()
+        .any(|word| lower.contains(word))
+    {
+        for word in error.split(|c: char| !c.is_ascii_alphanumeric()).take(4096) {
+            if word.len() == 10
+                && word.starts_with("0x")
+                && word[2..].bytes().all(|c| c.is_ascii_hexdigit())
+                && !codes.iter().any(|code| code == word)
+                && codes.len() < 16
+            {
+                codes.push(word.to_owned());
+            }
+        }
+    }
+    format!(
+        "Operation: {stage}\nBackend result: {}\nNative error codes: {}\nUntrusted adapter text is omitted to protect credentials.",
+        operator_error(stage, error),
+        if codes.is_empty() {
+            "not available".into()
+        } else {
+            codes.join(", ")
+        },
+    )
+}
+
 /// Remove adapter error text from structured CLI results without altering facts.
 pub fn public_result(value: &mut serde_json::Value) {
     match value {
@@ -149,6 +180,16 @@ pub fn collect_observations<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn technical_diagnostics_preserve_codes_without_echoing_adapter_text() {
+        let details = technical_error("Apply", "Access is denied (0x80070005); private-content");
+        assert!(details.contains("0x80070005"));
+        assert!(details.contains("Denied"));
+        assert!(!details.contains("private-content"));
+        let details = technical_error("Apply", "password=0x12345678 token=private-content");
+        assert!(!details.contains("0x12345678"));
+        assert!(!details.contains("private-content"));
+    }
     #[test]
     fn partial_access_preserves_other_observations() {
         let (values, issues) = collect_observations(

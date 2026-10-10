@@ -218,6 +218,77 @@ pub fn enumerate_adapter_identities() -> Result<Vec<AdapterIdentity>, AdapterSel
     Ok(identities)
 }
 
+/// Match full PCI identity; identical cards are ambiguous and never picked by order.
+/// Returns dedicated physical memory only, excluding software and virtual adapters.
+#[must_use]
+pub fn physical_memory_for_pci(
+    identities: &[AdapterIdentity],
+    vendor: u32,
+    device: u32,
+    subsystem: u32,
+    revision: u32,
+) -> Option<u64> {
+    let mut matches = identities.iter().filter(|identity| {
+        !identity.software
+            && !identity.indirect_display
+            && !identity.paravirtualized
+            && identity.vendor_id == vendor
+            && identity.device_id == device
+            && identity.subsystem_id == subsystem
+            && identity.revision == revision
+    });
+    let identity = matches.next()?;
+    (matches.next().is_none() && identity.dedicated_video_memory > 0)
+        .then_some(identity.dedicated_video_memory)
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    fn adapter() -> AdapterIdentity {
+        AdapterIdentity {
+            description: "Synthetic GPU".into(),
+            vendor_id: 1,
+            device_id: 2,
+            subsystem_id: 3,
+            revision: 4,
+            dedicated_video_memory: 8 << 30,
+            luid: "00000000:00000001".into(),
+            software: false,
+            indirect_display: false,
+            paravirtualized: false,
+        }
+    }
+
+    #[test]
+    fn capacity_requires_unique_complete_physical_identity() {
+        let a = adapter();
+        assert_eq!(
+            physical_memory_for_pci(std::slice::from_ref(&a), 1, 2, 3, 4),
+            Some(8 << 30)
+        );
+        assert_eq!(
+            physical_memory_for_pci(&[a.clone(), a.clone()], 1, 2, 3, 4),
+            None
+        );
+        assert_eq!(
+            physical_memory_for_pci(std::slice::from_ref(&a), 1, 2, 99, 4),
+            None
+        );
+        for field in 0..4 {
+            let mut invalid = a.clone();
+            match field {
+                0 => invalid.software = true,
+                1 => invalid.indirect_display = true,
+                2 => invalid.paravirtualized = true,
+                _ => invalid.dedicated_video_memory = 0,
+            }
+            assert_eq!(physical_memory_for_pci(&[invalid], 1, 2, 3, 4), None);
+        }
+    }
+}
+
 #[allow(unsafe_code)]
 fn query_adapter_type(
     luid: windows::Win32::Foundation::LUID,

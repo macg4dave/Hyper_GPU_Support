@@ -12,6 +12,8 @@ If replacement work is blocked by a concrete external prerequisite, record it on
 
 ## Status and selection rules
 
+**Authorized BUGS-001 / GPU-010.3 build and installation (10 October):** fixed the Slint duplicate binding in modal availability by deriving its value from dialog/operation state and synchronizing the global from that value. `cargo build --locked --all-features --bins --jobs 2` succeeded for Windows x64/MSVC debug with the configured static CRT. The existing development wrapper then invoked native Rust `install` using the full existing enrollment. All four built/installed/policy SHA-256 hashes match; the original operator and one enrolled pair were preserved. Evidence: `local/gui-update/0852293a78f94462a5a03e3ab3462074/result.json`. No tests, GUI launch or VM/GPU/guest effect exercise was run; behavior acceptance remains pending.
+
 **Requested bug repair — [BUGS-001](evidence/BUGS-001.md) (10 October):** GUI-002/GUI-003 source changes implement concise GPU status, before/after Review summaries with expandable technical output, fixed downtime/Apply footer, reactive modal availability, baseline-based dirty tracking and installed read-only status polling every 15 seconds while dialogs/operations are idle. Navigation does not stage intent; reverted edits clear the draft and invalid edits remain visible with their validation reason. Tests/builds/render/GUI acceptance are deferred; BUG-05's reported interaction still needs reproduction/acceptance. The subsequent user request implemented BUG-06 / GPU-010.3 native byte-to-GB request conversion (DEC-034), pending acceptance. Individual bugs are not marked completed.
 
 - **ready:** implementation can start with present dependencies.
@@ -23,6 +25,14 @@ If replacement work is blocked by a concrete external prerequisite, record it on
 Suffixes below are executable slices of existing IDs, not replacement projects. Parent IDs remain the tracking owners. Follow the order table; skip blocked tasks to the first ready task. Update the owning slice with changed behavior, exact blocker and actual validation status. Write meaningful tests for new logic, but execution follows AGENTS and ROADMAP: no automatic tests/builds/UI launches after a task; M3/release validation needs explicit authorization. Material privilege/recovery changes require independent architecture review at the implementation milestone or before live use.
 
 ## Ordered source queue
+
+**BUGS-002 source repair (10 October):** non-modal polling and in-place row updates,
+presentation edit guards, reported allocation default suggestions, full provider-range
+slider with explicit draft-bound expansion, clearer enrollment/planning/guest credential
+and actual-stage Apply text, failure context and safe native-code diagnostics implemented.
+Physical-card VRAM request mapping (BUG-02) and structured safe component error messages
+(BUG-10) remain open for the exact reasons in [BUGS-002](evidence/BUGS-002.md).
+GUI-002/GUI-003/GPU-010 own these repairs; tests/builds/render/live acceptance are deferred.
 
 | Order | Slice / owner | Status | Depends on |
 |---|---|---|---|

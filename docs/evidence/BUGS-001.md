@@ -134,3 +134,18 @@ builds, renders, UI launches or live operations were run for this repair.
 
 Tracking owners: GUI-002 / GUI-003, with GPU-010.3 owning BUG-06 source mapping and pending acceptance.
 No issue is marked completed solely from source changes.
+
+## 5. Authorized build and installed update — 10 October 2026
+
+- Fixed the Slint duplicate modal property binding found by the build; computed
+  dialog/operation availability now synchronizes the shared modal flag.
+- `cargo build --locked --all-features --bins --jobs 2` succeeded: Rust 1.94.0,
+  Windows x64/MSVC debug, configured static CRT, all product binaries.
+- Native Rust installation through the existing development elevation wrapper
+  succeeded. All four source/installed/policy SHA-256 hashes match; the original
+  operator and one enrolled pair were preserved.
+- Evidence: `local/gui-update/0852293a78f94462a5a03e3ab3462074/result.json` and
+  installer stdout/stderr in that directory. Installed GUI:
+  `C:\Program Files\HyperGpuSupportProduct\hyper-gpu-support.exe`.
+- Tests, GUI launch, control/layout acceptance and provider/guest behavior were
+  not exercised. The per-issue acceptance statuses above remain pending.

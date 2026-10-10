@@ -390,6 +390,13 @@ pub struct Gpu {
     pub device: u32,
     /// Current driver version.
     pub driver_version: String,
+    /// Physical dedicated memory from an unambiguous native hardware identity.
+    /// This is inventory, not the Hyper-V allocation range or an enforced quota.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub physical_vram_bytes: Option<u64>,
+    /// Driver-reported total VRAM allocation value, distinct from card capacity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_vram: Option<u64>,
     /// VRAM capability; historical positive ranges remain readable.
     #[serde(default, deserialize_with = "deserialize_vram_capability")]
     pub vram: ResourceCapability,

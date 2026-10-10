@@ -166,6 +166,9 @@ pub(crate) fn selected_gpu(t: &Target) -> Result<Gpu, String> {
 fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
     let _apartment = Apartment::initialize().map_err(|e| e.to_string())?;
     let cim = connect(r"ROOT\cimv2").map_err(|e| e.to_string())?;
+    // Physical capacity is independent read-only inventory. Its failure leaves
+    // capacity unknown without suppressing otherwise valid provider information.
+    let identities = crate::windows_probe::enumerate_adapter_identities().ok();
     let mut gpus = Vec::new();
     for o in s.query(gpu_query)? {
         let interface = o.string("Name")?;
@@ -184,12 +187,22 @@ fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
             return Err("partitionable GPU signed-driver identity is ambiguous".into());
         }
         let row = &rows[0];
-        let pci = |tag: &str| -> Result<u32, String> {
+        let pci = |tag: &str, digits: usize| -> Result<u32, String> {
             let (_, rest) = physical.split_once(tag).ok_or("PCI identity missing")?;
-            u32::from_str_radix(rest.get(..4).ok_or("PCI identity truncated")?, 16)
+            u32::from_str_radix(rest.get(..digits).ok_or("PCI identity truncated")?, 16)
                 .map_err(|e| e.to_string())
         };
-        let vendor = pci("VEN_")?;
+        let vendor = pci("VEN_", 4)?;
+        let device = pci("DEV_", 4)?;
+        let physical_vram_bytes = identities.as_ref().and_then(|identities| {
+            crate::windows_probe::physical_memory_for_pci(
+                identities,
+                vendor,
+                device,
+                pci("SUBSYS_", 8).ok()?,
+                pci("REV_", 2).ok()?,
+            )
+        });
         gpus.push(Gpu {
             compute: resource_capability(&o, Resource::Compute),
             encode: resource_capability(&o, Resource::Encode),
@@ -201,7 +214,9 @@ fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
                 .ok_or("missing driver version")?
                 .clone(),
             vendor,
-            device: pci("DEV_")?,
+            device,
+            physical_vram_bytes,
+            total_vram: o.optional_number("TotalVRAM").ok().flatten(),
             vram: resource_capability(&o, Resource::Vram),
             preparation_supported: vendor == 0x10de,
         });

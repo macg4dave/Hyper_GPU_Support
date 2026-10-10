@@ -572,3 +572,10 @@ new privilege path or physical reservation/fairness/limit guarantee is introduce
 Focused integer-boundary, exact-display, omitted/invalid/stale/historical and
 slider-versus-raw-draft regressions authored. Source formatted; tests/builds/UI
 renders/launches/installed update/live provider and guest checks remain deferred.
+
+**BUGS-002 amendment (10 October, source only):** the slider spans the selected
+provider's complete validated request interval, even when saved draft bounds are
+narrower. An explicit slider edit expands draft Minimum/Maximum only as needed
+to contain Optimal; other fields remain exact. Omitted allocations show labelled
+provider-default suggestions without creating configuration intent. This does not
+establish physical VRAM capacity or a driver-specific capacity/request ratio.
