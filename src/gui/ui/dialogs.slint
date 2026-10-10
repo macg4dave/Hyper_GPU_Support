@@ -9,6 +9,7 @@ export component DemoDialog inherits Rectangle {
     in property <string> kind;
     in property <string> title;
     in property <string> body;
+    in property <string> details;
     in property <[string]> stages;
     in property <bool> running;
     in property <bool> needs-shutdown;
@@ -26,7 +27,7 @@ export component DemoDialog inherits Rectangle {
             max-width: 620px; min-width: 420px; preferred-width: 620px;
             VerticalLayout {
                 padding: 24px; spacing: 16px;
-                Label { text: root.snapshot-mode ? "HISTORICAL REHEARSAL · NO WRITES" : root.mock-mode ? "MOCK · NO REAL OPERATIONS" : "LIVE APPLICATION"; font-size: 11px; font-weight: 600; color: Theme.muted; }
+                Label { text: root.snapshot-mode ? "HISTORICAL PREVIEW · NO CHANGES" : root.mock-mode ? "DEMONSTRATION · NO CHANGES" : "Hyper GPU Support"; font-size: 11px; font-weight: 600; color: Theme.muted; }
                 Heading { text: root.title; }
                 body-scroll := ScrollView {
                     vertical-stretch: 1;
@@ -36,14 +37,15 @@ export component DemoDialog inherits Rectangle {
                         width: body-scroll.visible-width;
                         Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: char-wrap; }
                         for stage in root.stages : Hint { text: stage; font-size: 13px; width: max(0px, body-scroll.visible-width - 8px); wrap: char-wrap; }
-                        if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox { text: root.mock-mode || root.snapshot-mode ? "Demonstrate graceful guest shutdown & restore" : "Approve graceful guest shutdown and safe restoration"; checked <=> root.consent; }
                         if root.running : ProgressIndicator { indeterminate: true; }
+                        if root.technical : TechnicalOutput {
+                            vertical-stretch: 0;
+                            text: root.details != "" ? root.details : root.body;
+                        }
                     }
                 }
-                if root.technical : TechnicalOutput {
-                    max-height: min(220px, root.height / 3);
-                    text: root.snapshot-mode ? "Historical snapshot rehearsal; no writes or effects.\n" + root.body : root.mock-mode ? "Source: deterministic in-memory mock provider.\nNo worker is launched.\nNo permissions, passwords or GPU API calls are used.\nTiming illustrates the proposed stage flow.\n\nDialog: " + root.title + "\n\nMock diagnostic context:\n" + root.body : "Live application information:\n" + root.body;
-                }
+                if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox { text: root.mock-mode || root.snapshot-mode ? "Demonstrate graceful guest shutdown & restore" : "Approve graceful guest shutdown and safe restoration"; checked <=> root.consent; }
+                if root.kind == "review" && !root.mock-mode && !root.snapshot-mode && !root.execution-ready : Hint { text: "Apply is unavailable. Close this review and use Refresh to check setup or recovery."; color: Theme.accent; }
                 HorizontalLayout {
                     spacing: 8px;
                     if root.kind == "switch" : Button { text: "Stay on VM"; clicked => { root.action("close"); } }

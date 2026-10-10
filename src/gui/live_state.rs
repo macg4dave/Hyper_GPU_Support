@@ -55,6 +55,58 @@ impl Default for State {
 }
 
 impl State {
+    /// Native adapter VRAM follows Microsoft's byte parameter contract. Historical
+    /// captures contain raw values without unit provenance, so cannot use this route.
+    pub fn memory_slider(
+        &self,
+        gpu_index: i32,
+        values: &[String],
+    ) -> Result<super::memory::MemorySlider, String> {
+        if self.historical {
+            return Err(
+                "GB units are not recorded in this snapshot. Use raw Advanced Allocation.".into(),
+            );
+        }
+        if self.view.needs_readback {
+            return Err("Refresh VM and GPU information before using the memory slider.".into());
+        }
+        let limits = self
+            .view
+            .inventory
+            .as_ref()
+            .and_then(|inventory| {
+                usize::try_from(gpu_index)
+                    .ok()
+                    .and_then(|index| inventory.discovery.gpus.get(index))
+            })
+            .and_then(|gpu| gpu.limits(Resource::Vram))
+            .ok_or("VRAM bounds are unavailable. Use Refresh to retry.")?;
+        let current =
+            super::memory::request(values.get(..3).ok_or("VRAM fields are unavailable.")?)?;
+        super::memory::MemorySlider::new(limits, current.as_ref())
+    }
+
+    /// Compare intent without treating validation, navigation or formatting as edits.
+    pub fn draft_changed(
+        &self,
+        baseline: &Target,
+        enabled: bool,
+        gpu: Option<&str>,
+        values: &[String],
+    ) -> bool {
+        let baseline_values = allocation_values(baseline);
+        let same_values = values.len() == baseline_values.len()
+            && values.iter().zip(&baseline_values).all(|(a, b)| {
+                a.trim() == b
+                    || a.trim()
+                        .parse::<u64>()
+                        .ok()
+                        .zip(b.parse::<u64>().ok())
+                        .is_some_and(|(a, b)| a == b)
+            });
+        enabled != baseline.enabled || gpu != Some(baseline.gpu_interface.as_str()) || !same_values
+    }
+
     /// Synchronize presentation only after successful inventory/store/record reads.
     /// Record absence alone cannot prove that verified intent was published.
     pub fn sync_recovery(
@@ -366,6 +418,76 @@ pub(super) fn review_text(plan: &Plan) -> String {
     )
 }
 
+/// User-facing before/after changes, derived from the same approved effect plan.
+pub(super) fn review_summary(plan: &Plan) -> String {
+    use hyper_gpu_support::workflow::PreviewAction;
+    let mut lines = vec![
+        format!("VM: {}", plan.observed.name),
+        format!(
+            "GPU support: {} → {}",
+            if plan.observed.gpus.is_empty() {
+                "Disabled"
+            } else {
+                "Enabled"
+            },
+            if plan.desired.enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
+        ),
+    ];
+    for (resource, write) in [
+        (Resource::Vram, plan.preview.allocation.as_ref()),
+        (Resource::Compute, plan.preview.compute.as_ref()),
+        (Resource::Encode, plan.preview.encode.as_ref()),
+        (Resource::Decode, plan.preview.decode.as_ref()),
+    ] {
+        if let Some(write) = write {
+            lines.push(format!(
+                "{} (Minimum / Optimal / Maximum, raw provider values): {} → {}",
+                resource.name(),
+                allocation_description(plan.observed.allocation(resource), "Unknown"),
+                allocation_description(Some(write), "Unknown")
+            ));
+        }
+    }
+    lines.push("\nPlanned steps:".into());
+    lines.extend(plan.preview.actions.iter().map(|action| {
+        match action {
+            PreviewAction::Shutdown => "• Gracefully stop the VM.",
+            PreviewAction::Start => "• Start the VM.",
+            PreviewAction::Detach => "• Remove the GPU attachment.",
+            PreviewAction::Prepare => {
+                "• Prepare the guest with the current signed GPU driver files."
+            }
+            PreviewAction::Settings => "• Update or restore GPU compatibility settings.",
+            PreviewAction::Attach => "• Attach the selected physical GPU.",
+            PreviewAction::Allocation => "• Set the GPU resources shown above.",
+            PreviewAction::Verify => "• Check guest graphics health and hardware rendering.",
+        }
+        .to_owned()
+    }));
+    lines.push(format!(
+        "\nFinal VM power: {}.",
+        match plan.preview.restore_power {
+            hyper_gpu_support::model::Power::Running => "Running",
+            hyper_gpu_support::model::Power::Off => "Stopped",
+            hyper_gpu_support::model::Power::Other(_) => "Unknown",
+        }
+    ));
+    if plan.preview.guest_downtime {
+        lines.push("The running VM will be interrupted. Approval below is required.".into());
+    }
+    if plan.preview.settings_preserved {
+        lines.push("Externally changed compatibility settings will be preserved.".into());
+    }
+    if plan.preview.pending_recovery {
+        lines.push("Interrupted work requires recovery before further changes.".into());
+    }
+    lines.join("\n")
+}
+
 fn allocation_description(value: Option<&Allocation>, absent: &str) -> String {
     value.map_or_else(
         || absent.to_owned(),
@@ -434,6 +556,74 @@ mod tests {
         let mut s = State::default();
         s.refresh(inventory());
         s
+    }
+
+    #[test]
+    fn draft_tracking_ignores_unchanged_values_and_retains_invalid_edits() {
+        let s = state();
+        let mut baseline = s.target(id(&s)).unwrap();
+        baseline.vram = Some(Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 100,
+        });
+        let mut values = allocation_values(&baseline);
+        let gpu = Some(baseline.gpu_interface.as_str());
+        assert!(!s.draft_changed(&baseline, baseline.enabled, gpu, &values));
+        values[1] = " 050 ".into();
+        assert!(!s.draft_changed(&baseline, baseline.enabled, gpu, &values));
+        assert!(s.draft_changed(&baseline, !baseline.enabled, gpu, &values));
+        values[1] = "invalid".into();
+        assert!(s.draft_changed(&baseline, baseline.enabled, gpu, &values));
+        values[1] = "50".into();
+        assert!(!s.draft_changed(&baseline, baseline.enabled, gpu, &values));
+    }
+
+    #[test]
+    fn historical_and_stale_values_cannot_authorize_gb_mapping() {
+        let mut s = state();
+        s.historical = true;
+        assert!(
+            s.memory_slider(0, &vec![String::new(); 12])
+                .err()
+                .unwrap()
+                .contains("not recorded")
+        );
+        s.historical = false;
+        s.view.needs_readback = true;
+        assert!(
+            s.memory_slider(0, &vec![String::new(); 12])
+                .err()
+                .unwrap()
+                .contains("Refresh")
+        );
+    }
+
+    #[test]
+    fn memory_selection_and_advanced_fields_produce_the_same_draft() {
+        let mut s = state();
+        s.view.inventory.as_mut().unwrap().discovery.gpus[0].vram = Allocation {
+            minimum: 1,
+            optimal: 4_000_000_000,
+            maximum: 8_000_000_000,
+        }
+        .into();
+        let mut raw = values("2000000000", "4000000000", "6000000000");
+        let selected = s.memory_slider(0, &raw).unwrap().select(55).unwrap();
+        raw[1] = selected.optimal.to_string();
+        let draft = s.draft(id(&s), true, 0, &raw).unwrap();
+        assert_eq!(draft.vram, Some(selected));
+        assert!(s.draft_changed(
+            &s.target(id(&s)).unwrap(),
+            true,
+            Some(&draft.gpu_interface),
+            &raw
+        ));
+        // Unsupported/incomplete raw text must remain intact rather than being
+        // replaced with guessed defaults from the slider.
+        raw[1] = "invalid".into();
+        assert!(s.memory_slider(0, &raw).is_err());
+        assert_eq!(raw[1], "invalid");
     }
 
     #[test]
@@ -892,6 +1082,10 @@ mod tests {
             automatic_guest_restart: false,
         };
         let first = review_text(&plan);
+        let summary = review_summary(&plan);
+        assert!(summary.contains("GPU support: Disabled → Enabled"));
+        assert!(summary.contains("Unknown → 10 / 50 / 100"));
+        assert!(!summary.contains("GPU interface"));
         assert!(first.contains("VRAM draft (Minimum / Optimal / Maximum): 10 / 50 / 100"));
         assert!(first.contains("Planned allocation write: 10 / 50 / 100"));
         plan.desired.vram = Some(Allocation {

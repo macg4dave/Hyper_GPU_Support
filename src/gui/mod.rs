@@ -1,13 +1,14 @@
 //! Approved Slint presentation: live startup or explicitly selected mock rehearsal.
 mod live;
 mod live_state;
+mod memory;
 mod mock;
 mod snapshot;
 use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
 use std::{cell::RefCell, rc::Rc, time::Duration};
 slint::include_modules!();
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct Saved {
     enabled: bool,
     gpu: i32,
@@ -89,6 +90,7 @@ fn select(ui: &AppWindow, session: &Session, id: &str) {
 }
 fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
     ui.set_stages(model(Vec::new()));
+    ui.set_dialog_details("".into());
     ui.set_dialog_kind(kind.into());
     ui.set_dialog_title(title.into());
     ui.set_dialog_body(if kind == "error" {
@@ -112,7 +114,7 @@ fn mock_close_request(ui: &AppWindow) -> slint::CloseRequestResponse {
     }
     slint::CloseRequestResponse::HideWindow
 }
-fn review(ui: &AppWindow) {
+fn review(ui: &AppWindow, session: &Session) {
     if !ui.get_eligible() || ui.get_recovery() {
         return;
     }
@@ -142,7 +144,45 @@ fn review(ui: &AppWindow) {
         ));
     }
     body.push_str("\nDemonstrated effects: enrollment if needed, guest preparation, allocation, readback and configuration save. Running guests illustrate graceful shutdown and restoration. No elevation or real changes will occur.");
-    dialog(ui, "review", "Review your draft", &body);
+    let baseline = session
+        .saved
+        .get(ui.get_selected_id().as_str())
+        .cloned()
+        .unwrap_or_else(|| Saved {
+            enabled: ui.get_status() == "Configured",
+            gpu: if ui.get_observed().contains("4070") {
+                1
+            } else {
+                0
+            },
+            ..Saved::default()
+        });
+    let mut summary = format!(
+        "VM: {}\nGPU support: {} → {}\nPhysical GPU: {gpu}\nGPU Memory (sample preference): {} GB → {} GB\n",
+        ui.get_vm_name(),
+        if baseline.enabled {
+            "Enabled"
+        } else {
+            "Disabled"
+        },
+        if d.enabled { "Enabled" } else { "Disabled" },
+        baseline.memory_gb,
+        d.memory_gb
+    );
+    for (index, name) in ["VRAM", "Compute", "Encode", "Decode"].iter().enumerate() {
+        let before = &baseline.values[index * 3..index * 3 + 3];
+        let after = &d.values[index * 3..index * 3 + 3];
+        if before != after {
+            summary.push_str(&format!(
+                "{name} (Minimum / Optimal / Maximum, sample values): {} → {}\n",
+                before.join(" / "),
+                after.join(" / ")
+            ));
+        }
+    }
+    summary.push_str("\nDemonstration only. No VM changes are made or saved.");
+    dialog(ui, "review", "Review your draft", &summary);
+    ui.set_dialog_details(body.into());
 }
 fn save_sample(ui: &AppWindow, session: &mut Session) {
     session
@@ -185,10 +225,25 @@ pub(super) fn run(mock_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
     select(&ui, &session.borrow(), &session.borrow().inventory[0].id);
     let timer = Rc::new(Timer::default());
     let weak = ui.as_weak();
+    let edit_session = session.clone();
     ui.on_edited(move || {
         if let Some(ui) = weak.upgrade() {
-            ui.set_dirty(true);
             let d = draft(&ui);
+            let s = edit_session.borrow();
+            let baseline = s
+                .saved
+                .get(ui.get_selected_id().as_str())
+                .cloned()
+                .unwrap_or_else(|| Saved {
+                    enabled: ui.get_status() == "Configured",
+                    gpu: if ui.get_observed().contains("4070") {
+                        1
+                    } else {
+                        0
+                    },
+                    ..Saved::default()
+                });
+            ui.set_dirty(d != baseline);
             ui.set_validation(mock::validate(&d.values, d.gpu, d.enabled).into());
         }
     });
@@ -226,10 +281,10 @@ pub(super) fn run(mock_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
         match action.as_str() {
             "close" if !ui.get_running() => ui.set_dialog_kind("".into()),
             "exit" if !ui.get_running() => { ui.set_dirty(false); let _ = slint::quit_event_loop(); }
-            "review" | "reapply" => review(&ui),
+            "review" | "reapply" => review(&ui, &state.borrow()),
             "discard" => { select(&ui, &state.borrow(), &ui.get_selected_id()); ui.set_notice("Draft discarded. Sample observed state was not changed.".into()); }
             "switch" => { let id = state.borrow_mut().pending.take(); if let Some(id) = id { select(&ui, &state.borrow(), &id); } ui.set_dialog_kind("".into()); }
-            "enroll" => { ui.set_gpu_enabled(true); ui.set_dirty(true); ui.set_notice("Enrollment and guest preparation staged for demonstration review.".into()); }
+            "enroll" => { ui.set_gpu_enabled(true); ui.invoke_edited(); ui.set_notice("Enrollment and guest preparation staged for demonstration review.".into()); }
             "refresh" => { refresh_inventory(&ui, &state.borrow()); ui.set_notice("Sample inventory refreshed. Your draft is preserved.".into()); }
             "more" => dialog(&ui, "more", "VM actions", "Choose an action to demonstrate. Verification and reapply use sample results. Forgetting only removes the in-memory sample pairing."),
             "forget" => dialog(&ui, "forget", "Forget sample pairing?", "Remove this prototype's saved pairing from memory? Observed state stays unchanged. No real records or VM configuration will be deleted."),

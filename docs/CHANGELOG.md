@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-10-10 - Native VRAM GB request mapping source
+
+- Connected the real GPU Memory slider to the existing VRAM Optimal draft field
+  using Microsoft's documented bytes and exact decimal GB/0.1 GB conversions.
+  Preserve Minimum/Maximum, initialize omitted requests only on explicit edits,
+  and show matching GB/raw requests in Review.
+- Keep unknown historical units, invalid/stale/narrow ranges and values outside
+  exact slider precision unavailable. No physical share/enforcement claim.
+- Focused conversion/draft regressions authored; tests/builds/render and actual
+  provider/guest acceptance remain deferred. DEC-034 records the source contract.
+
+## 2026-10-10 - GUI bug repair source
+
+- Added before/after Review summaries, expandable technical output and a fixed
+  downtime/approval footer; simplified GPU status and normal interface language.
+- Made modal availability reactive, compared drafts with their baseline and
+  added idle installed inventory polling without first-install elevation.
+- Retained the GPU Memory slider hold by user direction until GB mapping is
+  verified. Focused draft/review regressions authored; builds/tests/render and
+  GUI acceptance remain deferred. See BUGS-001 for per-issue status.
+
 ## 2026-10-10 - Four-category live allocation source
 
 - Extended shared intent to schema 3 with optional raw Compute/Encode/Decode

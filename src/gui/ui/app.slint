@@ -17,7 +17,7 @@ export component AppWindow inherits Window {
     in property <bool> mock-mode: true;
     in property <bool> snapshot-mode: false;
     in-out property <bool> execution-ready: false;
-    in property <string> workspace-label: root.mock-mode ? "MOCK WORKSPACE" : "LIVE WORKSPACE";
+    in property <string> workspace-label: root.mock-mode ? "DEMONSTRATION · NO CHANGES" : "VIRTUAL MACHINES";
     in property <[string]> gpu-options: ["NVIDIA GeForce RTX 5060 · mock", "NVIDIA GeForce RTX 4070 · mock", "AMD Radeon RX 7800 XT · unavailable adapter"];
     in property <string> system-summary;
     in property <[GpuRow]> gpu-information;
@@ -32,12 +32,22 @@ export component AppWindow inherits Window {
     in-out property <string> observed: "NVIDIA GeForce RTX 5060 attached (mock)";
     in-out property <string> desired: "GPU enabled · RTX 5060 (mock)";
     in-out property <string> verification: "Last verified in sample session; not currently verified";
+    in property <string> support-summary;
+    in property <string> inventory-details;
     in-out property <bool> eligible: true;
     in-out property <bool> dirty: false;
     in-out property <bool> recovery: false;
     in-out property <bool> gpu-enabled: true;
     in-out property <int> gpu-index: 0;
     in-out property <int> memory-gb: 4;
+    in property <bool> memory-available: false;
+    in property <int> memory-minimum: 1;
+    in property <int> memory-maximum: 2;
+    in property <int> memory-position: 1;
+    in property <string> memory-label: "Unavailable";
+    in property <string> memory-hint;
+    in property <string> memory-range-start;
+    in property <string> memory-range-end;
     in-out property <[string]> values: ["100", "500", "1000", "100", "500", "1000", "100", "500", "1000", "100", "500", "1000"];
     in property <[bool]> resource-available: [false, false, false, false];
     in property <[string]> resource-hints: ["Capability unknown", "Capability unknown", "Capability unknown", "Capability unknown"];
@@ -46,13 +56,16 @@ export component AppWindow inherits Window {
     in-out property <string> dialog-kind;
     in-out property <string> dialog-title;
     in-out property <string> dialog-body;
+    in-out property <string> dialog-details;
     in-out property <[string]> stages;
     in-out property <bool> running: false;
     in-out property <bool> needs-shutdown: false;
-    changed dialog-kind => { Theme.modal-active = root.dialog-kind != ""; }
+    private property <bool> modal-active <=> Theme.modal-active;
+    modal-active: root.dialog-kind != "" || root.running;
     private property <length> split: 310px;
     callback select-vm(string);
     callback edited();
+    callback memory-edited(int);
     callback scenario-changed();
     callback action(string);
     VerticalLayout {
@@ -76,7 +89,7 @@ export component AppWindow inherits Window {
                     settings := Button { enabled: !Theme.modal-active; text: "Settings"; primary: root.page == 2; clicked => { root.page = 2; } }
                     about := Button { enabled: !Theme.modal-active; text: "About"; primary: root.page == 3; clicked => { root.page = 3; } }
                     Rectangle { vertical-stretch: 1; }
-                    Hint { text: root.snapshot-mode ? "Historical snapshot\nNo backend connection" : root.mock-mode ? "Sample inventory\nNo Hyper-V connection" : "Actual inventory\nShared Rust backend"; }
+                    Hint { text: root.snapshot-mode ? "Historical snapshot\nRead only" : root.mock-mode ? "Sample virtual machines\nNo changes are made" : "Hyper-V virtual machines"; }
                     Button { enabled: !Theme.modal-active; text: root.mock-mode ? "Prototype help" : "Help"; clicked => { root.action("shortcuts"); } }
                 }
             }
@@ -118,10 +131,15 @@ export component AppWindow inherits Window {
                             mock-mode: root.mock-mode; snapshot-mode: root.snapshot-mode; gpu-options: root.gpu-options;
                             name: root.vm-name; identity: root.selected-id; power: root.power; status: root.status;
                             observed: root.observed; desired: root.desired; verification: root.verification;
+                            support-summary: root.support-summary;
+                            inventory-details: root.inventory-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
                             gpu-enabled <=> root.gpu-enabled; gpu-index <=> root.gpu-index; values <=> root.values;
                             resource-available: root.resource-available; resource-hints: root.resource-hints;
                             memory-gb <=> root.memory-gb;
+                            memory-available: root.memory-available; memory-minimum: root.memory-minimum; memory-maximum: root.memory-maximum; memory-position: root.memory-position;
+                            memory-label: root.memory-label; memory-hint: root.memory-hint; memory-range-start: root.memory-range-start; memory-range-end: root.memory-range-end;
+                            memory-edited(position) => { root.memory-edited(position); }
                             validation: root.validation;
                             edited => { root.edited(); }
                             action(a) => { root.action(a); }
@@ -136,9 +154,9 @@ export component AppWindow inherits Window {
             }
         }
         Rectangle { height: 30px; background: Theme.surface;
-            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.snapshot-mode ? "Snapshot rehearsal · Historical inventory · No writes" : root.mock-mode ? "Mock GUI · In-memory drafts · No real GPU changes" : root.recovery ? "Live GUI · Recovery requires explicit reconciliation" : root.execution-ready ? "Live GUI · Reviewed operations available" : "Live GUI · Protected worker unavailable"; } Hint { text: root.running ? (root.snapshot-mode ? "Reading snapshot" : root.mock-mode ? "Demonstration running" : "Backend operation running") : "Ready"; horizontal-alignment: right; } }
+            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.snapshot-mode ? "Historical snapshot · No changes are made" : root.mock-mode ? "Demonstration · No changes are made" : root.recovery ? "Recovery requires your attention" : root.execution-ready ? "Ready to review changes" : "Setup or refresh required"; } Hint { text: root.running ? (root.snapshot-mode ? "Reading snapshot" : root.mock-mode ? "Demonstration running" : "Please wait…") : "Ready"; horizontal-alignment: right; } }
         }
     }
-    if root.dialog-kind != "" : DemoDialog { mock-mode: root.mock-mode; snapshot-mode: root.snapshot-mode; execution-ready: root.execution-ready; kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body; stages: root.stages; running: root.running; needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); } }
+    if root.dialog-kind != "" : DemoDialog { mock-mode: root.mock-mode; snapshot-mode: root.snapshot-mode; execution-ready: root.execution-ready; kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body; details: root.dialog-details; stages: root.stages; running: root.running; needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); } }
 }
 

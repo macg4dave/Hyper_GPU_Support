@@ -1,7 +1,7 @@
 //! Audited live reads; effects remain behind unfinished worker/save contracts.
 use super::{
     AppWindow, GpuRow, VmRow, dialog,
-    live_state::{State, allocation_values, review_text},
+    live_state::{State, allocation_values, review_summary, review_text},
     model,
 };
 use hyper_gpu_support::{
@@ -134,6 +134,24 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
     Err("Hyper-V discovery requires Windows x64".into())
 }
 
+/// Poll only installed inventory; never initiate first-install elevation.
+#[cfg(windows)]
+fn discover_status() -> Result<InventoryRead, String> {
+    use hyper_gpu_support::runner;
+    if runner::pending_setup()?.is_some() || !runner::installed()? {
+        return Err("Setup requires attention. Use Refresh to continue.".into());
+    }
+    let value = runner::submit(runner::request(runner::Operation::Discover, None, None))?;
+    serde_json::from_value(value)
+        .map(|inventory| (inventory, None, None))
+        .map_err(|e| format!("Invalid protected inventory reply: {e}"))
+}
+
+#[cfg(not(windows))]
+fn discover_status() -> Result<InventoryRead, String> {
+    Err("Hyper-V discovery requires Windows x64".into())
+}
+
 #[cfg(windows)]
 fn plan(target: Target) -> Result<Plan, String> {
     use hyper_gpu_support::runner::{self, Operation};
@@ -230,6 +248,7 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
         ui.set_vm_name("Selected VM unavailable".into());
         ui.set_power("Unknown".into());
         ui.set_status("Unavailable".into());
+        ui.set_support_summary("VM information is unavailable. Use Refresh to retry.".into());
         ui.set_observed("Selected VM was not returned by the latest inventory read".into());
         ui.set_verification("Unknown; the selected VM is unavailable".into());
         ui.set_recovery(
@@ -300,6 +319,48 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
         .into(),
     );
     ui.set_verification(recorded.graphics.into());
+    ui.set_support_summary(
+        format!(
+            "GPU support: {}. Saved setting: {}. Graphics: {}.",
+            if state.view.needs_readback || state.historical {
+                "historical observation"
+            } else if vm.gpus.is_empty() {
+                "not attached"
+            } else {
+                "attached"
+            },
+            if state.committed.revision(id).is_err() {
+                "unavailable"
+            } else if let Some(target) = state
+                .view
+                .configuration
+                .targets
+                .iter()
+                .find(|t| &t.vm_id == id)
+            {
+                if target.enabled {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            } else {
+                "not saved"
+            },
+            if recorded.recovery_required {
+                "recovery required"
+            } else if inventory
+                .managed
+                .get(id)
+                .and_then(|j| j.as_ref())
+                .is_some_and(|j| j.last_verified.is_some())
+            {
+                "previously verified; current health unknown"
+            } else {
+                "not verified"
+            },
+        )
+        .into(),
+    );
     let eligibility = state.editor_eligibility(id);
     ui.set_eligible(eligibility.is_ok());
     if reset_draft {
@@ -362,6 +423,33 @@ fn resource_controls(ui: &AppWindow, state: &State) {
             })
             .collect(),
     ));
+    let values = ui
+        .get_values()
+        .iter()
+        .map(|v| v.to_string())
+        .collect::<Vec<_>>();
+    match state.memory_slider(ui.get_gpu_index(), &values) {
+        Ok(slider) => {
+            ui.set_memory_available(true);
+            ui.set_memory_minimum(slider.minimum);
+            ui.set_memory_maximum(slider.maximum);
+            ui.set_memory_position(slider.position);
+            ui.set_memory_label(slider.label.into());
+            ui.set_memory_range_start(slider.range_start.into());
+            ui.set_memory_range_end(slider.range_end.into());
+            ui.set_memory_hint("Adjusts Optimal in 0.1 GB steps; keeps Minimum/Maximum, or uses provider bounds for a new request. Requested memory, not a guaranteed physical limit.".into());
+        }
+        Err(reason) => {
+            ui.set_memory_available(false);
+            ui.set_memory_minimum(1);
+            ui.set_memory_maximum(2);
+            ui.set_memory_position(1);
+            ui.set_memory_label("Unavailable".into());
+            ui.set_memory_range_start("—".into());
+            ui.set_memory_range_end("—".into());
+            ui.set_memory_hint(reason.into());
+        }
+    }
 }
 
 fn with_state(
@@ -401,22 +489,25 @@ fn background<T: Send + 'static>(
     if busy.swap(true, Ordering::AcqRel) {
         return Err("Another GUI operation is still running.".into());
     }
+    let silent = title == "Updating VM status";
     ui.set_running(true);
-    dialog(
-        ui,
-        "progress",
-        title,
-        if title == "Apply approved changes"
-            || title == "Verify approved graphics"
-            || title == "Reconcile observed outcome"
-        {
-            "Requesting Windows elevation before the approved operation. Actual stages will appear as the shared backend executes."
-        } else if title == "Retry configuration save only" {
-            "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
-        } else {
-            "Waiting for the shared backend. No VM or guest changes are requested by this action."
-        },
-    );
+    if !silent {
+        dialog(
+            ui,
+            "progress",
+            title,
+            if title == "Apply approved changes"
+                || title == "Verify approved graphics"
+                || title == "Reconcile observed outcome"
+            {
+                "Requesting Windows elevation before the approved operation. Actual stages will appear as the shared backend executes."
+            } else if title == "Retry configuration save only" {
+                "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
+            } else {
+                "Reading the information needed for this action…"
+            },
+        );
+    }
     let weak = ui.as_weak();
     let worker_busy = busy.clone();
     if let Err(error) = std::thread::Builder::new()
@@ -428,7 +519,9 @@ fn background<T: Send + 'static>(
                 .upgrade_in_event_loop(move |ui| {
                     completion_busy.store(false, Ordering::Release);
                     ui.set_running(false);
-                    ui.set_dialog_kind("".into());
+                    if !silent {
+                        ui.set_dialog_kind("".into());
+                    }
                     complete(&ui, result);
                 })
                 .is_err()
@@ -439,7 +532,9 @@ fn background<T: Send + 'static>(
     {
         busy.store(false, Ordering::Release);
         ui.set_running(false);
-        ui.set_dialog_kind("".into());
+        if !silent {
+            ui.set_dialog_kind("".into());
+        }
         return Err(format!("Cannot start backend task: {error}"));
     }
     Ok(())
@@ -450,21 +545,32 @@ fn refresh(
     state: &SharedState,
     busy: &Arc<AtomicBool>,
     source: &Source,
+    automatic: bool,
 ) -> Result<(), String> {
     let historical = source.historical();
-    ui.set_notice(if historical {
+    if !automatic {
+        ui.set_notice(if historical {
         "Reading a historical inventory snapshot; no backend operations will be requested."
     } else {
         "Reading protected inventory. Existing observations remain historical until refresh succeeds."
     }.into());
+    }
     let state = state.clone();
     let source = source.clone();
     background(
         ui,
         busy,
-        "Refreshing inventory",
+        if automatic {
+            "Updating VM status"
+        } else {
+            "Refreshing inventory"
+        },
         move || {
-            let (inventory, warning, snapshot) = source.discover()?;
+            let (inventory, warning, snapshot) = if automatic {
+                discover_status()?
+            } else {
+                source.discover()?
+            };
             Ok((
                 inventory,
                 warning,
@@ -578,7 +684,7 @@ fn refresh(
                         ui.set_system_summary(if historical {
                             "Historical inventory snapshot. Provider bounds, enrollment and records describe its capture, not current machine state. No runner, credentials, journal or audit writes are requested."
                         } else {
-                            "Actual Hyper-V inventory, protected enrollment and GUID-keyed committed configuration read. Graphics results remain historical."
+                            "Hyper-V virtual machines and available GPUs. Graphics results reflect previous checks."
                         }.into());
                         let issues = &state
                             .view
@@ -588,7 +694,10 @@ fn refresh(
                             .discovery
                             .issues;
                         let mut notice = if issues.is_empty() {
-                            warning.unwrap_or_else(|| "Protected inventory loaded. Graphics results remain historical; operations require fresh approved plans.".into())
+                            warning.unwrap_or_else(|| {
+                                "VM status updated. Graphics results reflect previous checks."
+                                    .into()
+                            })
                         } else {
                             format!(
                                 "Partial inventory: {}. Other successful observations remain available.",
@@ -599,14 +708,22 @@ fn refresh(
                                     .join(" ")
                             )
                         };
-                        if let Some(warning) = configuration_warning {
+                        if let Some(warning) = &configuration_warning {
                             notice.push_str(&format!(" {warning}"));
                         }
-                        if let Some(warning) = recovery_warning {
+                        if let Some(warning) = &recovery_warning {
                             notice.push_str(&format!(" {warning}"));
                         }
                         if !state.committed.errors.is_empty() {
                             notice.push_str(" Some committed configuration could not be read or validated. Affected intent remains unknown; other readable VM files are available.");
+                        }
+                        ui.set_inventory_details(notice.clone().into());
+                        if !issues.is_empty()
+                            && configuration_warning.is_none()
+                            && recovery_warning.is_none()
+                            && state.committed.errors.is_empty()
+                        {
+                            notice = "Some VM or GPU information could not be read. See Technical Details.".into();
                         }
                         ui.set_notice(notice.into());
                         Ok(())
@@ -636,7 +753,8 @@ fn refresh(
                         ui.set_validation(
                             "Inventory is historical; Refresh before further actions.".into(),
                         );
-                        ui.set_notice(format!("{} inventory unavailable: {error}. Existing rows are historical; Refresh retries the read.", if historical { "Snapshot" } else { "Live" }).into());
+                        ui.set_inventory_details(error.clone().into());
+                        ui.set_notice("VM status could not be refreshed. Displayed observations are historical; use Refresh to retry.".into());
                         ui.set_system_summary(
                             format!(
                                 "{} unavailable: {error}",
@@ -648,7 +766,7 @@ fn refresh(
                             )
                             .into(),
                         );
-                        Err(error)
+                        if automatic { Ok(()) } else { Err(error) }
                     }
                 }
             });
@@ -717,6 +835,40 @@ fn review(
         },
         move |ui, result| match result {
             Ok(plan) if plan.desired == expected && plan.observed.vm_id == expected.vm_id => {
+                let gpu_name = review_state
+                    .lock()
+                    .ok()
+                    .and_then(|state| {
+                        state
+                            .view
+                            .inventory
+                            .as_ref()?
+                            .discovery
+                            .gpus
+                            .iter()
+                            .find(|gpu| gpu.interface == plan.desired.gpu_interface)
+                            .map(|gpu| gpu.name.clone())
+                    })
+                    .unwrap_or_else(|| plan.desired.gpu_interface.clone());
+                let memory_summary = if historical {
+                    String::new()
+                } else if let Some(write) = &plan.preview.allocation {
+                    format!(
+                        "GPU Memory (Optimal request): {} → {}\n",
+                        plan.observed.vram.as_ref().map_or_else(
+                            || "Unknown".into(),
+                            |v| super::memory::format_gb(v.optimal)
+                        ),
+                        super::memory::format_gb(write.optimal)
+                    )
+                } else if let Some(request) = &plan.desired.vram {
+                    format!(
+                        "GPU Memory (Optimal request): {}. No VRAM write is planned.\n",
+                        super::memory::format_gb(request.optimal)
+                    )
+                } else {
+                    "GPU Memory: no explicit request.\n".into()
+                };
                 #[cfg(windows)]
                 ui.set_execution_ready(
                     !historical && hyper_gpu_support::worker::available().is_ok(),
@@ -736,16 +888,17 @@ fn review(
                     },
                     &if historical {
                         format!(
-                            "HISTORICAL REHEARSAL · NO WRITES\nInputs and payload digest are recorded, not currently authenticated. No credentials, guest probe or VM effect is requested.\n\n{}",
-                            review_text(&plan)
+                            "Historical preview only. Nothing will be changed or saved.\nPhysical GPU: {gpu_name}\n\n{}",
+                            review_summary(&plan)
                         )
                     } else {
                         format!(
-                            "{}\n\nAfter confirmation Windows elevation is requested before any guest effect. Configuration is published only after verified readback.",
-                            review_text(&plan)
+                            "Physical GPU: {gpu_name}\n{memory_summary}\n{}\n\nWindows will request approval before changes. Configuration is saved only after verification.",
+                            review_summary(&plan)
                         )
                     },
                 );
+                ui.set_dialog_details(review_text(&plan).into());
             }
             Ok(_) => dialog(
                 ui,
@@ -801,6 +954,21 @@ fn review_enrollment(
         move |ui, result| match result {
             Ok((approved, artifacts)) => {
                 let setup = artifacts.is_some();
+                let mut summary = format!(
+                    "Allow GPU management for this VM and device:\n\nVM: {}\nVM ID: {}\nPhysical GPU: {}\nDevice ID: {}\nAllowed Windows account: {}\n\nOther VM permissions are preserved. This step does not enable GPU support or change guest power. Your draft is retained; GPU changes require a separate review after setup.",
+                    ui.get_vm_name(),
+                    approved.vm_id,
+                    ui.get_gpu_options()
+                        .row_data(usize::try_from(ui.get_gpu_index()).unwrap_or(usize::MAX))
+                        .unwrap_or_default(),
+                    approved.gpu_interface,
+                    approved.operator_sid,
+                );
+                if setup {
+                    summary.push_str("\n\nInstall or finish setting up this reviewed application package in Program Files, create protected application data and register its background management task. Windows approval is required. Interrupted setup must match its original VM, device and package; existing permissions are preserved.");
+                } else {
+                    summary.push_str("\n\nWindows approval is required to save this permission.");
+                }
                 let mut body = format!(
                     "VM ID: {}\nGPU interface: {}\nOperator: {}\nPolicy revision: {:?}\n\nAuthorize this exact VM/GPU pair through Windows elevation, preserving all other enrolled VMs. Enrollment does not enable GPU support, change guest power, prepare drivers or save desired configuration. Your draft is retained. After fresh authority readback, Review & Apply obtains a separate GPU operation plan.",
                     approved.vm_id,
@@ -821,7 +989,8 @@ fn review_enrollment(
                 });
                 ui.set_execution_ready(setup || hyper_gpu_support::worker::available().is_ok());
                 ui.set_needs_shutdown(false);
-                dialog(ui, "enroll-review", "Review VM/GPU enrollment", &body);
+                dialog(ui, "enroll-review", "Review VM/GPU enrollment", &summary);
+                ui.set_dialog_details(body.into());
             }
             Err(error) => dialog(ui, "error", "Enrollment unavailable", &error),
         },
@@ -868,7 +1037,7 @@ fn enroll_live(
         },
         move |ui, result| match result {
             Ok(()) => {
-                if let Err(error) = refresh(ui, &finished_state, &refresh_busy, &source) {
+                if let Err(error) = refresh(ui, &finished_state, &refresh_busy, &source, false) {
                     dialog(ui, "error", "Authority refresh unavailable", &error);
                 }
             }
@@ -928,7 +1097,7 @@ fn reconcile_enrollment_live(
         move || hyper_gpu_support::worker::reconcile_pair(operation_id, expected, progress),
         move |ui, result| match result {
             Ok(_) => {
-                if let Err(error) = refresh(ui, &finished_state, &refresh_busy, &source) {
+                if let Err(error) = refresh(ui, &finished_state, &refresh_busy, &source, false) {
                     dialog(ui, "error", "Authority refresh unavailable", &error);
                 }
             }
@@ -1349,7 +1518,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     ui.set_gpu_options(model(Vec::new()));
     ui.set_values(model(vec!["".into(); 12]));
     ui.set_eligible(false);
-    ui.set_system_summary("Live inventory has not been read yet.".into());
+    ui.set_system_summary("Virtual machine information has not been read yet.".into());
     let busy = Arc::new(AtomicBool::new(false));
     let state = Arc::new(Mutex::new(State::default()));
     let weak = ui.as_weak();
@@ -1372,7 +1541,6 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 state.rehearsal_plan = None;
                 state.enrollment_review = None;
                 state.setup_artifacts = None;
-                ui.set_dirty(true);
                 state.draft_gpu = state
                     .view
                     .inventory
@@ -1384,14 +1552,35 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     })
                     .map(|g| g.interface.clone());
                 resource_controls(&ui, state);
+                let baseline = state.target(ui.get_selected_id().as_str())?;
+                let raw_values = ui
+                    .get_values()
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>();
+                let changed = state.draft_changed(
+                    &baseline,
+                    ui.get_gpu_enabled(),
+                    state.draft_gpu.as_deref(),
+                    &raw_values,
+                );
+                ui.set_dirty(changed);
+                if !changed {
+                    state.view.draft = None;
+                    state.draft_gpu = None;
+                }
                 match draft_target(&ui, state) {
                     Ok(target) => {
-                        state.view.draft = Some(target);
+                        if changed {
+                            state.view.draft = Some(target);
+                        }
                         ui.set_validation("".into());
                     }
                     Err(error) => {
                         // A marker retains the VM even for invalid text; raw edits stay in the UI.
-                        state.view.draft = Some(state.target(ui.get_selected_id().as_str())?);
+                        if changed {
+                            state.view.draft = Some(baseline);
+                        }
                         ui.set_validation(
                             hyper_gpu_support::reporting::operator_error(
                                 "Configuration validation",
@@ -1406,13 +1595,50 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         }
     });
     let weak = ui.as_weak();
+    let memory_state = state.clone();
+    ui.on_memory_edited(move |position| {
+        let Some(ui) = weak.upgrade() else {
+            return;
+        };
+        if ui.get_running() || !ui.get_dialog_kind().is_empty() {
+            return;
+        }
+        let mut values = ui
+            .get_values()
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>();
+        let selection = memory_state
+            .lock()
+            .map_err(|_| "Presentation state unavailable".to_owned())
+            .and_then(|state| {
+                state.editor_eligibility(ui.get_selected_id().as_str())?;
+                state
+                    .memory_slider(ui.get_gpu_index(), &values)?
+                    .select(position)
+            });
+        match selection {
+            Ok(allocation) => {
+                // Only the typed VRAM triple changes. Other resources and invalid
+                // text remain intact; the normal draft callback revalidates all intent.
+                values[0] = allocation.minimum.to_string();
+                values[1] = allocation.optimal.to_string();
+                values[2] = allocation.maximum.to_string();
+                ui.set_values(model(values.into_iter().map(Into::into).collect()));
+                // The state guard above is released before invoking this callback.
+                ui.invoke_edited();
+            }
+            Err(error) => dialog(&ui, "error", "Memory selection unavailable", &error),
+        }
+    });
+    let weak = ui.as_weak();
     let action_state = state.clone();
     let action_busy = busy.clone();
     let action_source = source.clone();
     ui.on_action(move |action| {
         let Some(ui) = weak.upgrade() else { return; }; if ui.get_running() { return; }
         let result = match action.as_str() {
-            "refresh" => refresh(&ui, &action_state, &action_busy, &action_source),
+            "refresh" => refresh(&ui, &action_state, &action_busy, &action_source, false),
             "review" => review(&ui, &action_state, &action_busy, &action_source),
             #[cfg(windows)]
             "confirm-enroll" => enroll_live(&ui, &action_state, &action_busy, &action_source),
@@ -1551,7 +1777,30 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         }
         slint::CloseRequestResponse::HideWindow
     });
-    refresh(&ui, &state, &busy, &source)?;
+    refresh(&ui, &state, &busy, &source, false)?;
+    // Only the installed read path polls. First-install elevation remains explicit;
+    // historical snapshots are reread only by the user's Refresh action.
+    let status_timer = slint::Timer::default();
+    if !source.historical() {
+        let weak = ui.as_weak();
+        status_timer.start(
+            slint::TimerMode::Repeated,
+            std::time::Duration::from_secs(15),
+            move || {
+                if let Some(ui) = weak.upgrade()
+                    && ui.get_execution_ready()
+                    && !busy.load(Ordering::Acquire)
+                    && ui.get_dialog_kind().is_empty()
+                    && let Err(error) = refresh(&ui, &state, &busy, &source, true)
+                {
+                    ui.set_notice(
+                        format!("VM status refresh unavailable: {error}. Use Refresh to retry.")
+                            .into(),
+                    );
+                }
+            },
+        );
+    }
     ui.run()?;
     Ok(())
 }

@@ -4,13 +4,15 @@
 
 ## Next implementation action
 
-**Start `SEC-001.3 / CORE-028`: reviewed physical GPU replacement through the existing selector.** CORE-028.1 recovery presentation and GPU-010.1–2 / GUI-002.3 four-category allocation are implemented pending validation. The allocation boundary received independent static review with no remaining blocker. The previously authorized quality gate and installed GUI startup/discovery apply to the earlier enrollment build; new recovery/allocation source remains unbuilt, untested and uninstalled. Enrollment/setup interruption and GPU-effect acceptance remain pending.
+**Start `SEC-001.3 / CORE-028`: reviewed physical GPU replacement through the existing selector.** CORE-028.1 recovery presentation and GPU-010.1–2 / GUI-002.3 four-category allocation are implemented pending validation. The allocation boundary received independent static review with no remaining blocker. The latest Windows x64 debug build succeeded and was separately authorized for protected installation: four installed/policy hashes match the build, and existing operator/enrollment were preserved. Tests/UI/provider acceptance remain pending; earlier GUI startup/discovery checks apply to the previous enrollment build.
 
 Continue **`SEC-001.4` / `GUI-002.4` (Forget pairing)** after reviewed replacement. Source implementation is not authority to build, launch, install or exercise a runner. Inspect named modules and reuse working contracts; do not repeat a project audit.
 
 If replacement work is blocked by a concrete external prerequisite, record it once and take **`SEC-001.4`** or **`GUI-003.1`**, which are independent ready source tasks. Do not substitute qualification or test infrastructure work.
 
 ## Status and selection rules
+
+**Requested bug repair — [BUGS-001](evidence/BUGS-001.md) (10 October):** GUI-002/GUI-003 source changes implement concise GPU status, before/after Review summaries with expandable technical output, fixed downtime/Apply footer, reactive modal availability, baseline-based dirty tracking and installed read-only status polling every 15 seconds while dialogs/operations are idle. Navigation does not stage intent; reverted edits clear the draft and invalid edits remain visible with their validation reason. Tests/builds/render/GUI acceptance are deferred; BUG-05's reported interaction still needs reproduction/acceptance. The subsequent user request implemented BUG-06 / GPU-010.3 native byte-to-GB request conversion (DEC-034), pending acceptance. Individual bugs are not marked completed.
 
 - **ready:** implementation can start with present dependencies.
 - **in progress:** scoped coding is underway; aggregate parent cards may contain delivered slices.
@@ -36,7 +38,7 @@ Suffixes below are executable slices of existing IDs, not replacement projects. 
 | 10 | SEC-001.4 — protected Forget pairing backend | ready | SEC-001.1 source implemented |
 | 11 | GUI-002.4 — bind Forget pairing dialog | blocked | SEC-001.4 |
 | 12 | GUI-002.5 / CFG-001 — production-format fixture intent | ready | Shared parser/model; extend with GPU-010 when available |
-| 13 | GPU-010.3 — truthful GPU Memory slider mapping | blocked | Demonstrated provider mapping; GPU-010.1–2 |
+| 13 | GPU-010.3 — truthful GPU Memory slider mapping | implemented pending validation | Documented native VRAM bytes; GPU-010.1–2 |
 | 14 | GUI-003.1 — existing dialog/focus/close defects | ready | Approved current Slint components |
 | 15 | CORE-017.1 — package manifest/lifecycle preparation | ready | Existing installer/artifact layout; no build execution |
 | 16 | CORE-017.2 — native removal/update completion | blocked | CORE-017.1 |
@@ -45,6 +47,10 @@ Suffixes below are executable slices of existing IDs, not replacement projects. 
 Ready does not mean qualified. Provider-dependent fields may remain unavailable with an exact blocker while other work proceeds; that does not satisfy the four-category initial-release requirement. No M2 safety pass is required to start these safe source tasks.
 
 ## Coding cards
+
+**Authorized protected update (10 October):** elevated development wrapper invoked the fixed native Rust `install` with the complete existing enrollment. Exit code 0; all four installed executables and enrollment artifact pins match source SHA-256 hashes, existing operator and one enrolled pair preserved, no installation-pending record remains. Evidence/logs: `local/gui-update/37784041f41a4e2ba34f5e9a638c366b/`. Installer performed its required fresh native identity discovery; no tests, GUI launch or GPU/guest/power effect operation requested. New runtime acceptance remains pending.
+
+**Authorized latest build (10 October):** `cargo build --locked` succeeded using Rust 1.94.0 for `x86_64-pc-windows-msvc`, debug profile. All four product executables are present under the inherited `CARGO_TARGET_DIR` output directory (`C:\Users\dave\.cargo-target\text-game\x86_64-pc-windows-msvc\debug`). No tests, Clippy, UI launches, protected installation or live provider operations were run. Earlier unbuilt results below describe their implementation-time state; this build does not establish runtime acceptance.
 
 **Authorized validation/update (10 October, SEC-001.1–2 and GUI-002.1–2):** fixed missing `Inventory` serialization for the setup reply, then `scripts/testing/check.ps1` passed formatting, strict Clippy, 145 tests, Windows x64/MSVC debug all-features build, rustdoc and documentation checks. Four opt-in tests remained ignored (layout and privileged enrollment/M2 checks). With separate user approval, updated the four protected artifacts through native Rust `install` using all existing enrolled targets; installed/source/policy SHA-256 hashes matched and operator/pair intent was preserved. The installed no-argument GUI is running/responding and its startup Discover audit succeeded. No enrollment/setup, crash/cancellation or VM/GPU/guest effect operation was exercised; cards remain pending that acceptance.
 
@@ -144,8 +150,9 @@ Ready does not mean qualified. Provider-dependent fields may remain unavailable 
 
 - **What / Why:** settle the existing illustrative GB slider without inventing real allocation semantics.
 - **Where:** `src/gui/ui/details.slint`, `src/gui/live_state.rs`, shared GPU capability/model.
-- **Depends on / Status:** GPU-010.1–2 and demonstrated provider mapping; **blocked on mapping evidence**.
-- **Done when:** a supported mapping yields the same validated triple as Advanced Allocation, with truthful units/readback and no contradictory settings. If the provider offers no demonstrated mapping, retain the existing live unavailable state, record the exact limitation and leave this release requirement unresolved until scope is explicitly settled. Raw provider integers are not GiB or a percentage.
+- **Depends on / Status:** GPU-010.1–2 and native byte contract; **implemented pending validation**.
+- **Result (10 October):** user requested source mapping after the earlier BUG-06 hold. Microsoft's current Set-VMGpuPartitionAdapter reference explicitly defines Min/Optimal/MaxPartitionVRAM in bytes. DEC-034 records decimal GB conversion without physical-card ratios or enforcement claims. `src/gui/memory.rs` uses checked integer 0.1 GB ticks within fresh native bounds and existing Minimum/Maximum; omitted triples remain omitted until an edit initializes provider bounds. Slider and raw fields share the same typed draft/review path. Raw non-grid values are displayed exactly, not rewritten on refresh. Invalid/stale/unknown/historical/narrow/imprecise ranges remain unavailable. Focused conversion/draft regressions authored; no tests/builds/UI renders/launches/live provider checks executed. Source evidence establishes the documented request conversion; actual provider/guest semantics and GUI acceptance remain pending.
+- **Done when:** the documented native-byte conversion yields the same validated triple as Advanced Allocation, with truthful units/readback and no contradictory settings. Accept the actual GUI/provider behavior at the authorized gate. Unknown/historical unit provenance stays unavailable. Other raw categories are not GB/GiB/percentages; byte conversion does not demonstrate reservation or enforcement.
 
 ### GUI-003.1 — restore focus after existing dialogs
 
@@ -188,7 +195,7 @@ Ready does not mean qualified. Provider-dependent fields may remain unavailable 
 | SEC-001 | Trusted artifacts, authenticated pipes, `runner::operation_lock`, `require_no_recovery`, worker commands | implemented pending validation for expanded scope; add named enrollment/removal boundaries only |
 | CORE-028 | `live.rs` Apply/Verify/progress/save-only/reconcile; `worker.rs` durable phases and shared admitted execution/readback | implemented pending validation; named state/transfer/replacement gaps remain |
 | CORE-021 | Shared configuration/parser/enrollment rules and CLI operation paths | existing core implemented; aggregate GUI parity closes with owning slices, no parallel parser/backend project |
-| GPU-010 | Shared four-category schema/capabilities/plan/native writes/readback and existing editor bindings; exact GPU discovery | implemented pending validation for GPU-010.1–2 / GUI-002.3; replacement and slider mapping remain |
+| GPU-010 | Shared four-category schema/capabilities/plan/native writes/readback and existing editor bindings; exact GPU discovery; native VRAM GB request mapping | implemented pending validation for GPU-010.1–3 / GUI-002.3; replacement and actual provider acceptance remain |
 | GUI-003 | Reported scoped mock/software-renderer sizing/page/Review checks | scoped historical result; current live/UI milestone acceptance pending |
 | PLAN-001 | Previous scoped architecture/source/document review | completed; no recurring audit prerequisite |
 

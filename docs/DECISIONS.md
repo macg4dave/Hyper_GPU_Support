@@ -530,4 +530,45 @@ Existing Details fields can clear unsupported requests without inventing capabil
 Independent static boundary review findings fixed and re-reviewed with no remaining
 blocker. Focused regressions authored and source formatted. No tests/builds/UI launches,
 provider effects or protected installation executed for this extension; acceptance
-and hardware semantics remain deferred. Preserve the GPU Memory slider mapping hold.
+and hardware semantics remain deferred. The later DEC-034 records the native
+GPU Memory request mapping; actual hardware behavior remains unqualified.
+
+## DEC-034
+
+**Implemented in source, validation pending | 2026-10-10 | Native VRAM decimal-GB request conversion**
+
+The user's subsequent BUG-06/GPU-010.3 request authorizes source implementation,
+superseding the earlier decision to wait for GB mapping evidence. Microsoft's
+current [Set-VMGpuPartitionAdapter parameter reference](https://learn.microsoft.com/en-us/powershell/module/hyper-v/set-vmgpupartitionadapter?view=windowsserver2025-ps)
+explicitly describes MinPartitionVRAM, OptimalPartitionVRAM and MaxPartitionVRAM
+as bytes defined by the manufacturer driver. The corresponding native
+[Msvm_GpuPartitionSettingData properties](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-gpupartitionsettingdata)
+are the uint64 fields already written/read by the Rust adapter. Use this native
+request contract for display conversion; do not infer physical capacity from a
+raw range, multiply by a DXGI/card-memory ratio, or convert other categories.
+The WMI class page does not independently specify units; the unit evidence is
+the corresponding documented Hyper-V parameter contract. This establishes the
+source interpretation, not actual driver enforcement or observed guest capacity.
+
+1 GB is decimal 1,000,000,000 bytes, distinct from GiB. Slider ticks are exact
+100,000,000-byte (0.1 GB) integers. `src/gui/memory.rs` validates ordered native
+ranges with the shared Allocation contract, rounds selectable endpoints inward
+and checks selected ticks/ranges/overflow. Reject ranges beyond exact Slint f32
+integer precision; do not truncate uint64 values through floats. Existing
+Minimum/Maximum are preserved. For omitted intent the first explicit edit uses
+provider Minimum/Maximum; viewing/refreshing alone never creates an allocation.
+Raw Optimal values between ticks remain exact in the label and draft, with a
+lower adjacent thumb position until explicitly edited. Invalid/partial raw text
+is never replaced, and other categories are untouched.
+
+Only the native inventory source uses this conversion. Historical snapshots lack
+recorded byte-unit provenance and keep the slider unavailable even if raw ranges
+look plausible. Fixtures retain their explicitly illustrative GB preference.
+Review displays the exact GB request alongside raw triples; shared fresh planning,
+admission, native effects, independent readback, receipt/publication and recovery
+continue to operate on the same uint64 intent. No second configuration schema,
+new privilege path or physical reservation/fairness/limit guarantee is introduced.
+
+Focused integer-boundary, exact-display, omitted/invalid/stale/historical and
+slider-versus-raw-draft regressions authored. Source formatted; tests/builds/UI
+renders/launches/installed update/live provider and guest checks remain deferred.

@@ -111,7 +111,10 @@ capabilities unknown. Omitted observed values mean unobserved/unset, never zero.
 An omitted request performs no explicit category write; new/recreated attachments
 use provider defaults, and attachments retained in place keep existing values.
 Provider semantics and enforcement remain unqualified. All new source remains
-untested; the GPU Memory slider still has no validated mapping.
+untested. Subsequent GPU-010.3 source maps native VRAM byte requests to decimal GB
+(DEC-034) without changing this schema: the slider and raw fields produce the same
+integer triple. Historical units remain unknown; actual GUI/provider behavior and
+physical enforcement remain unverified.
 
 ## Read and validation contract
 

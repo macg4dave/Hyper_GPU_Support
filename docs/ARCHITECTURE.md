@@ -189,7 +189,12 @@ Apply/progress/recovery, credentials and saves are simulated only in `--mock-gui
 live mode does not claim those bindings. Inventory/System use actual discovery in
 normal mode. Keep mode/data provenance clear. No additional GUI feature.
 Reuse sound `gui_model` state/validation during GUI-002 binding. The GPU Memory
-slider is a separate visual mock preference; no physical GB/enforcement meaning.
+slider is a separate visual mock preference in fixture mode. GPU-010.3 now has
+native VRAM byte-to-decimal-GB source mapping (DEC-034), adjusting the same draft
+Optimal field while preserving Minimum/Maximum. Empty triples use provider bounds
+only on an explicit slider edit. Historical inputs without unit provenance remain
+raw-only. Fresh shared planning/admission/readback are still required before
+publication; no physical reservation/enforcement meaning is demonstrated.
 Provider mapping for selector/allocation controls belongs to GPU-010.
 
 CORE-006's typed plan shares apply's read-only validation and decision calculation.
@@ -222,7 +227,7 @@ Historical passes remain in existing cards/evidence and do not qualify new bound
 
 | Existing implementation / evidence in source | Reuse and remaining work |
 |---|---|
-| `src/model.rs`: schema-2 input/schema-3 four-category targets, GUID normalization, strict fields and `ResourceCapability`; `windows_hyperv.rs`: exact GPU WMI selection, isolated category ranges/readback and native setters | GPU-010.1–2 and GUI-002.3 source is implemented pending validation. GPU replacement/slider mapping remain separate work; units/enforcement remain unqualified. |
+| `src/model.rs`: schema-2 input/schema-3 four-category targets, GUID normalization, strict fields and `ResourceCapability`; `windows_hyperv.rs`: exact GPU WMI selection, isolated category ranges/readback and native setters; `src/gui/memory.rs`: native VRAM decimal-GB conversion | GPU-010.1–3 and GUI-002.3 source is implemented pending validation. Native byte request units follow DEC-034; GPU replacement and hardware enforcement remain separate/unqualified. |
 | `src/workflow.rs`: shared decision/plan/apply/verify, typed effects, pre-effect journals, prepared digest invalidation, attributable settings restoration, fresh readback and power restoration; fake-backend ordering/failure tests | CORE-028 adds approved-plan binding, consent, real stage events and manual reconciliation. Current Apply can resume pending work and restores power on some failures; it is not the new host-wide manual-recovery contract. |
 | `src/runner.rs`: protected installed artifact hashes, separate enrollment, typed requests, nonce expiry/replay rejection, durable Started/Succeeded/Failed admission records, atomic JSON and no-reparse checks | SEC-001 adapts fixed SYSTEM scheduled-task execution to same-executable per-operation elevation. Current requests have no reviewed-plan revision, progress stream or SaveOnly operation. A worker flag alone must never grant authority. |
 | `src/windows_pipe.rs`: local-only first pipe instance, restrictive ACL excluding client server-instance creation, client token SID check via impersonation/reversion, client check of pipe owner SID, bounded framing/client deadlines; round-trip/wrong-peer/partial/oversized-frame tests | Preserve protections; adapt endpoint/identity and handshake for elevated user rather than SYSTEM, add session/operation binding and bounded progress/server waits. Owner SID alone does not authenticate a particular same-user worker. |

@@ -58,7 +58,10 @@ Existing unsupported requests can be cleared; structurally valid disabled intent
 performs no category writes. Review enumerates each write and schema-3 publication,
 and observed/saved labels plus System show category values/bounds or unknown state.
 Independent static boundary review found no remaining blocker; new source is
-unbuilt, untested and uninstalled. Older installed startup checks do not validate it.
+built successfully for Windows x64/MSVC debug and separately authorized for protected
+installation on 10 October, with all four installed/policy hashes confirmed and
+existing enrollment preserved. Tests/UI/provider acceptance remains pending.
+Older installed startup checks do not validate the new bindings.
 Fresh shared plan previews and the native credential dialog reuse the existing core. Live
 details distinguish unread, absent and previous preparation records from pending
 recovery. Graphics timestamps are historical records for the enrolled pair,
@@ -70,6 +73,30 @@ fixtures and simulates controls/review/stages/recovery in memory. No real effect
 or persistent writes occur. Scenario/reset controls appear only in this mode.
 The GPU Memory slider remains illustrative, independent of advanced allocation;
 its GB label promises no real allocation or enforcement.
+After the user's subsequent GPU-010.3 source request on 10 October, native VRAM
+uses Microsoft's documented byte parameter contract: decimal GB is exactly
+1,000,000,000 bytes. The live slider adjusts Optimal in 0.1 GB steps within the
+existing Minimum/Maximum; when all three fields are empty, the first selection
+initializes Minimum/Maximum from provider bounds. Both editors update the same
+typed draft. Non-grid raw values remain exact in the label/configuration; the
+thumb represents the lower adjacent grid point, without silently rewriting them.
+Review displays requested GB and raw values. These are requested API values,
+not a physical card share, reserved memory or demonstrated enforcement. Invalid,
+stale, missing, too narrow or precision-incompatible ranges disable the slider
+with a reason. Historical captures without unit provenance retain raw editing
+only. Conversion/draft regressions are authored; builds/tests/render/provider
+acceptance remain deferred. See DEC-034.
+
+BUGS-001 source repairs (acceptance pending) use saved-intent comparisons for the
+dirty indicator; unchanged/reverted values do not create a draft. Review shows
+before/after resource writes and ordered VM steps, with backend information in
+expandable Technical Details. Downtime consent and approval stay outside the
+scroll area. Main GPU status is concise; detailed observations, saved intent and
+previous verification remain expandable. Modal availability is reactive. Installed
+inventory is reread every 15 seconds when dialogs/operations are idle, preserving
+drafts and conflict/recovery checks; snapshots and first-install elevation do not
+poll. Read failures mark retained observations historical and require Refresh.
+These changes have not been built, tested or rendered.
 
 **`--mock-gui --snapshot FILE [--config GUID.toml]`** selects an existing JSON capture from CLI
 `inventory`, instead of fixtures. It uses the existing real-data cards/System
