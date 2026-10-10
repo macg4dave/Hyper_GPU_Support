@@ -181,6 +181,21 @@ impl View {
     }
     /// Explain why a target is ineligible; config cannot broaden protected enrollment.
     pub fn eligibility(&self, target: &Target) -> Result<(), String> {
+        self.proposal_eligibility(target)?;
+        if !self
+            .inventory
+            .as_ref()
+            .ok_or("Refresh inventory first.")?
+            .enrolled
+            .iter()
+            .any(|t| t.vm_id == target.vm_id && t.gpu_interface == target.gpu_interface)
+        {
+            return Err("This VM/GPU pair is not enrolled; separate enrollment review is required before Apply.".into());
+        }
+        Ok(())
+    }
+    /// Read-only proposal validation grants no execution/enrollment authority.
+    pub fn proposal_eligibility(&self, target: &Target) -> Result<(), String> {
         if self.needs_readback {
             return Err("Inventory is historical; refresh before further actions.".into());
         }
@@ -196,13 +211,6 @@ impl View {
         let vm = self
             .vm(&target.vm_id)
             .ok_or("The selected VM is no longer present; refresh or discard.")?;
-        if !inventory
-            .enrolled
-            .iter()
-            .any(|t| t.vm_id == target.vm_id && t.gpu_interface == target.gpu_interface)
-        {
-            return Err("This VM/GPU pair is not enrolled. Run administrator install after updating configuration.".into());
-        }
         if vm.generation != 2 || !matches!(vm.power, Power::Off | Power::Running) {
             return Err("A stable Generation 2 VM is required.".into());
         }

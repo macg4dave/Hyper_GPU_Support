@@ -1,9 +1,13 @@
 # M2 source containment — 10 October 2026
 
-The user requested work toward M2 closure and explicitly retained the live-test
-hold. This slice changes source only. No tests, builds, compilation checks, GUI
-launches, installation or guest qualification were run. M2 remains open; the host
-lockup cause remains unconfirmed.
+**Closed with M2 on 10 October.** The user confirmed completed live tests and
+working behavior, accepted the baseline as known good and directed no further
+M2 live qualification. The repository quality gate subsequently passed, including
+the regression tests described here. See [M2 acceptance](M2.md).
+
+The original implementation slice below was source-only under the then-active
+test hold. Its original deferred-validation statements describe that point in
+time, not an outstanding task. The lockup cause remains unconfirmed.
 
 ## Implemented scope
 
@@ -73,7 +77,7 @@ Review identified a native replacement failure caveat; the final change supplies
 a backup and retains publication uncertainty. Review does not substitute for
 compilation, tests or interrupted guest qualification.
 
-## Limits and remaining closure work
+## Technical limits
 
 Requested WMI waits are bounded; COM dispatch, connection and provider cancellation
 are not established as hard deadlines. The payload deadline is checked around
@@ -88,20 +92,9 @@ state. Bootstrap files are still copied each time; verified reuse has not been
 introduced. Full driver transfer still uses the existing bundle path, now with
 monitored per-file/stall budgets in addition to the whole-bridge deadline.
 
-Before M2 closure:
-
-1. Bounded transfer source and independent static review are implemented above;
-   compilation, tests and actual PowerShell Direct transport remain unverified.
-2. Review any further changed privileged boundary and run the relevant quality
-   gate when authorized by the testing policy. Added regression test source covers
-   admission drift, native timeout/error classification, byte ceilings and changed
-   file lengths; it has not been executed.
-3. Qualify bootstrap interruption/publication and the affected fresh preparation
-   and maintenance paths on the designated target only after the user releases
-   the live-test hold. Recheck target identities, retain continuous durable host
-   telemetry, and use a bounded go/no-go without automatic retries or host restart.
-4. Record actual host responsiveness and post-operation observation alongside
-   functional results; successful rendering alone cannot close stability.
+M2 closure is recorded in [M2 acceptance](M2.md). The former live preparation,
+maintenance and interruption qualification checklist is retired by the user's
+confirmation and closure instruction. No further M2 live tests are required.
 
 Existing functional results in [M2](M2.md) and the new incident's
 [investigation](reapply-investigation-20261010.md) remain evidence. No measured

@@ -41,7 +41,12 @@ through the shared core; Refresh repeats that read. Errors never fall back to
 fixtures. Attachment does not imply enrollment, guest health or saved intent.
 Unconnected configuration actions are unavailable, not simulated. Current source
 includes protected Apply, Verify, save-only retry and manual reconciliation;
-end-to-end acceptance remains pending. First-time GUI enrollment is not connected.
+end-to-end acceptance remains pending. First-time GUI enrollment and fixed package
+setup now have source bindings through Details/Review; tests, builds and GUI/live
+acceptance remain deferred. Enrollment confirmation grants the exact pair only;
+a subsequent fresh Review is required for GPU Apply. Interrupted setup retains
+the original operator/pair/package pins; GUI recovery requires that original
+package and a discoverable eligible original pair. GPU replacement remains blocked.
 The CLI retains its existing capabilities independently.
 
 Enrolled pairs support in-memory toggles/raw VRAM drafts and fresh shared plan

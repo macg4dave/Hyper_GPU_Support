@@ -111,6 +111,165 @@ pub(crate) struct Enrollment {
     pub(crate) targets: Vec<Target>,
     pub(crate) artifacts: std::collections::BTreeMap<String, String>,
 }
+
+fn enrollment_revision(value: &Enrollment) -> Result<crate::configuration_store::Revision, String> {
+    Ok(crate::configuration_store::Revision::of(
+        &serde_json::to_vec(value).map_err(|e| e.to_string())?,
+    ))
+}
+
+/// Review additive authority against the current protected policy, without writes.
+pub fn review_pair(target: &Target) -> Result<crate::enrollment::PairReview, String> {
+    target.validate()?;
+    let current = enrollment()?;
+    verify_artifacts(&current)?;
+    let operator = windows_pipe::current_user_sid_string().map_err(|e| e.to_string())?;
+    if operator != current.client_sid {
+        return Err("current user is not the enrolled operator".into());
+    }
+    let review = crate::enrollment::PairReview {
+        vm_id: target.vm_id.to_ascii_lowercase(),
+        gpu_interface: target.gpu_interface.clone(),
+        expected: enrollment_revision(&current)?,
+        operator_sid: operator,
+    };
+    review.append(&current.targets, &review.expected, &current.client_sid)?;
+    require_no_recovery()?;
+    Ok(review)
+}
+
+pub(crate) fn pair_pending_path() -> Result<PathBuf, String> {
+    Ok(data_directory()?.join("enrollment-pending.json"))
+}
+
+/// Inspect an interrupted authority change; absence is accepted only on NotFound.
+pub fn pending_pair() -> Result<Option<crate::enrollment::PendingPair>, String> {
+    use crate::configuration_store::Revision;
+    let path = pair_pending_path()?;
+    match fs::symlink_metadata(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.to_string()),
+        Ok(m) if !m.is_file() => return Err("enrollment recovery is not a file".into()),
+        Ok(_) => {}
+    }
+    crate::security::verify(&path)?;
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .map_err(|e| e.to_string())?
+        .take(FRAME_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() > FRAME_LIMIT {
+        return Err("enrollment recovery exceeds input limit".into());
+    }
+    let record: crate::enrollment::PendingPair =
+        serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    record.review.target()?;
+    if record.operation_id.len() != 32
+        || !record
+            .operation_id
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        || matches!(record.review.expected, Revision::Missing)
+        || matches!(record.resulting, Revision::Missing)
+    {
+        return Err("invalid enrollment recovery identity/revisions".into());
+    }
+    Ok(Some(record))
+}
+
+/// Called under the worker's common lock and mandatory admission audit only.
+pub(crate) fn enroll_pair(
+    review: &crate::enrollment::PairReview,
+    session: &str,
+) -> Result<(), String> {
+    require_no_recovery()?;
+    crate::windows_wmi::require_no_pending_operation()?;
+    let mut current = enrollment()?;
+    let revision = enrollment_revision(&current)?;
+    let targets = review.append(&current.targets, &revision, &current.client_sid)?;
+    let target = review.target()?;
+    let discovery = windows_hyperv::discover()?;
+    validate_enrollment(
+        &Configuration {
+            schema: 2,
+            targets: vec![target.clone()],
+        },
+        &discovery,
+    )?;
+    if discovery
+        .issues
+        .iter()
+        .any(|i| i.target.as_deref() == Some(&target.vm_id))
+    {
+        return Err("selected VM observations are incomplete; Refresh".into());
+    }
+    let vm = discovery
+        .vms
+        .iter()
+        .find(|v| v.vm_id == target.vm_id)
+        .ok_or("VM disappeared")?;
+    if !matches!(vm.power, Power::Off | Power::Running)
+        || vm.gpus.len() > 1
+        || vm.gpus.iter().any(|g| g != &target.gpu_interface)
+    {
+        return Err("enrollment requires a stable VM with no unrelated GPU assignment".into());
+    }
+    let mut reader = NativeBackend {
+        credential: None,
+        manifest: None,
+        data: data_directory()?,
+    };
+    // Enrollment cannot sidestep any old attributable unfinished operation.
+    for old in current.targets.iter().chain(std::iter::once(&target)) {
+        if reader.journal(old)?.is_some_and(|j| {
+            j.schema != 1
+                || j.pending
+                || j.vm_id != old.vm_id
+                || j.gpu_interface != old.gpu_interface
+        }) {
+            return Err("managed operation requires reconciliation before enrollment".into());
+        }
+    }
+    current.targets = targets;
+    let resulting = enrollment_revision(&current)?;
+    crate::enrollment::publish_pair(
+        &resulting,
+        || {
+            atomic_json(
+                &pair_pending_path()?,
+                &crate::enrollment::PendingPair {
+                    operation_id: session.into(),
+                    review: review.clone(),
+                    resulting: resulting.clone(),
+                },
+            )
+        },
+        || atomic_json(&data_directory()?.join("enrollment.json"), &current),
+        || enrollment_revision(&enrollment()?),
+    )
+}
+
+/// Read back either complete old or complete new authority; never repeat a write.
+pub(crate) fn reconcile_pair(
+    operation_id: &str,
+    expected: &crate::configuration_store::Revision,
+) -> Result<(), String> {
+    let pending = pending_pair()?.ok_or("no interrupted enrollment exists")?;
+    let current = enrollment()?;
+    let actual = enrollment_revision(&current)?;
+    pending.check_readback(operation_id, expected, &actual, &current.client_sid)?;
+    if recovery_record()?.is_some() || import_record()?.is_some() {
+        return Err("resolve the separate GPU/configuration recovery first".into());
+    }
+    crate::windows_wmi::require_no_pending_operation()?;
+    Ok(())
+}
+
+/// Exact current policy token for explicit recovery review.
+pub fn pair_revision() -> Result<crate::configuration_store::Revision, String> {
+    enrollment_revision(&enrollment()?)
+}
 #[derive(Serialize, Deserialize)]
 struct Reply {
     nonce: String,
@@ -311,6 +470,41 @@ fn validate_enrollment(configuration: &Configuration, discovery: &Discovery) -> 
 /// Administrator-only native installation/enrollment of selected existing VMs.
 #[allow(unsafe_code)]
 pub fn install(configuration: &Configuration) -> Result<(), String> {
+    install_inner(configuration, None)
+}
+
+/// Fixed first-install route only; an installed policy can never be replaced here.
+pub(crate) fn bootstrap_install(
+    configuration: &Configuration,
+    artifacts: &std::collections::BTreeMap<String, String>,
+    session: &str,
+) -> Result<(), String> {
+    install_inner(configuration, Some((artifacts, session)))
+}
+
+/// Distinguish genuinely absent enrollment from unreadable/interrupted installation.
+pub fn installed() -> Result<bool, String> {
+    let root = data_directory()?;
+    match fs::symlink_metadata(&root) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(e.to_string()),
+        Ok(_) => crate::security::verify(&root)?,
+    }
+    match fs::symlink_metadata(root.join("enrollment.json")) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e.to_string()),
+        Ok(_) => {
+            enrollment()?;
+            Ok(true)
+        }
+    }
+}
+
+#[allow(unsafe_code)]
+fn install_inner(
+    configuration: &Configuration,
+    bootstrap: Option<(&std::collections::BTreeMap<String, String>, &str)>,
+) -> Result<(), String> {
     if !process::is_elevated()? {
         return Err("runner installation requires an elevated administrator console".into());
     }
@@ -321,6 +515,18 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
     let install = install_directory()?;
     let data = data_directory()?;
     for p in [&install, &data] {
+        if bootstrap.is_some() {
+            // An existing ancestor may belong to a concurrently installed product.
+            // Verify it without changing owner/operator ACLs before admission.
+            match fs::symlink_metadata(p) {
+                Ok(_) => crate::security::verify(p)?,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    crate::security::create_directory(p, &client)?
+                }
+                Err(e) => return Err(e.to_string()),
+            }
+            continue;
+        }
         if p.exists() {
             crate::security::verify(p)?;
         } else {
@@ -333,6 +539,53 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
         .parent()
         .ok_or("missing executable directory")?
         .to_path_buf();
+    // First-install setup must not disable/update an existing task before its
+    // no-replacement check. Hold admission across the scheduler and publication.
+    let bootstrap_lock = if bootstrap.is_some() {
+        let lock = operation_lock()?;
+        match fs::symlink_metadata(data.join("enrollment.json")) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.to_string()),
+            Ok(_) => {
+                return Err(
+                    "product already enrolled; Refresh and use incremental enrollment".into(),
+                );
+            }
+        }
+        require_no_recovery()?;
+        crate::windows_wmi::require_no_pending_operation()?;
+        // Revalidate mutable VM/GPU state after admission, not only before UAC.
+        let mut view = crate::gui_model::View::new(Configuration {
+            schema: 2,
+            targets: vec![],
+        });
+        view.refresh(crate::gui_model::Inventory {
+            discovery: windows_hyperv::discover()?,
+            enrolled: vec![],
+            managed: Default::default(),
+        });
+        let mut reader = NativeBackend {
+            credential: None,
+            manifest: None,
+            data: data.clone(),
+        };
+        for target in &configuration.targets {
+            view.proposal_eligibility(target)?;
+            if reader.journal(target)?.is_some_and(|j| {
+                j.schema != 1
+                    || j.pending
+                    || j.vm_id != target.vm_id
+                    || j.gpu_interface != target.gpu_interface
+            }) {
+                return Err(
+                    "managed state requires reconciliation before first-install setup".into(),
+                );
+            }
+        }
+        Some(lock)
+    } else {
+        None
+    };
     // Disable admission before publishing any installation changes. Existing work
     // is allowed to finish; installation never kills a guest operation.
     let (_apartment, service) = scheduler()?;
@@ -351,11 +604,75 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
         Err(error) if error.code().0 == 0x80070002_u32 as i32 => {}
         Err(error) => return Err(error.to_string()),
     }
-    let _lock = operation_lock()?;
-    atomic_json(
-        &data.join("installation-pending.json"),
-        &serde_json::json!({"schema": 1}),
-    )?;
+    let _lock = match bootstrap_lock {
+        Some(lock) => lock,
+        None => operation_lock()?,
+    };
+    if let Some((expected, session)) = bootstrap {
+        // Repeat the absence check under common admission, before publication.
+        // Even a concurrent CLI installation cannot be replaced from one GUI pair.
+        if fs::symlink_metadata(data.join("enrollment.json")).is_ok() {
+            return Err(
+                "product enrollment already exists; Refresh and use incremental enrollment".into(),
+            );
+        }
+        match fs::symlink_metadata(data.join("enrollment.json")) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.to_string()),
+            Ok(_) => return Err("enrollment appeared during setup".into()),
+        }
+        require_no_recovery()?;
+        crate::windows_wmi::require_no_pending_operation()?;
+        if &crate::setup::source_artifacts()? != expected {
+            return Err("setup artifacts changed after review".into());
+        }
+        let audit = data.join("audit");
+        if !audit.exists() {
+            crate::security::create_directory(&audit, &client)?;
+        }
+        crate::security::verify(&audit)?;
+        let path = audit.join(format!("setup-{session}.json"));
+        if path.exists() {
+            return Err("replayed setup session".into());
+        }
+        atomic_json(
+            &path,
+            &serde_json::json!({"schema":1,"operation":"FirstInstall","session":session,"operator_sid":client,"targets":configuration.targets,"artifacts":expected,"outcome":"Started"}),
+        )?;
+    }
+    if let Some((artifacts, session)) = bootstrap {
+        let target = configuration
+            .targets
+            .first()
+            .ok_or("setup requires one pair")?;
+        let review = crate::enrollment::PairReview {
+            vm_id: target.vm_id.clone(),
+            gpu_interface: target.gpu_interface.clone(),
+            expected: crate::configuration_store::Revision::Missing,
+            operator_sid: client.clone(),
+        };
+        if configuration.targets.len() != 1 || &review.target()? != target {
+            return Err("setup requires exactly one identity-only pair".into());
+        }
+        if let Some(pending) = pending_setup()?
+            && (pending.review != review || &pending.artifacts != artifacts)
+        {
+            return Err("interrupted setup has a different original scope; retain recovery".into());
+        }
+        atomic_json(
+            &data.join("installation-pending.json"),
+            &crate::enrollment::PendingSetup {
+                operation_id: session.into(),
+                review,
+                artifacts: artifacts.clone(),
+            },
+        )?;
+    } else {
+        atomic_json(
+            &data.join("installation-pending.json"),
+            &serde_json::json!({"schema": 1}),
+        )?;
+    }
     crate::configuration_store::protected::install(&client)?;
     let mut artifacts = std::collections::BTreeMap::new();
     for name in [
@@ -367,6 +684,13 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
         let from = source.join(name);
         payload::no_reparse(&from)?;
         let hash = payload::hash_file(&from)?;
+        if let Some((expected, _)) = bootstrap
+            && expected.get(name) != Some(&hash)
+        {
+            return Err(
+                "setup artifact changed during installation; installation remains held".into(),
+            );
+        }
         let to = install.join(name);
         if to.exists() {
             crate::security::verify(&to)?;
@@ -396,6 +720,27 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
     };
     atomic_json(&data.join("enrollment.json"), &enrollment)?;
     protect(&data.join("enrollment.json"), &client)?;
+    register_product_task(&service, &client)?;
+    if let Some((expected, session)) = bootstrap {
+        let readback = read_enrollment()?;
+        if serde_json::to_value(&readback).map_err(|e| e.to_string())?
+            != serde_json::to_value(&enrollment).map_err(|e| e.to_string())?
+        {
+            return Err("first-install authority readback mismatch; retain setup recovery".into());
+        }
+        verify_artifacts(&readback)?;
+        atomic_json(
+            &data.join("audit").join(format!("setup-{session}.json")),
+            &serde_json::json!({"schema":1,"operation":"FirstInstall","session":session,"operator_sid":client,"targets":configuration.targets,"artifacts":expected,"outcome":"Succeeded"}),
+        )?;
+    }
+    fs::remove_file(data.join("installation-pending.json")).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[allow(unsafe_code)]
+fn register_product_task(service: &ITaskService, client: &str) -> Result<(), String> {
+    let install = install_directory()?;
     // SAFETY: local scheduler, fixed task path and finite administrator-generated XML.
     let folder = unsafe { service.GetFolder(&BSTR::from(r"\")) }.map_err(|e| e.to_string())?;
     let executable = xml(&install.join("hyper-gpu-runner.exe").to_string_lossy());
@@ -417,8 +762,82 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
         )
     }
     .map_err(|e| e.to_string())?;
-    fs::remove_file(data.join("installation-pending.json")).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Only GUI first-install records are accepted here; legacy CLI markers stay explicit.
+pub fn pending_setup() -> Result<Option<crate::enrollment::PendingSetup>, String> {
+    let path = data_directory()?.join("installation-pending.json");
+    match fs::symlink_metadata(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.to_string()),
+        Ok(m) if !m.is_file() => return Err("setup recovery is not a file".into()),
+        Ok(_) => crate::security::verify(&path)?,
+    }
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .map_err(|e| e.to_string())?
+        .take(FRAME_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() > FRAME_LIMIT {
+        return Err("setup recovery exceeds input limit".into());
+    }
+    let record: crate::enrollment::PendingSetup = serde_json::from_slice(&bytes)
+        .map_err(|_| "interrupted CLI installation requires administrator install; no GUI setup binding exists")?;
+    record.review.target()?;
+    if record.review.expected != crate::configuration_store::Revision::Missing
+        || !crate::worker::valid_session(&record.operation_id)
+        || record.artifacts.len() != 4
+        || ![
+            "hyper-gpu-support.exe",
+            "hyper-gpu-runner.exe",
+            "hyper-gpu-guest.exe",
+            "d3d11-probe.exe",
+        ]
+        .iter()
+        .all(|n| record.artifacts.contains_key(*n))
+    {
+        return Err("invalid first-install recovery scope".into());
+    }
+    Ok(Some(record))
+}
+
+/// Complete only the original fully published install. No artifact/enrollment overwrite.
+pub(crate) fn reconcile_setup(
+    approved: &crate::enrollment::PairReview,
+    artifacts: &std::collections::BTreeMap<String, String>,
+    session: &str,
+) -> Result<(), String> {
+    if !process::is_elevated()? {
+        return Err("setup recovery requires elevation".into());
+    }
+    let _lock = operation_lock()?;
+    let record = pending_setup()?.ok_or("no interrupted setup exists")?;
+    let client = windows_pipe::current_user_sid_string().map_err(|e| e.to_string())?;
+    record.check_scope(approved, artifacts, &client)?;
+    require_no_recovery()?;
+    crate::windows_wmi::require_no_pending_operation()?;
+    let current = read_enrollment()?;
+    record.check_authority(&current.targets, &current.artifacts, &current.client_sid)?;
+    verify_artifacts(&current)?;
+    let data = data_directory()?;
+    let audit = data.join("audit").join(format!("setup-{session}.json"));
+    if audit.exists() {
+        return Err("replayed setup recovery session".into());
+    }
+    atomic_json(
+        &audit,
+        &serde_json::json!({"schema":1,"operation":"ReconcileSetup","session":session,"original":record,"outcome":"Started"}),
+    )?;
+    let (_apartment, service) = scheduler()?;
+    register_product_task(&service, &client)?;
+    atomic_json(
+        &audit,
+        &serde_json::json!({"schema":1,"operation":"ReconcileSetup","session":session,"original":record,"outcome":"Succeeded"}),
+    )?;
+    crate::security::verify(&data.join("installation-pending.json"))?;
+    fs::remove_file(data.join("installation-pending.json")).map_err(|e| e.to_string())
 }
 pub(crate) fn enrollment() -> Result<Enrollment, String> {
     let root = data_directory()?;
@@ -429,6 +848,12 @@ pub(crate) fn enrollment() -> Result<Enrollment, String> {
                 .into(),
         );
     }
+    read_enrollment()
+}
+
+fn read_enrollment() -> Result<Enrollment, String> {
+    let root = data_directory()?;
+    crate::security::verify(&root)?;
     let path = root.join("enrollment.json");
     crate::security::verify(&path)?;
     let b = fs::read(&path)
@@ -844,6 +1269,9 @@ pub fn recovery_record() -> Result<Option<crate::configuration_store::SaveRecord
     Ok(Some(record))
 }
 pub(crate) fn require_no_recovery() -> Result<(), String> {
+    if pending_pair()?.is_some() {
+        return Err("interrupted enrollment requires explicit authority readback; GPU effects remain blocked".into());
+    }
     if recovery_record()?.is_some() {
         return Err("host-wide recovery hold is active; reconcile or retry saving only".into());
     }

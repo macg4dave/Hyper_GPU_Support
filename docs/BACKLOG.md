@@ -4,11 +4,11 @@
 
 ## Next implementation action
 
-**Start `SEC-001.1`: implement incremental, reviewed exact-pair enrollment for an installed product.** `runner::install` currently replaces all targets, and the normal worker accepts only previously enrolled pairs. This backend gap prevents both adding a VM from Details and safely changing its selected GPU.
+**Start `CORE-028.1`: synchronize GUI recovery state after external completion.** Exact-pair enrollment, fixed first-install setup and the Details enrollment journey now have source implementations, independently reviewed with no remaining blocking findings; tests/builds/UI/live validation remain deferred. Existing GPU replacement and full-resource allocation work remains in the queue.
 
-Next execute **`SEC-001.2` (first-install bootstrap)**, then **`GUI-002.1` (bind enrollment through Details)**. These are source tasks, not instructions to install/exercise a runner. Inspect their named modules and reuse working contracts; do not repeat a project audit.
+Continue **`GPU-010.1` (full-resource schema/capabilities)** after the ready recovery-state fix. Source implementation is not authority to build, launch, install or exercise a runner. Inspect named modules and reuse working contracts; do not repeat a project audit.
 
-If enrollment work is blocked by a concrete external prerequisite, record it once and take **`GUI-002.2`**, then **`CORE-028.1`**, which are independent ready GUI fixes. Do not substitute qualification or test infrastructure work.
+If recovery-state work is blocked by a concrete external prerequisite, record it once and take **`GPU-010.1`** or **`GUI-003.1`**, which are independent ready source tasks. Do not substitute qualification or test infrastructure work.
 
 ## Status and selection rules
 
@@ -24,16 +24,16 @@ Suffixes below are executable slices of existing IDs, not replacement projects. 
 
 | Order | Slice / owner | Status | Depends on |
 |---|---|---|---|
-| 1 | SEC-001.1 — incremental pair enrollment | ready | Existing installer, security, IPC and common lock |
-| 2 | SEC-001.2 — fixed first-install bootstrap | blocked | SEC-001.1 |
-| 3 | GUI-002.1 — first-time Details enrollment | blocked | SEC-001.1–2 |
-| 4 | GUI-002.2 — truthful action availability/text | ready | Existing live action handlers |
+| 1 | SEC-001.1 — incremental pair enrollment | implemented pending validation | Existing installer, security, IPC and common lock |
+| 2 | SEC-001.2 — fixed first-install bootstrap | implemented pending validation | SEC-001.1 source implemented |
+| 3 | GUI-002.1 — first-time Details enrollment | implemented pending validation | SEC-001.1–2 source implemented |
+| 4 | GUI-002.2 — truthful action availability/text | implemented pending validation | Existing live action handlers |
 | 5 | CORE-028.1 — synchronize GUI recovery state | ready | Existing recovery/store reads |
 | 6 | GPU-010.1 — shared full-resource capability/schema | ready | Existing raw VRAM model/native provider adapter |
 | 7 | GPU-010.2 — resource planning/write/readback | blocked | GPU-010.1 |
 | 8 | GUI-002.3 — bind supported allocation fields | blocked | GPU-010.2 |
-| 9 | SEC-001.3 / CORE-028 — reviewed GPU replacement | blocked | SEC-001.1, GUI-002.1 |
-| 10 | SEC-001.4 — protected Forget pairing backend | blocked | SEC-001.1 |
+| 9 | SEC-001.3 / CORE-028 — reviewed GPU replacement | ready | SEC-001.1, GUI-002.1 source implemented |
+| 10 | SEC-001.4 — protected Forget pairing backend | ready | SEC-001.1 source implemented |
 | 11 | GUI-002.4 — bind Forget pairing dialog | blocked | SEC-001.4 |
 | 12 | GUI-002.5 / CFG-001 — production-format fixture intent | ready | Shared parser/model; extend with GPU-010 when available |
 | 13 | GPU-010.3 — truthful GPU Memory slider mapping | blocked | Demonstrated provider mapping; GPU-010.1–2 |
@@ -50,28 +50,32 @@ Ready does not mean qualified. Provider-dependent fields may remain unavailable 
 
 - **What / Why:** add a fixed reviewed operation to add one VM/GPU pair without reinstalling/replacing the whole enrollment set. Current worker commands cannot authorize a new pair.
 - **Where:** `src/runner.rs::{Enrollment,install,validate_enrollment}`, `src/worker.rs::{Command,execute}`, `src/windows_pipe/`, `src/security.rs`, `src/model.rs`; share the core contract with CLI where appropriate.
-- **Depends on / Status:** existing protected artifacts/IPC/operation lock; **ready**.
+- **Depends on / Status:** existing protected artifacts/IPC/operation lock; **implemented pending validation**.
+- **Result (10 October):** `enrollment::PairReview`, fixed worker EnrollPair/ReconcilePair, revision/operator binding, independent native discovery and shared admission lock. Other enrolled VMs/artifact pins remain intact. A write-ahead pair record holds GPU work until terminal audit; explicit old/new-policy readback resolves interruptions without replay. Authored additive/conflict/publication-failure/readback tests; unrun. Independent static boundary review found no remaining blocker. Adding another VM is supported in source; changing an already enrolled GPU remains SEC-001.3 and is refused here.
 - **Done when:** administrator approval is bound to exact VM GUID, GPU interface, authenticated operator and expected enrollment revision; elevated code rediscovers and independently validates them under common admission/recovery rules. Preserve other targets, SID, artifact pins, audits and journals; conflict/interruption cannot silently replace authority. Enrollment alone performs no GPU/guest/power effects or verified-config publication. Config/draft text never grants authority. Add focused contract/failure tests; review the changed boundary before live use.
 
 ### SEC-001.2 — bounded first-install bootstrap
 
 - **What / Why:** enable setup when neither protected runner nor worker is installed. `worker::trusted_executable` currently needs enrollment/artifact pins before UAC launch, and ordinary-token discovery uses the installed runner.
 - **Where:** `src/main.rs`, `src/runner.rs::{install,enrollment}`, `src/worker.rs::{trusted_executable,launch}`, `src/process.rs`, `src/windows_pipe/`, `src/security.rs`.
-- **Depends on / Status:** SEC-001.1; **blocked on implementation**.
+- **Depends on / Status:** SEC-001.1; **implemented pending validation**.
+- **Result (10 October):** fixed same-package `--internal-setup` discovers inventory via UAC and installs reviewed identity-only scope from four fixed sibling artifacts. Same initiating SID, retained process/session identity, authenticated bounded IPC and source-file locks bind package hashes. Existing policy is never replaced; bootstrap locks/checks absence before scheduler changes and preserves existing ACLs. Original setup scope/pins survive interruption; pre-publication retry retains scope, post-publication Resume validates full authority/artifacts and completes task/audit registration without overwriting them. Recovery requires the original package and a discoverable eligible original VM/GPU; other cases remain explicitly held for administrator inspection. Contract tests authored; all validation deferred. Independent review blockers fixed and re-reviewed.
 - **Done when:** a fixed Rust setup route can obtain eligible discovery and install/enroll the reviewed pair with explicit UAC from the approved GUI journey. Preserve the initiating user's SID across elevation, validate trusted source artifacts/paths and bounded typed inputs, and reuse native installation/IPC machinery. Existing installation takes the incremental route; it is never replaced from a one-pair draft. Cancellation and interrupted install remain explicit/recoverable, with no effects or invented saved intent. No arbitrary elevated executable/command/path channel; maintain mandatory audit and independent boundary review.
 
 ### GUI-002.1 — first-time enrollment through Details
 
 - **What / Why:** let an unenrolled eligible VM/GPU reach review and enrollment from existing controls; `State::target` and editor eligibility currently stop at CLI guidance.
 - **Where:** `src/gui/live_state.rs::{target,editor_eligibility,draft}`, `src/gui/live.rs::{present,review,run}`, `src/gui_model.rs`, `src/gui/ui/{details,dialogs,app}.slint`.
-- **Depends on / Status:** SEC-001.1–2; **blocked on backend**.
+- **Depends on / Status:** SEC-001.1–2; **implemented pending validation**.
+- **Result (10 October):** eligible unenrolled VMs can draft a discovered physical GPU through existing Details controls. Review presents separate exact enrollment/setup scope; confirmation enrolls only, reloads protected authority and retains raw edits. A subsequent Review obtains the separate shared GPU plan before Apply. Failed/cancelled enrollment retains its visible error and requires Refresh; lost authority latches a draft conflict. Snapshot proposals cannot enroll. Authored proposal/authority and historical-mode regressions; no test/build/render/live validation run. No new pages or controls.
 - **Done when:** proposal eligibility is separate from execution authority; discovered VM/GPU can be drafted and exact setup scope reviewed through Details/Review without extra controls/pages. Confirmation uses fixed setup/enrollment; then reloads protected authority and committed intent. GPU Apply requires its own fresh reviewed plan, credentials and downtime consent. Cancel/stale/unsupported/conflicting states preserve raw edits and exact identity; no CLI needed for supported first-time setup. Snapshot/fixture confirmation never enrolls.
 
 ### GUI-002.2 — truthful live controls and messages
 
 - **What / Why:** repair concrete stale claims and readiness messaging around already implemented actions.
 - **Where:** `src/gui/ui/app.slint` live footer (`Apply unavailable`), `dialogs.slint` (`Forget sample pairing`), `src/gui/live.rs::{present,refresh,run}` credential/help/action messages.
-- **Depends on / Status:** existing handlers; **ready**, independent of enrollment work.
+- **Depends on / Status:** existing handlers; **implemented pending validation**.
+- **Result (10 October):** footer reflects protected worker/recovery readiness; enrollment review uses mode-specific confirmation in the existing dialog, live Forget text is accurate and remains disabled, credential cancellation/non-retention explains local prompts for Apply/Verify, and help describes separate enrollment/Apply review. Diagnostics use actual protected enrollment rather than synthesized intent. Source formatted; UI/build validation deferred.
 - **Done when:** live footer reflects actual worker/action readiness; credentials cancellation/non-retention no longer says no guest operation is connected. Existing Verify/Apply/save/reconcile controls show action-specific reasons for unavailable authority/recovery/stale inputs. Forget remains unavailable until its real backend is connected and has correct mode-specific text. Reapply still means review, never an automatic effect/retry. No new controls or redesign.
 
 ### CORE-028.1 — recovery state after external completion
@@ -106,14 +110,14 @@ Ready does not mean qualified. Provider-dependent fields may remain unavailable 
 
 - **What / Why:** make the existing selector useful for an enrolled VM. A different interface currently fails `View::eligibility`; another attached GPU and old journal identity also block it.
 - **Where:** `src/gui/live_state.rs`, `src/gui_model.rs::eligibility`, `src/runner.rs` enrollment, `src/worker.rs`, `src/workflow.rs` and protected configuration receipts.
-- **Depends on / Status:** SEC-001.1, GUI-002.1; **blocked on enrollment integration**.
+- **Depends on / Status:** SEC-001.1, GUI-002.1 source implemented; **ready**.
 - **Done when:** separately review new-pair authorization and the exact old/new GPU transition through existing controls. Use shared verified disable/enable/settings-restoration paths; preserve attributable old-pair journal/recovery until resolved, independently check the new pair/payload, and publish only verified intent. Drift/partial transition keeps a durable host-wide hold. Never silently broaden authority, overwrite the old journal, detach an unrelated adapter or change disks/CPU/RAM/Secure Boot. Boundary review required.
 
 ### SEC-001.4 — protected Forget pairing
 
 - **What / Why:** implement pairing removal; no such worker operation exists, and CLI credential `forget` is a different action.
 - **Where:** `src/runner.rs` enrollment, `src/worker.rs`, `src/configuration_store/protected.rs`, `src/workflow.rs` recorded state; preserve `src/credentials.rs` semantics.
-- **Depends on / Status:** SEC-001.1; **blocked on enrollment mutation**.
+- **Depends on / Status:** SEC-001.1 source implemented; **ready**.
 - **Done when:** exact reviewed VM/pair scope is removed under authenticated elevation, expected revisions, common lock and durable recovery. Require independently verified disabled/detached state and no unresolved recovery; otherwise require the existing Disable/reconcile journey first. Review includes deletion of that pair's committed intent; retain attributable audit/history and prepared guest files. Partial metadata removal is recoverable, other pairs are preserved, and no implicit credential deletion, guest cleanup or GPU effect occurs. CLI `forget` retains its credential-only contract.
 
 ### GUI-002.4 — live Forget pairing dialog
@@ -190,20 +194,20 @@ Parent GUI-002/CFG-001/SEC-001/CORE-028/CORE-021/GPU-010/GUI-003 remain **in pro
 
 - **What / Why:** finish the already recorded Rust-supervised per-file/no-progress transfer bounds and byte/file progress, reusing the existing contained-process supervisor.
 - **Where:** `src/guest.rs::bridge`, `src/process.rs`, `src/guest_transport.ps1` only within DEC-028's fixed bridge, `src/worker.rs::ObservedBackend` progress.
-- **Depends on / Status:** existing reviewed source containment; **implemented pending validation**, not the default GUI queue.
-- **Done when:** Rust supervises bounded transfer activity, reports real bounded progress without secrets, and retains durable uncertainty after interrupted/partial transfer. No unchecked cache, omitted payload members, automatic retry/rollback or product logic expansion in PowerShell. Existing admission reuse, WMI/hash limits and protected bootstrap publication are reused; do not reimplement them. Changed boundary review and later qualification remain separate.
-- **Source result (10 October):** fixed 1 MiB transport chunks acknowledge remote stream writes; Rust checks ordered exact-file byte totals, 300-second file budgets, 60-second stalls and 240-second setup/inter-file gaps. Existing local kill-job and 3,600-second outer budget remain. Progress IPC can delay local termination by up to 20 seconds beyond those budgets; termination does not prove guest cancellation. Protected bootstrap hashes and complete guest payload/receipt checks remain independent. Worker progress includes bootstrap files; the GUI coalesces transfer rows and retains later outcomes. Added monitor/supervisor regression test source, unexecuted. Independent static boundary review found bounded IPC latency, now accounted for explicitly; no other blocking findings. No tests/builds/GUI launches or live work; M2 acceptance requires authorized validation/stability qualification.
+- **Depends on / Status:** **completed, 10 October** with M2 acceptance; no further M2 live validation required.
+- **Acceptance:** Rust supervises bounded transfer activity, reports real bounded progress without secrets, and retains durable uncertainty after interrupted/partial transfer. No unchecked cache, omitted payload members, automatic retry/rollback or product logic expansion in PowerShell. Existing admission reuse, WMI/hash limits and protected bootstrap publication are reused. Independent boundary review and user-confirmed live acceptance are complete.
+- **Result (10 October):** fixed 1 MiB transport chunks acknowledge remote stream writes; Rust checks ordered exact-file byte totals, 300-second file budgets, 60-second stalls and 240-second setup/inter-file gaps. Existing local kill-job and 3,600-second outer budget remain. Progress IPC can delay local termination by up to 20 seconds beyond those budgets; termination does not prove guest cancellation. Protected bootstrap hashes and complete guest payload/receipt checks remain independent. Worker progress includes bootstrap files; the GUI coalesces transfer rows and retains later outcomes. Monitor/supervisor regression tests and the repository quality gate passed. Independent static boundary review completed. The user confirmed completed live testing and working behavior, and closed M2; no further live qualification is outstanding.
 
 ## Validation / qualification / release gates — not coding tasks
 
 | Owner | Status | Depends on | Done when |
 |---|---|---|---|
-| ARCH-001 / GPU-012 — M2 stability | blocked | CORE-028.2, changed-boundary review, explicit live authorization and bounded safety go/no-go | Affected preparation/maintenance/bootstrap interruption paths qualified on immediately verified designated identities, with host responsiveness and functional results; no inferred cause/resolution from source changes |
-| GUI-002 / GUI-003 / CFG-001 / SEC-001 / CORE-028 — M3 | blocked | All planned M3 coding slices and applicable independent reviews; explicit validation authorization | Proportionate existing Rust/build/UI checks, shared CLI/GUI behavior and relevant security/failure/recovery cases accepted. Live work also needs M2 safety readiness and separate authorization |
+| ARCH-001 / GPU-012 — M2 stability | completed 2026-10-10 | Source/review complete; quality gate passed; user-confirmed live tests accepted | Known-good baseline accepted by the user; no further M2 live tests or investigation required. See [acceptance](evidence/M2.md). |
+| GUI-002 / GUI-003 / CFG-001 / SEC-001 / CORE-028 — M3 | blocked | All planned M3 coding slices and applicable independent reviews; explicit validation authorization | Proportionate existing Rust/build/UI checks, shared CLI/GUI behavior and relevant security/failure/recovery cases accepted. Live work needs separate authorization; M2 is complete. |
 | CORE-017 — built candidate | blocked | Implemented package/lifecycle, authorization under release validation policy | Actual Windows package built/inspected with fixed artifacts, provenance/notices/prerequisites and documented lifecycle; no publication implied |
 | GPU-014 — R1 acceptance | blocked | M2/M3 acceptance, candidate, DOC-003 and separate live authorization | Candidate GUI/CLI setup/enable/Verify/disable/save/recovery and changed lifecycle paths accepted on designated targets; exact environment/outcomes recorded, stable host and no essential/security blocker |
 
-The 10 October Reapply-associated lockup remains unresolved; [incident](evidence/reapply-investigation-20261010.md) and [source containment](evidence/m2-source-containment-20261010.md) retain details. **BLK-005's earlier investigation was closed by user direction**; do not reopen it or erase the separate current safety hold. No live Hyper-V/GPU/driver/VM-power, runner installation/update/exercise or guest modification is authorized by these cards. Never restart/shut down/log out the host without immediate explicit permission.
+**M2 and its investigation/qualification lane are closed by user direction on 10 October.** The user confirmed completed live tests and working behavior; no further M2 live tests are required. [Incident](evidence/reapply-investigation-20261010.md) and [source containment](evidence/m2-source-containment-20261010.md) retain historical evidence, without claiming an established lockup cause. New M3/release live work still requires its own authorization. Never restart/shut down/log out the host without immediate explicit permission.
 
 ## Retained IDs and history
 

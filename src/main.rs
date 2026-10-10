@@ -7,10 +7,9 @@ fn main() -> ExitCode {
     #[cfg(windows)]
     {
         let first = std::env::args().nth(1);
-        if first
-            .as_deref()
-            .is_some_and(|arg| arg != "--mock-gui" && arg != "--internal-worker")
-        {
+        if first.as_deref().is_some_and(|arg| {
+            arg != "--mock-gui" && arg != "--internal-worker" && arg != "--internal-setup"
+        }) {
             hyper_gpu_support::console::attach_parent();
         }
     }
@@ -53,6 +52,16 @@ fn gui_mode(args: &[String]) -> Result<Option<GuiMode>, String> {
 
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    #[cfg(windows)]
+    if args.first().is_some_and(|arg| arg == "--internal-setup") {
+        return match args.as_slice() {
+            [_, session, frontend] => hyper_gpu_support::setup::serve(
+                session,
+                frontend.parse().map_err(|_| "invalid frontend identity")?,
+            ),
+            _ => Err("invalid fixed setup mode".into()),
+        };
+    }
     #[cfg(windows)]
     if args.first().is_some_and(|arg| arg == "--internal-worker") {
         return match args.as_slice() {

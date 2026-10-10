@@ -158,9 +158,8 @@ fn dependent_file_name(
             // SAFETY: live apartment-owned call result, writable HRESULT output.
             // Use the vtable to preserve WBEM_S_TIMEDOUT (a success HRESULT),
             // which the generated Result wrapper otherwise discards.
-            let status = unsafe {
-                (pending.vtable().GetCallStatus)(pending.as_raw(), wait, &mut operation)
-            };
+            let status =
+                unsafe { (pending.vtable().GetCallStatus)(pending.as_raw(), wait, &mut operation) };
             if lookup_complete(status, HRESULT(operation))? {
                 break;
             }

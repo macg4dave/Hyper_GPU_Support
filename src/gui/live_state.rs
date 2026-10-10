@@ -18,8 +18,13 @@ pub(super) struct State {
     pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
     /// A draft's original committed revision changed; only discard releases it.
     committed_conflict: Option<String>,
+    authority_conflict: Option<String>,
     pub recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
     pub import_recovery: Option<hyper_gpu_support::configuration_store::ImportRecord>,
+    pub enrollment_review: Option<hyper_gpu_support::enrollment::PairReview>,
+    pub enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
+    pub enrollment_recovery_revision: Option<hyper_gpu_support::configuration_store::Revision>,
+    pub setup_artifacts: Option<std::collections::BTreeMap<String, String>>,
 }
 
 impl Default for State {
@@ -38,8 +43,13 @@ impl Default for State {
             verification_plan: None,
             committed: Default::default(),
             committed_conflict: None,
+            authority_conflict: None,
             recovery: None,
             import_recovery: None,
+            enrollment_review: None,
+            enrollment_recovery: None,
+            enrollment_recovery_revision: None,
+            setup_artifacts: None,
         }
     }
 }
@@ -47,6 +57,18 @@ impl Default for State {
 impl State {
     pub fn refresh(&mut self, inventory: Inventory) {
         let selected = self.view.selected.clone();
+        if let Some(draft) = &self.view.draft
+            && self.enrolled(draft)
+            && !inventory
+                .enrolled
+                .iter()
+                .any(|t| t.vm_id == draft.vm_id && t.gpu_interface == draft.gpu_interface)
+        {
+            self.authority_conflict = Some(draft.vm_id.clone());
+            self.rehearsal_plan = None;
+            self.enrollment_review = None;
+            self.setup_artifacts = None;
+        }
         self.view.refresh(inventory);
         if self.view.draft.is_some() {
             // A disappeared VM must not silently transfer its draft to another VM.
@@ -55,9 +77,65 @@ impl State {
     }
 
     pub fn target(&self, id: &str) -> Result<Target, String> {
-        self.view.configuration.targets.iter().find(|t| t.vm_id == id).cloned()
-            .or_else(|| self.view.inventory.as_ref()?.enrolled.iter().find(|t| t.vm_id == id).cloned())
-            .ok_or_else(|| "This VM has no protected enrollment. Use CLI installation until GUI enrollment is connected.".into())
+        self.view
+            .configuration
+            .targets
+            .iter()
+            .find(|t| t.vm_id == id)
+            .cloned()
+            .or_else(|| {
+                self.view
+                    .inventory
+                    .as_ref()?
+                    .enrolled
+                    .iter()
+                    .find(|t| t.vm_id == id)
+                    .cloned()
+            })
+            .or_else(|| {
+                // A discovered candidate is unsaved, disabled intent, never authority.
+                let inventory = self.view.inventory.as_ref()?;
+                let vm = self.view.vm(id)?;
+                let gpu = if vm.gpus.is_empty() {
+                    inventory.discovery.gpus.first()?
+                } else {
+                    inventory
+                        .discovery
+                        .gpus
+                        .iter()
+                        .find(|g| vm.gpus == [g.interface.clone()])?
+                };
+                Some(Target {
+                    vm_id: id.into(),
+                    gpu_interface: gpu.interface.clone(),
+                    enabled: false,
+                    vram: None,
+                })
+            })
+            .ok_or_else(|| "Select an available VM and physical GPU, then Refresh.".into())
+    }
+
+    pub fn enrolled(&self, target: &Target) -> bool {
+        self.view.inventory.as_ref().is_some_and(|i| {
+            i.enrolled
+                .iter()
+                .any(|t| t.vm_id == target.vm_id && t.gpu_interface == target.gpu_interface)
+        })
+    }
+
+    fn proposal_eligibility(&self, target: &Target) -> Result<(), String> {
+        if self.enrolled(target) || self.historical {
+            return self.view.eligibility(target);
+        }
+        if self
+            .view
+            .inventory
+            .as_ref()
+            .is_some_and(|i| i.enrolled.iter().any(|t| t.vm_id == target.vm_id))
+        {
+            return Err("This selected GPU is not enrolled. Changing an enrolled GPU requires the separate replacement transition, which is not connected yet.".into());
+        }
+        self.view.proposal_eligibility(target)
     }
 
     pub fn load_configuration(
@@ -74,10 +152,16 @@ impl State {
     }
 
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
+        if self.authority_conflict.as_deref() == Some(id) {
+            return Err("Protected enrollment changed. Draft preserved; discard and Refresh before a new enrollment review.".into());
+        }
         if self.committed_conflict.as_deref() == Some(id) {
             return Err("Committed configuration changed or became unavailable. Draft preserved; discard it to reload the latest committed intent.".into());
         }
-        if self.recovery.is_some() || self.import_recovery.is_some() {
+        if self.recovery.is_some()
+            || self.import_recovery.is_some()
+            || self.enrollment_recovery.is_some()
+        {
             return Err(
                 "A host-wide operation requires manual reconciliation or save-only retry.".into(),
             );
@@ -88,7 +172,7 @@ impl State {
         // disabling an unsupported preparation adapter. Draft validation is separate.
         pair.enabled = false;
         pair.vram = None;
-        self.view.eligibility(&pair)
+        self.proposal_eligibility(&pair)
     }
     /// Accept fresh readable intent; an error means the retained draft is blocked,
     /// not that the new store snapshot or unrelated inventory should be discarded.
@@ -122,7 +206,10 @@ impl State {
     pub fn discard(&mut self) {
         self.view.discard();
         self.committed_conflict = None;
+        self.authority_conflict = None;
         self.rehearsal_plan = None;
+        self.enrollment_review = None;
+        self.setup_artifacts = None;
         self.draft_gpu = None;
     }
 
@@ -172,7 +259,7 @@ impl State {
                 maximum: parsed[2],
             })
         };
-        self.view.eligibility(&target)?;
+        self.proposal_eligibility(&target)?;
         Ok(target)
     }
 }
@@ -272,6 +359,45 @@ mod tests {
     }
 
     #[test]
+    fn new_vm_can_be_drafted_but_proposal_never_becomes_execution_authority() {
+        let mut s = State::default();
+        let mut i = inventory();
+        i.enrolled.clear();
+        s.refresh(i);
+        let vm_id = id(&s).to_owned();
+        let target = s
+            .draft(&vm_id, true, 0, &values("10", "50", "100"))
+            .unwrap();
+        assert!(!s.enrolled(&target));
+        assert!(s.view.configuration.targets.is_empty());
+        assert!(!s.target(&vm_id).unwrap().enabled);
+        assert!(
+            s.view
+                .eligibility(&target)
+                .unwrap_err()
+                .contains("not enrolled")
+        );
+        assert!(s.view.inventory.as_ref().unwrap().enrolled.is_empty());
+        s.view.draft = Some(target.clone());
+        s.refresh(inventory());
+        assert_eq!(s.view.draft, Some(target.clone()));
+        assert!(s.enrolled(&target));
+        assert!(s.view.configuration.targets.is_empty());
+        assert!(s.view.eligibility(&target).is_ok());
+    }
+
+    #[test]
+    fn historical_unenrolled_pair_cannot_enter_enrollment_journey() {
+        let mut s = State::default();
+        let mut i = inventory();
+        i.enrolled.clear();
+        s.refresh(i);
+        s.historical = true;
+        assert!(s.draft(id(&s), true, 0, &values("", "", "")).is_err());
+        assert!(s.enrollment_review.is_none());
+    }
+
+    #[test]
     fn saved_intent_remains_distinct_from_enrollment_observation_and_draft() {
         let mut s = state();
         assert!(s.view.configuration.targets.is_empty());
@@ -316,10 +442,7 @@ mod tests {
         targets: Vec<Target>,
         comment: &str,
     ) -> hyper_gpu_support::configuration_store::StoreSnapshot {
-        let configuration = Configuration {
-            schema: 2,
-            targets,
-        };
+        let configuration = Configuration { schema: 2, targets };
         let mut store = hyper_gpu_support::configuration_store::StoreSnapshot::default();
         for (filename, source) in configuration.vm_documents().unwrap() {
             store.insert(&filename, Ok(format!("{source}\n# {comment}\n")));

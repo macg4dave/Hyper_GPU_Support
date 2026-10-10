@@ -363,7 +363,8 @@ mod tests {
         assert_eq!(hash, hex(&Sha256::digest(b"driver")));
         for expected in [5, 7] {
             assert!(
-                hash_payload_reader(&mut std::io::Cursor::new(b"driver"), expected, deadline).is_err()
+                hash_payload_reader(&mut std::io::Cursor::new(b"driver"), expected, deadline)
+                    .is_err()
             );
         }
         assert!(

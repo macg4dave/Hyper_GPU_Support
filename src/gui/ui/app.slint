@@ -133,7 +133,7 @@ export component AppWindow inherits Window {
             }
         }
         Rectangle { height: 30px; background: Theme.surface;
-            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.snapshot-mode ? "Snapshot rehearsal · Historical inventory · No writes" : root.mock-mode ? "Mock GUI · In-memory drafts · No real GPU changes" : "Live GUI · Shared plan previews · Apply unavailable"; } Hint { text: root.running ? (root.snapshot-mode ? "Reading snapshot" : root.mock-mode ? "Demonstration running" : "Backend operation running") : "Ready"; horizontal-alignment: right; } }
+            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.snapshot-mode ? "Snapshot rehearsal · Historical inventory · No writes" : root.mock-mode ? "Mock GUI · In-memory drafts · No real GPU changes" : root.recovery ? "Live GUI · Recovery requires explicit reconciliation" : root.execution-ready ? "Live GUI · Reviewed operations available" : "Live GUI · Protected worker unavailable"; } Hint { text: root.running ? (root.snapshot-mode ? "Reading snapshot" : root.mock-mode ? "Demonstration running" : "Backend operation running") : "Ready"; horizontal-alignment: right; } }
         }
     }
     if root.dialog-kind != "" : DemoDialog { mock-mode: root.mock-mode; snapshot-mode: root.snapshot-mode; execution-ready: root.execution-ready; kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body; stages: root.stages; running: root.running; needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); } }

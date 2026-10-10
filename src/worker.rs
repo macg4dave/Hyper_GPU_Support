@@ -56,6 +56,13 @@ pub struct Progress {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 enum Command {
+    EnrollPair {
+        approved: crate::enrollment::PairReview,
+    },
+    ReconcilePair {
+        operation_id: String,
+        expected: Revision,
+    },
     Apply {
         approved: Plan,
         expected: Revision,
@@ -115,7 +122,7 @@ pub struct Outcome {
     /// Publication failure; GPU effects must never be replayed for this.
     pub save_error: Option<String>,
 }
-struct OwnedProcess(HANDLE);
+pub(crate) struct OwnedProcess(pub(crate) HANDLE);
 impl Drop for OwnedProcess {
     #[allow(unsafe_code)]
     fn drop(&mut self) {
@@ -128,20 +135,20 @@ impl Drop for OwnedProcess {
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(Some(0)).collect()
 }
-fn valid_session(session: &str) -> bool {
+pub(crate) fn valid_session(session: &str) -> bool {
     session.len() == 32
         && session
             .bytes()
             .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
-fn pipe_name(session: &str) -> Result<String, String> {
+pub(crate) fn pipe_name(session: &str) -> Result<String, String> {
     if !valid_session(session) {
         return Err("invalid worker session identity".into());
     }
     Ok(format!(r"\\.\pipe\HyperGpuSupport.Operation.{session}"))
 }
 #[allow(unsafe_code)]
-fn random_session() -> Result<String, String> {
+pub(crate) fn random_session() -> Result<String, String> {
     let mut bytes = [0_u8; 16];
     // SAFETY: fixed initialized output; uses Windows system-preferred cryptographic RNG.
     unsafe { BCryptGenRandom(None, &mut bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG) }
@@ -168,9 +175,50 @@ fn trusted_executable() -> Result<std::path::PathBuf, String> {
 pub fn available() -> Result<(), String> {
     trusted_executable().map(|_| ())
 }
+
+/// Authorize only the separately reviewed pair; no GPU/guest/configuration effects.
+pub fn enroll_pair(
+    approved: crate::enrollment::PairReview,
+    progress: impl FnMut(Progress),
+) -> Result<Outcome, String> {
+    submit(Command::EnrollPair { approved }, None, progress)
+}
+
+/// Explicitly resolve interrupted authority publication from independent readback.
+pub fn reconcile_pair(
+    operation_id: String,
+    expected: Revision,
+    progress: impl FnMut(Progress),
+) -> Result<Outcome, String> {
+    submit(
+        Command::ReconcilePair {
+            operation_id,
+            expected,
+        },
+        None,
+        progress,
+    )
+}
 #[allow(unsafe_code)]
 fn launch(session: &str) -> Result<OwnedProcess, String> {
     let executable = trusted_executable()?;
+    launch_fixed(&executable, session, "--internal-worker")
+}
+
+pub(crate) fn launch_setup(session: &str) -> Result<OwnedProcess, String> {
+    let executable = crate::setup::source_executable()?;
+    launch_fixed(&executable, session, "--internal-setup")
+}
+
+#[allow(unsafe_code)]
+fn launch_fixed(
+    executable: &std::path::Path,
+    session: &str,
+    mode: &str,
+) -> Result<OwnedProcess, String> {
+    if !valid_session(session) || !matches!(mode, "--internal-worker" | "--internal-setup") {
+        return Err("invalid fixed worker launch".into());
+    }
     let verb = wide("runas");
     let path: Vec<u16> = executable
         .as_os_str()
@@ -178,10 +226,7 @@ fn launch(session: &str) -> Result<OwnedProcess, String> {
         .encode_utf16()
         .chain(Some(0))
         .collect();
-    let parameters = wide(&format!(
-        "--internal-worker {session} {}",
-        std::process::id()
-    ));
+    let parameters = wide(&format!("{mode} {session} {}", std::process::id()));
     let mut info = SHELLEXECUTEINFOW {
         cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
         fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
@@ -191,7 +236,8 @@ fn launch(session: &str) -> Result<OwnedProcess, String> {
         nShow: SW_HIDE.0,
         ..Default::default()
     };
-    // SAFETY: only the protected installed executable, fixed internal mode and bounded numeric/session arguments.
+    // SAFETY: fixed installed-worker or same-package setup executable; callers
+    // select one fixed internal mode and bounded numeric/session arguments.
     unsafe { ShellExecuteExW(&mut info) }
         .map_err(|e| format!("worker elevation refused or unavailable: {e}"))?;
     if info.hProcess.is_invalid() {
@@ -425,6 +471,8 @@ fn execute(
         return Err("replayed worker session".into());
     }
     let operation_name = match &request.command {
+        Command::EnrollPair { .. } => "EnrollPair",
+        Command::ReconcilePair { .. } => "ReconcilePair",
         Command::Apply { .. } => "ApplyApproved",
         Command::Verify { .. } => "VerifyApproved",
         Command::Reconcile { .. } => "ReconcileObserved",
@@ -433,6 +481,13 @@ fn execute(
         Command::ImportResume { .. } => "ReconcileImport",
     };
     let binding = match &request.command {
+        Command::EnrollPair { approved } => {
+            serde_json::to_value(approved).map_err(|e| e.to_string())?
+        }
+        Command::ReconcilePair {
+            operation_id,
+            expected,
+        } => serde_json::json!({"original_operation_id":operation_id,"expected":expected}),
         Command::Apply {
             approved,
             expected,
@@ -467,6 +522,43 @@ fn execute(
         &serde_json::json!({"schema":1,"session":session,"operation":operation_name,"binding":binding,"outcome":"Started"}),
     )?;
     let result = (|| match request.command {
+        Command::EnrollPair { approved } => {
+            if request.credential.is_some() {
+                return Err("enrollment does not accept guest credentials".into());
+            }
+            notify(Progress {
+                stage: "Validate and enroll exact VM/GPU pair".into(),
+                status: StageStatus::Running,
+            })?;
+            runner::enroll_pair(&approved, session)?;
+            notify(Progress {
+                stage: "Exact pair authority read back; GPU support has not been applied".into(),
+                status: StageStatus::Done,
+            })?;
+            Ok(Outcome {
+                operation: None,
+                saved: false,
+                finished: true,
+                operation_id: session.into(),
+                save_error: None,
+            })
+        }
+        Command::ReconcilePair {
+            operation_id,
+            expected,
+        } => {
+            if request.credential.is_some() {
+                return Err("enrollment reconciliation does not accept credentials".into());
+            }
+            runner::reconcile_pair(&operation_id, &expected)?;
+            Ok(Outcome {
+                operation: None,
+                saved: false,
+                finished: true,
+                operation_id: session.into(),
+                save_error: None,
+            })
+        }
         Command::Import { source, expected } => {
             runner::require_no_recovery()?;
             crate::windows_wmi::require_no_pending_operation()?;
@@ -951,8 +1043,9 @@ fn execute(
     )?;
     // Release hold last, after both publication and terminal audit are durable.
     if result.as_ref().is_ok_and(|o| o.finished) {
-        let path = if operation_name == "ImportConfiguration" || operation_name == "ReconcileImport"
-        {
+        let path = if operation_name == "EnrollPair" || operation_name == "ReconcilePair" {
+            runner::pair_pending_path()?
+        } else if operation_name == "ImportConfiguration" || operation_name == "ReconcileImport" {
             runner::import_path()?
         } else {
             runner::recovery_path()?

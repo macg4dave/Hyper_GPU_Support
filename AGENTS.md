@@ -186,8 +186,9 @@ Normal repository development is authorised. Tests, builds and GUI launches foll
 the milestone/explicit-request policy above. For this GUI implementation push,
 live Hyper-V/GPU/driver/VM-power testing, runner installation/update/exercise and
 guest modifications require explicit user permission. Earlier disposable-VM
-authorisation does not override this hold. Do not reproduce the unresolved Reapply
-host lockup or bypass uncertain-state recovery holds.
+authorisation does not override this hold. M2 is complete by user acceptance on
+10 October; no further M2 live tests or lockup investigation are required.
+Preserve uncertain-state recovery holds for any new operation.
 
 When live testing is explicitly authorised, verify the configured disposable VM,
 GPU and path identities immediately before effects. Keep destructive actions

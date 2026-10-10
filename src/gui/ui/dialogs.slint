@@ -51,7 +51,10 @@ export component DemoDialog inherits Rectangle {
                     if root.kind == "switch" : Button { text: "Review Changes"; primary: true; clicked => { root.action("review"); } }
                     if root.kind == "exit" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
                     if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
-                    if root.kind == "forget" : Button { text: "Forget sample pairing"; primary: true; clicked => { root.action("confirm-forget"); } }
+                    if root.kind == "forget" : Button { text: root.mock-mode ? "Forget sample pairing" : "Forget pairing"; primary: true; enabled: root.mock-mode; clicked => { root.action("confirm-forget"); } }
+                    if root.kind == "enroll-review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
+                    if root.kind == "enroll-review" : Button { text: "Enroll reviewed pair"; primary: true; enabled: !root.mock-mode && !root.snapshot-mode && root.execution-ready; clicked => { root.action("confirm-enroll"); } }
+                    if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: !root.mock-mode && !root.snapshot-mode && root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
                     if root.kind == "review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
                     if root.kind == "review" : Button { text: root.snapshot-mode ? "Rehearse recorded stages" : root.mock-mode ? "Confirm demonstration" : root.execution-ready ? "Apply approved changes" : "Apply unavailable"; primary: true; enabled: (root.mock-mode || root.snapshot-mode || root.execution-ready) && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
                     if root.kind == "verify-review" : Button { text: "Verify approved graphics"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
@@ -60,7 +63,7 @@ export component DemoDialog inherits Rectangle {
                     if root.kind == "more" : Button { text: "Verify Graphics"; enabled: root.mock-mode || root.execution-ready; clicked => { root.action("verify"); } }
                     if root.kind == "more" : Button { text: "Reapply / Update"; clicked => { root.action("reapply"); } }
                     if root.kind == "more" : Button { text: "Forget pairing"; enabled: root.mock-mode; clicked => { root.action("forget"); } }
-                    close-button := Button { visible: root.kind != "review" && root.kind != "switch" && root.kind != "exit"; text: root.running ? "Operation in progress" : "Close"; enabled: !root.running; clicked => { root.action("close"); } }
+                    close-button := Button { visible: root.kind != "review" && root.kind != "enroll-review" && root.kind != "switch" && root.kind != "exit"; text: root.running ? "Operation in progress" : "Close"; enabled: !root.running; clicked => { root.action("close"); } }
                 }
                 HorizontalLayout {
                     detail-button := TechnicalDetailsButton { expanded <=> root.technical; }

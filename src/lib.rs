@@ -6,6 +6,7 @@ pub mod console;
 pub mod credentials;
 #[cfg(windows)]
 mod diagnostics;
+pub mod enrollment;
 #[cfg(windows)]
 pub mod guest;
 #[cfg(windows)]
@@ -21,6 +22,8 @@ pub mod reporting;
 pub mod runner;
 #[cfg(windows)]
 mod security;
+#[cfg(windows)]
+pub mod setup;
 #[cfg(windows)]
 mod trust;
 #[cfg(windows)]

@@ -1,5 +1,10 @@
 # Reapply slowdown and reported host lockup — 10 October 2026
 
+**Closed history:** on 10 October the user confirmed completed live tests and
+working behavior, accepted M2 as known good and directed closure without further
+live tests or investigation. See [M2 acceptance](M2.md). Findings below retain
+the incident record; the cause remains unknown.
+
 Reapply and potentially destabilising testing are stopped at the user's request.
 This investigation inspected source, existing operation results and a bounded
 read-only System event query. It did not rerun qualification, boot a guest,
@@ -90,5 +95,5 @@ unclean restart make the exact onset important; buffered progress cannot time it
 
 These are recommendations, not implemented or tested fixes. No increase in CPU,
 memory or timeout limits is justified by the current evidence. M2, GPU-012 and
-ARCH-001 remain open. Any later qualification must address the new test hold;
-this report does not authorise another reproduction.
+ARCH-001 are now closed by the user's confirmed live testing and acceptance.
+No further reproduction or live qualification is required for M2.

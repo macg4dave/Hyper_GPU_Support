@@ -7,20 +7,45 @@ runs explicit CLI commands through the existing headless path. Root `build.rs`
 compiles `src/gui/ui/app.slint` with Fluent style; `src/gui/` owns the moved controller and
 explicit mock fixtures. Slint/slint-build are pinned to 1.18.1 with winit/software
 rendering and accessibility. The old Win32 entry/presentation was deleted.
-Normal startup uses background native discovery when already elevated or the
-existing runner's Discover operation with an ordinary token. Refresh/System show
-actual data or an explicit failure, with no fixture fallback. Live mutation
-controls remain unavailable until binding. `--mock-gui` uses isolated simulated
-callbacks and fixtures with no persistent writes. Future real-data rehearsal needs
-an authorized no-write read route; audited discovery cannot satisfy that contract.
-No protected backend/security boundary changed. Runner and guest/probe payloads remain
-separate; same-executable restricted worker and console packaging are pending.
+Normal startup uses the installed runner's Discover operation or fixed same-package
+UAC discovery before first install. Refresh/System show actual data or an explicit
+failure, with no fixture fallback. Source now binds exact enrollment/setup and
+existing Apply/Verify/save-only/reconciliation through approved controls; acceptance
+remains deferred. `--mock-gui` uses isolated simulated callbacks and fixtures, while
+snapshot rehearsal reads recorded inputs; neither performs persistent writes.
+Audited live discovery is not a no-write rehearsal route. Runner and guest/probe
+payloads remain separate; the same main executable contains restricted worker and
+fixed setup modes. See the enrollment/setup source contract below.
 [GUI_GUIDE](GUI_GUIDE.md) freezes v1.0 scope; [BACKLOG](BACKLOG.md) owns integration.
-The console subsystem is retained to preserve CLI stdout/stderr and exit status.
+The Windows application attaches the parent console for explicit CLI commands.
 
 The proven NVIDIA/Windows 11 baseline remains research evidence.
 The rewritten product is not hardware-qualified by inheritance. Status and remaining
 acceptance work belong to [ARCH-001](BACKLOG.md#arch-001).
+
+## GUI enrollment/setup source contract (10 October 2026)
+
+`enrollment::PairReview` binds one VM GUID/GPU interface, protected policy revision
+and initiating operator SID. Installed EnrollPair runs through the fixed trusted
+worker under the common lock, independently validates native identities, preserves
+other authority/artifact pins and publishes identity-only enrollment. A write-ahead
+hold survives publication/audit failure; explicit old/new-policy readback resolves
+it without replay. Configuration and GUI proposals never grant execution authority.
+
+Before installation, `setup` launches only the current fixed package executable via
+UAC, authenticates retained frontend/worker processes and the same operator/session,
+and reviews four fixed sibling hashes. Source files remain locked against replacement
+through setup. Bootstrap never replaces existing policy or reprotects its ACLs;
+admission/absence checks precede scheduler changes. Original setup pair/operator/pins
+remain durable until installed artifacts, enrollment, fixed task and terminal audit
+are complete. Interrupted published setup validates original authority and completes
+task/audit registration without rewriting authority/artifacts. Its GUI route requires
+the original package and discoverable eligible original pair; legacy CLI markers or
+mismatched state remain explicit administrator recovery cases. GPU effects need a
+separate fresh plan, credentials/downtime consent and reviewed worker operation.
+
+This source contract passed independent static review after fixes; tests, builds,
+render/UAC/crash and live acceptance remain unrun. GPU replacement is separate work.
 
 ## Product versus development tooling
 

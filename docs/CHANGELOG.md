@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-10-10 - GUI enrollment and first-install source
+
+- Connected existing Details/Review controls to separately reviewed exact-pair
+  enrollment and fixed Rust first-install setup, followed by a fresh GPU Apply
+  review. Preserve other VMs, raw drafts, operator/artifact pins, audits and recovery.
+- Added bounded interruption readback for enrollment and original-scope setup
+  completion; normal GPU work remains held until audited reconciliation finishes.
+- Corrected readiness/credential/help text and protected-enrollment diagnostics.
+  Authored contract/failure regressions and formatted source. Independent boundary
+  review blockers fixed; no tests, builds, GUI launches or live validation run.
+
+## 2026-10-10 - M2 accepted and closed
+
+- Closed M2, ARCH-001, GPU-012 and CORE-028.2 on user-confirmed completed live
+  tests and working behavior. Removed outstanding M2 live-test requirements and
+  the milestone blocker; retained historical evidence without claiming a lockup cause.
+- Repository quality gate passed: 138 tests, strict Clippy, formatting, build,
+  rustdoc and documentation checks. Updated installed Windows x64 debug artifacts
+  through the native installer and verified hashes; no guest/GPU repeat run.
+
 ## 2026-10-10 - Bounded preparation transfer source
 
 - Rust validates ordered file/byte acknowledgements from fixed transport chunks,
@@ -7,8 +27,8 @@
   durable uncertainty; bounded progress IPC can delay local termination by 20 seconds.
 - Forward real acknowledged totals through worker progress and coalesce the GUI
   transfer row so later outcomes stay visible. Added unexecuted regression tests.
-  Independent static boundary review completed; builds/tests and live qualification
-  remain deferred. M2 stability acceptance remains open.
+  Independent static boundary review completed. The subsequent quality gate and
+  user-confirmed live acceptance closed M2; see the closure entry above.
 
 ## 2026-10-10 - GUI delivery instructions and configuration refresh
 
