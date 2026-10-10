@@ -44,8 +44,12 @@ the original package and discoverable eligible original pair; legacy CLI markers
 mismatched state remain explicit administrator recovery cases. GPU effects need a
 separate fresh plan, credentials/downtime consent and reviewed worker operation.
 
-This source contract passed independent static review after fixes; tests, builds,
-render/UAC/crash and live acceptance remain unrun. GPU replacement is separate work.
+This source contract passed independent static review after fixes. Authorized
+quality checks passed on 10 October (145 tests, strict Clippy, formatting, Windows
+x64/MSVC debug build and docs); separately authorized native protected update
+preserved operator/pair intent with matching artifact hashes. Installed live GUI
+startup/Discover succeeded. Enrollment/bootstrap UAC, interruption, cancellation,
+render/layout and GPU-effect acceptance remain pending. GPU replacement is separate work.
 
 ## Product versus development tooling
 

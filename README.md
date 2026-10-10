@@ -100,8 +100,10 @@ capturing inventory is a separate operation and may write mandatory runner audit
 See the
 [mode contract](docs/GUI_GUIDE.md#mock-mode-development-direction).
 Normal mode never substitutes simulated success for an unconnected operation.
-Ordinary-token live discovery retains the existing runner's required audit records;
-it does not automatically install or elevate a runner.
+Ordinary-token live discovery retains the existing runner's required audit records.
+Before first installation, fixed package discovery requests UAC; Details/Review
+separately reviews package setup and exact pair enrollment. Enrollment does not
+apply GPU changes; a subsequent fresh Review is required for Apply.
 
 To build the project and check the CLI surface:
 

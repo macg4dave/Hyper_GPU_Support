@@ -4,7 +4,7 @@
 
 ## Next implementation action
 
-**Start `CORE-028.1`: synchronize GUI recovery state after external completion.** Exact-pair enrollment, fixed first-install setup and the Details enrollment journey now have source implementations, independently reviewed with no remaining blocking findings; tests/builds/UI/live validation remain deferred. Existing GPU replacement and full-resource allocation work remains in the queue.
+**Start `CORE-028.1`: synchronize GUI recovery state after external completion.** Exact-pair enrollment, fixed first-install setup and the Details enrollment journey have independently reviewed source implementations. The explicitly authorized non-elevated quality gate now passes; the protected installation was updated and live GUI startup/discovery confirmed. Enrollment/setup interruption and GPU-effect acceptance remain pending. Existing GPU replacement and full-resource allocation work remains in the queue.
 
 Continue **`GPU-010.1` (full-resource schema/capabilities)** after the ready recovery-state fix. Source implementation is not authority to build, launch, install or exercise a runner. Inspect named modules and reuse working contracts; do not repeat a project audit.
 
@@ -45,6 +45,8 @@ Suffixes below are executable slices of existing IDs, not replacement projects. 
 Ready does not mean qualified. Provider-dependent fields may remain unavailable with an exact blocker while other work proceeds; that does not satisfy the four-category initial-release requirement. No M2 safety pass is required to start these safe source tasks.
 
 ## Coding cards
+
+**Authorized validation/update (10 October, SEC-001.1–2 and GUI-002.1–2):** fixed missing `Inventory` serialization for the setup reply, then `scripts/testing/check.ps1` passed formatting, strict Clippy, 145 tests, Windows x64/MSVC debug all-features build, rustdoc and documentation checks. Four opt-in tests remained ignored (layout and privileged enrollment/M2 checks). With separate user approval, updated the four protected artifacts through native Rust `install` using all existing enrolled targets; installed/source/policy SHA-256 hashes matched and operator/pair intent was preserved. The installed no-argument GUI is running/responding and its startup Discover audit succeeded. No enrollment/setup, crash/cancellation or VM/GPU/guest effect operation was exercised; cards remain pending that acceptance.
 
 ### SEC-001.1 — incremental exact-pair enrollment
 

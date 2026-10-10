@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-10 - GUI build and installed startup
+
+- Fixed serialization of the fixed setup inventory reply. The authorized product
+  quality gate passed: formatting, strict Clippy, 145 tests, Windows x64/MSVC debug
+  build, rustdoc and documentation checks; four opt-in tests remained ignored.
+- With separate user approval, updated all four protected artifacts through the
+  native installer, preserving existing operator/pair intent and verifying hashes.
+  Opened the installed live GUI; window responds and startup Discover audit succeeded.
+  Enrollment/setup recovery and VM/GPU/guest effect acceptance remain pending.
+
 ## 2026-10-10 - GUI enrollment and first-install source
 
 - Connected existing Details/Review controls to separately reviewed exact-pair

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
 
 /// Read-only runner discovery, including protected enrollment rather than inferred authorization.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Inventory {
     /// Current provider data; guest health is not freshly checked.
     #[serde(flatten)]

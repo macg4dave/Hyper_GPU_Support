@@ -42,8 +42,11 @@ fixtures. Attachment does not imply enrollment, guest health or saved intent.
 Unconnected configuration actions are unavailable, not simulated. Current source
 includes protected Apply, Verify, save-only retry and manual reconciliation;
 end-to-end acceptance remains pending. First-time GUI enrollment and fixed package
-setup now have source bindings through Details/Review; tests, builds and GUI/live
-acceptance remain deferred. Enrollment confirmation grants the exact pair only;
+setup now have source bindings through Details/Review. On 10 October, authorized
+quality checks passed (145 tests, strict Clippy, formatting, build and docs), the
+protected installation was updated with verified hashes, and installed live GUI
+startup/discovery succeeded. Enrollment/setup and GPU-effect acceptance remain
+pending. Enrollment confirmation grants the exact pair only;
 a subsequent fresh Review is required for GPU Apply. Interrupted setup retains
 the original operator/pair/package pins; GUI recovery requires that original
 package and a discoverable eligible original pair. GPU replacement remains blocked.
