@@ -2,9 +2,34 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $session = $null
+$diagnostic = $null
+function Write-Stage([string]$stage, [string]$status, [string]$context, [long]$duration = 0) {
+    if (!$diagnostic) { return }
+    $line = @{utc=[DateTime]::UtcNow.ToString('o');pid=$PID;vm_id=[string]$r.vm_id;mode=[string]$r.mode;stage=$stage;status=$status;context=$context;duration_ms=$duration;significant_delay=($duration -ge 5000)} | ConvertTo-Json -Compress
+    $bytes = [Text.Encoding]::UTF8.GetBytes($line + "`n")
+    $diagnostic.Write($bytes, 0, $bytes.Length)
+    $diagnostic.Flush($true)
+}
+function Copy-Logged([string]$source, [string]$destination) {
+    Write-Stage 'file-copy' 'start' "$source -> $destination"
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        Copy-Item -LiteralPath $source -Destination $destination -ToSession $session -Force
+        Write-Stage 'file-copy' 'done' "$source -> $destination" $timer.ElapsedMilliseconds
+    } catch {
+        Write-Stage 'file-copy' 'failed' "$source -> $destination; HRESULT=$($_.Exception.HResult)" $timer.ElapsedMilliseconds
+        throw
+    }
+}
 try {
     Import-Module '__HYPERV_MODULE__' -ErrorAction Stop
     $r = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    if ($r.diagnostics) {
+        $path = Join-Path $r.install ("diagnostics/bridge-" + [DateTime]::UtcNow.Ticks + "-$PID.jsonl")
+        $diagnostic = [IO.FileStream]::new($path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
+    }
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    Write-Stage 'session-connect' 'start' 'PowerShell Direct'
     $secure = ConvertTo-SecureString ([string]$r.password) -AsPlainText -Force
     $credential = [pscredential]::new([string]$r.username, $secure)
     $r.password = $null
@@ -14,9 +39,13 @@ try {
         try { $session = New-PSSession -VMId ([guid]$r.vm_id) -Credential $credential -ErrorAction Stop }
         catch {
             if ($_.Exception -is [UnauthorizedAccessException] -or $_.CategoryInfo.Category -eq 'AuthenticationError' -or [DateTime]::UtcNow -ge $connectDeadline) { throw }
+            Write-Stage 'session-connect' 'delay' "connection not ready; HRESULT=$($_.Exception.HResult)" $timer.ElapsedMilliseconds
             Start-Sleep -Seconds 2
         }
     }
+    Write-Stage 'session-connect' 'done' 'PowerShell Direct' $timer.ElapsedMilliseconds
+    $timer.Restart()
+    Write-Stage 'bootstrap-path' 'start' 'protect guest root'
     $root = Invoke-Command -Session $session -ScriptBlock {
         $path = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'HyperGpuSupport\Guest'
         foreach ($p in @((Split-Path $path), $path)) {
@@ -42,6 +71,9 @@ try {
         }
         $path
     }
+    Write-Stage 'bootstrap-path' 'done' $root $timer.ElapsedMilliseconds
+    $timer.Restart()
+    Write-Stage 'bootstrap-leaves' 'start' $root
     # Validate existing leaf objects before removing only the link/name, then copy
     # into the protected parent. Never overwrite a pre-existing reparse/hard link.
     $destinations = @()
@@ -58,15 +90,21 @@ try {
             }
         }
     }
+    Write-Stage 'bootstrap-leaves' 'done' $root $timer.ElapsedMilliseconds
     foreach ($a in $r.artifacts) {
-        Copy-Item -LiteralPath (Join-Path $r.install $a.name) -Destination (Join-Path $root $a.name) -ToSession $session -Force
+        Copy-Logged (Join-Path $r.install $a.name) (Join-Path $root $a.name)
+        $timer.Restart()
+        Write-Stage 'bootstrap-acl' 'start' $a.name
         Invoke-Command -Session $session -ArgumentList (Join-Path $root $a.name) -ScriptBlock {
             param($path)
             $acl = Get-Acl -LiteralPath $path
             $acl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
             Set-Acl -LiteralPath $path -AclObject $acl
         }
+        Write-Stage 'bootstrap-acl' 'done' $a.name $timer.ElapsedMilliseconds
     }
+    $timer.Restart()
+    Write-Stage 'bundle-path' 'start' $root
     $bundle = Join-Path $root $r.digest
     Invoke-Command -Session $session -ArgumentList $bundle -ScriptBlock {
         param($path)
@@ -78,7 +116,10 @@ try {
         $acl = Get-Acl -LiteralPath (Split-Path $path)
         Set-Acl -LiteralPath $path -AclObject $acl
     }
+    Write-Stage 'bundle-path' 'done' $bundle $timer.ElapsedMilliseconds
     if ($r.mode -eq 'prepare') {
+        $timer.Restart()
+        Write-Stage 'transfer-leaves' 'start' $bundle
         $destinations = @((Join-Path $bundle 'manifest.json'))
         for ($i = 0; $i -lt $r.manifest.files.Count; $i++) { $destinations += Join-Path $bundle ([string]$i) }
         Invoke-Command -Session $session -ArgumentList (,$destinations) -ScriptBlock {
@@ -93,9 +134,12 @@ try {
                 }
             }
         }
+        Write-Stage 'transfer-leaves' 'done' $bundle $timer.ElapsedMilliseconds
         for ($i = 0; $i -lt $r.manifest.files.Count; $i++) {
-            Copy-Item -LiteralPath $r.manifest.files[$i].source -Destination (Join-Path $bundle ([string]$i)) -ToSession $session -Force
+            Copy-Logged $r.manifest.files[$i].source (Join-Path $bundle ([string]$i))
         }
+        $timer.Restart()
+        Write-Stage 'manifest-copy-and-acls' 'start' $bundle
         $json = $r.manifest | ConvertTo-Json -Depth 12 -Compress
         Invoke-Command -Session $session -ArgumentList $bundle, $json -ScriptBlock {
             param($path, $json)
@@ -107,10 +151,30 @@ try {
             }
         }
     }
-    $output = Invoke-Command -Session $session -ArgumentList $root, $bundle, $r.mode, $r.vendor, $r.device, $r.artifacts -ScriptBlock {
-        param($root, $bundle, $mode, $vendor, $device, $artifacts)
+    Write-Stage 'transfer-complete' 'done' $bundle $timer.ElapsedMilliseconds
+    $timer.Restart()
+    Write-Stage 'guest-integrity-and-worker' 'start' $r.mode
+    $output = Invoke-Command -Session $session -ArgumentList $root, $bundle, $r.mode, $r.vendor, $r.device, $r.artifacts, $r.diagnostics -ScriptBlock {
+        param($root, $bundle, $mode, $vendor, $device, $artifacts, $diagnostics)
         $ErrorActionPreference = 'Stop'
         $handles = @()
+        $marker = Join-Path $root 'diagnostics.enabled'
+        $ownedMarker = $false
+        if ($diagnostics) {
+            $directory = Join-Path $root 'diagnostics'
+            if (Test-Path -LiteralPath $directory) {
+                if ((Get-Item -LiteralPath $directory).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Unsafe guest diagnostic directory' }
+                if ((Get-Acl -LiteralPath $directory).GetOwner([Security.Principal.SecurityIdentifier]).Value -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted guest diagnostic directory' }
+            } else { [void][IO.Directory]::CreateDirectory($directory) }
+            Set-Acl -LiteralPath $directory -AclObject (Get-Acl -LiteralPath $root)
+            if (!(Test-Path -LiteralPath $marker)) {
+                $file = [IO.File]::Open($marker, 'CreateNew', 'Write', 'Read')
+                $file.Flush($true)
+                $file.Dispose()
+                Set-Acl -LiteralPath $marker -AclObject (Get-Acl -LiteralPath $root)
+                $ownedMarker = $true
+            }
+        }
         try {
             foreach ($a in $artifacts) {
                 $path = Join-Path $root $a.name
@@ -121,10 +185,19 @@ try {
             $result = & (Join-Path $root 'hyper-gpu-guest.exe') $mode $bundle ([string]$vendor) ([string]$device)
             if ($LASTEXITCODE -ne 0) { throw 'Guest worker failed' }
             $result -join "`n"
-        } finally { foreach ($handle in $handles) { $handle.Dispose() } }
+        } finally { foreach ($handle in $handles) { $handle.Dispose() }; if ($ownedMarker) { [IO.File]::Delete($marker) } }
     }
+    Write-Stage 'guest-integrity-and-worker' 'done' $r.mode $timer.ElapsedMilliseconds
     @{ output = [string]$output } | ConvertTo-Json -Compress
 } catch {
+    Write-Stage 'transport' 'failed' "HRESULT=$($_.Exception.HResult); type=$($_.Exception.GetType().FullName)"
     [Console]::Error.WriteLine('Fixed guest transport failed; reconcile before retry.')
     exit 1
-} finally { if ($session) { Remove-PSSession -Session $session } }
+} finally {
+    if ($session) {
+        Write-Stage 'session-remove' 'start' 'PowerShell Direct'
+        Remove-PSSession -Session $session
+        Write-Stage 'session-remove' 'done' 'PowerShell Direct'
+    }
+    if ($diagnostic) { $diagnostic.Dispose() }
+}

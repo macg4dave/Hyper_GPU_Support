@@ -188,57 +188,65 @@ pub(crate) fn query(
     properties: &[&str],
     deadline: Instant,
 ) -> Result<Vec<BTreeMap<String, String>>, DriverDiscoveryError> {
-    // SAFETY: services is live; query BSTRs remain alive until the call returns.
-    let enumerator = unsafe {
-        services.ExecQuery(
-            &BSTR::from("WQL"),
-            &BSTR::from(wql),
-            // Only named data properties are consumed. Do not ask providers to
-            // synthesize system paths for projected objects with null key fields.
-            WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-            None,
-        )
-    }
-    .map_err(|error| native(format!("execute driver WMI query ({wql})"), error))?;
-    let mut rows = Vec::new();
-    loop {
-        if Instant::now() >= deadline {
-            return Err(DriverDiscoveryError::Timeout);
+    let mut trace = crate::diagnostics::Span::start("driver-wmi-query", wql)
+        .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
+    let result = (|| {
+        // SAFETY: services is live; query BSTRs remain alive until the call returns.
+        let enumerator = unsafe {
+            services.ExecQuery(
+                &BSTR::from("WQL"),
+                &BSTR::from(wql),
+                // Only named data properties are consumed. Do not ask providers to
+                // synthesize system paths for projected objects with null key fields.
+                WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+                None,
+            )
         }
-        let mut objects = [None];
-        let mut returned = 0;
-        // SAFETY: the one-element output array and returned count are writable;
-        // the enumerator owns references returned in that array. Wait <= 1 second.
-        let status = unsafe { enumerator.Next(1000, &mut objects, &mut returned) };
-        status
-            .ok()
-            .map_err(|error| native(format!("enumerate driver WMI query ({wql})"), error))?;
-        if returned == 0 {
-            if status.0 == 1 {
-                break;
-            } // WBEM_S_FALSE: complete enumeration.
-            if status.0 == 0x40004 {
-                continue;
-            } // WBEM_S_TIMEDOUT: bounded wait expired.
-            return Err(DriverDiscoveryError::Invalid(
-                "unexpected empty WMI enumeration",
-            ));
+        .map_err(|error| native(format!("execute driver WMI query ({wql})"), error))?;
+        let mut rows = Vec::new();
+        loop {
+            if Instant::now() >= deadline {
+                return Err(DriverDiscoveryError::Timeout);
+            }
+            let mut objects = [None];
+            let mut returned = 0;
+            // SAFETY: the one-element output array and returned count are writable;
+            // the enumerator owns references returned in that array. Wait <= 1 second.
+            let status = unsafe { enumerator.Next(1000, &mut objects, &mut returned) };
+            status
+                .ok()
+                .map_err(|error| native(format!("enumerate driver WMI query ({wql})"), error))?;
+            if returned == 0 {
+                if status.0 == 1 {
+                    break;
+                } // WBEM_S_FALSE: complete enumeration.
+                if status.0 == 0x40004 {
+                    continue;
+                } // WBEM_S_TIMEDOUT: bounded wait expired.
+                return Err(DriverDiscoveryError::Invalid(
+                    "unexpected empty WMI enumeration",
+                ));
+            }
+            if returned != 1 || rows.len() >= 16_384 {
+                return Err(DriverDiscoveryError::Invalid(
+                    "WMI result exceeds safety bound",
+                ));
+            }
+            let object = objects[0]
+                .take()
+                .ok_or(DriverDiscoveryError::Invalid("WMI returned no object"))?;
+            let mut row = BTreeMap::new();
+            for name in properties {
+                row.insert((*name).to_owned(), property(&object, name)?);
+            }
+            rows.push(row);
         }
-        if returned != 1 || rows.len() >= 16_384 {
-            return Err(DriverDiscoveryError::Invalid(
-                "WMI result exceeds safety bound",
-            ));
-        }
-        let object = objects[0]
-            .take()
-            .ok_or(DriverDiscoveryError::Invalid("WMI returned no object"))?;
-        let mut row = BTreeMap::new();
-        for name in properties {
-            row.insert((*name).to_owned(), property(&object, name)?);
-        }
-        rows.push(row);
-    }
-    Ok(rows)
+        Ok(rows)
+    })();
+    trace
+        .finish(&result)
+        .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
+    result
 }
 
 pub(crate) fn quoted(value: &str) -> String {

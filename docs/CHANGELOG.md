@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-10 - Reapply diagnostic instrumentation
+
+- Added opt-in crash-persistent stage, driver lookup, hash/trust and file-copy
+  tracing with durations, errors and unique retained logs. The one-shot disposable
+  Reapply harness continuously records lightweight host telemetry and stops after
+  the test result without retries or post-test investigation.
+
 ## 2026-10-10 - Reporting and application closure
 
 - Completed shared CLI/Slint redacted diagnostics, partial inventory and truthful

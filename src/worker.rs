@@ -1048,7 +1048,7 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B
             stage: name.into(),
             status: StageStatus::Running,
         })?;
-        let result = action(self.backend);
+        let result = crate::diagnostics::run(name, "approved-worker", || action(self.backend));
         (self.notify)(Progress {
             stage: name.into(),
             status: if result.is_ok() {

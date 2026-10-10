@@ -41,6 +41,20 @@ available in default builds.
 
 Current maintained entry points and their required privilege:
 
+- **Elevated** — `testing/qualify-reapply.ps1 -ArtifactDirectory <built-bin-directory>
+  -TestExecutable <built-m2-qualification-test>` installs current artifacts and runs
+  only `reapply_with_durable_diagnostics` once on the configured disposable target.
+  Requires an existing current preparation receipt and initial Off state. Unique
+  `local/evidence/reapply-*` directories retain timestamped incremental stdout,
+  stderr and five-second native performance-counter/process samples. Opt-in
+  protected `Program Files/HyperGpuSupportProduct/diagnostics` JSONL traces record
+  driver discovery/lookups, hashing/trust, worker stages and every bridge copy;
+  guest health/render/copy traces remain under `Program Files/HyperGpuSupport/Guest/diagnostics`.
+  Records flush to disk at operation boundaries; durations of five seconds or more
+  are flagged. Logs are never replaced. Owned enable markers are removed on normal
+  exit; a crash can leave them enabled. No retry, host restart or post-test
+  investigation is performed.
+
 - **Non-elevated** — `common/project-config.ps1` reads the supported scalar subset of the authoritative
   `config/project.toml`; maintained scripts use it instead of copying mutable values.
 - **Non-elevated** — `setup/update-project-pins.ps1` regenerates the installed runner-policy artifact

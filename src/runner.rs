@@ -375,9 +375,11 @@ pub fn install(configuration: &Configuration) -> Result<(), String> {
         remove_protected_leaf(&staged)?;
         let mut input = fs::File::open(&from).map_err(|e| e.to_string())?;
         let mut output = crate::security::create_file(&staged, &client)?;
-        std::io::copy(&mut input, &mut output)
-            .and_then(|_| output.sync_all())
-            .map_err(|e| e.to_string())?;
+        crate::diagnostics::run("install-file-copy", name, || {
+            std::io::copy(&mut input, &mut output)
+                .and_then(|_| output.sync_all())
+                .map_err(|e| e.to_string())
+        })?;
         drop(output);
         protect(&staged, &client)?;
         if payload::hash_file(&staged)? != hash {
@@ -854,26 +856,28 @@ pub(crate) fn require_no_recovery() -> Result<(), String> {
 }
 impl Backend for NativeBackend {
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
-        windows_hyperv::inspect(&t.vm_id)
+        crate::diagnostics::run("inspect-vm", &t.vm_id, || windows_hyperv::inspect(&t.vm_id))
     }
     fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
-        windows_hyperv::selected_gpu(t)
+        crate::diagnostics::run("selected-gpu", &t.vm_id, || windows_hyperv::selected_gpu(t))
     }
     fn payload(&mut self, t: &Target) -> Result<String, String> {
-        let manifest = process::background_work(|| {
-            let discovery =
-                crate::windows_driver::discover_driver_environment(t, Duration::from_secs(300))
-                    .map_err(|e| e.to_string())?;
-            let manifest = payload::discover(
-                &crate::windows_paths::windows_directory().map_err(|e| e.to_string())?,
-                discovery,
-            )?;
-            crate::guest::validate_trust(&manifest)?;
-            Ok(manifest)
-        })?;
-        let digest = manifest.digest()?;
-        self.manifest = Some(manifest);
-        Ok(digest)
+        crate::diagnostics::run("payload-processing", &t.vm_id, || {
+            let manifest = process::background_work(|| {
+                let discovery =
+                    crate::windows_driver::discover_driver_environment(t, Duration::from_secs(300))
+                        .map_err(|e| e.to_string())?;
+                let manifest = payload::discover(
+                    &crate::windows_paths::windows_directory().map_err(|e| e.to_string())?,
+                    discovery,
+                )?;
+                crate::guest::validate_trust(&manifest)?;
+                Ok(manifest)
+            })?;
+            let digest = manifest.digest()?;
+            self.manifest = Some(manifest);
+            Ok(digest)
+        })
     }
     fn journal(&mut self, t: &Target) -> Result<Option<Journal>, String> {
         let path = self

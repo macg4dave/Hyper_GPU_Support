@@ -39,70 +39,78 @@ pub fn discover_driver_environment(
     target: &crate::model::Target,
     timeout: std::time::Duration,
 ) -> Result<DriverDiscovery, DriverDiscoveryError> {
-    let device_id = crate::payload::physical_device_id(&target.gpu_interface)
-        .map_err(|_| DriverDiscoveryError::Invalid("configured interface is malformed"))?;
-    let _apartment = Apartment::initialize()?;
-    let virtualization = connect(r"ROOT\virtualization\v2")?;
-    let deadline = Instant::now() + timeout;
-    let gpu_query = format!(
-        "SELECT Name FROM Msvm_PartitionableGpu WHERE Name='{}'",
-        quoted(&target.gpu_interface)
-    );
-    let mut gpu = exactly_one(query(&virtualization, &gpu_query, &["Name"], deadline)?)?;
-    let gpu_interface = take(&mut gpu, "Name")?;
-    let cim = connect(r"ROOT\cimv2")?;
-    let pnp_query = format!(
-        "SELECT Service FROM Win32_PnPEntity WHERE DeviceID='{}'",
-        quoted(&device_id)
-    );
-    let mut pnp = exactly_one(query(&cim, &pnp_query, &["Service"], deadline)?)?;
-    let service = take(&mut pnp, "Service")?;
-    let signed_query = format!(
-        "SELECT DeviceName,DriverVersion,InfName FROM Win32_PNPSignedDriver WHERE DeviceID='{}' AND IsSigned=TRUE",
-        quoted(&device_id)
-    );
-    let mut signed = exactly_one(query(
-        &cim,
-        &signed_query,
-        &["DeviceName", "DriverVersion", "InfName"],
-        deadline,
-    )?)?;
-    let service_query = format!(
-        "SELECT PathName FROM Win32_SystemDriver WHERE Name='{}'",
-        quoted(&service)
-    );
-    let mut kernel = exactly_one(query(&cim, &service_query, &["PathName"], deadline)?)?;
-    // Win32_PNPSignedDriver reports a null Name key and __PATH. ASSOCIATORS
-    // rejects a DeviceID key path; preserve the provider's association Antecedent
-    // representation and resolve its returned file references through WMI.
-    let mut computer = exactly_one(query(
-        &cim,
-        "SELECT Name FROM Win32_ComputerSystem",
-        &["Name"],
-        deadline,
-    )?)?;
-    let antecedent = signed_driver_antecedent(&take(&mut computer, "Name")?, &device_id);
-    let association_query = associated_file_query(&antecedent);
-    let mut associated_files = Vec::new();
-    for mut file in query(&cim, &association_query, &["Dependent"], deadline)? {
-        if Instant::now() >= deadline {
-            return Err(DriverDiscoveryError::Timeout);
-        }
-        associated_files.push(PathBuf::from(dependent_file_name(
+    let mut trace = crate::diagnostics::Span::start("driver-discovery", &target.vm_id)
+        .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
+    let result = (|| {
+        let device_id = crate::payload::physical_device_id(&target.gpu_interface)
+            .map_err(|_| DriverDiscoveryError::Invalid("configured interface is malformed"))?;
+        let _apartment = Apartment::initialize()?;
+        let virtualization = connect(r"ROOT\virtualization\v2")?;
+        let deadline = Instant::now() + timeout;
+        let gpu_query = format!(
+            "SELECT Name FROM Msvm_PartitionableGpu WHERE Name='{}'",
+            quoted(&target.gpu_interface)
+        );
+        let mut gpu = exactly_one(query(&virtualization, &gpu_query, &["Name"], deadline)?)?;
+        let gpu_interface = take(&mut gpu, "Name")?;
+        let cim = connect(r"ROOT\cimv2")?;
+        let pnp_query = format!(
+            "SELECT Service FROM Win32_PnPEntity WHERE DeviceID='{}'",
+            quoted(&device_id)
+        );
+        let mut pnp = exactly_one(query(&cim, &pnp_query, &["Service"], deadline)?)?;
+        let service = take(&mut pnp, "Service")?;
+        let signed_query = format!(
+            "SELECT DeviceName,DriverVersion,InfName FROM Win32_PNPSignedDriver WHERE DeviceID='{}' AND IsSigned=TRUE",
+            quoted(&device_id)
+        );
+        let mut signed = exactly_one(query(
             &cim,
-            &take(&mut file, "Dependent")?,
-        )?));
-    }
-    Ok(DriverDiscovery {
-        gpu_interface,
-        device_id,
-        name: take(&mut signed, "DeviceName")?,
-        version: take(&mut signed, "DriverVersion")?,
-        inf_name: take(&mut signed, "InfName")?,
-        service,
-        service_binary: PathBuf::from(take(&mut kernel, "PathName")?.trim_matches('"')),
-        associated_files,
-    })
+            &signed_query,
+            &["DeviceName", "DriverVersion", "InfName"],
+            deadline,
+        )?)?;
+        let service_query = format!(
+            "SELECT PathName FROM Win32_SystemDriver WHERE Name='{}'",
+            quoted(&service)
+        );
+        let mut kernel = exactly_one(query(&cim, &service_query, &["PathName"], deadline)?)?;
+        // Win32_PNPSignedDriver reports a null Name key and __PATH. ASSOCIATORS
+        // rejects a DeviceID key path; preserve the provider's association Antecedent
+        // representation and resolve its returned file references through WMI.
+        let mut computer = exactly_one(query(
+            &cim,
+            "SELECT Name FROM Win32_ComputerSystem",
+            &["Name"],
+            deadline,
+        )?)?;
+        let antecedent = signed_driver_antecedent(&take(&mut computer, "Name")?, &device_id);
+        let association_query = associated_file_query(&antecedent);
+        let mut associated_files = Vec::new();
+        for mut file in query(&cim, &association_query, &["Dependent"], deadline)? {
+            if Instant::now() >= deadline {
+                return Err(DriverDiscoveryError::Timeout);
+            }
+            associated_files.push(PathBuf::from(dependent_file_name(
+                &cim,
+                &take(&mut file, "Dependent")?,
+            )?));
+        }
+        Ok(DriverDiscovery {
+            gpu_interface,
+            device_id,
+            name: take(&mut signed, "DeviceName")?,
+            version: take(&mut signed, "DriverVersion")?,
+            inf_name: take(&mut signed, "InfName")?,
+            service,
+            service_binary: PathBuf::from(take(&mut kernel, "PathName")?.trim_matches('"')),
+            associated_files,
+        })
+    })();
+    trace
+        .finish(&result)
+        .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
+    result
 }
 
 fn signed_driver_antecedent(hostname: &str, device_id: &str) -> String {
@@ -122,23 +130,31 @@ fn dependent_file_name(
     services: &IWbemServices,
     path: &str,
 ) -> Result<String, DriverDiscoveryError> {
-    let mut object = None;
-    // SAFETY: live services, provider-returned path and initialized output. WMI
-    // resolves quoted/backslash-containing file references rather than our parser.
-    unsafe {
-        services.GetObject(
-            &BSTR::from(path),
-            WBEM_GENERIC_FLAG_TYPE(0),
-            None,
-            Some(&mut object),
-            None,
+    let mut trace = crate::diagnostics::Span::start("resolve-associated-file", path)
+        .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
+    let result = (|| {
+        let mut object = None;
+        // SAFETY: live services, provider-returned path and initialized output. WMI
+        // resolves quoted/backslash-containing file references rather than our parser.
+        unsafe {
+            services.GetObject(
+                &BSTR::from(path),
+                WBEM_GENERIC_FLAG_TYPE(0),
+                None,
+                Some(&mut object),
+                None,
+            )
+        }
+        .map_err(|error| native("resolve associated data file", error))?;
+        property(
+            &object.ok_or(DriverDiscoveryError::Invalid(
+                "associated file object absent",
+            ))?,
+            "Name",
         )
-    }
-    .map_err(|error| native("resolve associated data file", error))?;
-    property(
-        &object.ok_or(DriverDiscoveryError::Invalid(
-            "associated file object absent",
-        ))?,
-        "Name",
-    )
+    })();
+    trace
+        .finish(&result)
+        .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
+    result
 }

@@ -5,6 +5,8 @@ pub mod console;
 #[cfg(windows)]
 pub mod credentials;
 #[cfg(windows)]
+mod diagnostics;
+#[cfg(windows)]
 pub mod guest;
 pub mod gui_model;
 pub mod model;

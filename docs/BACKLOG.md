@@ -46,7 +46,7 @@ task, live Hyper-V/GPU/driver/VM-power operations require explicit permission.
 | Milestone | Current status | Gate / ownership |
 |---|---|---|
 | **M1 — Product boundary** | **Completed (reported 2026-10-08)** | ARCH-001; protected native runner, existing-VM enrollment, lab separation. [M1 evidence](evidence/M1.md). |
-| **M2 — NVIDIA core** | **In progress** | ARCH-001, GPU-012, CORE-012. Current-build observed repeat passed; fresh preparation under new limits remains. [M2 evidence](evidence/M2.md). |
+| **M2 — NVIDIA core** | **In progress** | ARCH-001, GPU-012. Fresh preparation/reapply returned functional passes; new reported host lockup blocks stability closure and further destabilising tests. [Investigation](evidence/reapply-investigation-20261010.md). |
 | **M3 — Slint and editable GPU config** | **In progress; approved prototype promoted** | PLAN-001, GUI-001, APP-001, CFG-001, GPU-010, SEC-001, CORE-028, GUI-002, GUI-003; main Slint GUI has live discovery and explicit mock rehearsal; configuration/effect bindings remain. |
 | **R1 — Packaged candidate** | **Planned** | CORE-017, DOC-003, GPU-014 after M2/M3 acceptance. |
 | **M4 — Sharing and vendors** | **Deferred** | GPU-015 and individually justified vendor/optional tasks. |
@@ -58,8 +58,8 @@ This register is authoritative for **new scope/status/dependency planning**. Tas
 | ID | Milestone | Priority | Status | Prerequisites / notes |
 |---|---|---|---|---|
 | [PLAN-001](#plan-001) | M3.0 | P0 | **completed — repository/docs scope** | 9 Oct source audit; runtime/provider feasibility remains on owning cards |
-| [ARCH-001](#arch-001) | M1/M2 | P0 | **in progress** | M1 completed; affected M2 fresh preparation still open |
-| [GPU-012](#gpu-012) | M2 | P1 | **in progress** | Explicitly authorised bounded test; existing M1/M2 evidence |
+| [ARCH-001](#arch-001) | M1/M2 | P0 | **in progress** | M1 completed; new M2 host-lockup report prevents closure |
+| [GPU-012](#gpu-012) | M2 | P1 | **in progress** | New Reapply incident; destabilising tests stopped by user |
 | [CORE-012](#core-012) | M2/M3 | P1 | **completed** | Shared truthful reporting, partial inventory and redaction qualified 10 October |
 | [CORE-021](#core-021) | M2/M3 | P1 | **in progress** | Integration/doc residuals; parser/storage CFG-001, enrollment SEC-001, UI GUI-002 |
 | [CORE-006](#core-006) | M2 | P1 | **completed (reported)** | Reuse shared plan/apply preview; extend only for new operations |
@@ -93,11 +93,21 @@ Task IDs and backend work remain; no duplicate design cards or restored controls
 
 **Remaining M2 gate:** proportionately qualify affected **fresh** preparation under the current child/resource limits and reconcile actual current root-code status. Preserve existing VM disks, CPU/RAM, security devices, credentials, ACL/reparse guards, preimages and uncertain-state handling. Do not recreate an old laboratory migration programme.
 
+**10 October result:** fresh preparation and Reapply returned functional success,
+but the user reported a new host lockup and Windows recorded an unclean restart.
+M2 remains open; Reapply and potentially destabilising tests are stopped.
+See [scoped investigation](evidence/reapply-investigation-20261010.md).
+
 ### GPU-012
 
 **Finish bounded NVIDIA stability/maintenance qualification.** Reuse reported M1/M2 passes; focus on paths changed since those results. Qualified work includes signed current-driver preparation, default GPU attach, PnP/checked D3D11, running no-op preservation, reapply, disable and initial-state restoration. Do not require a manufactured driver upgrade, prolonged stress, two recreated children, CUDA/D3D12 or a new hang-reproduction campaign.
 
 **Exit:** a precise affected-path test report on the designated target **after explicit test authorisation**, including any unresolved limitations. No host lifecycle operations without separate authorisation.
+
+**10 October blocker:** new reported Reapply host lockup; four complete payload
+validation passes and coarse transfer supervision identified in source, with
+crash causality unconfirmed. Further destabilising testing is prohibited pending
+understanding of the likely cause. See the [investigation](evidence/reapply-investigation-20261010.md).
 
 ### CORE-012
 

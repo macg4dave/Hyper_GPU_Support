@@ -88,6 +88,52 @@ fn apply(target: &Target) -> worker::Outcome {
 }
 
 #[test]
+#[ignore = "explicit one-shot Reapply; requires durable tracing, elevated token and configured disposable target"]
+fn reapply_with_durable_diagnostics() {
+    assert!(process::is_elevated().unwrap());
+    let install = runner::install_directory().unwrap();
+    assert!(install.join("diagnostics.enabled").is_file());
+    let lab: toml::Value =
+        toml::from_str(&fs::read_to_string("config/project.toml").unwrap()).unwrap();
+    let target = Target {
+        vm_id: lab["slot"]["vm_id"].as_str().unwrap().into(),
+        gpu_interface: lab["slot"]["gpu_interface"].as_str().unwrap().into(),
+        enabled: true,
+        vram: None,
+    };
+    target.validate().unwrap();
+    evidence("before.json", &fixture("snapshot", &lab, None, None, None));
+    let initial = windows_hyperv::inspect(&target.vm_id).unwrap();
+    assert_eq!(
+        initial.power,
+        Power::Off,
+        "bounded Reapply requires initial Off"
+    );
+    assert!(runner::recovery_record().unwrap().is_none());
+    assert!(runner::import_record().unwrap().is_none());
+    let journal: workflow::Journal = serde_json::from_slice(
+        &fs::read(
+            runner::data_directory()
+                .unwrap()
+                .join(format!("{}.json", target.vm_id)),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        !journal.pending && journal.prepared.is_some(),
+        "Reapply requires existing prepared receipt"
+    );
+    let result = apply(&target);
+    evidence("reapply.json", &result);
+    let operation = result.operation.as_ref().unwrap();
+    assert!(!operation.prepared, "existing payload must remain current");
+    assert!(operation.verified);
+    assert_eq!(operation.effective.power, initial.power);
+    // Stop here. No additional workload, disable, investigation or retry.
+}
+
+#[test]
 #[ignore = "requires elevated token, installed reviewed current artifacts, disposable identity checks and local vault credential"]
 fn fresh_preparation_and_installed_worker_contract() {
     assert!(

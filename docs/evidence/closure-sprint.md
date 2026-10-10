@@ -61,5 +61,6 @@ full preparation; no product recovery semantics were changed.
 
 Local captures are in `local/evidence/closure-sprint/` and
 `local/evidence/gui-002-testing/`. Hardware preparation/restoration results are
-recorded separately below when their terminal evidence is available. No sharing,
+recorded in the [new Reapply investigation](reapply-investigation-20261010.md):
+functional success does not close M2 after the reported host lockup. No sharing,
 CUDA, D3D12, driver-upgrade or general host-stability qualification is implied.

@@ -40,6 +40,7 @@ struct BridgeRequest<'a> {
     vendor: u32,
     device: u32,
     artifacts: Vec<Artifact>,
+    diagnostics: bool,
 }
 #[derive(Serialize)]
 struct Artifact {
@@ -57,63 +58,75 @@ fn bridge(
     manifest: Option<&Manifest>,
     gpu: Option<&Gpu>,
 ) -> Result<String, String> {
-    let install = runner::install_directory()?;
-    let artifacts = ["hyper-gpu-guest.exe", "d3d11-probe.exe"]
-        .into_iter()
-        .map(|name| {
-            Ok(Artifact {
-                name: name.into(),
-                hash: payload::hash_file(&install.join(name))?,
-            })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    let request = BridgeRequest {
-        vm_id: &t.vm_id,
-        username: &credential.username,
-        password: &credential.password,
-        install,
-        mode,
-        manifest,
-        digest: manifest
-            .map(Manifest::digest)
-            .transpose()?
-            .unwrap_or_else(|| "verify".into()),
-        vendor: gpu.map_or(0, |g| g.vendor),
-        device: gpu.map_or(0, |g| g.device),
-        artifacts,
-    };
-    let bytes = zeroize::Zeroizing::new(serde_json::to_vec(&request).map_err(|e| e.to_string())?);
-    let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
-    let module = windows.join("System32/WindowsPowerShell/v1.0/Modules");
-    // Inbox modules may use versioned subdirectories. Importing the trusted
-    // module directory lets PowerShell's loader select its installed manifest.
-    crate::security::verify_system(&module.join("Hyper-V"))?;
-    let module_literal = module.join("Hyper-V").to_string_lossy().replace('\'', "''");
-    let script = include_str!("guest_transport.ps1").replace("__HYPERV_MODULE__", &module_literal);
-    let mut command =
-        Command::new(windows_paths::windows_powershell_executable().map_err(|e| e.to_string())?);
-    command.env("PSModulePath", &module).args([
-        "-NoLogo",
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        &script,
-    ]);
-    let result = process::bounded_process_with_limit(
-        command,
-        Duration::from_secs(3600),
-        1024 * 1024,
-        &bytes,
+    crate::diagnostics::run(
+        "guest-transport",
+        &format!("vm={} mode={mode}", t.vm_id),
+        || {
+            let install = runner::install_directory()?;
+            let artifacts = ["hyper-gpu-guest.exe", "d3d11-probe.exe"]
+                .into_iter()
+                .map(|name| {
+                    Ok(Artifact {
+                        name: name.into(),
+                        hash: payload::hash_file(&install.join(name))?,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let request = BridgeRequest {
+                vm_id: &t.vm_id,
+                username: &credential.username,
+                password: &credential.password,
+                install,
+                mode,
+                manifest,
+                digest: manifest
+                    .map(Manifest::digest)
+                    .transpose()?
+                    .unwrap_or_else(|| "verify".into()),
+                vendor: gpu.map_or(0, |g| g.vendor),
+                device: gpu.map_or(0, |g| g.device),
+                artifacts,
+                diagnostics: crate::diagnostics::enabled()?,
+            };
+            let bytes =
+                zeroize::Zeroizing::new(serde_json::to_vec(&request).map_err(|e| e.to_string())?);
+            let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
+            let module = windows.join("System32/WindowsPowerShell/v1.0/Modules");
+            // Inbox modules may use versioned subdirectories. Importing the trusted
+            // module directory lets PowerShell's loader select its installed manifest.
+            crate::security::verify_system(&module.join("Hyper-V"))?;
+            let module_literal = module.join("Hyper-V").to_string_lossy().replace('\'', "''");
+            let script =
+                include_str!("guest_transport.ps1").replace("__HYPERV_MODULE__", &module_literal);
+            let mut command = Command::new(
+                windows_paths::windows_powershell_executable().map_err(|e| e.to_string())?,
+            );
+            command.env("PSModulePath", &module).args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &script,
+            ]);
+            let result = process::bounded_process_with_limit(
+                command,
+                Duration::from_secs(3600),
+                1024 * 1024,
+                &bytes,
+            )
+            .map_err(|error| {
+                format!("guest transport supervision failed: {error}; preparation may be partial")
+            })?;
+            if result.exit_code != Some(0) {
+                return Err(
+                    "guest transport/worker failed; reconcile the selected VM before retry".into(),
+                );
+            }
+            let reply: BridgeResult = serde_json::from_str(result.stdout.trim())
+                .map_err(|_| "malformed guest transport result")?;
+            Ok(reply.output)
+        },
     )
-    .map_err(|error| {
-        format!("guest transport supervision failed: {error}; preparation may be partial")
-    })?;
-    if result.exit_code != Some(0) {
-        return Err("guest transport/worker failed; reconcile the selected VM before retry".into());
-    }
-    let reply: BridgeResult = serde_json::from_str(result.stdout.trim())
-        .map_err(|_| "malformed guest transport result")?;
-    Ok(reply.output)
 }
 /// Copy and independently verify the current complete payload.
 pub fn prepare(t: &Target, manifest: &Manifest, credential: &Credential) -> Result<String, String> {
@@ -168,10 +181,14 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
     }
     crate::security::verify(bundle)?;
     if mode == "verify" {
-        health()?;
+        crate::diagnostics::run("guest-pnp-health", "selected GPU", health)?;
         let mut command = Command::new(root.join("d3d11-probe.exe"));
         command.args([vendor.to_string(), device.to_string()]);
-        let out = process::bounded_process(command, Duration::from_secs(60))?;
+        let out = crate::diagnostics::run(
+            "guest-d3d11-probe",
+            &format!("vendor={vendor} device={device}"),
+            || process::bounded_process(command, Duration::from_secs(60)),
+        )?;
         if out.exit_code != Some(0) {
             return Err("hardware rendering failed".into());
         }
@@ -251,9 +268,18 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
             .create_new(true)
             .open(&partial)
             .map_err(|e| e.to_string())?;
-        std::io::copy(&mut input, &mut output)
-            .and_then(|_| output.sync_all())
-            .map_err(|e| e.to_string())?;
+        crate::diagnostics::run(
+            "guest-file-copy",
+            &format!(
+                "index={index} destination={} bytes={}",
+                file.destination, file.bytes
+            ),
+            || {
+                std::io::copy(&mut input, &mut output)
+                    .and_then(|_| output.sync_all())
+                    .map_err(|e| e.to_string())
+            },
+        )?;
         drop(output);
         // Runtime files retain vetted Windows-parent read/execute inheritance so
         // ordinary guest users can load them; only private state uses runner ACLs.

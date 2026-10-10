@@ -128,6 +128,8 @@ pub fn destination(relative: &str) -> Result<String, String> {
 }
 /// Hash a file without loading the complete payload into memory.
 pub fn hash_file(path: &Path) -> Result<String, String> {
+    #[cfg(windows)]
+    let mut trace = crate::diagnostics::Span::start("hash-file", &path.to_string_lossy())?;
     let mut file = fs::File::open(path).map_err(|e| format!("read preparation file: {e}"))?;
     let mut digest = Sha256::new();
     let mut buffer = [0; 65536];
@@ -138,7 +140,10 @@ pub fn hash_file(path: &Path) -> Result<String, String> {
         }
         digest.update(&buffer[..n]);
     }
-    Ok(hex(&digest.finalize()))
+    let result: Result<String, String> = Ok(hex(&digest.finalize()));
+    #[cfg(windows)]
+    trace.finish(&result)?;
+    result
 }
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
