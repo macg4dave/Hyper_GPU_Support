@@ -1,199 +1,212 @@
-# Hyper GPU Support — Active Product Backlog
+# Hyper GPU Support — active implementation backlog
 
-**Updated:** 10 October 2026  
-**Goal:** Finish the existing Slint GUI as a usable Windows GPU-PV management application. **Source implementation is the priority; test infrastructure and old feasibility exercises are not active feature work.**
-
-**Authority:** [ROADMAP.md](ROADMAP.md) controls delivery order and acceptance; [GUI_GUIDE.md](GUI_GUIDE.md) freezes the GUI design; [AGENTS.md](../AGENTS.md) and [ENGINEERING.md](ENGINEERING.md) retain development/security rules; [CONFIGURATION.md](CONFIGURATION.md), [ARCHITECTURE.md](ARCHITECTURE.md) and [DECISIONS.md](DECISIONS.md) retain technical contracts. [BACKLOG_HISTORY.md](BACKLOG_HISTORY.md), existing Git history and [evidence/](evidence/) preserve earlier work. This file replaces the sprawling active queue, **not** those records.
+**Updated:** 10 October 2026. [ROADMAP](ROADMAP.md) owns milestones; this file owns task selection and status. Scope is the approved Slint GUI over the shared Rust core. Source observations below refer to the current working tree, including uncommitted changes, inspected statically on this date. No validation was run for this review.
 
 ## Next implementation action
 
-**Primary: `GUI-002` + `SEC-001` — complete the first-time GUI configuration/enrollment journey.**
+**Start `SEC-001.1`: implement incremental, reviewed exact-pair enrollment for an installed product.** `runner::install` currently replaces all targets, and the normal worker accepts only previously enrolled pairs. This backend gap prevents both adding a VM from Details and safely changing its selected GPU.
 
-The Slint frontend already has live inventory, selection, draft/review controls, and source-level Apply/Verify/save-only/reconciliation handlers. But `src/gui/live_state.rs::target` still sends an unenrolled VM to CLI installation. The first user journey is therefore incomplete.
+Next execute **`SEC-001.2` (first-install bootstrap)**, then **`GUI-002.1` (bind enrollment through Details)**. These are source tasks, not instructions to install/exercise a runner. Inspect their named modules and reuse working contracts; do not repeat a project audit.
 
-1. Inspect **only** the existing relevant handlers in `src/gui/live.rs`, `src/gui/live_state.rs`, `src/gui/ui/`, `src/gui_model.rs`, `src/runner.rs`, `src/worker.rs` and the necessary shared enrollment/plan code.
-2. Reuse the current GPU/VM discovery, exact enrollment authority, authenticated worker, reviewed plan and committed configuration model. From the **existing Details controls**, permit a selected eligible VM/GPU to reach a safe proposed first-time setup without pretending an unenrolled pair is already authorized.
-3. Complete the missing **protected authorization/enrollment** path for that journey; the worker must independently validate and authorize the exact pair before effects. Reuse the existing runner/protected contracts; do not grant authority from GUI draft or configuration text.
-4. Retain all existing consent, stale-state, write/recovery and disabled-action protections. If a particular protected enrollment step genuinely cannot be implemented safely, record its exact technical blocker, then implement the next safe GUI slice below.
-5. Make source changes now. Add focused tests for newly introduced nontrivial logic, **without automatically running them**. Do not start a project audit, GUI redesign, old research or qualification cycle.
+If enrollment work is blocked by a concrete external prerequisite, record it once and take **`GUI-002.2`**, then **`CORE-028.1`**, which are independent ready GUI fixes. Do not substitute qualification or test infrastructure work.
 
-**Why first:** This produces functionality a normal user cannot currently complete in the GUI. It is a better next increment than improving already passing rehearsal tests.
+## Status and selection rules
 
-**Definition of this slice implemented:** selecting an eligible but unenrolled existing VM and a discovered GPU can reach the real reviewed enrollment route through the approved UI, with truthful error/consent states and no security bypass. Actual hardware acceptance may remain **pending**, and must not be claimed to have passed without authorisation and evidence.
+- **ready:** implementation can start with present dependencies.
+- **in progress:** scoped coding is underway; aggregate parent cards may contain delivered slices.
+- **blocked:** a named prerequisite or safety gate prevents this task.
+- **implemented pending validation:** scoped source exists; specified checks remain unrun/unaccepted. Continue independent implementation.
+- **completed:** scoped implementation and required evidence are established. Historical completion does not qualify later changes.
 
-## How to work this backlog
+Suffixes below are executable slices of existing IDs, not replacement projects. Parent IDs remain the tracking owners. Follow the order table; skip blocked tasks to the first ready task. Update the owning slice with changed behavior, exact blocker and actual validation status. Write meaningful tests for new logic, but execution follows AGENTS and ROADMAP: no automatic tests/builds/UI launches after a task; M3/release validation needs explicit authorization. Material privilege/recovery changes require independent architecture review at the implementation milestone or before live use.
 
-- **Pick an implementable product slice and edit its real code.** Consult only the selected card, relevant source and affected contracts. Do not run a global architecture/docs review as a prerequisite.
-- **Do not create separate test, logging, refactor, CI or investigation cards** unless a concrete defect blocks the current product change. Apply a small fix in the owning card.
-- **Use existing code first.** A function or handler existing in source is not proof of completed user behaviour, but it is also not a reason to rewrite it. Trace the missing boundary and patch that.
-- **Keep tasks small enough to finish.** After a coherent implementation slice, record `implemented — validation pending` if testing was intentionally deferred, and move on. Do not mark a hardware path `qualified` without evidence.
-- **Run checks only at full milestone completion or on explicit request**, per `AGENTS.md`. Focused tests may be authored with the code. If a permitted milestone check fails, fix the affected behaviour, not the testing ecosystem.
-- **Skip safely, don't loop.** If API support, hardware observation or approval is unavailable, write one concrete blocker and take the next independent GUI task. Do not repeatedly "research" the same closed decision.
-- **Security remains a hard gate.** Materially changed elevation, IPC, authorization or recovery boundaries require the existing independent-review step before live use. Never weaken a boundary to mark a feature complete.
-- At handoff, report just: **implemented behaviour / changed code / blocking issue / next source task / tests run or deferred**. Avoid long evidence reports except when requested.
+## Ordered source queue
 
-### Status vocabulary
-
-| Status | Meaning |
-|---|---|
-| `ready` | Product-source work can start now. |
-| `in progress` | An implementation slice is being edited. |
-| `implemented — validation pending` | Code path is present; the selected milestone checks or live acceptance remain unrun. **Proceed to other implementation work.** |
-| `blocked` | Specific external prerequisite or safety requirement prevents this slice; record it once and take another ready task. |
-| `completed` | Scoped outcome and required existing evidence are established. |
-| `deferred` | Not a v1.0 implementation target. |
-
-**Do not conflate** a completed implementation slice, a card's overall acceptance and the v1.0 release gate.
-
-## Implementation order
-
-These are **incremental code deliverables**, not new milestone-validation campaigns. Source observations below are based on the main branch inspected 10 October; verify locally before editing because the working tree may have advanced.
-
-| Order | Owner | Actual deliverable | Current observation |
+| Order | Slice / owner | Status | Depends on |
 |---|---|---|---|
-| **1** | `GUI-002`, `SEC-001`, `CORE-021` | First-time VM/GPU enrollment and usable setup path from existing Details controls | **Ready.** CLI-only enrollment message remains in `live_state.rs`. |
-| **2** | `GUI-002`, `CFG-001` | Complete trusted committed-config presentation and editing/stale-state semantics for enrolled and missing/invalid files | **Partly in source.** `read_committed`, `load_committed`, per-VM parser and conflict checks exist; fix only missing wiring. |
-| **3** | `GPU-010`, `GUI-002` | Extend capability validation/plan/editor to genuine supported VRAM/Compute/Encode/Decode triples; settle slider only with proof | **Open.** `live_state.rs` rejects last nine fields; do not invent provider units. |
-| **4** | `SEC-001`, `CORE-028`, `CFG-001` | Close any remaining real worker/progress/save-only/reconciliation and host-wide admission gaps used by GUI | **Substantial code exists.** Trace exact missing paths; do not rebuild worker. |
-| **5** | `GUI-002`, `CORE-021` | Connect remaining **approved** existing interactions such as safe forget-pairing if backend support exists; remove stale misleading help/status text | **Partly available.** Mock-only and misleading live messages exist. |
-| **6** | `GUI-003` | Finish layout, keyboard/focus, close deferral, DPI, accessibility and software-renderer defects within fixed UI | **Partly checked.** Leave systematic qualification until M3 gate. |
-| **7** | `CORE-017`, `DOC-003`, `GPU-014` | Package and accept the actual product | **Release work.** Live qualification separately authorised. |
+| 1 | SEC-001.1 — incremental pair enrollment | ready | Existing installer, security, IPC and common lock |
+| 2 | SEC-001.2 — fixed first-install bootstrap | blocked | SEC-001.1 |
+| 3 | GUI-002.1 — first-time Details enrollment | blocked | SEC-001.1–2 |
+| 4 | GUI-002.2 — truthful action availability/text | ready | Existing live action handlers |
+| 5 | CORE-028.1 — synchronize GUI recovery state | ready | Existing recovery/store reads |
+| 6 | GPU-010.1 — shared full-resource capability/schema | ready | Existing raw VRAM model/native provider adapter |
+| 7 | GPU-010.2 — resource planning/write/readback | blocked | GPU-010.1 |
+| 8 | GUI-002.3 — bind supported allocation fields | blocked | GPU-010.2 |
+| 9 | SEC-001.3 / CORE-028 — reviewed GPU replacement | blocked | SEC-001.1, GUI-002.1 |
+| 10 | SEC-001.4 — protected Forget pairing backend | blocked | SEC-001.1 |
+| 11 | GUI-002.4 — bind Forget pairing dialog | blocked | SEC-001.4 |
+| 12 | GUI-002.5 / CFG-001 — production-format fixture intent | ready | Shared parser/model; extend with GPU-010 when available |
+| 13 | GPU-010.3 — truthful GPU Memory slider mapping | blocked | Demonstrated provider mapping; GPU-010.1–2 |
+| 14 | GUI-003.1 — existing dialog/focus/close defects | ready | Approved current Slint components |
+| 15 | CORE-017.1 — package manifest/lifecycle preparation | ready | Existing installer/artifact layout; no build execution |
+| 16 | CORE-017.2 — native removal/update completion | blocked | CORE-017.1 |
+| 17 | DOC-003 — candidate operator guide | blocked | Stable implemented GUI/core and CORE-017 lifecycle |
 
-If task 1 encounters a provider-dependent hard block, move to task 2 or another safe part of tasks 4–6. Do **not** replace implementation time with new mock-test improvements.
+Ready does not mean qualified. Provider-dependent fields may remain unavailable with an exact blocker while other work proceeds; that does not satisfy the four-category initial-release requirement. No M2 safety pass is required to start these safe source tasks.
 
-## Active cards
+## Coding cards
 
-### GUI-002
-**Working GUI integration — P0 — in progress.**
+### SEC-001.1 — incremental exact-pair enrollment
 
-**10 October slice — implemented, validation pending:** `src/gui/live.rs` and
-`live_state.rs` now refresh inventory/readable committed intent despite a draft
-conflict, retain and block that draft until discard, and distinguish unreadable
-saved intent from absence. Corrected stale live help; regression tests authored, unrun.
+- **What / Why:** add a fixed reviewed operation to add one VM/GPU pair without reinstalling/replacing the whole enrollment set. Current worker commands cannot authorize a new pair.
+- **Where:** `src/runner.rs::{Enrollment,install,validate_enrollment}`, `src/worker.rs::{Command,execute}`, `src/windows_pipe/`, `src/security.rs`, `src/model.rs`; share the core contract with CLI where appropriate.
+- **Depends on / Status:** existing protected artifacts/IPC/operation lock; **ready**.
+- **Done when:** administrator approval is bound to exact VM GUID, GPU interface, authenticated operator and expected enrollment revision; elevated code rediscovers and independently validates them under common admission/recovery rules. Preserve other targets, SID, artifact pins, audits and journals; conflict/interruption cannot silently replace authority. Enrollment alone performs no GPU/guest/power effects or verified-config publication. Config/draft text never grants authority. Add focused contract/failure tests; review the changed boundary before live use.
 
-**Already in source:** live inventory/Refresh/System, real-data presentation, historical snapshot rehearsal, one draft, selected-GPU draft, shared plan preview, guest credentials, and handlers for live Apply, Verify, save-only retry, progress and reconciliation. Previous tested GUI rehearsal evidence remains in [GUI-002-testing](evidence/GUI-002-testing.md) and [closure-sprint](evidence/closure-sprint.md).
+### SEC-001.2 — bounded first-install bootstrap
 
-**Do next:** first-time setup without CLI; ensure committed desired state, observation, proposed draft and protected enrollment remain distinct; fix stale error/help text and unconnected approved actions. Bind GPU-010's supported categories when the core can validate them. Preserve selection and invalid raw edits. An imported/snapshot plan never grants live authority.
+- **What / Why:** enable setup when neither protected runner nor worker is installed. `worker::trusted_executable` currently needs enrollment/artifact pins before UAC launch, and ordinary-token discovery uses the installed runner.
+- **Where:** `src/main.rs`, `src/runner.rs::{install,enrollment}`, `src/worker.rs::{trusted_executable,launch}`, `src/process.rs`, `src/windows_pipe/`, `src/security.rs`.
+- **Depends on / Status:** SEC-001.1; **blocked on implementation**.
+- **Done when:** a fixed Rust setup route can obtain eligible discovery and install/enroll the reviewed pair with explicit UAC from the approved GUI journey. Preserve the initiating user's SID across elevation, validate trusted source artifacts/paths and bounded typed inputs, and reuse native installation/IPC machinery. Existing installation takes the incremental route; it is never replaced from a one-pair draft. Cancellation and interrupted install remain explicit/recoverable, with no effects or invented saved intent. No arbitrary elevated executable/command/path channel; maintain mandatory audit and independent boundary review.
 
-**Implemented when:** the approved controls perform their intended Rust-backed work for supported use cases, or explain precisely why unavailable. **Acceptance pending:** actual Windows/GUI/CLI equivalence, safe negative/failure behaviour and M3 milestone checks. No extra pages.
+### GUI-002.1 — first-time enrollment through Details
 
-### SEC-001
-**Exact privileged enrollment, coordination and worker boundary — P0 — in progress / extension required.**
+- **What / Why:** let an unenrolled eligible VM/GPU reach review and enrollment from existing controls; `State::target` and editor eligibility currently stop at CLI guidance.
+- **Where:** `src/gui/live_state.rs::{target,editor_eligibility,draft}`, `src/gui/live.rs::{present,review,run}`, `src/gui_model.rs`, `src/gui/ui/{details,dialogs,app}.slint`.
+- **Depends on / Status:** SEC-001.1–2; **blocked on backend**.
+- **Done when:** proposal eligibility is separate from execution authority; discovered VM/GPU can be drafted and exact setup scope reviewed through Details/Review without extra controls/pages. Confirmation uses fixed setup/enrollment; then reloads protected authority and committed intent. GPU Apply requires its own fresh reviewed plan, credentials and downtime consent. Cancel/stale/unsupported/conflicting states preserve raw edits and exact identity; no CLI needed for supported first-time setup. Snapshot/fixture confirmation never enrolls.
 
-**First-time GUI blocker (source inspection):** `worker::trusted_executable` requires
-existing protected enrollment/artifact pins before launch. `runner::install` is an
-administrator installer that replaces the complete enrollment set, not a reviewed
-one-pair GUI command. Next source step: a fixed authenticated bootstrap/enroll route
-that preserves existing authority; no draft-to-enrollment shortcut. Continued CFG-001.
+### GUI-002.2 — truthful live controls and messages
 
-`src/worker.rs` contains same-executable elevated apply, save-only, verify, reconcile, import and progress transport; the protected runner and authenticated Named Pipe already exist. `APP-001` reviewed a restricted-worker integration, **not every expanded enrollment or concurrent-operation scenario**.
+- **What / Why:** repair concrete stale claims and readiness messaging around already implemented actions.
+- **Where:** `src/gui/ui/app.slint` live footer (`Apply unavailable`), `dialogs.slint` (`Forget sample pairing`), `src/gui/live.rs::{present,refresh,run}` credential/help/action messages.
+- **Depends on / Status:** existing handlers; **ready**, independent of enrollment work.
+- **Done when:** live footer reflects actual worker/action readiness; credentials cancellation/non-retention no longer says no guest operation is connected. Existing Verify/Apply/save/reconcile controls show action-specific reasons for unavailable authority/recovery/stale inputs. Forget remains unavailable until its real backend is connected and has correct mode-specific text. Reapply still means review, never an automatic effect/retry. No new controls or redesign.
 
-**Do next:** support the approved first-time GUI enrollment journey with independent exact VM/GPU revalidation. Check host-wide one-modifying-operation admission across GUI, CLI and worker; unresolved recovery holds remain even after process lock release. Secure plan/session/peer identity and no arbitrary worker command. A changed privileged boundary needs independent review before live use.
+### CORE-028.1 — recovery state after external completion
 
-**Do not:** build a new IPC stack, weaken ACLs/audit, treat a selected UI row as enrollment, or test on an unrelated VM.
+- **What / Why:** synchronize GUI state with durable recovery across Refresh. Current `refresh` sets `view.unsaved`/`verified_unsaved` only when a recovery record exists; after CLI save/reconciliation removes it, stale in-memory save-only state can remain.
+- **Where:** `src/gui/live.rs::{refresh,save_only_live,reconcile_live}`, `src/gui/live_state.rs`, `src/gui_model.rs::{View,apply_target,published}`.
+- **Depends on / Status:** existing durable records/committed reads; **ready**.
+- **Done when:** successful fresh reads derive unsaved/recovery state for record-present, record-absent, standalone Verify and import cases. Confirm committed/readback facts before releasing any hold; read errors never imply absence. Preserve or explicitly conflict an existing draft when another frontend completes publication. Clear stale review/execution readiness after failed/changed reads. Add regression coverage for external save/reconcile and unreadable records; never replay effects or automatically clear durable recovery.
 
-### CFG-001
-**Per-VM configuration and protected persistence — P0 — in progress.**
+### GPU-010.1 — shared full-resource schema and capabilities
 
-**Selected contract:** one GUID-keyed TOML per VM, schema 2, shared `Configuration` / `Target` parser, optional raw VRAM triple; see [CONFIGURATION](CONFIGURATION.md) and DEC-032. Source already includes per-file reads/serialization, committed-store snapshot/revisions and worker-side save/recovery concepts. Treat old notes saying *no protected publication exists* as potentially stale; inspect the current code.
+- **What / Why:** represent supported VRAM/Compute/Encode/Decode triples and observed limits. `Target`, `Gpu` and `VmState` currently expose VRAM only.
+- **Where:** `src/model.rs`, `src/windows_hyperv.rs::{discover_gpus,inspect,read_vram}`, `src/configuration_store.rs`, `src/gui_model.rs`; affected schema contract in `docs/CONFIGURATION.md`.
+- **Depends on / Status:** existing native WMI/model/parser; **ready**.
+- **Done when:** verify relevant official provider property contracts as part of implementation; typed capabilities distinguish supported, unavailable/unknown and unset per category. Version the intent extension explicitly, retaining schema-2 input support and deliberate upgrade/serialization rules. Preserve omission as no write, reject partial/out-of-order/out-of-range/unknown input, and use the same parser for CLI/GUI/fixtures. No guessed bytes/percentages or enforcement promises. Unknown provider evidence blocks only the affected category, recorded once.
 
-**Do next:** close actual GUI read/display/commit mismatches, error isolation (absent vs unreadable), stale revisions, import/conflict and verified-save-only defects. Per-VM files live under the approved protected ProgramData location. Only independently authorized worker code publishes machine-wide intent after matching readback. Draft editing writes nothing; never infer saved intent from enrollment.
+### GPU-010.2 — plan, apply and read back resource triples
 
-**Acceptance pending:** installation ownership, correct atomic/conflict behaviour and recovery through GUI/CLI. Do not create another file format or automatic migration.
+- **What / Why:** complete native backend behavior for the new categories; current `Backend::allocation` and setter/readback cover raw VRAM only.
+- **Where:** `src/workflow.rs::{Backend,decision,Plan,apply_approved,reconcile_observed}`, `src/windows_hyperv.rs::allocation`, `src/runner.rs::NativeBackend`, `src/worker.rs`, `src/configuration_store.rs` verified receipts.
+- **Depends on / Status:** GPU-010.1; **blocked on model**.
+- **Done when:** reviews enumerate exact per-category writes; fresh limits/identity are checked before effects, each requested triple has independent readback, and save-only/reconciliation compares all requested categories. Omitted resources are retained/no-write, not reset to zero. Preserve default behavior, separate consent and recovery on partial writes. Author focused fake-backend ordering/drift/failure tests; hardware enforcement remains unclaimed.
 
-### GPU-010
-**Real selected-GPU capability/allocation semantics — P0 — ready, provider-dependent.**
+### GUI-002.3 — supported allocation editor bindings
 
-Deliver the physical GPU capability model and validated **Minimum / Optimal / Maximum** for VRAM, Compute, Encode and Decode through shared Rust types, planning and eventual readback. Current schema-2 production parser/GUI path supports only optional raw VRAM; schema extension needs an explicit version/import contract. Existing twelve UI inputs are not evidence of twelve supported backend controls.
+- **What / Why:** connect nine currently rejected/disabled fields alongside existing VRAM. `State::draft` rejects nonempty Compute/Encode/Decode values; Slint permits those editors only in fixtures.
+- **Where:** `src/gui/live_state.rs::{draft,allocation_values,review_text}`, `src/gui/live.rs::{present,refresh}`, `src/gui/ui/{details,resources}.slint`, `src/gui/snapshot.rs`.
+- **Depends on / Status:** GPU-010.2; **blocked on backend**.
+- **Done when:** each category's editability, raw values, bounds, validation, review and readback use shared capability/types; unsupported/unknown stays truthful. Retain invalid raw text, one selected-VM draft and stale/conflict behavior. Snapshot rehearsal accepts only recorded supported capabilities, with no live discovery/effects or new mock format.
 
-**Do next:** consult official Windows/Hyper-V provider contracts and existing native code; implement accurate units, bounds, unsupported/unset semantics and capability reporting. Enable only those fields the backend can actually represent and validate. The GUI's "GPU Memory" slider is mock-only until its mapping is proven; do not convert raw provider integers to GiB or percentages by assumption.
+### SEC-001.3 / CORE-028 — reviewed physical GPU replacement
 
-**Blocker rule:** if a field requires unavailable live provider evidence, retain truthful disabled state, record the exact question and continue with independent GUI integration. No speculative enforcement promise.
+- **What / Why:** make the existing selector useful for an enrolled VM. A different interface currently fails `View::eligibility`; another attached GPU and old journal identity also block it.
+- **Where:** `src/gui/live_state.rs`, `src/gui_model.rs::eligibility`, `src/runner.rs` enrollment, `src/worker.rs`, `src/workflow.rs` and protected configuration receipts.
+- **Depends on / Status:** SEC-001.1, GUI-002.1; **blocked on enrollment integration**.
+- **Done when:** separately review new-pair authorization and the exact old/new GPU transition through existing controls. Use shared verified disable/enable/settings-restoration paths; preserve attributable old-pair journal/recovery until resolved, independently check the new pair/payload, and publish only verified intent. Drift/partial transition keeps a durable host-wide hold. Never silently broaden authority, overwrite the old journal, detach an unrelated adapter or change disks/CPU/RAM/Secure Boot. Boundary review required.
 
-### CORE-028
-**Real operations, progress, reconciliation and verified saving — P0 — integration/acceptance open.**
+### SEC-001.4 — protected Forget pairing
 
-Source includes shared planning, worker callbacks, durable operation phases, GUI Verify/Apply/reconcile and save-only paths. **Do not rewrite them as planned architecture.**
+- **What / Why:** implement pairing removal; no such worker operation exists, and CLI credential `forget` is a different action.
+- **Where:** `src/runner.rs` enrollment, `src/worker.rs`, `src/configuration_store/protected.rs`, `src/workflow.rs` recorded state; preserve `src/credentials.rs` semantics.
+- **Depends on / Status:** SEC-001.1; **blocked on enrollment mutation**.
+- **Done when:** exact reviewed VM/pair scope is removed under authenticated elevation, expected revisions, common lock and durable recovery. Require independently verified disabled/detached state and no unresolved recovery; otherwise require the existing Disable/reconcile journey first. Review includes deletion of that pair's committed intent; retain attributable audit/history and prepared guest files. Partial metadata removal is recoverable, other pairs are preserved, and no implicit credential deletion, guest cleanup or GPU effect occurs. CLI `forget` retains its credential-only contract.
 
-**Do next:** find the remaining mismatch between the approved dialogs and the actual execution/recovery contract. Enforce fresh plan, protection and guest-downtime consent; publish only after verified readback; expose real Pending/Running/Done/Failed/Unknown updates where supported. Ensure save failure cannot replay GPU effects. On crash, timeout or pipe loss, retain uncertain state and the host-wide modification hold until explicit manual reconciliation. No automatic rollback, restart, journal clearance or guessed success.
+### GUI-002.4 — live Forget pairing dialog
 
-**Live safety hold:** the 10 October Reapply-associated host lockup is unresolved; do not rerun hazardous qualification as part of this integration card.
+- **What / Why:** connect the existing mock-only More actions/Forget dialog.
+- **Where:** `src/gui/live.rs::run`, `src/gui/live_state.rs`, `src/gui/ui/dialogs.slint`.
+- **Depends on / Status:** SEC-001.4; **blocked on backend**.
+- **Done when:** dialog shows exact pairing/config deletion and retained guest/history/credential state; confirmation invokes the protected operation and reloads inventory/intent. Dirty draft, attachment, revisions and recovery block unsafe removal with an actionable reason. Cancel makes no changes; fixture/snapshot modes remain no-write. No new page/control.
 
-### CORE-021
-**Shared CLI/GUI configuration and enrollment behaviour — P1 — in progress.**
+### GUI-002.5 / CFG-001 — reuse production intent in fixtures
 
-Coordinate GUI-002 / SEC-001 / CFG-001 / GPU-010 so the same core rules apply from both interfaces. No duplicate parser, enrollment store, credential system or manual test-VM management feature. Close after the integrated existing-user journey is coherent.
+- **What / Why:** remove the separate saved-configuration semantics in `src/gui/mod.rs::Saved` while preserving approved simulated scenarios. Snapshot already uses production `Configuration`/`Target`; fixture saved intent does not.
+- **Where:** `src/gui/mod.rs::{Saved,Session,draft}`, `src/gui/mock.rs`, `src/model.rs`, `src/gui_model.rs`, existing `config/samples/`.
+- **Depends on / Status:** production parser/model present; **ready**.
+- **Done when:** saved/candidate fixture intent uses the exact production schema/parser/types in memory. Raw invalid editor text, illustrative slider position and simulated stage outcomes remain presentation state, never a second config contract or committed success. Unsupported categories cannot masquerade as production supported intent; adapt with GPU-010 when implemented. Retain useful scenarios and strict no-write/no-effect behavior; no new rehearsal/test infrastructure.
 
-### GUI-003
-**Approved-interface completion — P1 — in progress; validation deferred.**
+### GPU-010.3 — GPU Memory slider
 
-A 10 October scoped software-renderer/mock check covered minimum/workspace sizes, larger inventories, pages and wrapped Review. Remaining focus: real dialog lifetime/close deferral, pane split and scrolling, Windows DPI/text scaling, focus/keyboard and accessibility behaviour.
+- **What / Why:** settle the existing illustrative GB slider without inventing real allocation semantics.
+- **Where:** `src/gui/ui/details.slint`, `src/gui/live_state.rs`, shared GPU capability/model.
+- **Depends on / Status:** GPU-010.1–2 and demonstrated provider mapping; **blocked on mapping evidence**.
+- **Done when:** a supported mapping yields the same validated triple as Advanced Allocation, with truthful units/readback and no contradictory settings. If the provider offers no demonstrated mapping, retain the existing live unavailable state, record the exact limitation and leave this release requirement unresolved until scope is explicitly settled. Raw provider integers are not GiB or a percentage.
 
-**Do next:** fix observed interaction/layout defects in the existing components; avoid speculative new controls. Perform a proportionate UI acceptance pass at the M3 milestone, not after every edit.
+### GUI-003.1 — restore focus after existing dialogs
 
-### ARCH-001
-**M2 product baseline — in progress (stability acceptance blocked).**
+- **What / Why:** restore keyboard focus to the invoking control when an existing modal closes. `DemoDialog` sets initial focus to technical details, but the Rust close/completion paths only clear `dialog-kind`; no explicit focus restoration is connected.
+- **Where:** `src/gui/live.rs::{background,run}`, `src/gui/mod.rs`, `src/gui/ui/{app,dialogs,details,resources,technical-output}.slint`.
+- **Depends on / Status:** current UI; **ready** for source-level fixes.
+- **Done when:** cancellation/completion returns focus to the invoking control, or a safe existing control if selection changed; keyboard focus stays usable through Review, dirty switch/close and progress transitions. Preserve busy close deferral, callback lifetime, draft and worker outcome. Keep split/independent scrolling/selectable output and approved pages. DPI/text scaling, accessibility and renderer observations wait for the M3 authorized acceptance pass; repair additional defects only when identified. Earlier scoped mock checks do not qualify new live callbacks.
 
-Retain prior native NVIDIA/effect results. A 10 October fresh preparation/Reapply sequence returned functional results but was associated with an unresponsive Windows host and unclean restart; causality is unknown. No new destabilising testing without explicit permission. See [incident](evidence/reapply-investigation-20261010.md). **Not a reason to stop safe GUI coding.**
+### CORE-017.1 — candidate package/lifecycle preparation
 
-### GPU-012
-**M2 bounded NVIDIA qualification — blocked by safety hold.**
+- **What / Why:** define a usable candidate from actual fixed artifacts, without building it yet.
+- **Where:** `Cargo.toml`, `src/main.rs`, `src/runner.rs::install`, `src/bin/`, existing distribution/build configuration and notices.
+- **Depends on / Status:** current installer/layout; **ready**, preparation may overlap M3.
+- **Done when:** package preparation includes `hyper-gpu-support.exe`, `hyper-gpu-runner.exe`, `hyper-gpu-guest.exe`, `d3d11-probe.exe`, version/revision/checksums/notices and real runtime requirements, with no lab or developer paths. Inventory actual install/update/removal gaps for CORE-017.2 in this card. No driver/media/secret bundling without rights, new installer framework, build, publication or installation implied.
 
-No hang reproduction, Reapply stress, repeated payload-transfer experiments or extended GPU probes by default. Resume affected-path qualification only following fresh user authorisation and a suitable safety decision. Preserve prior passes as prior passes, not release proof.
+### CORE-017.2 — native installation lifecycle gaps
 
-### CORE-017
-**R1 Windows candidate packaging — planned.**
+- **What / Why:** finish concrete update/removal behavior required by distribution. Native install/interrupted-install marker handling exists; there is no implemented product uninstaller to reuse.
+- **Where:** `src/runner.rs::{install,enrollment,operation_lock}`, `src/main.rs`, `src/security.rs`, `src/configuration_store/protected.rs`.
+- **Depends on / Status:** CORE-017.1; **blocked on concrete package scope**.
+- **Done when:** bounded Rust update/removal preserves operator authority and recoverable intent/history according to explicit reviewed scope, refuses active work/unresolved recovery, and manages fixed artifacts/task registration safely. Installation failure remains explicit and cannot enable half-updated artifacts. Removal neither detaches GPUs nor deletes guest files/disks implicitly. Reuse current native installer; independently review changed privileged lifecycle before use.
 
-Package the required binaries/payloads and installer lifecycle; preserve GUI/CLI output/exit semantics, UAC, ACLs, ProgramData, prerequisites and licenses. No lab data, drivers/disks or secrets bundled without rights.
+### DOC-003 — candidate operator guide
 
-### DOC-003
-**R1 operator documentation — planned.**
+- **What / Why:** document the implemented product journey rather than another internal plan.
+- **Where:** `README.md`, existing operator/configuration documentation, candidate package instructions.
+- **Depends on / Status:** stable M3 functionality and CORE-017 lifecycle; **blocked**.
+- **Done when:** instructions cover GUI startup/setup/edit/review/disable/Verify, CLI equivalents, credentials, import, save-only/manual recovery and install/update/removal with actual supported limits. No hidden lab paths, credential/pairing confusion, reset/CUDA requirements or untested qualification claims. Candidate instruction execution is GPU-014's gate.
 
-Write user instructions against actual supported and tested candidate behaviour: startup/CLI, GUI setup, config, consent, verification, save-only and manual recovery. Not another internal planning audit.
+## Existing implementations — reuse, do not reschedule
 
-### GPU-014
-**R1 end-to-end acceptance — blocked until separate authorisation / M2 safety resolution.**
+| Owner | Source implementation | Status / remaining scope |
+|---|---|---|
+| GUI-001 | Approved Slint prototype promoted to `src/gui/ui/` | completed design scope; defects belong to GUI-003 |
+| APP-001 | `main.rs`, `console.rs`, same-executable restricted mode/dispatch | completed reported scope; package and expanded boundaries still need acceptance |
+| CORE-012 | Partial inventory, `diagnostics.rs`, `reporting.rs`, truthful recorded-state presentation | completed reported scope; no new diagnostics initiative |
+| CORE-006 | `workflow.rs` shared typed decision/effect preview | completed existing scope; extend for resource/replacement tasks only |
+| GUI-002 / CFG-001 | Live inventory/System; selected-VM draft/review; bounded snapshot; committed reads; unreadable-vs-absent and latched conflict behavior in `live_state.rs` | implemented pending validation for current slices; do not schedule parser/store/Refresh creation again |
+| CFG-001 | `configuration_store{,/protected}.rs`: GUID documents, revisions, protected atomic per-file publication; worker import/import-resume | implemented pending validation; trust/race/crash/installation ownership acceptance remains. Import is CLI-supported, not a missing GUI import page |
+| SEC-001 | Trusted artifacts, authenticated pipes, `runner::operation_lock`, `require_no_recovery`, worker commands | implemented pending validation for expanded scope; add named enrollment/removal boundaries only |
+| CORE-028 | `live.rs` Apply/Verify/progress/save-only/reconcile; `worker.rs` durable phases and shared admitted execution/readback | implemented pending validation; named state/transfer/replacement gaps remain |
+| CORE-021 | Shared configuration/parser/enrollment rules and CLI operation paths | existing core implemented; aggregate GUI parity closes with owning slices, no parallel parser/backend project |
+| GPU-010 | Raw VRAM model/range checks/native setter/readback; exact GPU discovery | partial implementation; remaining four-category/selector/slider work above |
+| GUI-003 | Reported scoped mock/software-renderer sizing/page/Review checks | scoped historical result; current live/UI milestone acceptance pending |
+| PLAN-001 | Previous scoped architecture/source/document review | completed; no recurring audit prerequisite |
 
-Use only explicitly designated disposable targets, relevant changed paths and existing evidence. Confirm product/package/UI/CLI parity and recovery; don't re-create an entire laboratory qualification programme.
+Parent GUI-002/CFG-001/SEC-001/CORE-028/CORE-021/GPU-010/GUI-003 remain **in progress** as aggregate delivery owners. This review does not promote unexecuted source changes to completed/qualified.
 
-## Completed scoped work — do not restart
+## Separate M2 containment lane
 
-### GUI-001
-**Completed:** the approved Slint prototype and design promotion. Future layout/UX defects belong to GUI-003; no new UI-design task.
+### CORE-028.2 / ARCH-001 — bounded preparation transfer
 
-### APP-001
-**Completed (reported 10 October):** single-executable GUI/CLI dispatch, Windows console handling, restricted-worker implementation/integration and independent review for that scope. Expanded SEC-001 cases remain open. See [closure evidence](evidence/closure-sprint.md).
+- **What / Why:** finish the already recorded Rust-supervised per-file/no-progress transfer bounds and byte/file progress, reusing the existing contained-process supervisor.
+- **Where:** `src/guest.rs::bridge`, `src/process.rs`, `src/guest_transport.ps1` only within DEC-028's fixed bridge, `src/worker.rs::ObservedBackend` progress.
+- **Depends on / Status:** existing reviewed source containment; **implemented pending validation**, not the default GUI queue.
+- **Done when:** Rust supervises bounded transfer activity, reports real bounded progress without secrets, and retains durable uncertainty after interrupted/partial transfer. No unchecked cache, omitted payload members, automatic retry/rollback or product logic expansion in PowerShell. Existing admission reuse, WMI/hash limits and protected bootstrap publication are reused; do not reimplement them. Changed boundary review and later qualification remain separate.
+- **Source result (10 October):** fixed 1 MiB transport chunks acknowledge remote stream writes; Rust checks ordered exact-file byte totals, 300-second file budgets, 60-second stalls and 240-second setup/inter-file gaps. Existing local kill-job and 3,600-second outer budget remain. Progress IPC can delay local termination by up to 20 seconds beyond those budgets; termination does not prove guest cancellation. Protected bootstrap hashes and complete guest payload/receipt checks remain independent. Worker progress includes bootstrap files; the GUI coalesces transfer rows and retains later outcomes. Added monitor/supervisor regression test source, unexecuted. Independent static boundary review found bounded IPC latency, now accounted for explicitly; no other blocking findings. No tests/builds/GUI launches or live work; M2 acceptance requires authorized validation/stability qualification.
 
-### CORE-012
-**Completed (reported 10 October):** partial/inaccessible inventory, recorded-state provenance, redacted diagnostics and appropriate operator guidance. Reuse from GUI; do not start another diagnostics initiative.
+## Validation / qualification / release gates — not coding tasks
 
-### CORE-006
-**Completed existing baseline:** shared typed preview/planner. Extend only for real new GPU-010/CORE-028 operations. See [history](BACKLOG_HISTORY.md#core-006).
+| Owner | Status | Depends on | Done when |
+|---|---|---|---|
+| ARCH-001 / GPU-012 — M2 stability | blocked | CORE-028.2, changed-boundary review, explicit live authorization and bounded safety go/no-go | Affected preparation/maintenance/bootstrap interruption paths qualified on immediately verified designated identities, with host responsiveness and functional results; no inferred cause/resolution from source changes |
+| GUI-002 / GUI-003 / CFG-001 / SEC-001 / CORE-028 — M3 | blocked | All planned M3 coding slices and applicable independent reviews; explicit validation authorization | Proportionate existing Rust/build/UI checks, shared CLI/GUI behavior and relevant security/failure/recovery cases accepted. Live work also needs M2 safety readiness and separate authorization |
+| CORE-017 — built candidate | blocked | Implemented package/lifecycle, authorization under release validation policy | Actual Windows package built/inspected with fixed artifacts, provenance/notices/prerequisites and documented lifecycle; no publication implied |
+| GPU-014 — R1 acceptance | blocked | M2/M3 acceptance, candidate, DOC-003 and separate live authorization | Candidate GUI/CLI setup/enable/Verify/disable/save/recovery and changed lifecycle paths accepted on designated targets; exact environment/outcomes recorded, stable host and no essential/security blocker |
 
-### PLAN-001
-**Completed:** scoped architecture/source/docs audit. No need to repeat for each coding task.
+The 10 October Reapply-associated lockup remains unresolved; [incident](evidence/reapply-investigation-20261010.md) and [source containment](evidence/m2-source-containment-20261010.md) retain details. **BLK-005's earlier investigation was closed by user direction**; do not reopen it or erase the separate current safety hold. No live Hyper-V/GPU/driver/VM-power, runner installation/update/exercise or guest modification is authorized by these cards. Never restart/shut down/log out the host without immediate explicit permission.
 
-## Deferred and retained historical references
+## Retained IDs and history
 
-**GPU-015** — deferred M4 simultaneous GPU sharing. Multiple VM configs and serialized operations do **not** prove concurrent GPU sharing safety.  
-**OPEN-01** — resolved in DEC-032; schema-2 one-target GUID TOML, not an open design debate.  
-**OPEN-03 / OPEN-05 / OPEN-08 / OPEN-12** — only specific SEC-001/CORE-028/CFG-001 security/recovery acceptance questions, not autonomous research cards.  
-**OPEN-04 / OPEN-10** — GPU-010 provider semantics; **OPEN-06 / OPEN-11** — GUI-003 renderer/accessibility; **OPEN-09** — GUI/CLI packaging acceptance; **OPEN-07** — resolved draft navigation.
+[BACKLOG_HISTORY](BACKLOG_HISTORY.md) and existing evidence preserve original results and meanings. OPEN-01's per-VM schema decision and OPEN-07's draft-navigation decision are resolved. OPEN-03/05/08/12 map to existing security/recovery/persistence acceptance; OPEN-04/10 to GPU-010; OPEN-06/11 to GUI-003; OPEN-09 to packaging acceptance. They are not separate research tasks.
 
-**BLK-005** — historical hang investigation closed by user direction; do not reopen. The separate 10 October Reapply incident is recorded under ARCH-001/GPU-012 and remains unresolved.
-
-Other historical IDs retain their original meaning in [BACKLOG_HISTORY](BACKLOG_HISTORY.md); completed/merged/cancelled/deferred records are **not** a fresh implementation queue. This includes older native-port, golden-image, driver-staging, reference and optional stress/CUDA tracks.
-
-## Permission and safety limits
-
-- **No live Hyper-V/GPU/driver/VM-power tests for this GUI implementation push without explicit permission.** In particular, no Reapply qualification while its host-lockup concern remains unresolved. You may implement safe Rust/Slint changes without these tests.
-- **Never reboot/shut down/log out the host without immediate explicit approval.** Don't schedule or accept automatic host restart.
-- Keep the authorized protected worker, correct VM/GPU identity, enrollment, UAC, separate downtime consent, trusted signed payloads, audit, IPC ACL/authentication, host-wide locks and recovery holds.
-- Mock/snapshot rehearsal is no-effect/no-write: no config, vault, enrollment, journal or audit writes and no guest probes. Do not suppress mandatory audit from the real protected runner to satisfy mock semantics.
-- Preserve the CLI and the fixed approved GUI, using Rust for application logic. No test harness or development script is a production dependency.
-
-## Close-out and next handoff
-
-**When a coherent code slice is implemented:** update only its existing card with 2–4 lines: actual new behaviour, relevant source files, an exact blocker (if any), and `validation pending` when checks were deferred. Update a release milestone only after its real gate. Do not create a new test card because this slice was not tested.
-
-**Then immediately choose the next ready source-code deliverable from the implementation-order table.** The default is implementation, not qualification, documentation synchronization, test refinement or another roadmap rewrite.
+GPU-010 is promoted from the historical optional/M4 placement to the stated initial-release four-category requirement; raw VRAM is already implemented. GPU-015 simultaneous sharing, additional vendors, HCS, optional API/CUDA/stress and laboratory/native-port history stay outside the active queue. CORE-021 is integrated acceptance across the named slices, not duplicate coding. Historical CORE-017 packaging scope is retained without inventing a new installer framework or assuming an existing uninstaller.

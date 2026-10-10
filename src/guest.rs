@@ -10,7 +10,8 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
-    time::Duration,
+    sync::Arc,
+    time::{Duration, Instant},
 };
 
 /// Receipt from a fully verified guest preparation.
@@ -46,6 +47,7 @@ struct BridgeRequest<'a> {
 struct Artifact {
     name: String,
     hash: String,
+    bytes: u64,
 }
 #[derive(Deserialize)]
 struct BridgeResult {
@@ -57,6 +59,7 @@ fn bridge(
     mode: &str,
     manifest: Option<&Manifest>,
     gpu: Option<&Gpu>,
+    progress: &mut dyn FnMut(u64, u64, usize, usize) -> Result<(), String>,
 ) -> Result<String, String> {
     crate::diagnostics::run(
         "guest-transport",
@@ -69,9 +72,22 @@ fn bridge(
                     Ok(Artifact {
                         name: name.into(),
                         hash: payload::hash_file(&install.join(name))?,
+                        bytes: fs::metadata(install.join(name))
+                            .map_err(|e| e.to_string())?
+                            .len(),
                     })
                 })
                 .collect::<Result<Vec<_>, String>>()?;
+            let sizes = artifacts
+                .iter()
+                .map(|a| a.bytes)
+                .chain(
+                    manifest
+                        .into_iter()
+                        .flat_map(|m| m.files.iter().map(|f| f.bytes)),
+                )
+                .collect();
+            let monitor = Arc::new(crate::guest_transfer::Monitor::new(sizes, Instant::now())?);
             let request = BridgeRequest {
                 vm_id: &t.vm_id,
                 username: &credential.username,
@@ -108,11 +124,18 @@ fn bridge(
                 "-Command",
                 &script,
             ]);
-            let result = process::bounded_process_with_limit(
+            let result = process::bounded_process_with_monitor(
                 command,
                 Duration::from_secs(3600),
                 1024 * 1024,
                 &bytes,
+                monitor.clone(),
+                &mut || {
+                    if let Some(p) = monitor.take_progress(Instant::now())? {
+                        progress(p.bytes, p.total, p.files, p.count)?;
+                    }
+                    Ok(())
+                },
             )
             .map_err(|error| {
                 format!("guest transport supervision failed: {error}; preparation may be partial")
@@ -130,7 +153,17 @@ fn bridge(
 }
 /// Copy and independently verify the current complete payload.
 pub fn prepare(t: &Target, manifest: &Manifest, credential: &Credential) -> Result<String, String> {
-    let text = bridge(t, credential, "prepare", Some(manifest), None)?;
+    prepare_with_progress(t, manifest, credential, &mut |_, _, _, _| Ok(()))
+}
+/// Prepare with real acknowledged transport totals, before independent receipt verification.
+/// The callback receives acknowledged bytes, total bytes, completed files and total files.
+pub fn prepare_with_progress(
+    t: &Target,
+    manifest: &Manifest,
+    credential: &Credential,
+    progress: &mut dyn FnMut(u64, u64, usize, usize) -> Result<(), String>,
+) -> Result<String, String> {
+    let text = bridge(t, credential, "prepare", Some(manifest), None, progress)?;
     let receipt: Receipt =
         serde_json::from_str(text.trim()).map_err(|_| "invalid guest preparation receipt")?;
     let digest = manifest.digest()?;
@@ -144,7 +177,14 @@ pub fn prepare(t: &Target, manifest: &Manifest, credential: &Credential) -> Resu
 }
 /// Require PnP Code 0 and checked D3D11 rendering on the selected hardware.
 pub fn verify(t: &Target, gpu: &Gpu, credential: &Credential) -> Result<(), String> {
-    let text = bridge(t, credential, "verify", None, Some(gpu))?;
+    let text = bridge(
+        t,
+        credential,
+        "verify",
+        None,
+        Some(gpu),
+        &mut |_, _, _, _| Ok(()),
+    )?;
     let report = crate::probe::parse_success_report(text.trim(), "d3d11-offscreen")
         .map_err(|e| e.to_string())?;
     if report.adapter.vendor_id != gpu.vendor

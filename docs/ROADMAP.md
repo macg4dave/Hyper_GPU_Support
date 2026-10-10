@@ -1,97 +1,69 @@
-# Hyper GPU Support — v1.0 Product Roadmap
+# Hyper GPU Support — v1.0 roadmap
 
-**Updated:** 10 October 2026  
-**Objective:** Ship the approved Slint interface as a functional Windows application, backed by the existing Rust GPU-PV core. **Implement product features first; do not restart feasibility research or continuous test refinement.**
+**Updated:** 10 October 2026. **Objective:** complete the approved Slint Windows application over the existing Rust core.
 
-## Document ownership
+This file owns delivery order and milestone gates. [BACKLOG](BACKLOG.md#next-implementation-action) owns executable tasks and status. The approved interface is fixed by [GUI_GUIDE](GUI_GUIDE.md); coding, review and authorization follow [AGENTS](../AGENTS.md). Historical results remain in [BACKLOG_HISTORY](BACKLOG_HISTORY.md) and [evidence](evidence/). Historical queues are not current instructions.
 
-- **This roadmap:** delivery order, milestones and release gates.
-- **[BACKLOG.md](BACKLOG.md):** current next action, implementation cards, blockers and task status.
-- **[GUI_GUIDE.md](GUI_GUIDE.md):** approved, fixed v1.0 interface; do not expand or redesign it.
-- **[CONFIGURATION.md](CONFIGURATION.md), [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md):** data, security and architectural contracts.
-- **[AGENTS.md](../AGENTS.md) and [ENGINEERING.md](ENGINEERING.md):** coding, testing, permission and review rules.
-- **[BACKLOG_HISTORY.md](BACKLOG_HISTORY.md) and [evidence/](evidence/):** previous experiments, decisions and supporting records; read only for a specific question.
+## Source baseline
 
-`GUI_ROADMAP.md` is historical cross-reference information, **not a second task queue**. If a summary conflicts with source, inspect the current code and correct the affected status rather than starting the task again.
+Reviewed the current working tree, including uncommitted changes, on 10 October. This was static inspection only; no tests, builds, GUI launches or live checks were run. Existing evidence is historical, not fresh verification.
 
-## Delivery principles
+| Area | Present in source | Remaining product work |
+|---|---|---|
+| Application shell | No-argument Slint startup, explicit CLI dispatch, restricted internal worker, console attachment | Candidate packaging/acceptance; preserve the separate runner/guest/probe artifacts |
+| Inventory and presentation | Live discovery, Refresh/System, partial observations, provenance; fixture and bounded historical snapshot modes | First-install discovery/setup route when no runner is installed; truthful action availability |
+| Intent and persistence | Shared schema-2 `Configuration`/`Target`, GUID TOML, protected store/revisions, worker publication/import | Enrollment integration; full-resource schema; fixture intent still uses a separate `Saved` presentation model |
+| Operations | Shared plan, native enable/disable/settings/raw VRAM, graphics Verify, worker progress, durable recovery, save-only retry and reconciliation | Specific presentation/recovery defects and remaining transfer supervision; no replacement worker/planner project |
+| Privilege coordination | Authenticated IPC, trusted installed artifacts, common operation lock, host-wide recovery holds | Bounded first-install bootstrap and incremental exact-pair enrollment/removal |
+| GPU editing | Physical GPU discovery/selector; optional raw VRAM triple and independent readback | Other resource triples; switching to another GPU is rejected by exact enrollment/attachment checks; slider mapping is unavailable |
+| Approved UI | Dashboard/Details/System/Settings/About and dialogs | First-time setup, Forget pairing, stale strings and concrete interaction defects; no new pages or controls |
 
-1. **Working GUI behaviour is the measure of progress.** A useful change connects or repairs an existing control and its real Rust application behaviour.
-2. **The prototype is the design.** Retain the present Dashboard, Details, System, Settings, About and approved dialogs. Do not reintroduce Activity, search/filter, new pages, persistent preferences, a new wizard or second-instance activation.
-3. **One Rust backend for GUI and CLI.** Reuse the current `gui_model`, native discovery, planner, configuration, protected runner, worker, Named Pipes, lock and journal. The GUI must not implement a second GPU-PV system.
-4. **Use capabilities already present.** Before coding a slice, check its actual entry points and identify the missing production behaviour. Fix integration gaps; do not recreate completed workers or test harnesses.
-5. **Test proportionately, at the right time.** Write focused tests for meaningful new logic, but do not run builds, test suites, UI launches or qualification after every edit. Follow the milestone/explicit-request testing policy in `AGENTS.md`. Mark unvalidated code *implemented — validation pending*, never *qualified*.
-6. **Preserve security.** Review, elevation, VM identity, driver trust, authenticated IPC, readback, recovery and separate downtime approval are product requirements, not dispensable testing overhead.
-7. **Keep moving.** If a task is blocked by a real provider/API limitation or prohibited live test, record the exact blocker and take the next safe implementation slice. Do not open an investigation campaign merely because testing is unavailable.
+`src/worker.rs` requires protected enrollment and the installed main executable before launch. `runner::install` replaces the enrollment set; it is not a safe incremental GUI enrollment command. CLI `forget` deletes credentials, not pairing authority. Presence of Apply/Verify handlers is implementation evidence, not end-to-end acceptance.
 
-## Current baseline — source inspection, 10 October 2026
+## Delivery order
 
-The repository already contains:
-
-- The approved Slint GUI at `src/gui/ui/`, with Rust presentation in `src/gui/`.
-- No-argument GUI launch, explicit headless CLI commands, and Windows GUI/console handling reported complete under `APP-001`.
-- Real live inventory/Refresh/System; separately labelled `--mock-gui` fixture and historical snapshot rehearsal.
-- Shared Rust plan preview, recorded-state reporting, GUID-keyed configuration parser, protected committed configuration read, credential support and in-memory draft model.
-- **Source implementations** of live GUI Apply, graphics Verify, save-only retry, manual reconciliation and progress callbacks in `src/gui/live.rs`, with restricted-worker functions in `src/worker.rs`. **Do not mistake the presence of these paths for complete end-to-end qualification.** Inspect them before scheduling more integration work.
-- An unresolved first-time GUI enrollment path: `src/gui/live_state.rs` still directs unenrolled users to CLI installation. Compute/Encode/Decode editing is rejected there; the GPU Memory slider has no validated real-unit meaning.
-
-These are code/status observations, **not claims that live GPU effects, installation, or release qualification passed**. Several older explanatory strings and backlog summaries still say Apply/Verify are unavailable; reconcile them with the implemented action handlers rather than duplicating those handlers.
-
-## Delivery slices
-
-| Slice | Outcome visible to user | Owner IDs | State / next gate |
+| Milestone | Implementation outcome | Dependencies | Completion gate |
 |---|---|---|---|
-| **D1 — Application shell** | Approved GUI starts normally; CLI remains headless; mock is explicit | GUI-001, APP-001, CORE-012 | **Implemented / historically checked.** No new design task. |
-| **D2 — Accurate live configuration** | Per-VM committed intent, observed GPU state, selected VM and one unsaved draft stay separate; Refresh handles missing/invalid/stale data | GUI-002, CFG-001, CORE-021 | **Partially in source.** Finish actual binding defects and prove no accidental defaults; do not build another parser. |
-| **D3 — First-time use** | Select an existing Gen 2 VM and discovered physical GPU; stage, review and securely enroll a pair from existing Details controls | GUI-002, SEC-001, CORE-021 | **Open priority.** CLI-only enrollment is not a complete GUI journey. |
-| **D4 — Supported GPU settings** | Edit and preview truthful supported VRAM/Compute/Encode/Decode Min/Optimal/Max settings, with accurate capability limits and readback | GPU-010, GUI-002, CORE-028 | **Open.** Existing raw VRAM path is partial; unsupported categories remain clearly blocked until supported. |
-| **D5 — Protected operations and recovery** | Existing Review/Apply/Verify/Disable, progress, protected saving, save-only retry and manual recovery work through the shared Rust backend | SEC-001, CORE-028, CFG-001, GUI-002 | **Substantial source exists; integration and acceptance open.** Inspect current handlers and worker before writing more. |
-| **D6 — Finish the application** | Existing controls, dialogs, layout, keyboard/focus, DPI and software-renderer fallback work as approved | GUI-003, GUI-002 | **Partly checked.** Finish only user-visible gaps. |
-| **R1 — Distribution candidate** | Packaged Windows executable, correct installer/uninstaller, operator guide, notices, supported-path acceptance | CORE-017, DOC-003, GPU-014 | **Not yet accepted.** Requires separate, controlled validation. |
+| **M1 — Product foundation** | Existing-VM scope, native backend, protected runner, lab separation | Historical baseline | Accepted historically; preserve [M1](evidence/M1.md), do not restart |
+| **M2 — NVIDIA baseline and host safety** | Retain working attach/render/disable paths; finish the already identified bounded transfer work | Existing core | Source completion, independent review of changed boundaries, then separately authorized affected-path stability qualification |
+| **M3 — Functional Slint product** | Complete the implementation stages below through approved controls | Existing M1/core; M2 acceptance gates live validation, not safe source work | All M3 coding tasks implemented, material boundary reviews complete, then explicit authorization for proportionate milestone validation |
+| **R1 — Windows distribution candidate** | Package actual artifacts and operator instructions; implement missing update/removal lifecycle | Stable implemented interface; package preparation may overlap M3 | M2 safety acceptance + M3 validation + separately authorized packaged acceptance; publication requires its own instruction |
+| **M4 — Later capabilities** | Additional vendors, simultaneous GPU sharing and optional workload/performance work | Qualified baseline and explicit scope | Outside v1.0 queue |
 
-The slices are **implementation order**, not an instruction to run a full qualification suite after each row. Independent, safely implementable work can proceed while a provider-dependent row is blocked.
+### M3 implementation stages
 
-## Milestone gates
+1. **Enrollment backend:** add reviewed, incremental pair authorization and a fixed first-install bootstrap. Preserve other enrolled VMs and operator/artifact authority. Installation/enrollment does not apply GPU effects or fabricate committed intent.
+2. **First-time GUI journey:** allow an eligible existing Gen 2 VM and discovered GPU to reach enrollment review from Details. After enrollment, reload protected state and obtain a separate fresh operation plan before Apply. No CLI dependency for this journey.
+3. **Truthful supported editing:** extend shared schema, capability discovery, plan, native writes/readback and recovery to VRAM/Compute/Encode/Decode Min/Optimal/Max. Bind the existing fields only when supported. Implement reviewed GPU replacement with attribution and interruption handling. GPU Memory slider needs a demonstrated provider mapping; keep it unavailable until then.
+4. **Complete existing workflows:** finish Forget pairing, recovery-state synchronization, accurate availability/help, and shared production-format fixture intent. Reuse existing Apply/Verify/publication/import/reconciliation handlers.
+5. **Finish existing interactions:** repair concrete focus/dialog/scrolling/close defects within the approved layout. DPI, accessibility and software-renderer acceptance belong to milestone validation.
 
-### M1 — Existing-VM product foundation: accepted historically
+Independent ready tasks may run while enrollment or provider work is blocked. M2 containment/qualification is a separate lane; it must not become a prerequisite for every GUI edit. Each coding task has its own implementation criterion; completing one does not complete M3 or authorize validation.
 
-Native Windows/Hyper-V discovery, existing-VM scope, enrollment boundaries, protected runner and lab separation. Retain the [M1 evidence](evidence/M1.md). Do not repeat M1 to earn progress.
+### M3 completion criteria
 
-### M2 — NVIDIA baseline: existing evidence; stability hold open
+- A normal user can select and enroll an eligible existing VM/GPU, draft settings, review and request supported operations through the approved UI.
+- Enrollment authority, committed desired intent, observed attachment, historical graphics/preparation records and unsaved drafts remain distinct. Missing/unreadable/stale state never becomes an invented default or success.
+- Four resource categories are represented through shared Rust types with explicit capability/unsupported/unset semantics and independent readback. Baseline support must be established before claiming the initial-release allocation requirement complete; disabling every missing field does not satisfy it. No invented GiB, percentages, hard limits or enforcement claims.
+- GPU replacement and Forget pairing have bounded exact-target contracts; no implicit destructive guest cleanup, authority broadening or loss of unresolved recovery.
+- Apply/disable, Verify, progress, verified saving, save-only retry and manual reconciliation use the shared core. Fresh plan/identity checks, credentials, UAC and separate guest downtime consent remain mandatory.
+- Common operation admission and durable recovery holds work across GUI/CLI/worker, including after process exit. Save failures never replay GPU effects; uncertain outcomes never imply no mutation.
+- Multiple VM configurations remain supported, with the approved selected-VM editing model and serialized operations. This is not simultaneous GPU-sharing qualification or a new batch-control requirement.
+- Fixtures/snapshots are explicitly simulated/historical and strictly no-write/no-effect. No fixture fallback after live discovery failure, suppressed runner audit or guest probe in rehearsal.
+- All planned M3 tasks are implemented and necessary independent boundary reviews are complete before the explicitly authorized validation gate. Deferred checks remain recorded as pending.
 
-Preserve the previously reported attach/render/disable evidence in [M2](evidence/M2.md). A **10 October 2026 Reapply-associated host lockup** leaves ARCH-001/GPU-012 stability acceptance open; its cause has not been established. **No Reapply stress, hang reproduction or other potentially destabilising live qualification without new explicit permission and an appropriate safety decision.** This does not prohibit independent GUI/Rust coding. See [incident evidence](evidence/reapply-investigation-20261010.md).
+## Validation and release lanes
 
-### M3 — Working Slint product: principal development milestone
+**M2 / ARCH-001 / GPU-012:** the earlier investigation was closed by user direction; preserve its history. The separate 10 October Reapply-associated host lockup remains unresolved, with no established cause. Admission reuse, WMI completion/payload limits, bootstrap publication and bounded acknowledged transfer source work are implemented and statically reviewed, pending validation; they are not a stability pass. Deferred closure gates and containment limits are described in [source containment](evidence/m2-source-containment-20261010.md). No hang reproduction, Reapply stress or new live exercise without explicit permission and a bounded safety decision.
 
-Complete D2–D6 using existing GUI controls and shared backend. Acceptance requires:
-- Existing user-selected Gen 2 VM/GPU can be represented, enrolled and configured without the CLI for the approved GUI journey.
-- Intended/observed/draft state are never confused; stale, missing and unavailable data are truthful.
-- Only supported provider units and values can be applied; unsupported fields are not silently accepted.
-- Real actions, if authorised, use fresh plans, independently checked protected identity, elevation and separate guest downtime consent.
-- Saved per-VM intent is bound to verified readback; failed saving permits save-only retry, not GPU replay.
-- Host-wide modifying-operation admission and unresolved recovery holds apply across GUI/CLI/worker. Uncertain effects require manual reconciliation.
-- Existing UI interactions work across the target Windows environments; no retired feature is reintroduced.
+**M3:** after all planned source tasks and applicable independent reviews, obtain explicit authorization for the relevant existing Rust/build gates and GUI acceptance. Use focused logic/failure coverage and approved UI checks; no new testing infrastructure campaign. Live Hyper-V/GPU/driver/VM-power, runner installation/update/exercise and guest changes require separate explicit authorization and M2 safety readiness.
 
-Finish source implementation before one **explicitly authorised, proportionate milestone validation**. Record any untested conditions accurately rather than relaunching laboratory research.
+**R1 / CORE-017 / DOC-003 / GPU-014:** ship the main application with its required protected runner, guest worker and checked D3D11 probe. Verify fixed sibling artifacts, prerequisites, protected ProgramData lifecycle, install/update/removal/recovery, CLI/GUI parity and notices against the candidate. Reuse native installation; no new installer framework or assumed existing uninstaller. Exclude laboratory data, disks/media, secrets and proprietary drivers without redistribution rights. A build or old render pass is not candidate acceptance.
 
-### R1 — Packaged v1.0: release gate
+## Non-negotiable boundaries
 
-Package and inspect the actual Windows candidate, CLI/GUI mode dispatch, ProgramData ownership and lifecycle, required payloads, notices, installer/update/removal and current user guide. Perform **separately authorised** changed-path host/guest qualification after the M2 stability hold is addressed. A build, mock replay or old baseline pass is not an end-to-end release pass; packaging does not grant permission to publish.
+Rust owns product logic and normal installation/recovery. Only DEC-028's fixed PowerShell Direct session/transfer/bootstrap-integrity/launch bridge is retained; laboratory tooling stays outside the product graph. Reuse working modules rather than restart native migration, diagnostics or feasibility work.
 
-### M4 — Later, not v1.0 blockers
+Use exact discovered VM GUID/GPU identities and signed dynamic driver payloads. Preserve disks, CPU/RAM quantities, Secure Boot, ACL/reparse checks, trusted artifacts, authenticated IPC, audit and recovery. Never authorize operations from imported configuration or GUI draft text. Never reboot/shut down/log out the physical host without immediate explicit permission.
 
-Additional vendors, simultaneous same-GPU VM sharing and optional CUDA/stress/optimization experiments are separate conditional work. No claim of a GPU scheduler, fair sharing or enforced physical-GB limits.
-
-## Hard technical and safety boundaries
-
-- Windows Hyper-V Generation 2 VMs, NVIDIA first; identify targets by VM GUID and exact discovered GPU interface, not name or test slot.
-- Product Rust only, except the narrow approved PowerShell Direct bridge. Lab helpers belong outside the product dependency graph.
-- Use the selected versioned per-VM TOML contract in [CONFIGURATION.md](CONFIGURATION.md); current schema 2 supports optional **raw VRAM** but not the other three categories. Extend schema explicitly when qualified; do not silently reinterpret or discard values.
-- GPU Memory slider remains illustrative until its exact Windows/provider mapping is demonstrated. Never label opaque provider values as GiB or promise enforcement.
-- Preserve VM disks, CPU/RAM, Secure Boot, driver trust, credentials, journals, ACL/reparse protection and the required runner audit. Mock rehearsal is strictly no-write/no-effect; an audited runner read is not a no-write mock read.
-- Never silently reboot, shut down or log out the physical host. Further live Hyper-V/GPU/driver/VM-power operations for this GUI push require explicit permission. Never bypass uncertain-state holds.
-- Do not ship drivers, guest disks/ISOs, credentials, keys, proprietary payloads without rights, or fixed laboratory paths.
-
-## The handoff rule
-
-At the start of a coding session, use [BACKLOG.md — Next implementation action](BACKLOG.md#next-implementation-action), inspect the affected source, and **make the product change**. At handoff, record what behaviour changed, files edited, what remains blocked, and whether validation was deferred. Do not substitute another global audit, test-suite improvement or documentation rewrite for an available GUI implementation task.
+The next implementation task is always the first ready card in [BACKLOG](BACKLOG.md#next-implementation-action). GPU-010 is an initial-release requirement; optional CUDA/stress, HCS, vendor expansion, fair-sharing claims, persistent preferences, extra pages and removed prototype controls are outside the active path.

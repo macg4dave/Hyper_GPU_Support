@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-10 - Bounded preparation transfer source
+
+- Rust validates ordered file/byte acknowledgements from fixed transport chunks,
+  with per-file, stall and setup/gap budgets. Retain independent guest hashes and
+  durable uncertainty; bounded progress IPC can delay local termination by 20 seconds.
+- Forward real acknowledged totals through worker progress and coalesce the GUI
+  transfer row so later outcomes stay visible. Added unexecuted regression tests.
+  Independent static boundary review completed; builds/tests and live qualification
+  remain deferred. M2 stability acceptance remains open.
+
 ## 2026-10-10 - GUI delivery instructions and configuration refresh
 
 - Aligned active AI prompts with the rewritten roadmap/backlog; centralized

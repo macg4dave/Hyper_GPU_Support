@@ -10,15 +10,57 @@ function Write-Stage([string]$stage, [string]$status, [string]$context, [long]$d
     $diagnostic.Write($bytes, 0, $bytes.Length)
     $diagnostic.Flush($true)
 }
-function Copy-Logged([string]$source, [string]$destination) {
+$transferIndex = 0
+$transferTotal = [long]0
+function Write-Transfer([string]$kind, [long]$bytes) {
+    [Console]::Error.WriteLine("HGTRANSFER $kind $script:transferIndex $bytes")
+}
+function Copy-Logged([string]$source, [string]$destination, [long]$expectedBytes) {
     Write-Stage 'file-copy' 'start' "$source -> $destination"
     $timer = [Diagnostics.Stopwatch]::StartNew()
+    $inputFile = $null
+    Write-Transfer 'begin' 0
     try {
-        Copy-Item -LiteralPath $source -Destination $destination -ToSession $session -Force
+        # Fixed stream transfer only: Rust owns membership, lengths, deadlines,
+        # acknowledgement validation and final independent guest authentication.
+        $inputFile = [IO.File]::Open($source, 'Open', 'Read', 'Read')
+        if ($inputFile.Length -ne $expectedBytes) { throw 'Transfer source length changed' }
+        Invoke-Command -Session $session -ArgumentList $destination -ScriptBlock {
+            param($path)
+            $global:hyperGpuTransfer = [IO.File]::Open($path, 'Create', 'Write', 'None')
+        }
+        $buffer = [byte[]]::new(1048576)
+        $copied = [long]0
+        while (($count = $inputFile.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            if ($count -gt ($expectedBytes - $copied)) { throw 'Transfer source grew' }
+            # A byte-array is one typed remoting argument, never a command/path.
+            $ack = Invoke-Command -Session $session -ArgumentList $buffer, $count -ScriptBlock {
+                param([byte[]]$chunk, [int]$count)
+                $global:hyperGpuTransfer.Write($chunk, 0, $count)
+                $global:hyperGpuTransfer.Flush()
+                $global:hyperGpuTransfer.Position
+            }
+            $copied += $count
+            if ([long]$ack -ne $copied) { throw 'Transfer acknowledgement mismatch' }
+            Write-Transfer 'bytes' $copied
+        }
+        if ($copied -ne $expectedBytes) { throw 'Transfer source shortened' }
+        Invoke-Command -Session $session -ScriptBlock {
+            $global:hyperGpuTransfer.Flush($true)
+            $global:hyperGpuTransfer.Dispose()
+            $global:hyperGpuTransfer = $null
+        }
+        Write-Transfer 'end' $copied
+        $script:transferTotal += $copied
+        $script:transferIndex++
         Write-Stage 'file-copy' 'done' "$source -> $destination" $timer.ElapsedMilliseconds
     } catch {
         Write-Stage 'file-copy' 'failed' "$source -> $destination; HRESULT=$($_.Exception.HResult)" $timer.ElapsedMilliseconds
         throw
+    } finally {
+        if ($inputFile) { $inputFile.Dispose() }
+        # On failure, retain partial guest state for explicit reconciliation.
+        # Rust kills the local bridge on deadline; that is not guest cancellation.
     }
 }
 try {
@@ -101,7 +143,7 @@ try {
             $file.Dispose()
             Set-Acl -LiteralPath $path -AclObject (Get-Acl -LiteralPath (Split-Path $path))
         }
-        Copy-Logged (Join-Path $r.install $a.name) $staged
+        Copy-Logged (Join-Path $r.install $a.name) $staged $a.bytes
         $timer.Restart()
         Write-Stage 'bootstrap-publication' 'start' $a.name
         Invoke-Command -Session $session -ArgumentList $staged, $destination, $a.hash -ScriptBlock {
@@ -172,7 +214,7 @@ try {
         }
         Write-Stage 'transfer-leaves' 'done' $bundle $timer.ElapsedMilliseconds
         for ($i = 0; $i -lt $r.manifest.files.Count; $i++) {
-            Copy-Logged $r.manifest.files[$i].source (Join-Path $bundle ([string]$i))
+            Copy-Logged $r.manifest.files[$i].source (Join-Path $bundle ([string]$i)) $r.manifest.files[$i].bytes
         }
         $timer.Restart()
         Write-Stage 'manifest-copy-and-acls' 'start' $bundle
@@ -188,6 +230,7 @@ try {
         }
     }
     Write-Stage 'transfer-complete' 'done' $bundle $timer.ElapsedMilliseconds
+    Write-Transfer 'done' $transferTotal
     $timer.Restart()
     Write-Stage 'guest-integrity-and-worker' 'start' $r.mode
     $output = Invoke-Command -Session $session -ArgumentList $root, $bundle, $r.mode, $r.vendor, $r.device, $r.artifacts, $r.diagnostics -ScriptBlock {

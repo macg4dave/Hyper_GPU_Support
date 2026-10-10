@@ -673,7 +673,18 @@ fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support:
     move |progress| {
         let _ = weak.upgrade_in_event_loop(move |ui| {
             let mut rows: Vec<_> = ui.get_stages().iter().collect();
-            if rows.len() < 256 {
+            if progress.stage.starts_with("Transfer acknowledged:")
+                && rows
+                    .last()
+                    .is_some_and(|row| row.starts_with("Transfer acknowledged:"))
+            {
+                if let Some(row) = rows.last_mut() {
+                    *row = format!("{} · {:?}", progress.stage, progress.status).into();
+                }
+            } else {
+                if rows.len() >= 256 {
+                    rows.remove(0);
+                }
                 rows.push(format!("{} · {:?}", progress.stage, progress.status).into());
             }
             ui.set_stages(model(rows));

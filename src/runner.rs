@@ -945,6 +945,22 @@ impl Backend for NativeBackend {
                 .ok_or("guest credentials required")?,
         )
     }
+    fn prepare_with_progress(
+        &mut self,
+        t: &Target,
+        progress: &mut dyn FnMut(u64, u64, usize, usize) -> Result<(), String>,
+    ) -> Result<String, String> {
+        crate::guest::prepare_with_progress(
+            t,
+            self.manifest
+                .as_ref()
+                .ok_or("payload must be discovered before preparation")?,
+            self.credential
+                .as_ref()
+                .ok_or("guest credentials required")?,
+            progress,
+        )
+    }
 }
 
 #[cfg(test)]

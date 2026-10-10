@@ -92,6 +92,14 @@ Prepare a running guest without a newly attached GPU. The fixed Rust guest worke
 validates transferred inputs, derives Windows destinations, verifies copies and
 publishes a receipt. A narrow PowerShell Direct bridge supplies session, transfer,
 bootstrap integrity and fixed worker launch only; DEC-028 records its exception.
+The fixed bridge sends at most 1 MiB per remote stream write. Rust validates
+ordered acknowledgements against complete expected bootstrap/payload lengths,
+with 300-second per-file, 60-second no-byte-progress and 240-second setup/gap
+budgets. Coalesced worker progress reports acknowledged transport bytes/files,
+not authenticated preparation. Existing progress IPC may delay local kill-job
+termination by up to 20 seconds beyond a budget; the 3,600-second outer process
+budget has the same delivery caveat. Local termination cannot establish guest
+cancellation; interrupted transfer retains the existing durable recovery hold.
 Then shut down gracefully, configure/attach, start and verify. Restore initial power
 state. A running unchanged target is verified without a restart.
 

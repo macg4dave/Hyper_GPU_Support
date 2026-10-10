@@ -376,7 +376,7 @@ pub fn bounded_process_with_limit(
     limit: usize,
     input: &[u8],
 ) -> Result<ProcessOutput, BoundedProcessError> {
-    supervise(command, timeout, limit, input, None)
+    supervise(command, timeout, limit, input, None, &mut || Ok(()))
 }
 
 pub(crate) fn bounded_process_with_monitor(
@@ -385,8 +385,9 @@ pub(crate) fn bounded_process_with_monitor(
     limit: usize,
     input: &[u8],
     monitor: Arc<dyn StderrMonitor>,
+    poll: &mut dyn FnMut() -> Result<(), String>,
 ) -> Result<ProcessOutput, BoundedProcessError> {
-    supervise(command, timeout, limit, input, Some(monitor))
+    supervise(command, timeout, limit, input, Some(monitor), poll)
 }
 
 fn supervise(
@@ -395,6 +396,7 @@ fn supervise(
     limit: usize,
     input: &[u8],
     monitor: Option<Arc<dyn StderrMonitor>>,
+    poll: &mut dyn FnMut() -> Result<(), String>,
 ) -> Result<ProcessOutput, BoundedProcessError> {
     let end = Instant::now() + timeout;
     use std::os::windows::process::CommandExt;
@@ -469,6 +471,22 @@ fn supervise(
             failure = Some(BoundedProcessError::Execution(error));
             break None;
         }
+        if let Err(error) = poll() {
+            failure = Some(BoundedProcessError::Execution(error));
+            break None;
+        }
+        // The worker's existing progress pipe can spend up to 15 seconds sending
+        // plus 5 seconds draining cancellation. Recheck before accepting exit;
+        // local termination can lag a monitor deadline by that bounded delivery.
+        if Instant::now() >= end {
+            break None;
+        }
+        if let Some(monitor) = &monitor
+            && let Err(error) = monitor.check(Instant::now())
+        {
+            failure = Some(BoundedProcessError::Execution(error));
+            break None;
+        }
         match child.try_wait() {
             Ok(Some(s)) => break Some(s),
             Ok(None) => thread::sleep(Duration::from_millis(10)),
@@ -515,6 +533,7 @@ fn supervise(
         if let Some(monitor) = &monitor {
             monitor.finish()?;
         }
+        poll()?;
     }
     Ok(ProcessOutput {
         exit_code: status.code(),
@@ -625,5 +644,63 @@ mod tests {
         .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(result.exit_code, Some(7));
         assert_eq!(result.stderr, "fixed failure");
+    }
+
+    #[test]
+    fn transfer_monitor_refuses_skipped_and_incomplete_child_acknowledgements() {
+        for script in [
+            "[Console]::Error.WriteLine('HGTRANSFER begin 1 0'); Start-Sleep -Seconds 30",
+            "[Console]::Error.WriteLine('HGTRANSFER begin 0 0'); exit 0",
+        ] {
+            let mut command =
+                Command::new(crate::windows_paths::windows_powershell_executable().unwrap());
+            command.args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                script,
+            ]);
+            let monitor =
+                Arc::new(crate::guest_transfer::Monitor::new(vec![1], Instant::now()).unwrap());
+            let result = bounded_process_with_monitor(
+                command,
+                Duration::from_secs(15),
+                1024,
+                &[],
+                monitor,
+                &mut || Ok(()),
+            );
+            assert!(matches!(result, Err(BoundedProcessError::Execution(_))));
+        }
+    }
+
+    #[test]
+    fn transfer_control_records_are_separate_from_bounded_diagnostics() {
+        let mut command =
+            Command::new(crate::windows_paths::windows_powershell_executable().unwrap());
+        command.args([
+            "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+            "[Console]::Error.WriteLine('HGTRANSFER begin 0 0'); [Console]::Error.WriteLine('HGTRANSFER bytes 0 1'); [Console]::Error.WriteLine('HGTRANSFER end 0 1'); [Console]::Error.WriteLine('HGTRANSFER done 1 1'); [Console]::Error.WriteLine('fixed diagnostic'); [Console]::Out.Write('receipt')",
+        ]);
+        let monitor =
+            Arc::new(crate::guest_transfer::Monitor::new(vec![1], Instant::now()).unwrap());
+        let mut progress = None;
+        let result = bounded_process_with_monitor(
+            command,
+            Duration::from_secs(15),
+            1024,
+            &[],
+            monitor.clone(),
+            &mut || {
+                progress = monitor.take_progress(Instant::now())?.or(progress);
+                Ok(())
+            },
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(result.stdout, "receipt");
+        assert_eq!(result.stderr.trim(), "fixed diagnostic");
+        let p = progress.unwrap();
+        assert_eq!((p.bytes, p.total, p.files, p.count), (1, 1, 1, 1));
     }
 }

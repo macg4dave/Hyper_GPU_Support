@@ -1097,7 +1097,34 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
         self.effect("Provider allocation", |b| b.allocation(t, a))
     }
     fn prepare(&mut self, t: &Target) -> Result<String, String> {
-        self.effect("Prepare current signed payload", |b| b.prepare(t))
+        if let Some(before) = &mut self.before_effect {
+            before()?;
+        }
+        (self.notify)(Progress {
+            stage: "Prepare current signed payload".into(),
+            status: StageStatus::Running,
+        })?;
+        let result = crate::diagnostics::run(
+            "Prepare current signed payload",
+            "approved-worker",
+            || {
+                self.backend.prepare_with_progress(t, &mut |bytes, total, files, count| {
+            (self.notify)(Progress {
+                stage: format!("Transfer acknowledged: {bytes}/{total} bytes, {files}/{count} files; verification pending"),
+                status: StageStatus::Running,
+            })
+        })
+            },
+        );
+        (self.notify)(Progress {
+            stage: "Prepare current signed payload".into(),
+            status: if result.is_ok() {
+                StageStatus::Done
+            } else {
+                StageStatus::Failed
+            },
+        })?;
+        result
     }
     fn verify(&mut self, t: &Target, g: &Gpu) -> Result<(), String> {
         self.effect("Check guest health and hardware rendering", |b| {

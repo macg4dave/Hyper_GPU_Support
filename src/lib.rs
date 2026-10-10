@@ -8,6 +8,8 @@ pub mod credentials;
 mod diagnostics;
 #[cfg(windows)]
 pub mod guest;
+#[cfg(windows)]
+mod guest_transfer;
 pub mod gui_model;
 pub mod model;
 pub mod payload;

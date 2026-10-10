@@ -63,6 +63,16 @@ pub trait Backend {
     fn allocation(&mut self, target: &Target, value: &Allocation) -> Result<(), String>;
     /// Prepare the current payload in the running guest; return independently verified digest.
     fn prepare(&mut self, target: &Target) -> Result<String, String>;
+    /// Prepare with (acknowledged bytes, total bytes, completed files, total files).
+    /// Adapters without transport retain stage progress only.
+    fn prepare_with_progress(
+        &mut self,
+        target: &Target,
+        progress: &mut dyn FnMut(u64, u64, usize, usize) -> Result<(), String>,
+    ) -> Result<String, String> {
+        let _ = progress;
+        self.prepare(target)
+    }
     /// Require device health and checked hardware rendering.
     fn verify(&mut self, target: &Target, gpu: &Gpu) -> Result<(), String>;
 }
