@@ -1473,6 +1473,7 @@ mod tests {
             decode: None,
         };
         Plan {
+            reinstall: false,
             initial_setup: false,
             desired: target.clone(),
             observed: VmState {

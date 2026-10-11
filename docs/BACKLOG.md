@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**Checkpoint rollback follow-up: APP-019 — Invalidate stale success when verification fails.** APP-016 through APP-018 are source implemented; continue one card at a time through APP-022. The user authorized source work with compilation checks where useful; test execution waits for the agreed milestone checkpoint. APP-023 requires a separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
+**Checkpoint rollback follow-up: APP-021 — Make GPU removal usable after rollback.** APP-016 through APP-020 are source implemented; continue one card at a time through APP-022. The current user request is source-only work without testing; APP-019 and APP-020 ran no build or compilation check. APP-023 requires a separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
 
 **APP-009 / APP-011 — Resolve the allocation contract and complete M2 preparation.** M1 is closed with [gate evidence](evidence/m1-closure.md). The [prepared sequence and source assessment](evidence/m2-preparation.md) record remaining environment facts and proposed effects. Selected-VM setup is already user-accepted; the remaining live sequence has not run. APP-011 source removes the metadata-derived VRAM ceiling; validate these changes at the agreed checkpoint before separately authorized live allocation checks.
 
@@ -30,8 +30,8 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-016 | M2 | Separate authorization from guest setup status | APP-008 | Done (source implemented) | Pending milestone gate and visual acceptance |
 | APP-017 | M2 | Report saved-versus-observed host configuration differences | APP-016 | Done (source implemented) | Pending milestone gate and visual acceptance |
 | APP-018 | M2 | Verify current guest payload after rollback | APP-016 | Done (source implemented) | Compilation check passed; tests and live acceptance pending |
-| APP-019 | M2 | Invalidate stale success when verification fails | APP-016 | Ready | Not run |
-| APP-020 | M2 | Add explicitly reviewed driver reinstall | APP-019 | Blocked: APP-019 | Not run |
+| APP-019 | M2 | Invalidate stale success when verification fails | APP-016 | Done (source implemented) | Pending milestone gate; no compilation or tests run |
+| APP-020 | M2 | Add explicitly reviewed driver reinstall | APP-019 | Done (source implemented; visual acceptance pending) | Pending milestone gate; no compilation or tests run |
 | APP-021 | M2 | Make GPU removal usable after rollback | APP-016 | Ready | Not run |
 | APP-022 | M2 | Remove an inactive pairing and its saved intent | APP-021 | Blocked: APP-021 | Not run |
 | APP-023 | M2 | Qualify checkpoint rollback detection and recovery | APP-017, APP-018, APP-019, APP-020, APP-022 | Blocked: source fixes and live authorization | Not run |
@@ -212,11 +212,19 @@ The current Verify path retains the previous `last_verified` and `prepared` fiel
 
 Acceptance: failed, interrupted, unavailable and successful checks remain distinguishable; historical timestamps stay labeled as history. Proven mismatch invalidates preparation eligibility before another Apply can skip setup. Credential cancellation before admission does not manufacture a guest failure. Persistence/readback failure, start-after-effect error and refused shutdown retain evidence and recovery holds. Add workflow/recovery regressions proving no failure clears a hold, replays work, or certifies old receipts; schema compatibility is explicit.
 
+Implementation (11 October 2026): the protected per-VM journal now records `latest_check` independently of historical `last_verified`. Setup, explicit Verify and graphics reconciliation persist incomplete state before checking, then independently read back the fixed passed/failed/unavailable/payload-mismatch outcome. A proven missing/changed payload or mismatched guest receipt clears preparation eligibility, requiring the preparation sequence even with an unchanged host digest after recovery permits a reviewed operation. Unknown/failed checks cannot use old success to skip verification. Guest-check success remains separate from lifecycle completion; interrupted starts, refused restoration, persistence/readback errors and unfinished publication retain recovery. Read-only review and pre-admission credential cancellation write no outcome. The support summary shows the latest outcome and retains old successful timestamps as history. Added isolated outcome, reopen, same-digest preparation, persistence/readback, lifecycle and schema regressions; no new repair action is included.
+
+Validation: source review, targeted Rust formatting and diff whitespace checks only. No compilation, build, test execution, GUI launch, credentials, guest access, protected writes or VM/GPU effects ran. Regression and live acceptance remain pending the agreed gate.
+
 ### APP-020 — Add explicitly reviewed driver reinstall
 
 Expose a clear Repair / Reinstall action through the existing planner, protected worker and preparation backend. The current Reapply / Update action only stages enabled intent; matching historical receipts can omit preparation. Explicit repair must request the complete preparation/graphics sequence even when the host digest has not changed, without altering ordinary toggle/VRAM behavior.
 
 Acceptance: review binds reinstall intent, exact VM/GPU, current payload, settings, credentials, power transitions and final-off state; a fresh worker plan independently checks that intent before effects. Unchanged host receipts cannot turn repair into a no-op. Complete preparation and selected-hardware verification are required for success. Cover stale approval, pending recovery rejection, partial preparation, failed graphics, shutdown failure and successful same-digest repair. Preserve other VMs and saved resource categories; cancellation has no effects. No automatic repair after reopen or failure.
+
+Implementation (12 October 2026): More actions now offers Repair / Reinstall using the existing enabled draft, review dialog and Apply worker. An explicit `reinstall` flag belongs to the operation plan, not saved settings; the read-only protected planner and fresh worker admission independently derive complete preparation even with unchanged host receipts/digest. Review names the pair/current payload, retained category requests, compatibility settings, guest credentials, power transitions and final-off result. Ordinary toggle/VRAM Apply continues using the ordinary planner. Repair invalidates the preparation receipt before effects, retains historical rendering time, runs the existing authenticated transfer/preparation and current-payload/graphics check, then requires final-off readback. Independently matching destination files may be retained by the existing preparation backend; host history never bypasses the sequence. Recovery/publication holds and save-only handling are reused, with no automatic repair or replay. Added isolated workflow and controller regression source for success, rejection, partial failure, cancellation and other-VM preservation.
+
+Validation: source review, targeted Rust formatting and diff whitespace checks only. No compilation, builds, tests, UI render/launch, credentials, guest operations, protected writes or VM/GPU effects ran. Real menu/review interaction and behavioral acceptance remain pending the agreed gate.
 
 ### APP-021 — Make GPU removal usable after rollback
 

@@ -103,8 +103,8 @@ impl Source {
     fn discover(&self) -> Result<InventoryRead, String> {
         discover()
     }
-    fn plan(&self, target: Target) -> Result<Plan, String> {
-        plan(target)
+    fn plan(&self, target: Target, reinstall: bool) -> Result<Plan, String> {
+        plan(target, reinstall)
     }
     fn credentials(&self, id: &str, name: &str) -> Result<bool, String> {
         credential_dialog(id, name)
@@ -172,13 +172,18 @@ fn discover_status() -> Result<InventoryRead, String> {
 }
 
 #[cfg(windows)]
-fn plan(target: Target) -> Result<Plan, String> {
+fn plan(target: Target, reinstall: bool) -> Result<Plan, String> {
     use hyper_gpu_support::runner::{self, Operation};
-    let value = runner::submit(runner::request(Operation::Plan, Some(target), None))?;
+    let operation = if reinstall {
+        Operation::ReinstallPlan
+    } else {
+        Operation::Plan
+    };
+    let value = runner::submit(runner::request(operation, Some(target), None))?;
     serde_json::from_value(value).map_err(|e| format!("Invalid plan reply: {e}"))
 }
 #[cfg(not(windows))]
-fn plan(_: Target) -> Result<Plan, String> {
+fn plan(_: Target, _: bool) -> Result<Plan, String> {
     Err("Planning requires Windows x64".into())
 }
 
@@ -914,6 +919,16 @@ fn review(
     busy: &Arc<AtomicBool>,
     source: &Source,
 ) -> Result<(), String> {
+    review_operation(ui, state, busy, source, false)
+}
+
+fn review_operation(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+    source: &Source,
+    reinstall: bool,
+) -> Result<(), String> {
     #[cfg(windows)]
     {
         let target = {
@@ -927,6 +942,9 @@ fn review(
             (!state.enrolled(&target)).then_some(target)
         };
         if let Some(target) = target {
+            if reinstall {
+                return Err("Repair / Reinstall requires an authorized VM/GPU pair. Review enrollment first.".into());
+            }
             return review_enrollment(ui, state, busy, target);
         }
     }
@@ -955,12 +973,14 @@ fn review(
                 return Err("Committed configuration changed externally. Draft preserved; discard and Refresh.".into());
             }
             source
-                .plan(target)
+                .plan(target, reinstall)
                 .map(|plan| (plan, protected_worker_available()))
         },
         move |ui, result| match result {
             Ok((plan, worker_available))
-                if plan.desired == expected && plan.observed.vm_id == expected.vm_id =>
+                if plan.desired == expected
+                    && plan.observed.vm_id == expected.vm_id
+                    && plan.reinstall == reinstall =>
             {
                 let gpu_name = review_state
                     .lock()
@@ -994,7 +1014,11 @@ fn review(
                 dialog(
                     ui,
                     "review",
-                    "Review changes before Apply",
+                    if reinstall {
+                        "Review Repair / Reinstall"
+                    } else {
+                        "Review changes before Apply"
+                    },
                     &format!(
                         "Physical GPU: {gpu_name}\n{memory_summary}\n{}\n\nThese changes are still pending. Apply confirms this review; Cancel returns to editing. Windows will request approval before changes. Configuration is saved only after verification.",
                         review_summary(&plan)
@@ -1943,7 +1967,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     ui.on_action(move |action| {
         let Some(ui) = weak.upgrade() else { return; }; if ui.get_running() { return; }
         if action_busy.load(Ordering::Acquire)
-            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "reconcile-enrollment" | "save-only" | "credentials")
+            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "reconcile-enrollment" | "save-only" | "credentials")
         {
             ui.set_notice("VM information is updating. You can keep editing; try this action when the update finishes.".into());
             return;
@@ -1967,6 +1991,12 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 ui.invoke_edited();
                 review(&ui, &action_state, &action_busy, &action_source)
             }
+            "repair" => {
+                // Reuse the enabled draft; reinstall intent belongs only to this review.
+                ui.set_gpu_enabled(true);
+                ui.invoke_edited();
+                review_operation(&ui, &action_state, &action_busy, &action_source, true)
+            }
             "close" => {
                 with_state(&ui, &action_state, |state| {
                     state.cancel_review();
@@ -1985,7 +2015,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "more" => {
-                let body = "Reapply / Update reviews a fresh shared plan. Verify reviews a separate graphics check; both require the protected worker and any guest downtime consent. Forget pairing is not connected.";
+                let body = "Repair / Reinstall reviews complete signed driver preparation and graphics verification even when historical receipts match, and leaves the VM off after success. Verify separately checks current guest files and graphics without reinstalling. Both require the protected worker, guest credentials and any reviewed downtime consent. Resolve pending recovery first. Forget pairing is not connected.";
                 dialog(&ui, "more", "VM actions", body); Ok(())
             },
             "credentials" => {
@@ -2253,6 +2283,7 @@ mod tests {
                 restore_power: Power::Off,
                 verification_only: false,
                 last_verified: None,
+                latest_check: None,
             }),
         );
         assert_eq!(

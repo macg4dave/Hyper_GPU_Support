@@ -28,6 +28,96 @@ pub struct Journal {
     /// UTC Unix seconds of the last successful health/rendering check.
     #[serde(default)]
     pub last_verified: Option<u64>,
+    /// Latest admitted guest check, separate from historical successful rendering.
+    #[serde(default)]
+    pub latest_check: Option<GuestCheck>,
+}
+
+/// Durable check facts; no adapter messages or credentials are persisted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuestCheck {
+    /// Admitted check has no durable terminal result; interruption is possible.
+    Interrupted,
+    /// Current payload and graphics check passed; pending lifecycle still takes precedence.
+    Passed,
+    /// Current files or receipt differ from the authenticated expected payload.
+    PayloadMismatch,
+    /// Check failed without establishing a payload mismatch.
+    Failed,
+    /// Current guest facts could not be obtained.
+    Unavailable,
+}
+
+impl Journal {
+    /// Historical receipts are usable for ordinary changes only without a newer adverse check.
+    pub fn setup_eligible(&self) -> bool {
+        self.prepared.is_some()
+            && self.last_verified.is_some()
+            && matches!(self.latest_check, None | Some(GuestCheck::Passed))
+    }
+}
+
+fn check_guest(
+    backend: &mut impl Backend,
+    target: &Target,
+    gpu: &Gpu,
+    journal: &mut Journal,
+) -> Result<(), String> {
+    use crate::reporting::{Component, ComponentFailure, FailureCause};
+    journal.latest_check = Some(GuestCheck::Interrupted);
+    persist_check(backend, target, journal)?;
+    let result = backend.verify(target, gpu);
+    journal.latest_check = Some(match &result {
+        Ok(()) => GuestCheck::Passed,
+        Err(error) => match ComponentFailure::decode(error) {
+            Some(ComponentFailure {
+                component: Component::GuestPayload,
+                cause: FailureCause::FileMissing | FailureCause::FileChanged,
+                ..
+            })
+            | Some(ComponentFailure {
+                component: Component::GuestReceipt,
+                cause: FailureCause::ReadbackMismatch,
+                ..
+            }) => {
+                // The same host digest must not skip preparation after proven guest mismatch.
+                journal.prepared = None;
+                GuestCheck::PayloadMismatch
+            }
+            Some(ComponentFailure {
+                cause:
+                    FailureCause::AccessDenied
+                    | FailureCause::TimedOut
+                    | FailureCause::Unavailable
+                    | FailureCause::InvalidReply,
+                ..
+            }) => GuestCheck::Unavailable,
+            _ => GuestCheck::Failed,
+        },
+    });
+    if let Err(persistence) = persist_check(backend, target, journal) {
+        return Err(match result {
+            Err(primary) => format!("{primary}; check outcome persistence failed: {persistence}"),
+            Ok(()) => format!("check outcome persistence failed: {persistence}"),
+        });
+    }
+    result
+}
+
+fn persist_check(
+    backend: &mut impl Backend,
+    target: &Target,
+    journal: &Journal,
+) -> Result<(), String> {
+    backend.save(target, journal)?;
+    let observed = backend.journal(target)?;
+    if serde_json::to_value(observed).map_err(|e| e.to_string())?
+        != serde_json::to_value(Some(journal)).map_err(|e| e.to_string())?
+    {
+        return Err("check outcome journal readback mismatch; retain recovery".into());
+    }
+    Ok(())
 }
 /// Product result; allocation is provider-defined, without enforcement claims.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -84,7 +174,18 @@ pub trait Backend {
 
 // Gather and validate read-only inputs once; preview and apply share these decisions.
 fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, String> {
+    decision_for_operation(backend, target, false)
+}
+
+fn decision_for_operation(
+    backend: &mut impl Backend,
+    target: &Target,
+    reinstall: bool,
+) -> Result<Decision, String> {
     target.validate()?;
+    if reinstall && !target.enabled {
+        return Err("driver reinstall requires enabled GPU support".into());
+    }
     let initial = backend.inspect(target)?;
     if initial.vm_id != target.vm_id
         || initial.generation != 2
@@ -117,7 +218,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
     // Existing successful preparation + graphics receipts remain valid history.
     let initial_setup = target.enabled
         && !managed.as_ref().is_some_and(|journal| {
-            journal.prepared.is_some() && journal.last_verified.is_some()
+            journal.setup_eligible()
         })
         // An interrupted older operation retains its own recorded lifecycle.
         && managed.as_ref().is_none_or(|journal| {
@@ -134,6 +235,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
         restore_power: initial.power.clone(),
         verification_only: false,
         last_verified: None,
+        latest_check: None,
     });
     if !journal.pending {
         journal.restore_power = Power::Off;
@@ -163,9 +265,8 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
     };
     // The prepared digest is published only after a complete verified preparation.
     // A later Hyper-V failure must not turn that receipt back into partial staging.
-    let stale = target.enabled && journal.prepared != digest;
-    let setup_required =
-        target.enabled && (stale || journal.prepared.is_none() || journal.last_verified.is_none());
+    let stale = target.enabled && (reinstall || journal.prepared != digest);
+    let setup_required = target.enabled && (stale || !journal.setup_eligible());
     let assignment = !initial.gpus.is_empty();
     let settings_change = target.enabled && initial.settings != desired;
     let allocation_change = target.enabled && !target.allocations_match(&initial);
@@ -185,6 +286,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
             .into_iter()
             .any(|r| target.allocation(r).is_some());
     Ok(Decision {
+        reinstall,
         initial,
         gpu,
         managed,
@@ -205,6 +307,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
 
 #[derive(Clone)]
 struct Decision {
+    reinstall: bool,
     initial: VmState,
     gpu: Gpu,
     managed: Option<Journal>,
@@ -227,7 +330,7 @@ struct Decision {
 pub struct PreparationPreview {
     /// Discovered installed driver version.
     pub current_driver: String,
-    /// Preparation must run because its recorded digest is absent or different.
+    /// Preparation must run: missing/different receipt or explicitly reviewed reinstall.
     pub stale: bool,
     /// Authenticated current payload identity, not an operator integrity pin.
     pub digest: String,
@@ -298,6 +401,9 @@ pub struct EffectPreview {
 /// Full plan; enabled targets discover/hash/authenticate the payload, so this is not a dashboard poll.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
+    /// Explicitly reviewed complete driver preparation, even with matching history.
+    #[serde(default)]
+    pub reinstall: bool,
     /// No completed preparation/graphics receipts exist; success must leave the VM off.
     #[serde(default)]
     pub initial_setup: bool,
@@ -320,6 +426,11 @@ pub struct Plan {
 /// Preview apply using the same validation and decisions, without saving or mutating guest/VM state.
 pub fn plan(backend: &mut impl Backend, target: &Target) -> Result<Plan, String> {
     let d = decision(backend, target)?;
+    Ok(plan_from_decision(d, target))
+}
+/// Preview an explicit full reinstall through the ordinary protected operation path.
+pub fn plan_reinstall(backend: &mut impl Backend, target: &Target) -> Result<Plan, String> {
+    let d = decision_for_operation(backend, target, true)?;
     Ok(plan_from_decision(d, target))
 }
 fn plan_from_decision(d: Decision, target: &Target) -> Plan {
@@ -394,10 +505,13 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
         });
     let pending = d.journal.pending;
     let mut summary = Vec::new();
-    if d.initial_setup {
+    if d.reinstall {
+        summary.push("Repair / Reinstall explicitly runs complete signed guest driver preparation, even when historical host receipts match. Files independently confirmed to match may be retained. Complete preparation and selected-hardware graphics verification are required; successful completion leaves the VM off. This is a one-operation request, not an automatic repair policy.".into());
+    }
+    if d.initial_setup && !d.reinstall {
         summary.push("Initial GPU setup includes preparation as needed and checked hardware rendering. Successful completion requires confirmed graceful shutdown; leave the VM off for the user to start in Hyper-V.".into());
     }
-    if d.setup_required && !d.initial_setup {
+    if d.setup_required && !d.initial_setup && !d.reinstall {
         summary.push("GPU setup/update required: completed preparation/graphics evidence is missing or invalid, or differs from the current signed driver. Review the preparation, graphics check and final shutdown before confirming.".into());
     } else if !d.setup_required {
         summary.push("Ordinary GPU change: no guest access, preparation or graphics check. Successful completion leaves the VM off; start it through Hyper-V when ready.".into());
@@ -412,7 +526,9 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     } else if actions.contains(&PreviewAction::Start) {
         summary.push("Temporarily start the guest for preparation or verification.".into());
     }
-    if d.stale {
+    if d.reinstall {
+        summary.push("Reinstall the authenticated payload named in this review; historical receipts cannot skip driver transfer.".into());
+    } else if d.stale {
         summary.push(if d.journal.prepared.is_some() {
             "Refresh guest preparation: the recorded payload differs from the current signed driver."
         } else { "Prepare the current signed driver: no matching completed preparation is recorded." }.into());
@@ -458,6 +574,7 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     }
     summary.push(format!("Final guest power: {:?}. Apply rechecks identity and state; a preview does not reserve them.", d.restore_power));
     Plan {
+        reinstall: d.reinstall,
         initial_setup: d.initial_setup,
         desired: target.clone(),
         observed: d.initial,
@@ -525,7 +642,7 @@ pub(crate) fn admit_approved(
     approved: &Plan,
 ) -> Result<(Plan, AdmittedApply), String> {
     let target = &approved.desired;
-    let d = decision(backend, target)?;
+    let d = decision_for_operation(backend, target, approved.reinstall)?;
     let actual = plan_from_decision(d.clone(), target);
     if serde_json::to_value(&actual).map_err(|e| e.to_string())?
         != serde_json::to_value(approved).map_err(|e| e.to_string())?
@@ -578,6 +695,7 @@ fn execute_decision(
     d: Decision,
 ) -> Result<OperationResult, String> {
     let Decision {
+        reinstall,
         initial,
         gpu,
         mut journal,
@@ -596,14 +714,23 @@ fn execute_decision(
     if needs_changes || setup_required || initial.power != restore_power {
         journal.pending = true;
         journal.verification_only = setup_required && !needs_changes;
+        if setup_required {
+            journal.latest_check = Some(GuestCheck::Interrupted);
+        }
         if stale {
             // A failed refresh may leave a mixture of the old and new payload.
             // Invalidate the old receipt before effects, including if the host
             // later rolls back to that old driver's digest.
             journal.prepared = None;
-            journal.last_verified = None;
+            if !reinstall {
+                journal.last_verified = None;
+            }
         }
-        backend.save(target, &journal)?;
+        if setup_required {
+            persist_check(backend, target, &journal)?;
+        } else {
+            backend.save(target, &journal)?;
+        }
     }
     let operation: Result<OperationResult, String> = (|| {
         if needs_changes {
@@ -655,7 +782,7 @@ fn execute_decision(
             if backend.inspect(target)?.power != Power::Running {
                 backend.power(target, Power::Running)?;
             }
-            backend.verify(target, &gpu)?;
+            check_guest(backend, target, &gpu, &mut journal)?;
             verified = true;
         }
         if backend.inspect(target)?.power != restore_power {
@@ -822,16 +949,18 @@ fn verify_current_payload(
         restore_power: before.power.clone(),
         verification_only: true,
         last_verified: None,
+        latest_check: None,
     });
     journal.restore_power = restore_power;
     journal.pending = true;
     journal.verification_only = true;
-    backend.save(target, &journal)?;
+    journal.latest_check = Some(GuestCheck::Interrupted);
+    persist_check(backend, target, &journal)?;
     let checked = (|| {
         if before.power == Power::Off {
             backend.power(target, Power::Running)?;
         }
-        backend.verify(target, &gpu)
+        check_guest(backend, target, &gpu, &mut journal)
     })();
     // A start error may follow a real state change. Inspect and restore even then,
     // retaining both failures and the durable intent if recovery cannot complete.
@@ -929,13 +1058,15 @@ pub(crate) fn reconcile_with_graphics(
     }
     if check_graphics {
         let gpu = backend.gpu(target)?;
+        journal.latest_check = Some(GuestCheck::Interrupted);
+        persist_check(backend, target, &journal)?;
         // A failed start can follow a real power change. Keep it inside the
         // checked stage so fresh fact checks and safe restoration still run.
         let checked = (|| {
             if observed.power == Power::Off {
                 backend.power(target, Power::Running)?;
             }
-            backend.verify(target, &gpu)
+            check_guest(backend, target, &gpu, &mut journal)
         })();
         let restoration = (|| {
             let current = backend.inspect(target)?;
@@ -1017,6 +1148,8 @@ mod tests {
         gpu_driver: &'static str,
         payload_reads: usize,
         journal_writes: usize,
+        fail_save_at: Option<usize>,
+        fail_read_after_save_at: Option<usize>,
         fail_payload: bool,
         allocation_writes: usize,
         resource_capability: crate::model::ResourceCapability,
@@ -1070,6 +1203,8 @@ mod tests {
             gpu_driver: "new",
             payload_reads: 0,
             journal_writes: 0,
+            fail_save_at: None,
+            fail_read_after_save_at: None,
             fail_payload: false,
             allocation_writes: 0,
             resource_capability: crate::model::ResourceCapability::Supported(Allocation {
@@ -1251,8 +1386,10 @@ mod tests {
             for cause in [
                 FailureCause::FileMissing,
                 FailureCause::FileChanged,
+                FailureCause::ReadbackMismatch,
                 FailureCause::AccessDenied,
                 FailureCause::TimedOut,
+                FailureCause::Unavailable,
             ] {
                 let mut backend = fake();
                 apply(&mut backend, &target()).unwrap();
@@ -1267,6 +1404,30 @@ mod tests {
                 assert!(backend.journal.as_ref().unwrap().pending);
                 assert!(backend.journal.as_ref().unwrap().verification_only);
                 assert_eq!(backend.journal.as_ref().unwrap().last_verified, history);
+                let journal = backend.journal.as_ref().unwrap();
+                let mismatch = matches!(
+                    cause,
+                    FailureCause::FileMissing
+                        | FailureCause::FileChanged
+                        | FailureCause::ReadbackMismatch
+                );
+                assert_eq!(
+                    journal.latest_check,
+                    Some(if mismatch {
+                        GuestCheck::PayloadMismatch
+                    } else {
+                        GuestCheck::Unavailable
+                    })
+                );
+                assert!(!journal.setup_eligible());
+                assert_eq!(journal.prepared.is_none(), mismatch);
+                let reopened: Journal =
+                    serde_json::from_str(&serde_json::to_string(journal).unwrap()).unwrap();
+                assert!(!reopened.setup_eligible());
+                if mismatch {
+                    let repair = decision(&mut backend, &target()).unwrap();
+                    assert!(repair.stale && repair.setup_required);
+                }
                 assert!(
                     !backend
                         .events
@@ -1283,6 +1444,84 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn successful_verify_reconciliation_does_not_resurrect_invalidated_preparation() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.payload_check_failure = Some(crate::reporting::FailureCause::FileChanged);
+        assert!(verify(&mut backend, &target()).is_err());
+        backend.payload_check_failure = None;
+        backend.events.clear();
+        let observed = backend.state.clone();
+        reconcile_with_graphics(
+            &mut backend,
+            &target(),
+            &observed,
+            Power::Off,
+            Some("current"),
+            true,
+        )
+        .unwrap();
+        let journal = backend.journal.as_ref().unwrap();
+        assert!(!journal.pending);
+        assert_eq!(journal.latest_check, Some(GuestCheck::Passed));
+        assert!(journal.prepared.is_none() && !journal.setup_eligible());
+        assert!(!backend.events.contains(&"prepare"));
+        let reviewed = plan(&mut backend, &target()).unwrap();
+        assert!(reviewed.preview.actions.contains(&PreviewAction::Prepare));
+        assert!(reviewed.preview.credentials_required);
+    }
+
+    #[test]
+    fn check_outcomes_survive_interruption_lifecycle_and_publication_failures() {
+        for scenario in 0..6 {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let history = backend.journal.as_ref().unwrap().last_verified;
+            backend.events.clear();
+            match scenario {
+                0 => backend.fail_start_after_effect = true,
+                1 => backend.fail_verify = true,
+                2 => backend.fail_final_shutdown = true,
+                // Refuse terminal check publication, retaining admitted unknown state.
+                3 => backend.fail_save_at = Some(backend.journal_writes + 3),
+                // Refuse lifecycle completion publication, retaining the hold.
+                4 => backend.fail_save_at = Some(backend.journal_writes + 4),
+                _ => backend.fail_read_after_save_at = Some(backend.journal_writes + 3),
+            }
+            assert!(verify(&mut backend, &target()).is_err());
+            let journal = backend.journal.as_ref().unwrap();
+            assert!(journal.pending && journal.verification_only);
+            assert_eq!(journal.last_verified, history);
+            assert_eq!(
+                journal.latest_check,
+                Some(match scenario {
+                    0 | 3 => GuestCheck::Interrupted,
+                    1 => GuestCheck::Failed,
+                    _ => GuestCheck::Passed,
+                })
+            );
+            let events = backend.events.clone();
+            backend.fail_read_after_save_at = None;
+            let approved = plan(&mut backend, &target()).unwrap();
+            assert!(apply_approved(&mut backend, &approved).is_err());
+            assert_eq!(backend.events, events);
+            assert!(backend.journal.as_ref().unwrap().pending);
+        }
+    }
+
+    #[test]
+    fn journal_check_field_is_backward_readable_and_rejects_unknown_outcomes() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let mut value = serde_json::to_value(backend.journal.as_ref().unwrap()).unwrap();
+        value.as_object_mut().unwrap().remove("latest_check");
+        let old: Journal = serde_json::from_value(value.clone()).unwrap();
+        assert!(old.latest_check.is_none() && old.setup_eligible());
+        value["latest_check"] = serde_json::json!("invented_success");
+        assert!(serde_json::from_value::<Journal>(value).is_err());
     }
 
     #[test]
@@ -1409,10 +1648,16 @@ mod tests {
             Ok(self.driver.into())
         }
         fn journal(&mut self, _: &Target) -> Result<Option<Journal>, String> {
+            if self.fail_read_after_save_at == Some(self.journal_writes) {
+                return Err("journal readback unavailable".into());
+            }
             Ok(self.journal.clone())
         }
         fn save(&mut self, _: &Target, j: &Journal) -> Result<(), String> {
             self.journal_writes += 1;
+            if self.fail_save_at == Some(self.journal_writes) {
+                return Err("journal publication denied".into());
+            }
             self.journal = Some(j.clone());
             Ok(())
         }
@@ -1494,7 +1739,12 @@ mod tests {
                 self.events.push("payload-check");
                 return Err(crate::reporting::ComponentFailure {
                     stage: None,
-                    component: crate::reporting::Component::GuestPayload,
+                    component: if matches!(cause, crate::reporting::FailureCause::ReadbackMismatch)
+                    {
+                        crate::reporting::Component::GuestReceipt
+                    } else {
+                        crate::reporting::Component::GuestPayload
+                    },
                     cause,
                     code: None,
                 }
@@ -1544,6 +1794,105 @@ mod tests {
             );
         }
         target
+    }
+
+    #[test]
+    fn same_digest_reinstall_runs_complete_sequence_and_preserves_resource_intent() {
+        for power in [Power::Off, Power::Running] {
+            let mut backend = fake();
+            let target = extended_target();
+            apply(&mut backend, &target).unwrap();
+            backend.state.power = power.clone();
+            backend.events.clear();
+            let writes = backend.journal_writes;
+            let reviewed = plan_reinstall(&mut backend, &target).unwrap();
+            assert!(reviewed.reinstall && reviewed.preview.credentials_required);
+            assert_eq!(reviewed.desired, target);
+            assert_eq!(reviewed.preview.restore_power, Power::Off);
+            assert_eq!(reviewed.preview.guest_downtime, power == Power::Running);
+            assert!(backend.events.is_empty());
+            assert_eq!(backend.journal_writes, writes);
+            let result = apply_approved(&mut backend, &reviewed).unwrap();
+            assert!(result.prepared && result.verified);
+            assert_eq!(result.effective.power, Power::Off);
+            assert!(target.allocations_match(&result.effective));
+            let effects: Vec<_> = backend
+                .events
+                .iter()
+                .copied()
+                .filter(|e| !matches!(*e, "allocation" | "settings"))
+                .collect();
+            let mut expected = vec![
+                "detach", "start", "prepare", "shutdown", "attach", "start", "graphics", "shutdown",
+            ];
+            if power == Power::Running {
+                expected.insert(0, "shutdown");
+            }
+            assert_eq!(effects, expected);
+            assert!(backend.journal.as_ref().unwrap().setup_eligible());
+            assert!(!backend.journal.as_ref().unwrap().pending);
+            let ordinary = plan(&mut backend, &target).unwrap();
+            assert!(!ordinary.reinstall && !ordinary.preview.credentials_required);
+            assert!(!ordinary.preview.actions.contains(&PreviewAction::Prepare));
+        }
+    }
+
+    #[test]
+    fn reinstall_rejects_stale_review_pending_recovery_and_disabled_intent_before_effects() {
+        for scenario in 0..4 {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let mut reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+            match scenario {
+                0 => reviewed.reinstall = false,
+                1 => backend.driver = "changed-after-review",
+                2 => {
+                    backend.journal.as_mut().unwrap().pending = true;
+                    reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+                }
+                _ => reviewed.desired.enabled = false,
+            }
+            backend.events.clear();
+            let writes = backend.journal_writes;
+            assert!(apply_approved(&mut backend, &reviewed).is_err());
+            assert!(backend.events.is_empty());
+            assert_eq!(backend.journal_writes, writes);
+        }
+    }
+
+    #[test]
+    fn reinstall_failure_retains_recovery_and_invalidates_old_success_before_payload_work() {
+        for scenario in 0..4 {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let history = backend.journal.as_ref().unwrap().last_verified;
+            backend.state.power = Power::Running;
+            let reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+            backend.events.clear();
+            match scenario {
+                0 => backend.fail_shutdown = true,
+                1 => backend.fail_prepare = true,
+                2 => backend.fail_verify = true,
+                _ => backend.fail_final_shutdown = true,
+            }
+            assert!(apply_approved(&mut backend, &reviewed).is_err());
+            let journal = backend.journal.as_ref().unwrap();
+            assert!(journal.pending && !journal.verification_only);
+            assert_eq!(journal.last_verified, history);
+            if scenario < 2 {
+                assert!(journal.prepared.is_none());
+            }
+            if scenario == 0 {
+                assert_eq!(backend.events, ["shutdown"]);
+            }
+            if scenario == 1 {
+                assert!(!backend.events.contains(&"attach"));
+            }
+            let events = backend.events.clone();
+            let retry = plan_reinstall(&mut backend, &target()).unwrap();
+            assert!(apply_approved(&mut backend, &retry).is_err());
+            assert_eq!(backend.events, events);
+        }
     }
 
     #[test]
@@ -2167,6 +2516,18 @@ mod tests {
         let result = apply_approved(&mut fleet, &approved).unwrap();
         assert!(result.verified);
         assert_eq!(result.effective.power, Power::Off);
+        assert_eq!(
+            serde_json::to_value(&fleet.0[&first.vm_id].state).unwrap(),
+            first_state
+        );
+        assert_eq!(
+            serde_json::to_value(&fleet.0[&first.vm_id].journal).unwrap(),
+            first_journal
+        );
+        assert_eq!(fleet.0[&first.vm_id].events, first_events);
+        let reinstall = plan_reinstall(&mut fleet, &second).unwrap();
+        let repaired = apply_approved(&mut fleet, &reinstall).unwrap();
+        assert!(repaired.prepared && repaired.verified);
         assert_eq!(
             serde_json::to_value(&fleet.0[&first.vm_id].state).unwrap(),
             first_state

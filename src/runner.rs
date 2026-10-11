@@ -81,6 +81,8 @@ pub enum Operation {
     Status,
     /// Inspect desired changes and authenticate the current preparation payload without effects.
     Plan,
+    /// Read-only preview of an explicitly requested complete driver reinstall.
+    ReinstallPlan,
     /// Read-only preview of the guest verification lifecycle.
     VerifyPlan,
     /// Apply desired GPU state.
@@ -1198,6 +1200,7 @@ fn execute_operation(
             Ok(serde_json::json!({"desired": target, "observed": observed, "managed": inventory.managed.get(&target.vm_id), "recorded": inventory.recorded_state(&target.vm_id), "issues": issues, "provenance": "Fresh Hyper-V read; desired is supplied configuration, not committed intent. Preparation and last graphics verification are historical; current guest health unknown."}))
         },
         Operation::Plan => serde_json::to_value(crate::workflow::plan(&mut backend, &target)?),
+        Operation::ReinstallPlan => serde_json::to_value(crate::workflow::plan_reinstall(&mut backend, &target)?),
         Operation::VerifyPlan => serde_json::to_value(crate::workflow::plan_verification(&mut backend, &target)?),
         Operation::Apply | Operation::Verify => return Err("mutation requires the reviewed per-operation worker; update the frontend and installation".into()),
     }

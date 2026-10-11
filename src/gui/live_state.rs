@@ -634,10 +634,13 @@ pub(super) fn review_summary(plan: &Plan) -> String {
             }
         ),
     ];
-    if plan.initial_setup {
+    if plan.reinstall {
+        lines.insert(1, "Repair / Reinstall: run complete signed driver preparation even with matching history, verify current payload and selected-hardware rendering, then leave the VM off.".into());
+    }
+    if plan.initial_setup && !plan.reinstall {
         lines.insert(1, "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes.".into());
     }
-    if !plan.initial_setup && plan.preview.credentials_required {
+    if !plan.initial_setup && plan.preview.credentials_required && !plan.reinstall {
         lines.insert(1, "GPU setup/update required: preparation changed or is invalid. Review driver work, hardware rendering and final shutdown before confirming.".into());
     } else if !plan.preview.credentials_required {
         lines.insert(1, "Ordinary GPU change: no guest access or graphics check. Leave the VM off after success; start it through Hyper-V when ready.".into());
@@ -1107,6 +1110,7 @@ mod tests {
                 restore_power: Power::Off,
                 verification_only: false,
                 last_verified: None,
+                latest_check: None,
             }),
         );
         let text = s.host_configuration_text(&vm_id);
@@ -1753,6 +1757,7 @@ mod tests {
                     restore_power: Power::Off,
                     verification_only,
                     last_verified: None,
+                    latest_check: None,
                 }),
             );
             s.refresh(next.clone());
@@ -1843,6 +1848,7 @@ mod tests {
             .draft(id(&s), true, 0, &values("10", "50", "100"))
             .unwrap();
         Plan {
+            reinstall: false,
             initial_setup: false,
             desired: target.clone(),
             observed: s.view.vm(id(&s)).unwrap().clone(),
@@ -1925,6 +1931,39 @@ mod tests {
         let text = memory_review(&plan);
         assert!(text.contains("no explicit request"));
         assert!(!text.contains("bytes:"));
+    }
+
+    #[test]
+    fn reinstall_review_is_explicit_cancelable_and_bound_to_selection_and_revision() {
+        let mut s = state();
+        let mut plan = review_plan();
+        plan.reinstall = true;
+        plan.preview.credentials_required = true;
+        plan.preview.actions = vec![
+            hyper_gpu_support::workflow::PreviewAction::Prepare,
+            hyper_gpu_support::workflow::PreviewAction::Verify,
+            hyper_gpu_support::workflow::PreviewAction::Shutdown,
+        ];
+        let target = plan.desired.clone();
+        let revision = s.committed.revision(&target.vm_id).unwrap();
+        let original = target.clone();
+        assert!(review_summary(&plan).contains("Repair / Reinstall"));
+        assert!(review_summary(&plan).contains("matching history"));
+        s.accept_review(plan.clone(), &target, revision.clone())
+            .unwrap();
+        assert!(s.reviewed_plan(&target).unwrap().plan.reinstall);
+        assert_eq!(s.reviewed_plan(&target).unwrap().plan.desired, original);
+        s.view.selected = Some("another-vm".into());
+        assert!(s.reviewed_plan(&target).is_err());
+        s.view.selected = Some(target.vm_id.clone());
+        s.cancel_review();
+        assert!(s.reviewed_plan(&target).is_err());
+        s.accept_review(plan, &target, revision).unwrap();
+        s.committed.documents.remove(&target.vm_id);
+        s.committed
+            .errors
+            .insert(format!("{}.toml", target.vm_id), "unreadable".into());
+        assert!(s.reviewed_plan(&target).is_err());
     }
 
     #[test]

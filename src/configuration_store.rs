@@ -654,6 +654,7 @@ mod tests {
             restore_power: crate::model::Power::Off,
             verification_only: false,
             last_verified: None,
+            latest_check: None,
         };
         let check = |state: &VmState, j: Option<&crate::workflow::Journal>| {
             record.validate_restored_baseline(state, "driver", &Revision::Missing, j)

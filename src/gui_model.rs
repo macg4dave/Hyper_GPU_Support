@@ -1,7 +1,7 @@
 //! Native GUI presentation state; drafts never grant enrollment or mutate Hyper-V.
 use crate::{
     model::{Configuration, Discovery, Power, Resource, Target, VmState},
-    workflow::Journal,
+    workflow::{GuestCheck, Journal},
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
@@ -74,10 +74,17 @@ impl Inventory {
                         "No completed preparation recorded"
                     }
                     .into(),
-                    graphics: journal.last_verified.map_or_else(
+                    graphics: format!("{}{}", match journal.latest_check {
+                        None => "",
+                        Some(GuestCheck::Interrupted) => "Latest check interrupted or incomplete; current guest state unknown. ",
+                        Some(GuestCheck::Passed) => "Latest guest payload and graphics check passed; recovery/lifecycle status applies separately. ",
+                        Some(GuestCheck::PayloadMismatch) => "Latest check found a guest payload mismatch; reviewed preparation is required. ",
+                        Some(GuestCheck::Failed) => "Latest guest check failed; current setup is not certified. ",
+                        Some(GuestCheck::Unavailable) => "Latest guest check unavailable; current setup is unknown. ",
+                    }, journal.last_verified.map_or_else(
                         || "No recorded graphics verification; attachment does not prove guest health".into(),
-                        |time| format!("Last successful checked rendering: Unix UTC {time} (current guest health unknown)"),
-                    ),
+                        |time| format!("Last successful checked rendering: Unix UTC {time} (historical; current guest health unknown)"),
+                    )),
                     recovery_required: journal.pending,
                 }
             }
@@ -534,8 +541,32 @@ mod tests {
             restore_power: Power::Off,
             verification_only: false,
             last_verified: Some(123),
+            latest_check: None,
         }
     }
+    #[test]
+    fn latest_adverse_check_is_visible_after_reopening_with_historical_success() {
+        let mut inventory = inventory();
+        let id = target(1).vm_id;
+        for (outcome, text) in [
+            (GuestCheck::Interrupted, "interrupted"),
+            (GuestCheck::Failed, "check failed"),
+            (GuestCheck::Unavailable, "check unavailable"),
+            (GuestCheck::PayloadMismatch, "payload mismatch"),
+            (GuestCheck::Passed, "check passed"),
+        ] {
+            let mut record = journal();
+            record.latest_check = Some(outcome);
+            record.pending = true;
+            let reopened = serde_json::from_str(&serde_json::to_string(&record).unwrap()).unwrap();
+            inventory.managed.insert(id.clone(), Some(reopened));
+            let shown = inventory.recorded_state(&id);
+            assert!(shown.graphics.contains(text));
+            assert!(shown.graphics.contains("123") && shown.graphics.contains("historical"));
+            assert!(shown.recovery_required);
+        }
+    }
+
     #[test]
     fn unavailable_absent_and_unprepared_records_are_distinct() {
         let mut inventory = inventory();
@@ -678,6 +709,7 @@ mod tests {
             restore_power: Power::Off,
             verification_only: true,
             last_verified: None,
+            latest_check: None,
         };
         let i = v.inventory.as_mut().unwrap();
         i.discovery.vms[0] = vm;
