@@ -153,22 +153,26 @@ fn bridge(
                         component: crate::reporting::Component::GuestTransport,
                         cause: crate::reporting::FailureCause::NativeCall,
                         code: Some(crate::reporting::FailureCode::HResult(code as u32)),
-                    }.into_error());
+                    }
+                    .into_error());
                 }
                 return Err(crate::reporting::ComponentFailure {
                     stage: None,
                     component: crate::reporting::Component::GuestTransport,
                     cause: crate::reporting::FailureCause::ProcessFailed,
                     code: result.exit_code.map(crate::reporting::FailureCode::Exit),
-                }.into_error());
+                }
+                .into_error());
             }
-            let reply: BridgeResult = serde_json::from_str(result.stdout.trim())
-                .map_err(|_| crate::reporting::ComponentFailure {
+            let reply: BridgeResult = serde_json::from_str(result.stdout.trim()).map_err(|_| {
+                crate::reporting::ComponentFailure {
                     stage: None,
                     component: crate::reporting::Component::GuestTransport,
                     cause: crate::reporting::FailureCause::InvalidReply,
                     code: None,
-                }.into_error())?;
+                }
+                .into_error()
+            })?;
             if let Some(code) = reply.worker_exit
                 && code != 0
             {
@@ -180,7 +184,8 @@ fn bridge(
                     component: crate::reporting::Component::GuestTransport,
                     cause: crate::reporting::FailureCause::ProcessFailed,
                     code: Some(crate::reporting::FailureCode::Exit(code)),
-                }.into_error());
+                }
+                .into_error());
             }
             Ok(reply.output)
         },
@@ -211,7 +216,8 @@ pub fn prepare_with_progress(
             component: crate::reporting::Component::GuestReceipt,
             cause: crate::reporting::FailureCause::ReadbackMismatch,
             code: None,
-        }.into_error());
+        }
+        .into_error());
     }
     Ok(digest)
 }
@@ -236,7 +242,8 @@ pub fn verify(t: &Target, gpu: &Gpu, credential: &Credential) -> Result<(), Stri
             component: crate::reporting::Component::GuestGraphics,
             cause: crate::reporting::FailureCause::ReadbackMismatch,
             code: None,
-        }.into_error());
+        }
+        .into_error());
     }
     Ok(())
 }
@@ -280,7 +287,8 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
                 component: crate::reporting::Component::GuestGraphics,
                 cause: crate::reporting::FailureCause::RenderingFailed,
                 code: out.exit_code.map(crate::reporting::FailureCode::Exit),
-            }.into_error());
+            }
+            .into_error());
         }
         let report = crate::probe::parse_success_report(out.stdout.trim(), "d3d11-offscreen")
             .map_err(|e| e.to_string())?;
@@ -293,7 +301,8 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
                 component: crate::reporting::Component::GuestGraphics,
                 cause: crate::reporting::FailureCause::ReadbackMismatch,
                 code: None,
-            }.into_error());
+            }
+            .into_error());
         }
         return Ok(out.stdout);
     }

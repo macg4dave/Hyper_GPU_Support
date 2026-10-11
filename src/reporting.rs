@@ -82,11 +82,16 @@ pub struct ComponentFailure {
 impl ComponentFailure {
     /// Retain typed facts without changing operation/recovery error semantics.
     pub fn into_error(self) -> String {
-        format!("HGFAIL1:{}", serde_json::to_string(&self).expect("fixed failure serialization"))
+        format!(
+            "HGFAIL1:{}",
+            serde_json::to_string(&self).expect("fixed failure serialization")
+        )
     }
 
     pub(crate) fn decode(error: &str) -> Option<Self> {
-        if error.len() > 8192 { return None; }
+        if error.len() > 8192 {
+            return None;
+        }
         // Existing adapters may prepend fixed operation context. Parsing must
         // consume the whole remaining envelope; appended text is never accepted.
         let (_, envelope) = error.split_once("HGFAIL1:")?;
@@ -95,12 +100,14 @@ impl ComponentFailure {
 
     /// Publish only fixed typed facts from the guest worker's failure output.
     pub fn guest_error(error: &str) -> String {
-        Self::decode(error).unwrap_or(Self {
-            stage: None,
-            component: Component::GuestTransport,
-            cause: FailureCause::Unclassified,
-            code: None,
-        }).into_error()
+        Self::decode(error)
+            .unwrap_or(Self {
+                stage: None,
+                component: Component::GuestTransport,
+                cause: FailureCause::Unclassified,
+                code: None,
+            })
+            .into_error()
     }
 
     fn text(&self) -> String {
@@ -110,13 +117,18 @@ impl ComponentFailure {
             Some(FailureCode::Exit(code)) => format!("process exit {code}"),
             None => "no terminal numeric code available".into(),
         };
-        format!("Stage: {:?}\nComponent: {:?}\nCause: {:?}\nCode: {code}", self.stage, self.component, self.cause)
+        format!(
+            "Stage: {:?}\nComponent: {:?}\nCause: {:?}\nCode: {code}",
+            self.stage, self.component, self.cause
+        )
     }
 }
 
 /// Attach fixed worker context to an already structured adapter failure.
 pub(crate) fn failure_at_stage(error: String, name: &str) -> String {
-    let Some(mut failure) = ComponentFailure::decode(&error) else { return error; };
+    let Some(mut failure) = ComponentFailure::decode(&error) else {
+        return error;
+    };
     failure.stage = match name {
         "Persist operation recovery" => Some(FailureStage::RecoveryPersistence),
         "Graceful guest shutdown" | "Start guest" => Some(FailureStage::GuestPower),
@@ -211,7 +223,10 @@ impl Diagnostic {
 /// Present arbitrary failure text safely at the frontend boundary.
 pub fn operator_error(stage: &str, error: &str) -> String {
     if let Some(failure) = ComponentFailure::decode(error) {
-        return format!("{stage}: {:?} reported {:?}. Refresh and inspect recovery before retrying; reconcile uncertain effects rather than repeating Apply.", failure.component, failure.cause);
+        return format!(
+            "{stage}: {:?} reported {:?}. Refresh and inspect recovery before retrying; reconcile uncertain effects rather than repeating Apply.",
+            failure.component, failure.cause
+        );
     }
     // Match application conditions, but emit only fixed text: a matching adapter
     // message can still include secrets and must never be echoed wholesale.
@@ -252,7 +267,11 @@ pub fn operator_error(stage: &str, error: &str) -> String {
 /// adapter text, which can contain credential material even without key labels.
 pub fn technical_error(stage: &str, error: &str) -> String {
     if let Some(failure) = ComponentFailure::decode(error) {
-        return format!("Operation: {stage}\n{}\n{}", failure.text(), operator_error(stage, error));
+        return format!(
+            "Operation: {stage}\n{}\n{}",
+            failure.text(),
+            operator_error(stage, error)
+        );
     }
     let mut codes = Vec::new();
     let lower = error.to_ascii_lowercase();
@@ -337,14 +356,19 @@ mod tests {
             component: Component::HyperV,
             cause: FailureCause::NativeCall,
             code: Some(FailureCode::HResult(0x80070005)),
-        }.into_error();
+        }
+        .into_error();
         let error = failure_at_stage(error, "Attach selected GPU");
         let details = technical_error("Apply", &error);
         assert!(details.contains("GpuAssignment"));
         assert!(details.contains("0x80070005"));
-        assert_eq!(Diagnostic::observation("Apply", None, &error).availability, Availability::Denied);
+        assert_eq!(
+            Diagnostic::observation("Apply", None, &error).availability,
+            Availability::Denied
+        );
         assert!(ComponentFailure::decode(&format!("{error}; private-secret")).is_none());
-        let mut value: serde_json::Value = serde_json::from_str(error.strip_prefix("HGFAIL1:").unwrap()).unwrap();
+        let mut value: serde_json::Value =
+            serde_json::from_str(error.strip_prefix("HGFAIL1:").unwrap()).unwrap();
         value["password"] = "private-secret".into();
         let injected = format!("HGFAIL1:{value}");
         assert!(ComponentFailure::decode(&injected).is_none());

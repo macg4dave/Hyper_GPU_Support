@@ -164,8 +164,8 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
     // The prepared digest is published only after a complete verified preparation.
     // A later Hyper-V failure must not turn that receipt back into partial staging.
     let stale = target.enabled && journal.prepared != digest;
-    let setup_required = target.enabled
-        && (stale || journal.prepared.is_none() || journal.last_verified.is_none());
+    let setup_required =
+        target.enabled && (stale || journal.prepared.is_none() || journal.last_verified.is_none());
     let assignment = !initial.gpus.is_empty();
     let settings_change = target.enabled && initial.settings != desired;
     let allocation_change = target.enabled && !target.allocations_match(&initial);
@@ -1078,11 +1078,7 @@ mod tests {
                 }
             }
             let error = apply_approved(&mut backend, &approved).unwrap_err();
-            assert!(error.contains(if changed == 3 {
-                "selected VM"
-            } else {
-                "stale"
-            }));
+            assert!(error.contains(if changed == 3 { "selected VM" } else { "stale" }));
             assert_eq!(backend.journal_writes, 0);
             assert!(backend.events.is_empty());
         }
@@ -1565,7 +1561,11 @@ mod tests {
                 } else if change == "disable" {
                     t.enabled = false;
                 } else {
-                    t.vram = Some(Allocation { minimum: 10, optimal: 50, maximum: 90 });
+                    t.vram = Some(Allocation {
+                        minimum: 10,
+                        optimal: 50,
+                        maximum: 90,
+                    });
                 }
                 let previous = f.journal.as_ref().unwrap().last_verified;
                 f.state.power = starting_power.clone();
@@ -1601,7 +1601,13 @@ mod tests {
             let approved = plan(&mut f, &target()).unwrap();
             assert!(approved.preview.credentials_required);
             assert!(approved.preview.actions.contains(&PreviewAction::Verify));
-            assert!(approved.preview.summary.iter().any(|text| text.contains("setup")));
+            assert!(
+                approved
+                    .preview
+                    .summary
+                    .iter()
+                    .any(|text| text.contains("setup"))
+            );
             assert!(f.events.is_empty());
             let result = apply_approved(&mut f, &approved).unwrap();
             assert!(result.verified);
@@ -1644,17 +1650,31 @@ mod tests {
         f.fail_verify = true;
         let observed = f.state.clone();
         let result = reconcile_with_graphics(
-            &mut f, &target(), &observed, Power::Off, Some("current"), false,
-        ).unwrap();
+            &mut f,
+            &target(),
+            &observed,
+            Power::Off,
+            Some("current"),
+            false,
+        )
+        .unwrap();
         assert!(!result.verified);
         assert!(f.events.is_empty());
         assert_eq!(f.journal.as_ref().unwrap().last_verified, previous);
         f.journal.as_mut().unwrap().pending = true;
         f.state.power = Power::Running;
         let observed = f.state.clone();
-        assert!(reconcile_with_graphics(
-            &mut f, &target(), &observed, Power::Off, Some("current"), false,
-        ).is_err());
+        assert!(
+            reconcile_with_graphics(
+                &mut f,
+                &target(),
+                &observed,
+                Power::Off,
+                Some("current"),
+                false,
+            )
+            .is_err()
+        );
         assert!(f.events.is_empty());
         assert!(f.journal.as_ref().unwrap().pending);
     }
@@ -1667,7 +1687,11 @@ mod tests {
         f.events.clear();
         f.ignore_shutdown = true;
         let approved = plan(&mut f, &target()).unwrap();
-        assert!(apply_approved(&mut f, &approved).unwrap_err().contains("independent final state"));
+        assert!(
+            apply_approved(&mut f, &approved)
+                .unwrap_err()
+                .contains("independent final state")
+        );
         assert_eq!(f.events, ["shutdown"]);
         assert_eq!(f.state.power, Power::Running);
         let journal = f.journal.as_ref().unwrap();
@@ -1680,11 +1704,19 @@ mod tests {
         let mut f = fake();
         apply(&mut f, &target()).unwrap();
         let mut t = target();
-        t.vram = Some(Allocation { minimum: 10, optimal: 50, maximum: 90 });
+        t.vram = Some(Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 90,
+        });
         f.corrupt_resource = Some(Resource::Vram);
         f.events.clear();
         let approved = plan(&mut f, &t).unwrap();
-        assert!(apply_approved(&mut f, &approved).unwrap_err().contains("independent final state"));
+        assert!(
+            apply_approved(&mut f, &approved)
+                .unwrap_err()
+                .contains("independent final state")
+        );
         assert!(f.events.is_empty());
         assert!(f.journal.as_ref().unwrap().pending);
         assert_eq!(f.state.power, Power::Off);
@@ -1826,7 +1858,8 @@ mod tests {
         assert_eq!(
             f.events,
             [
-                "shutdown", "start", "prepare", "shutdown", "attach", "start", "graphics", "shutdown"
+                "shutdown", "start", "prepare", "shutdown", "attach", "start", "graphics",
+                "shutdown"
             ]
         );
         // The user starts the completed setup through Hyper-V before ordinary work.
@@ -1910,7 +1943,12 @@ mod tests {
             fn settings(&mut self, t: &Target, s: &Settings) -> Result<(), String> {
                 self.selected(t).settings(t, s)
             }
-            fn allocation(&mut self, t: &Target, r: Resource, a: &Allocation) -> Result<(), String> {
+            fn allocation(
+                &mut self,
+                t: &Target,
+                r: Resource,
+                a: &Allocation,
+            ) -> Result<(), String> {
                 self.selected(t).allocation(t, r, a)
             }
             fn prepare(&mut self, t: &Target) -> Result<String, String> {
@@ -1952,13 +1990,23 @@ mod tests {
         let second_journal = serde_json::to_value(&fleet.0[&second.vm_id].journal).unwrap();
         let second_events = fleet.0[&second.vm_id].events.clone();
         let mut ordinary = first.clone();
-        ordinary.vram = Some(Allocation { minimum: 10, optimal: 50, maximum: 90 });
+        ordinary.vram = Some(Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 90,
+        });
         let approved = plan(&mut fleet, &ordinary).unwrap();
         let result = apply_approved(&mut fleet, &approved).unwrap();
         assert!(!result.verified && !result.prepared);
         assert_eq!(result.effective.power, Power::Off);
-        assert_eq!(serde_json::to_value(&fleet.0[&second.vm_id].state).unwrap(), second_state);
-        assert_eq!(serde_json::to_value(&fleet.0[&second.vm_id].journal).unwrap(), second_journal);
+        assert_eq!(
+            serde_json::to_value(&fleet.0[&second.vm_id].state).unwrap(),
+            second_state
+        );
+        assert_eq!(
+            serde_json::to_value(&fleet.0[&second.vm_id].journal).unwrap(),
+            second_journal
+        );
         assert_eq!(fleet.0[&second.vm_id].events, second_events);
     }
 

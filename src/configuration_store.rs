@@ -220,7 +220,10 @@ impl SaveRecord {
     /// Recover the immutable final-power intent without guessing from current state.
     pub fn final_power(&self) -> Result<crate::model::Power, String> {
         let power = self.expected_power.as_ref().unwrap_or(&self.initial.power);
-        if !matches!(power, crate::model::Power::Off | crate::model::Power::Running) {
+        if !matches!(
+            power,
+            crate::model::Power::Off | crate::model::Power::Running
+        ) {
             return Err("recorded final power is unsupported; retain recovery".into());
         }
         Ok(power.clone())
@@ -519,7 +522,11 @@ mod tests {
         let mut running = effective.clone();
         running.power = crate::model::Power::Running;
         record.phase = SavePhase::Verified(running.clone());
-        assert!(record.validate_save_only(&running, "driver", &Revision::Missing).is_err());
+        assert!(
+            record
+                .validate_save_only(&running, "driver", &Revision::Missing)
+                .is_err()
+        );
         record.phase = SavePhase::Verified(effective.clone());
         let mut legacy = serde_json::to_value(&record).unwrap();
         legacy.as_object_mut().unwrap().remove("expected_power");
@@ -527,7 +534,8 @@ mod tests {
         assert_eq!(legacy.final_power().unwrap(), crate::model::Power::Running);
         assert!(legacy.requires_graphics());
         record.graphics_required = Some(false);
-        let ordinary: SaveRecord = serde_json::from_value(serde_json::to_value(&record).unwrap()).unwrap();
+        let ordinary: SaveRecord =
+            serde_json::from_value(serde_json::to_value(&record).unwrap()).unwrap();
         assert!(!ordinary.requires_graphics());
         record.publication_required = false;
         assert!(record.requires_graphics());
@@ -536,7 +544,11 @@ mod tests {
         assert!(record.requires_graphics());
         record.expected_power = Some(crate::model::Power::Other(4));
         assert!(record.final_power().is_err());
-        assert!(record.validate_reconciliation(&effective, "driver").is_err());
+        assert!(
+            record
+                .validate_reconciliation(&effective, "driver")
+                .is_err()
+        );
         record.expected_power = Some(crate::model::Power::Off);
         assert!(record.validate_reconciliation(&effective, "driver").is_ok());
         let mut partial = effective.clone();

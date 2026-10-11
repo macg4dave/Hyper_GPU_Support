@@ -127,7 +127,8 @@ impl MemorySlider {
         if optimal < self.limits.minimum || optimal > self.limits.maximum {
             return Err(format!(
                 "The driver supports VRAM requests from {} to {}. The selected physical-capacity value has no supported provider mapping; the draft was retained.",
-                format_gb(self.limits.minimum), format_gb(self.limits.maximum),
+                format_gb(self.limits.minimum),
+                format_gb(self.limits.maximum),
             ));
         }
         let result = Allocation {
@@ -213,7 +214,11 @@ mod tests {
     #[test]
     fn physical_endpoint_retains_exact_bytes_without_exceeding_capacity() {
         let capacity = 8_589_934_592;
-        let limits = Allocation { minimum: 0, optimal: 1_000_000_000, maximum: capacity };
+        let limits = Allocation {
+            minimum: 0,
+            optimal: 1_000_000_000,
+            maximum: capacity,
+        };
         let slider = MemorySlider::new(&limits, None, capacity).unwrap();
         let selected = slider.select(slider.maximum).unwrap();
         assert_eq!(selected.optimal, capacity);
@@ -306,7 +311,8 @@ mod tests {
                     optimal: 8,
                     maximum: 10
                 },
-                None, 8_000_000_000
+                None,
+                8_000_000_000
             )
             .is_err()
         );
@@ -317,7 +323,8 @@ mod tests {
                     optimal: 1,
                     maximum: 99_999_999
                 },
-                None, 8_000_000_000
+                None,
+                8_000_000_000
             )
             .is_err()
         );
@@ -328,7 +335,8 @@ mod tests {
                     optimal: 1,
                     maximum: u64::MAX
                 },
-                None, u64::MAX
+                None,
+                u64::MAX
             )
             .is_err()
         );
@@ -339,7 +347,8 @@ mod tests {
                     minimum: 1,
                     optimal: 9_000_000_000,
                     maximum: 9_000_000_000
-                }), 8_000_000_000
+                }),
+                8_000_000_000
             )
             .is_err()
         );

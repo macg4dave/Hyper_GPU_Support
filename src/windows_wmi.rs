@@ -92,7 +92,8 @@ fn win(e: windows::core::Error) -> String {
         component: crate::reporting::Component::HyperV,
         cause: crate::reporting::FailureCause::NativeCall,
         code: Some(crate::reporting::FailureCode::HResult(e.code().0 as u32)),
-    }.into_error()
+    }
+    .into_error()
 }
 
 fn provider_failure(code: Option<u64>) -> String {
@@ -101,7 +102,8 @@ fn provider_failure(code: Option<u64>) -> String {
         component: crate::reporting::Component::HyperV,
         cause: crate::reporting::FailureCause::ProviderRejected,
         code: code.map(crate::reporting::FailureCode::Provider),
-    }.into_error()
+    }
+    .into_error()
 }
 
 pub(crate) struct OwnedVariant(VARIANT);
@@ -442,9 +444,9 @@ impl Session {
                 if (7..=10).contains(&state) {
                     clear_operation()?;
                 }
-                match job_status(state).map_err(|_| {
-                    provider_failure(job.number("ErrorCode").ok())
-                })? {
+                match job_status(state)
+                    .map_err(|_| provider_failure(job.number("ErrorCode").ok()))?
+                {
                     true => {
                         let code = job.number("ErrorCode")?;
                         if code != 0 {

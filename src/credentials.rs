@@ -14,7 +14,8 @@ use windows::{
 };
 use zeroize::Zeroize;
 
-const PROMPT_CANCELLED: &str = "Guest credential request cancelled. No guest operation was started.";
+const PROMPT_CANCELLED: &str =
+    "Guest credential request cancelled. No guest operation was started.";
 
 /// Distinguish local cancellation from a credential or operation failure.
 pub fn is_prompt_cancelled(error: &str) -> bool {
@@ -353,11 +354,7 @@ mod prompt_tests {
     #[test]
     fn native_cancel_is_distinct_from_dialog_failure_and_stops_guest_work() {
         use windows::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_CANCELLED, ERROR_SUCCESS};
-        let result = prompt_if_needed(
-            Ok(None),
-            || Ok(()),
-            || prompt_status(ERROR_CANCELLED),
-        );
+        let result = prompt_if_needed(Ok(None), || Ok(()), || prompt_status(ERROR_CANCELLED));
         let mut guest_work = false;
         let result = result.map(|()| guest_work = true);
         assert!(is_prompt_cancelled(&result.unwrap_err()));
@@ -390,7 +387,8 @@ mod prompt_tests {
         });
         assert!(retained.is_ok());
         assert_eq!(writes, 1);
-        let failed = retain_if_requested(test_credential(), true, |_| Err("Vault unavailable".into()));
+        let failed =
+            retain_if_requested(test_credential(), true, |_| Err("Vault unavailable".into()));
         assert_eq!(failed.err().unwrap(), "Vault unavailable");
     }
 

@@ -7,9 +7,10 @@ fn main() -> ExitCode {
     #[cfg(windows)]
     {
         let first = std::env::args().nth(1);
-        if first.as_deref().is_some_and(|arg| {
-            arg != "--internal-worker" && arg != "--internal-setup"
-        }) {
+        if first
+            .as_deref()
+            .is_some_and(|arg| arg != "--internal-worker" && arg != "--internal-setup")
+        {
             hyper_gpu_support::console::attach_parent();
         }
     }
@@ -377,7 +378,10 @@ mod dispatch_tests {
             vec!["--mock-gui", "--snapshot", "capture.json"],
             vec!["--snapshot", "capture.json"],
         ] {
-            assert!(!starts_gui(&args(&values)), "unexpected GUI dispatch: {values:?}");
+            assert!(
+                !starts_gui(&args(&values)),
+                "unexpected GUI dispatch: {values:?}"
+            );
         }
         assert!(!HELP.contains("--mock-gui"));
         assert!(!HELP.contains("--snapshot"));

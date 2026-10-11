@@ -98,7 +98,9 @@ impl Command {
             | Self::ImportResume { operation_id } => operation_id.as_str(),
             _ => session,
         };
-        let invalid = || "Worker terminal reply does not match the reviewed operation; outcome uncertain. Refresh and inspect protected recovery.".to_owned();
+        let invalid = || {
+            "Worker terminal reply does not match the reviewed operation; outcome uncertain. Refresh and inspect protected recovery.".to_owned()
+        };
         if outcome.operation_id != expected_id
             || expected_id.is_empty()
             || ((outcome.saved || outcome.finished) && outcome.save_error.is_some())
@@ -110,8 +112,15 @@ impl Command {
                 let operation = outcome.operation.as_ref().ok_or_else(invalid)?;
                 let effective = &operation.effective;
                 let target = &approved.desired;
-                let expected_gpus = if target.enabled { vec![target.gpu_interface.clone()] } else { vec![] };
-                let expected_settings = approved.preview.settings.as_ref()
+                let expected_gpus = if target.enabled {
+                    vec![target.gpu_interface.clone()]
+                } else {
+                    vec![]
+                };
+                let expected_settings = approved
+                    .preview
+                    .settings
+                    .as_ref()
                     .map_or(&approved.observed.settings, |settings| &settings.after);
                 if effective.vm_id != target.vm_id
                     || effective.generation != 2
@@ -119,8 +128,16 @@ impl Command {
                     || effective.power != approved.preview.restore_power
                     || effective.settings != *expected_settings
                     || (target.enabled && !target.allocations_match(effective))
-                    || operation.verified != approved.preview.actions.contains(&workflow::PreviewAction::Verify)
-                    || operation.prepared != approved.preview.actions.contains(&workflow::PreviewAction::Prepare)
+                    || operation.verified
+                        != approved
+                            .preview
+                            .actions
+                            .contains(&workflow::PreviewAction::Verify)
+                    || operation.prepared
+                        != approved
+                            .preview
+                            .actions
+                            .contains(&workflow::PreviewAction::Prepare)
                     || operation.settings_preserved != approved.preview.settings_preserved
                     || outcome.saved != outcome.finished
                     || outcome.saved != outcome.save_error.is_none()
@@ -137,10 +154,16 @@ impl Command {
                 let operation = outcome.operation.as_ref().ok_or_else(invalid)?;
                 if operation.effective.vm_id != approved.target.vm_id
                     || operation.effective.gpus != approved.observed.gpus
-                    || operation.effective.power != workflow::verification_power(
-                        &approved.target, &approved.observed, approved.managed.as_ref(),
-                    )?
-                    || !operation.verified || operation.prepared || outcome.saved || !outcome.finished
+                    || operation.effective.power
+                        != workflow::verification_power(
+                            &approved.target,
+                            &approved.observed,
+                            approved.managed.as_ref(),
+                        )?
+                    || !operation.verified
+                    || operation.prepared
+                    || outcome.saved
+                    || !outcome.finished
                 {
                     return Err(invalid());
                 }
@@ -747,7 +770,12 @@ fn execute(
                 publication_required: true,
                 initial: current.observed.clone(),
                 expected_power: Some(current.preview.restore_power.clone()),
-                graphics_required: Some(current.preview.actions.contains(&workflow::PreviewAction::Verify)),
+                graphics_required: Some(
+                    current
+                        .preview
+                        .actions
+                        .contains(&workflow::PreviewAction::Verify),
+                ),
                 initial_journal: current.managed.clone(),
                 expected_settings: current
                     .preview
@@ -802,7 +830,11 @@ fn execute(
             }
             let delivery = notify(Progress {
                 stage: "Publish checked VM configuration".into(),
-                status: if saved.is_ok() { StageStatus::Done } else { StageStatus::Failed },
+                status: if saved.is_ok() {
+                    StageStatus::Done
+                } else {
+                    StageStatus::Failed
+                },
             });
             if let Err(delivery) = delivery {
                 return Err(saved.err().map_or_else(
@@ -1104,7 +1136,11 @@ fn execute(
             }
             let delivery = notify(Progress {
                 stage: "Publish checked VM configuration".into(),
-                status: if saved.is_ok() { StageStatus::Done } else { StageStatus::Failed },
+                status: if saved.is_ok() {
+                    StageStatus::Done
+                } else {
+                    StageStatus::Failed
+                },
             });
             if let Err(delivery) = delivery {
                 return Err(saved.err().map_or_else(
@@ -1163,7 +1199,8 @@ fn execute(
                 stage: "Save verified configuration only".into(),
                 status: StageStatus::Running,
             })?;
-            let publication = configuration_store::protected::publish(&record, &enrollment.client_sid);
+            let publication =
+                configuration_store::protected::publish(&record, &enrollment.client_sid);
             if publication.is_err() {
                 let delivery = notify(Progress {
                     stage: "Save verified configuration only".into(),
@@ -1271,11 +1308,18 @@ struct ObservedBackend<'a, B, F> {
     before_effect: Option<&'a mut dyn FnMut() -> Result<(), String>>,
 }
 
-fn finish_progress<T>(result: Result<T, String>, delivery: Result<(), String>) -> Result<T, String> {
+fn finish_progress<T>(
+    result: Result<T, String>,
+    delivery: Result<(), String>,
+) -> Result<T, String> {
     match (result, delivery) {
-        (Err(primary), Err(delivery)) => Err(format!("Progress delivery failed: {delivery}; {primary}")),
+        (Err(primary), Err(delivery)) => {
+            Err(format!("Progress delivery failed: {delivery}; {primary}"))
+        }
         (Err(primary), Ok(())) => Err(primary),
-        (Ok(_), Err(delivery)) => Err(format!("Stage completed but progress delivery failed; outcome uncertain: {delivery}")),
+        (Ok(_), Err(delivery)) => Err(format!(
+            "Stage completed but progress delivery failed; outcome uncertain: {delivery}"
+        )),
         (Ok(value), Ok(())) => Ok(value),
     }
 }
@@ -1308,7 +1352,10 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B
                 StageStatus::Failed
             },
         });
-        finish_progress(result.map_err(|error| crate::reporting::failure_at_stage(error, name)), delivery)
+        finish_progress(
+            result.map_err(|error| crate::reporting::failure_at_stage(error, name)),
+            delivery,
+        )
     }
 }
 impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedBackend<'_, B, F> {
@@ -1381,7 +1428,12 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
                 StageStatus::Failed
             },
         });
-        finish_progress(result.map_err(|error| crate::reporting::failure_at_stage(error, "Prepare current signed payload")), delivery)
+        finish_progress(
+            result.map_err(|error| {
+                crate::reporting::failure_at_stage(error, "Prepare current signed payload")
+            }),
+            delivery,
+        )
     }
     fn verify(&mut self, t: &Target, g: &Gpu) -> Result<(), String> {
         self.effect("Check guest health and hardware rendering", |b| {
@@ -1395,7 +1447,11 @@ mod tests {
 
     #[test]
     fn failed_progress_delivery_preserves_the_adapter_failure_and_uncertainty() {
-        let both = finish_progress::<()>(Err("adapter failed".into()), Err("pipe disconnected".into())).unwrap_err();
+        let both = finish_progress::<()>(
+            Err("adapter failed".into()),
+            Err("pipe disconnected".into()),
+        )
+        .unwrap_err();
         assert!(both.contains("adapter failed") && both.contains("pipe disconnected"));
         let lost = finish_progress(Ok(()), Err("pipe disconnected".into())).unwrap_err();
         assert!(lost.contains("outcome uncertain"));
@@ -1403,28 +1459,54 @@ mod tests {
     }
 
     fn ordinary_disabled_plan() -> Plan {
-        let settings = Settings { low_mmio: 0, high_mmio: 0, cache_types: false, automatic_checkpoints: true };
+        let settings = Settings {
+            low_mmio: 0,
+            high_mmio: 0,
+            cache_types: false,
+            automatic_checkpoints: true,
+        };
         let target = Target {
             vm_id: "12345678-1234-1234-1234-000000000001".into(),
-            gpu_interface: "fixture-gpu".into(), enabled: false,
-            vram: None, compute: None, encode: None, decode: None,
+            gpu_interface: "fixture-gpu".into(),
+            enabled: false,
+            vram: None,
+            compute: None,
+            encode: None,
+            decode: None,
         };
         Plan {
             initial_setup: false,
             desired: target.clone(),
             observed: VmState {
-                vm_id: target.vm_id, name: "Same friendly name".into(), generation: 2,
-                power: Power::Off, gpus: vec![], settings,
-                vram: None, compute: None, encode: None, decode: None,
+                vm_id: target.vm_id,
+                name: "Same friendly name".into(),
+                generation: 2,
+                power: Power::Off,
+                gpus: vec![],
+                settings,
+                vram: None,
+                compute: None,
+                encode: None,
+                decode: None,
             },
-            managed: None, preparation: None,
+            managed: None,
+            preparation: None,
             preview: workflow::EffectPreview {
-                actions: vec![], settings: None, settings_preserved: false,
-                allocation: None, compute: None, encode: None, decode: None,
-                credentials_required: false, guest_downtime: false,
-                restore_power: Power::Off, pending_recovery: false, summary: vec![],
+                actions: vec![],
+                settings: None,
+                settings_preserved: false,
+                allocation: None,
+                compute: None,
+                encode: None,
+                decode: None,
+                credentials_required: false,
+                guest_downtime: false,
+                restore_power: Power::Off,
+                pending_recovery: false,
+                summary: vec![],
             },
-            allocation_units: "provider-defined".into(), automatic_guest_restart: false,
+            allocation_units: "provider-defined".into(),
+            automatic_guest_restart: false,
         }
     }
 
@@ -1433,12 +1515,21 @@ mod tests {
         let approved = ordinary_disabled_plan();
         let outcome = Outcome {
             operation: Some(OperationResult {
-                effective: approved.observed.clone(), prepared: false, verified: false,
+                effective: approved.observed.clone(),
+                prepared: false,
+                verified: false,
                 settings_preserved: false,
             }),
-            saved: true, finished: true, operation_id: "session".into(), save_error: None,
+            saved: true,
+            finished: true,
+            operation_id: "session".into(),
+            save_error: None,
         };
-        let command = Command::Apply { approved, expected: Revision::Missing, shutdown_approved: false };
+        let command = Command::Apply {
+            approved,
+            expected: Revision::Missing,
+            shutdown_approved: false,
+        };
         command.validate_outcome(&outcome, "session").unwrap();
         let mut unsaved = outcome.clone();
         unsaved.saved = false;
@@ -1451,20 +1542,39 @@ mod tests {
                 0 => reply.operation_id = "other-operation".into(),
                 1 => reply.operation.as_mut().unwrap().effective.vm_id = "other-vm".into(),
                 2 => reply.operation.as_mut().unwrap().effective.power = Power::Running,
-                3 => reply.operation.as_mut().unwrap().effective.gpus.push("other-gpu".into()),
+                3 => reply
+                    .operation
+                    .as_mut()
+                    .unwrap()
+                    .effective
+                    .gpus
+                    .push("other-gpu".into()),
                 4 => reply.operation.as_mut().unwrap().verified = true,
                 5 => reply.operation.as_mut().unwrap().prepared = true,
                 6 => reply.finished = false,
                 _ => reply.operation = None,
             }
-            assert!(command.validate_outcome(&reply, "session").unwrap_err().contains("outcome uncertain"));
+            assert!(
+                command
+                    .validate_outcome(&reply, "session")
+                    .unwrap_err()
+                    .contains("outcome uncertain")
+            );
         }
     }
 
     #[test]
     fn save_only_terminal_reply_retains_the_original_operation_binding() {
-        let command = Command::SaveOnly { operation_id: "original".into() };
-        let mut outcome = Outcome { operation: None, saved: true, finished: true, operation_id: "original".into(), save_error: None };
+        let command = Command::SaveOnly {
+            operation_id: "original".into(),
+        };
+        let mut outcome = Outcome {
+            operation: None,
+            saved: true,
+            finished: true,
+            operation_id: "original".into(),
+            save_error: None,
+        };
         command.validate_outcome(&outcome, "new-session").unwrap();
         outcome.operation_id = "new-session".into();
         assert!(command.validate_outcome(&outcome, "new-session").is_err());

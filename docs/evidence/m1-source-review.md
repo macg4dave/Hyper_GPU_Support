@@ -4,7 +4,7 @@ Reviewed 11 October 2026 at `a62c174`, including the uncommitted APP-005 impleme
 
 ## Findings and fixes
 
-All five findings are P2 functional or failure-handling defects. Source fixes are complete; automated and live validation remain pending.
+All five findings are P2 functional or failure-handling defects. Source fixes and follow-up review are complete. The [M1 gate](m1-closure.md) passed automated validation; live validation remains pending. The original findings below retain their review-time limits.
 
 | Finding | Trigger and consequence | Source fix and coverage |
 |---|---|---|
@@ -23,12 +23,18 @@ All five findings are P2 functional or failure-handling defects. Source fixes ar
 | APP-003 | Reviewed target/draft/revision binding, cancellation, ordered lifecycle disclosure, stale admission, and execution readiness. The callback failure and background-availability fixes above apply |
 | APP-004 | Reviewed setup/enrollment separation, preparation receipts, graphics check, independently confirmed final-off state, other-VM preservation, durable final-power intent, publication, and no-replay reconciliation. The setup button and uncertain-start fixes above apply |
 | APP-005 | Reviewed explanation/input order, scoped vault reuse, unchecked remembering, cancellation before worker submission, secret-free diagnostics, and retained drafts/holds. Existing APP-005 regressions remain unrun |
-| APP-006 | Unimplemented. Ordinary enabled changes still repeat graphics verification and can refresh stale preparation. Clarify final-power policy and implement the existing card; this review does not choose that policy |
-| APP-007 | Unimplemented. Reviewed current saved/draft/observed state, refresh conflicts, progress delivery, worker process/SID/session/artifact binding, effect admission, audit/receipt ordering, save-only publication, and recovery. Fixed the concrete current-source findings above; the complete task audit remains required |
-| APP-008 | Gate unprepared/unrun. Checked declared commands/toolchain, retained test modules and compile-time inputs. Inspected relevant non-hardware tests: isolated doubles, temporary filesystem fixtures, user-owned pipe fixtures, in-memory CIM objects, and fixed malformed-input/transport subprocesses. Gate preparation must finish its effect review and record actual command outcomes after APP-006/APP-007 and the follow-up source review |
+| APP-006 | Follow-up at `4c293ec`: ordinary changes with matching completed preparation skip credentials, preparation and graphics checks; fresh host readback and confirmed Off remain mandatory. Invalid preparation/payload is reviewed as setup/update. Receipts persist final-power and graphics requirements; ordinary reconciliation avoids guest access. Isolated lifecycle/failure/two-VM regressions cover these paths |
+| APP-007 | Follow-up at `4c293ec`: traced saved/draft/observed/applied/historical graphics labels, refresh/conflict latching, background protected reads, actual progress events, terminal operation binding, authenticated IPC, admission locks, audit/receipt ordering and save-only. Reload, other-VM isolation, file conflicts, read failures, replaced receipts and missing-terminal regressions exist. No further source blocker found; real responsiveness and interaction remain APP-009 acceptance |
+| APP-008 | Narrow gate prepared in `scripts/testing/check.ps1`; documentation checker in `scripts/testing/check-docs.py`. No retired tooling restored. Test-effect review completed as described below; all six stages passed with exit 0, recorded in [closure evidence](m1-closure.md) |
 
-No new standalone implementation task was created: these findings fit the existing APP scope. Larger findings needing separate tasks must be presented to the user before their implementation.
+No new standalone implementation task was created: these findings fit the existing APP scope. The follow-up found no larger issue requiring a separate task.
+
+## Follow-up test-effect review
+
+The current root workspace contains inline tests only, with no integration-test directory or ignored live suites. `cargo test --locked --all-targets` exercises isolated workflow doubles, configuration parsing/store snapshots, controller state/presentation helpers, enrollment validation, audit callbacks, credential closures (no vault/native prompt), progress and transfer budgets. Filesystem tests use temporary user-owned fixtures. Windows tests use anonymous/user-owned test pipes, current-token queries, empty process jobs, in-memory CIM objects without provider connections, and signature/ACL refusal against temporary unsigned files. Fixed PowerShell subprocess tests cover stdin, exit/diagnostic/transfer records and malformed guest-transport JSON; the latter rejects input before Hyper-V import or guest connection. Probe tests use synthetic adapter records and never run rendering. No test invokes installed runner submission, setup/enrollment, protected publication, credential prompts, real discovery, VM operations or GPU workloads. Cargo builds binaries but does not launch the application or graphics probe.
+
+The gate refuses elevated execution, runs stages sequentially, stops on failure and retains incremental local evidence. No GUI render/interaction is included; the user's milestone contract assigns those checks to separately authorized APP-009.
 
 ## Checks and limits
 
-Completed targeted source/caller/diff/reference inspection and `git diff --check`. Preserved the pre-existing APP-005 working-tree changes. No formatter, compilation, automated test, rendering, GUI launch, credential dialog, installed IPC probe, guest connection, privileged setup, protected write, or GPU/VM effect was run. Regression additions are source only. This review cannot establish runtime correctness, trusted installation behavior, hardware sharing, or visual acceptance. M1 remains open; repeat the review after APP-006/APP-007 before APP-008 execution.
+The original review completed targeted source/caller/diff/reference inspection and `git diff --check`, preserving the then-existing APP-005 edits. Follow-up review on 11 October 2026 inspected current source at `4c293ec`, including APP-006/APP-007 and retained test effects, and preserved the user's testing-document edit. This static review cannot establish runtime correctness, trusted installation behavior, hardware sharing or visual acceptance. APP-008 records its passing automated gate separately in [M1 closure](m1-closure.md); M1 is closed within that scope.

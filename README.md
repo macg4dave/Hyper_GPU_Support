@@ -16,9 +16,9 @@ The VRAM range does not establish enforced isolation. Automatic balancing and fu
 
 ## Current state
 
-The source already contains discovery, setup/enrollment, reviewed GPU effects, saved settings, recovery, and guest verification. It still needs targeted changes to match the agreed workflow. [Baseline](docs/BASELINE.md) records the differences. This documentation rewrite ran no product build, test, GUI launch, or live operation.
+M1 workflow implementation is complete and its non-hardware gate passed on 11 October 2026: 192 tests, formatting, strict Clippy, product builds, rustdoc and documentation checks. [Closure evidence](docs/evidence/m1-closure.md) records the exact scope. Real GUI/VM qualification is next under M2; hardware behavior and package readiness remain unqualified. [Baseline](docs/BASELINE.md) records those limits.
 
-Legacy mock/snapshot GUI tooling has been removed from source under APP-001. Its flags are unsupported; backend unit test doubles remain. Removal validation is pending the milestone gate.
+Legacy mock/snapshot GUI tooling has been removed under APP-001 and passed the M1 automated gate. Its flags are unsupported; backend unit test doubles remain.
 
 Running the executable without arguments opens the live GUI and can request elevated first-install discovery. CLI and fixed internal modes share the backend; source entrypoints are not authorization to perform live operations.
 
@@ -38,6 +38,6 @@ Running the executable without arguments opens the live GUI and can request elev
 | [Decisions](docs/DECISIONS.md) | Confirmed product choices |
 | [AGENTS.md](AGENTS.md) | Authoritative Codex instructions |
 
-Build prerequisites come from the current manifests/toolchain. The previous gate script is absent; APP-008 prepares its replacement at the implementation milestone. Cached binaries are not current validation evidence. Keep passwords, driver payloads, VM disks, and machine-specific evidence out of Git.
+Build prerequisites come from the current manifests/toolchain. Run the non-elevated gate with `powershell -NoProfile -File scripts/testing/check.ps1`; [testing](docs/TESTING.md) defines its effects and exclusions. Keep passwords, driver payloads, VM disks and machine-specific evidence out of Git.
 
 Codex starts with [AGENTS.md](AGENTS.md), which routes to short task prompts and focused [Rust](.github/prompts/rust.prompt.md) and [Slint](.github/prompts/slint.prompt.md) guidance. Read only the guidance relevant to the requested task; product requirements stay in the handbook.

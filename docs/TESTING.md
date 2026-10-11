@@ -12,9 +12,9 @@ Retired mock/snapshot GUI tooling is not used or maintained. Meaningful isolated
 
 ## Planned automated gate
 
-APP-008 prepares the gate against the current source and runs it at M1 completion. The prior gate script is absent. Do not claim an absent command passed or restore old tooling wholesale.
+APP-008 provides the narrow non-elevated [gate](../scripts/testing/check.ps1) against current source, using a local [documentation checker](../scripts/testing/check-docs.py). Run `powershell -NoProfile -File scripts/testing/check.ps1` at M1 completion. The gate stops at its first failed stage and records commands, revision, environment, timestamps, results and exclusions under ignored `local/evidence/m1-gate-*`.
 
-Repeat the [APP-001 through APP-008 source review](evidence/m1-source-review.md) after APP-006/APP-007 implementation and before this gate. Current-source fixes and added regressions do not constitute a passing gate.
+The [APP-001 through APP-008 follow-up source review](evidence/m1-source-review.md) is complete after APP-006/APP-007 implementation. The gate passed on 11 October 2026; [closure evidence](evidence/m1-closure.md) records the executed commands, 192 passing tests and exclusions. Source fixes and added regressions alone do not constitute a passing gate.
 
 | Order | Check | Intended command or behavior |
 |---|---|---|
@@ -39,11 +39,17 @@ The gate is non-elevated, fails on the first failed stage, reports what ran, and
 - Reconciliation handles a start error after a power change, safely restores only unchanged approved facts, retains refused-shutdown failures, and blocks restoration after changed facts. Pending journals without a save record still block new controller reviews.
 - Existing trust, IPC, locking, transport/output budgets, and interruption boundaries remain enforced.
 
-Add coverage for real missing behavior and failure boundaries. Reuse meaningful existing tests. Dedicated retired GUI simulation tests were removed through APP-001. The replacement startup-dispatch regression and retained live controller/state tests await APP-008 execution.
+Add coverage for real missing behavior and failure boundaries. Reuse meaningful existing tests. Dedicated retired GUI simulation tests were removed through APP-001. The replacement startup-dispatch regression and retained live controller/state tests passed APP-008 execution; real interaction remains APP-009 acceptance.
 
 ## Live qualification scenarios
 
 APP-009 prepares the exact environment, targets, effects, workload interval, evidence locations, final power states, and stop conditions before requesting authorization.
+
+### Available Hyper-V test VMs
+
+The following existing VMs are available for testing: `win_26300.9457` and `win_26200.9457`. Do not roll back either VM or add generic rollback warnings solely because these designated targets are used for testing; do not automatically reset or otherwise restore them. If a test requires a VM to be reset, stop and inform the user.
+
+All tests can be unsafe to the VM and its contents.
 
 | Scenario | Acceptance |
 |---|---|

@@ -4,24 +4,24 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**APP-007 — Complete saved state, progress, and failure handling (R6).** Ready after APP-006 source implementation. Validation waits for APP-008; live work requires separate authorization.
+**APP-009 — Prepare real GUI and two-VM qualification (M2).** M1 is closed with [gate evidence](evidence/m1-closure.md). Prepare the target/effect/evidence sequence before requesting live authorization; no live sequence has run.
 
 ## Task register
 
 | ID | Milestone | Task | Depends on | Implementation | Validation |
 |---|---|---|---|---|---|
-| APP-001 | M1 | Remove retired mock GUI tooling | None | Done | Pending milestone gate |
-| APP-002 | M1 | Match the simple toggle and VRAM control | APP-001 | Done | Pending milestone gate |
-| APP-003 | M1 | Complete review and confirmation | APP-002 | Done (R2 source; requested ahead of APP-002) | Pending milestone gate |
-| APP-004 | M1 | Complete initial setup, verification, and final shutdown | APP-003 | Done | Pending milestone gate |
-| APP-005 | M1 | Explain guest credentials before the local prompt | APP-004 | Done | Pending milestone gate |
-| APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Done | Pending milestone gate |
-| APP-007 | M1 | Complete saved state, progress, and failure handling | APP-006 | Ready | Not run |
-| APP-008 | M1 | Prepare and run the milestone's non-hardware gate | APP-007 | Blocked | Not run |
-| APP-009 | M2 | Qualify the real GUI and two-VM workflow | APP-008 | Blocked | Not run |
+| APP-001 | M1 | Remove retired mock GUI tooling | None | Done | Passed: [non-hardware gate](evidence/m1-closure.md) |
+| APP-002 | M1 | Match the simple toggle and VRAM control | APP-001 | Done | Passed: non-hardware gate; hardware pending M2 |
+| APP-003 | M1 | Complete review and confirmation | APP-002 | Done (R2 source; requested ahead of APP-002) | Passed: non-hardware gate; interaction pending M2 |
+| APP-004 | M1 | Complete initial setup, verification, and final shutdown | APP-003 | Done | Passed: non-hardware gate; live pending M2 |
+| APP-005 | M1 | Explain guest credentials before the local prompt | APP-004 | Done | Passed: non-hardware gate; native dialogs pending M2 |
+| APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Done | Passed: non-hardware gate; live pending M2 |
+| APP-007 | M1 | Complete saved state, progress, and failure handling | APP-006 | Done | Passed: non-hardware gate; interaction pending M2 |
+| APP-008 | M1 | Prepare and run the milestone's non-hardware gate | APP-007 | Done | Passed: [evidence](evidence/m1-closure.md) |
+| APP-009 | M2 | Qualify the real GUI and two-VM workflow | APP-008 | Ready | Not run |
 | APP-010 | M3 | Package and document the qualified product | APP-009 | Blocked | Not run |
 
-Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records five in-scope source fixes and unrun regression coverage. APP-006 is now source implemented; APP-007 remains unimplemented. Repeat the review after those tasks before running APP-008; larger issues needing separate tasks require user review before implementation.
+Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records the original five fixes and completed follow-up review. The [M1 closure](evidence/m1-closure.md) supersedes historical unrun/open statements in the implementation notes below for automated validation only; live qualification remains pending.
 
 ## Implementation tasks
 
@@ -79,6 +79,8 @@ Audit current per-VM settings, refresh/draft conflicts, operation progress, prot
 
 Acceptance: saved settings survive reopen; state labels distinguish pending, observed, applied, and initial verification; progress stays responsive and reports actual stages; another VM is unaffected. Missing terminal outcomes stay uncertain. A completed-but-unsaved operation offers a bound save-only retry without replaying GPU effects. Address concrete trust/recovery gaps found in these paths.
 
+Implementation (11 October 2026): audited the existing committed source at `4c293ec`. The controller separates saved, pending, observed, applied and historical graphics state; completed effects clear only the matching draft. Protected reads and artifact availability run in background jobs. Lost replies/task panics require readback; terminal replies are checked against operation, target, lifecycle and publication. Completed publication receipts permit bound save-only retry; incomplete effects require reconciliation. Fresh readable store state is required to clear unsaved intent, and conflicts remain latched until discard. Existing isolated regressions cover reload, other-VM preservation, read failures, replaced receipts, conflicting/unreadable/deleted files, duplicate progress events and missing terminal outcomes. Follow-up source review found no further blocker; execution and real responsiveness/interaction acceptance remain pending.
+
 ## Validation and delivery tasks
 
 ### APP-008 — Prepare and run the milestone's non-hardware gate
@@ -88,6 +90,8 @@ Prepare a narrow non-elevated gate against current files; do not restore deleted
 Acceptance: intended checks pass or failures keep M1 open; evidence states exact commands, revision, outcomes, and exclusions. Tests cover initial-versus-ordinary operations, final-off setup, credentials explanation, review binding, slider bounds, and meaningful failure boundaries. No GUI launch, VM access, privileged setup, or GPU probe in the automated gate.
 
 Prerequisite from the user's review request: repeat the [current-source review](evidence/m1-source-review.md) after APP-006/APP-007 implementation, fix in-scope gaps, and present larger issues requiring separate tasks before their implementation. This review does not replace executed gate evidence.
+
+Completion (11 October 2026): follow-up review complete; narrow non-elevated gate added and passed documentation, formatting, all-target non-hardware tests (142 core, 50 frontend), strict Clippy, product binary builds and rustdoc. Initial formatting failure was corrected; gate stderr reporting was corrected and final process exited 0. Exact revision, working-tree/source hashes, environment, commands, outcomes and exclusions are recorded in [M1 closure evidence](evidence/m1-closure.md). M1 is closed; APP-009 is ready for preparation, with live effects awaiting separate authorization.
 
 ### APP-009 — Qualify the real GUI and two-VM workflow
 
