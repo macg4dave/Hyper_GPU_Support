@@ -8,11 +8,13 @@ Select a supported existing VM, toggle GPU support, and select GPU VRAM from 1 G
 
 The existing Dashboard, System, Settings, About, and dialog design remain the foundation. Preserve stable selection, keyboard navigation, scrolling, themes, focus, and responsive progress.
 
-APP-002 source now displays the 1 GB-to-card-capacity slider, with exact physical endpoints. The physical-memory/provider mapping needs correction under [APP-011](BACKLOG.md#app-011--correct-physical-vram-and-provider-mapping); raw provider metadata does not establish a physical GB ceiling. Unknown capacity or a range with no supported selection is unavailable. Existing requests below 1 GB remain labeled exactly; moving the slider is an explicit edit, not a rewrite on load. Advanced Allocation retains exact VRAM fields for compatibility and correction. Compute/Encode/Decode editors are removed from this GUI; saved requests are preserved and shown in review. Only the toggle disables support. Compilation and isolated boundary/controller checks passed M1; rendering and real hardware acceptance remain pending.
+APP-002 source now displays the 1 GB-to-card-capacity slider, with exact physical endpoints. [APP-011](BACKLOG.md#app-011--correct-physical-vram-and-provider-mapping) removes reported partition metadata as a VRAM byte ceiling. The selected physical capacity bounds the slider; unknown capacity remains unavailable. Hyper-V decides whether the byte request is accepted, followed by exact readback. Existing requests below 1 GB remain labeled exactly; moving the slider is an explicit edit, not a rewrite on load. Advanced Allocation retains exact VRAM fields for compatibility and correction. Compute/Encode/Decode editors are removed from this GUI; saved requests are preserved and shown in review. Only the toggle disables support. Compilation and isolated boundary/controller checks passed M1; rendering and real hardware acceptance remain pending.
 
 ## Review and Apply
 
 Toggle/VRAM changes remain drafts. Apply opens a review panel naming the selected VM, showing what will change and relevant time warnings, and explaining every required start, shutdown, or restart. Show the expected final power state. A second Apply confirms; cancellation returns to editing.
+
+The memory review displays exact observed/planned minimum, optimal and maximum bytes. Displayed requests do not establish enforced quotas or reserved memory. The metadata-ceiling removal and its regression tests await runtime validation.
 
 Review must reflect a fresh backend plan. Changed target or inputs invalidate approval. Setup/enrollment authority remains distinct from GPU effects, even when presented as one understandable setup journey.
 

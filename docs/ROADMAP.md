@@ -35,6 +35,8 @@ Legacy mock/snapshot GUI tooling is retired and removed from source through APP-
 
 Implementation and validation are recorded separately. No milestone is closed by this documentation rewrite. Do not run builds or tests after individual tasks unless explicitly requested. Mock GUI checks are not part of any gate.
 
+M2 source preparation is recorded in the [qualification sequence](evidence/m2-preparation.md). APP-011 source now removes the metadata-derived 1 GB VRAM ceiling from the slider, shared admission and native writer; byte requests retain ordering, fresh capability and exact readback checks. Review shows exact byte triples. Non-hardware and authorized live allocation qualification remain pending.
+
 ## Current position
 
 **M1 is closed** on 11 October 2026: APP-001 through APP-007 are implemented, follow-up source review is complete, and APP-008's non-hardware gate passed. See [closure evidence](evidence/m1-closure.md) for revision, commands, results and exclusions. Initial setup includes graphics verification and confirmed graceful final shutdown. Ordinary changes avoid guest work and require final-off readback; invalid preparation is reviewed as setup/update. Saved, pending, observed and applied state remain separate; recovery permits bound save-only retry without replay. M2/APP-009 live qualification began on one user-selected VM; the user subsequently confirmed successful VM setup, with the recorded issues accepted as follow-ups. See [live findings and handoff](evidence/live-gui-check.md). Allocation qualification is deferred pending APP-011; concurrent sharing remains untested under the one-VM authorization. No render, application launch, credential prompt, guest operation or hardware qualification ran for this milestone.

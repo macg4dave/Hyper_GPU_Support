@@ -484,7 +484,7 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
             pending_recovery: pending,
             summary,
         },
-        allocation_units: "provider-defined".into(),
+        allocation_units: "VRAM bytes; Compute/Encode/Decode provider-defined".into(),
         automatic_guest_restart: restart,
     }
 }
@@ -1382,6 +1382,34 @@ mod tests {
             );
         }
         target
+    }
+
+    #[test]
+    fn vram_request_above_reported_metadata_is_applied_and_read_back_exactly() {
+        let mut f = fake();
+        let mut t = target();
+        t.vram = Some(Allocation {
+            minimum: 1_000_000_000,
+            optimal: 8_000_000_000,
+            maximum: 16_000_000_000,
+        });
+        let result = apply(&mut f, &t).unwrap();
+        assert_eq!(result.effective.vram, t.vram);
+        assert_eq!(f.allocation_calls, [Resource::Vram]);
+        assert_eq!(result.effective.power, Power::Off);
+        assert!(!f.journal.as_ref().unwrap().pending);
+
+        for rejected in [true, false] {
+            let mut failed = fake();
+            if rejected {
+                failed.fail_allocation = Some(Resource::Vram);
+            } else {
+                failed.corrupt_resource = Some(Resource::Vram);
+            }
+            assert!(apply(&mut failed, &t).is_err());
+            assert!(failed.journal.as_ref().unwrap().pending);
+            assert_eq!(failed.allocation_calls, [Resource::Vram]);
+        }
     }
 
     #[test]

@@ -314,7 +314,7 @@ pub fn configure(t: &Target, value: &Settings) -> Result<(), String> {
     }
     Ok(())
 }
-/// Apply one raw provider resource with fresh range validation and readback.
+/// Apply one resource with fresh category-specific admission and exact readback.
 pub fn allocation(t: &Target, resource: Resource, value: &Allocation) -> Result<(), String> {
     require_off(t)?;
     let s = Session::new(TIMEOUT)?;
@@ -324,7 +324,7 @@ pub fn allocation(t: &Target, resource: Resource, value: &Allocation) -> Result<
     ))?;
     let limits = read_optional_resource(&gpu, resource)?
         .ok_or_else(|| format!("{} capability unavailable", resource.name()))?;
-    value.validate(&limits)?;
+    value.validate_request(resource, &limits)?;
     let cfg = settings(&s, &t.vm_id)?;
     let adapter = one(s.related(&cfg, "Msvm_GpuPartitionSettingData")?)?;
     let name = resource.name();

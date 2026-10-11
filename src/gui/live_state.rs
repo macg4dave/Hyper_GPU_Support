@@ -547,6 +547,24 @@ pub(super) fn allocation_values(target: &Target) -> Vec<String> {
     values
 }
 
+/// Review exact VRAM byte requests, separately from allocation enforcement.
+pub(super) fn memory_review(plan: &Plan) -> String {
+    if let Some(write) = &plan.preview.allocation {
+        format!(
+            "GPU memory (bytes: minimum / optimal / maximum): {} → {}\n",
+            allocation_description(plan.observed.vram.as_ref(), "Unknown"),
+            allocation_description(Some(write), "Unknown"),
+        )
+    } else if let Some(request) = &plan.desired.vram {
+        format!(
+            "GPU memory request (bytes: minimum / optimal / maximum): {}. No VRAM write is planned.\n",
+            allocation_description(Some(request), "Unknown"),
+        )
+    } else {
+        "GPU memory: no explicit request.\n".into()
+    }
+}
+
 pub(super) fn review_text(plan: &Plan) -> String {
     let requested = allocation_description(
         plan.desired.vram.as_ref(),
@@ -884,7 +902,14 @@ mod tests {
         assert_eq!(s.memory_slider(1, &raw).unwrap().range_start, "1 GB");
         assert_eq!(s.memory_slider(0, &raw).unwrap().maximum, 80);
         assert_eq!(s.memory_slider(1, &raw).unwrap().maximum, 160);
-        assert!(s.memory_slider(1, &raw).unwrap().select(20).is_err());
+        assert_eq!(
+            s.memory_slider(1, &raw)
+                .unwrap()
+                .select(20)
+                .unwrap()
+                .optimal,
+            2_000_000_000
+        );
         s.view.inventory.as_mut().unwrap().discovery.gpus[1].physical_vram_bytes = None;
         assert!(s.memory_slider(1, &raw).is_err());
         s.view.inventory.as_mut().unwrap().discovery.gpus[1].physical_vram_bytes = Some(0);
@@ -1415,15 +1440,36 @@ mod tests {
         );
     }
     #[test]
+    fn vram_draft_above_one_gb_metadata_does_not_change_saved_state() {
+        let mut s = state();
+        let gpu = &mut s.view.inventory.as_mut().unwrap().discovery.gpus[0];
+        gpu.vram = Allocation {
+            minimum: 0,
+            optimal: 1_000_000_000,
+            maximum: 1_000_000_000,
+        }
+        .into();
+        gpu.physical_vram_bytes = Some(16_000_000_000);
+        let saved = s.target(id(&s)).unwrap();
+        let raw = s
+            .memory_values(id(&s), 0, &vec![String::new(); 12], 160)
+            .unwrap();
+        let draft = s.draft(id(&s), true, 0, &raw).unwrap();
+        assert_eq!(draft.vram.as_ref().unwrap().optimal, 16_000_000_000);
+        assert_eq!(draft.vram.as_ref().unwrap().maximum, 16_000_000_000);
+        assert_eq!(s.target(id(&s)).unwrap(), saved);
+        assert!(s.view.vm(id(&s)).unwrap().gpus.is_empty());
+        assert!(s.view.configuration.targets.is_empty());
+    }
+
+    #[test]
     fn incomplete_overflow_out_of_bounds_and_unsupported_fields_are_blocked() {
         let s = state();
         for v in [
             values("10", "", "100"),
             values("-1", "50", "100"),
             values("10", "50", "18446744073709551616"),
-            values("9", "50", "100"),
             values("10", "101", "100"),
-            values("10", "50", "101"),
         ] {
             assert!(s.draft(id(&s), true, 0, &v).is_err(), "{v:?}");
         }
@@ -1589,7 +1635,7 @@ mod tests {
     }
 
     #[test]
-    fn changed_provider_bounds_leave_editor_available_to_correct_old_vram() {
+    fn changed_provider_bounds_do_not_reject_existing_vram_byte_requests() {
         let mut s = state();
         s.view.configuration.targets = s.view.inventory.as_ref().unwrap().enrolled.clone();
         s.view.configuration.targets[0].vram = Some(Allocation {
@@ -1599,7 +1645,7 @@ mod tests {
         });
         assert!(s.editor_eligibility(id(&s)).is_ok());
         let old = allocation_values(&s.target(id(&s)).unwrap());
-        assert!(s.draft(id(&s), true, 0, &old).is_err());
+        assert!(s.draft(id(&s), true, 0, &old).is_ok());
         assert!(s.draft(id(&s), true, 0, &values("10", "50", "100")).is_ok());
         assert!(s.draft(id(&s), false, 0, &values("", "", "")).is_ok());
     }
@@ -1668,6 +1714,43 @@ mod tests {
         assert!(review_text(&plan).contains("No allocation write planned"));
         plan.desired.vram = None;
         assert!(review_text(&plan).contains("Unspecified; no explicit VRAM request"));
+    }
+
+    #[test]
+    fn memory_review_preserves_exact_observed_and_requested_bytes() {
+        let mut plan = review_plan();
+        plan.observed.vram = Some(Allocation {
+            minimum: 0,
+            optimal: 1_000_000_000,
+            maximum: 1_000_000_000,
+        });
+        plan.preview.allocation = Some(Allocation {
+            minimum: 1,
+            optimal: 500_000_001,
+            maximum: 900_000_003,
+        });
+        let text = memory_review(&plan);
+        assert!(text.contains("0 / 1000000000 / 1000000000 → 1 / 500000001 / 900000003"));
+        assert!(text.contains("bytes: minimum / optimal / maximum"));
+        assert!(!text.contains("1 GB"));
+        assert!(!text.contains("0.500000001 GB"));
+        // Unknown readback cannot become a default or zero observation.
+        plan.observed.vram = None;
+        assert!(memory_review(&plan).contains("Unknown → 1 / 500000001 / 900000003"));
+    }
+
+    #[test]
+    fn memory_review_distinguishes_saved_request_from_a_planned_write() {
+        let mut plan = review_plan();
+        plan.preview.allocation = None;
+        let text = memory_review(&plan);
+        assert!(text.contains("10 / 50 / 100"));
+        assert!(text.contains("No VRAM write is planned"));
+        assert!(!text.contains('→'));
+        plan.desired.vram = None;
+        let text = memory_review(&plan);
+        assert!(text.contains("no explicit request"));
+        assert!(!text.contains("bytes:"));
     }
 
     #[test]

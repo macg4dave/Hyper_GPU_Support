@@ -20,7 +20,7 @@ pub struct Target {
     pub gpu_interface: String,
     /// Whether to enable GPU-PV.
     pub enabled: bool,
-    /// Optional provider-defined VRAM triple; absent requests no allocation write.
+    /// Optional VRAM byte triple; absent requests no allocation write.
     #[serde(default)]
     pub vram: Option<Allocation>,
     /// Optional raw compute request; omission performs no compute write.
@@ -36,7 +36,7 @@ pub struct Target {
 /// Fixed provider resource categories, in the approved editor order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Resource {
-    /// Video memory, in raw provider units.
+    /// Video memory byte requests.
     Vram,
     /// Compute engines, in raw provider units.
     Compute,
@@ -113,6 +113,19 @@ pub struct Allocation {
     pub optimal: u64,
 }
 impl Allocation {
+    /// Validate a request using category-specific admission. VRAM values are
+    /// byte requests: reported partition metadata is not a physical-card ceiling.
+    /// Hyper-V decides whether a VRAM request is supported; callers must read it
+    /// back independently. Other categories retain their reported range checks.
+    pub fn validate_request(&self, resource: Resource, limits: &Self) -> Result<(), String> {
+        limits.validate(limits)?;
+        if resource == Resource::Vram {
+            self.validate(self)
+        } else {
+            self.validate(limits)
+        }
+    }
+
     /// Validate ordering and the currently reported provider range.
     pub fn validate(&self, limits: &Self) -> Result<(), String> {
         if self.minimum > self.optimal
@@ -268,7 +281,7 @@ impl Target {
                     format!("{} capability is unavailable or unknown", resource.name())
                 })?;
                 value
-                    .validate(limits)
+                    .validate_request(resource, limits)
                     .map_err(|error| format!("{}: {error}", resource.name()))?;
             }
         }
@@ -583,6 +596,38 @@ enabled = false
         );
         assert!(Configuration::parse(&format!("{t}\nparent_path = 'golden'\n")).is_err());
     }
+    #[test]
+    fn vram_requests_do_not_inherit_reported_partition_ceilings() {
+        let reported = Allocation {
+            minimum: 0,
+            optimal: 1_000_000_000,
+            maximum: 1_000_000_000,
+        };
+        let request = Allocation {
+            minimum: 2_000_000_000,
+            optimal: 8_000_000_000,
+            maximum: 16_000_000_000,
+        };
+        assert!(request.validate_request(Resource::Vram, &reported).is_ok());
+        for resource in [Resource::Compute, Resource::Encode, Resource::Decode] {
+            assert!(request.validate_request(resource, &reported).is_err());
+        }
+        let invalid = Allocation {
+            optimal: 17_000_000_000,
+            ..request
+        };
+        assert!(invalid.validate_request(Resource::Vram, &reported).is_err());
+        let malformed = Allocation {
+            optimal: 2_000_000_000,
+            ..reported
+        };
+        assert!(
+            invalid
+                .validate_request(Resource::Vram, &malformed)
+                .is_err()
+        );
+    }
+
     #[test]
     fn rejects_allocation_outside_actual_provider_range() {
         let range = Allocation {

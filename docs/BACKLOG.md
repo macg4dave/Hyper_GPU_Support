@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**APP-009 — Prepare real GUI and two-VM qualification (M2).** M1 is closed with [gate evidence](evidence/m1-closure.md). Prepare the target/effect/evidence sequence before requesting live authorization; no live sequence has run.
+**APP-009 / APP-011 — Resolve the allocation contract and complete M2 preparation.** M1 is closed with [gate evidence](evidence/m1-closure.md). The [prepared sequence and source assessment](evidence/m2-preparation.md) record remaining environment facts and proposed effects. Selected-VM setup is already user-accepted; the remaining live sequence has not run. APP-011 source removes the metadata-derived VRAM ceiling; validate these changes at the agreed checkpoint before separately authorized live allocation checks.
 
 ## Task register
 
@@ -20,7 +20,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-008 | M1 | Prepare and run the milestone's non-hardware gate | APP-007 | Done | Passed: [evidence](evidence/m1-closure.md) |
 | APP-009 | M2 | Qualify the real GUI and two-VM workflow | APP-008 | In progress | Selected-VM setup accepted by user; remaining qualification pending |
 | APP-010 | M3 | Package and document the qualified product | APP-009 | Blocked | Not run |
-| APP-011 | M2 | Correct physical VRAM and provider mapping | APP-008 | Ready | Not run |
+| APP-011 | M2 | Correct physical VRAM and provider mapping | APP-008 | In progress (ceiling removal source implemented; acceptance pending) | Not run |
 | APP-012 | M2 | Make transfer progress human readable | APP-008 | In progress (source implemented; visual acceptance pending) | Pending milestone gate and live display check |
 | APP-013 | M3 | Measure and improve guest transfer throughput | APP-008 | In progress (source implemented; measured acceptance pending) | Pending milestone gate and live throughput/memory comparison |
 
@@ -113,13 +113,13 @@ Acceptance: package is complete, artifact trust and enrollment/settings preserva
 
 ### APP-011 ? Correct physical VRAM and provider mapping
 
-The live GUI converts raw provider values into GB and backend admission compares physical byte requests directly against those values. The user confirmed that the resulting 1 GB ceiling claim is false. Remove that claim now; mapping implementation is deferred at the user's request. Allocation qualification remains pending.
+The live GUI converts raw provider values into GB and backend admission compares physical byte requests directly against those values. The user confirmed that the resulting 1 GB ceiling claim is false. The user subsequently explicitly requested removal of any mistaken 1 GB hard ceiling. This authorizes source changes to VRAM admission, not live writes. Allocation qualification remains pending.
 
 Establish and implement the correct physical-memory/provider contract in the shared Rust path and GUI. Preserve existing exact saved requests; do not invent a capacity ratio, reservation, or enforcement guarantee. Review source, provider semantics and independent readback before authorizing writes. Keep fresh protected admission and recovery boundaries.
 
 Acceptance: the slider covers 1 GB through detected physical capacity with truthful values; GUI/backend agree on conversions and admission; regression tests cover the observed raw-metadata case, boundaries and invalid inputs; authorized live allocation and independent readback pass. Raw metadata must never be presented as a physical 1 GB ceiling.
 
-Implementation: backlog only. False ceiling wording removed during APP-009; underlying mapping remains unchanged and unqualified.
+Implementation (11 October 2026): removed reported VRAM partition range comparisons from the slider, shared GUI/planner admission and native writer. Requests use documented bytes unchanged; Hyper-V acceptance and exact independent readback decide the outcome. Fresh complete capability, request ordering, stale approval, enrollment, recovery and other-category range checks remain. The slider retains the requested 1 GB minimum and detected physical upper endpoint; saved intent is not rewritten. Apply review shows exact byte triples. Added regression source for multi-GB requests above metadata, retained requests, category isolation, malformed input, driver rejection and readback failure with recovery. [M2 preparation](evidence/m2-preparation.md) records the correction. No ratio or new backend physical-capacity limit was invented. Build, tests and live interaction remain unrun.
 
 
 ### APP-012 ? Make transfer progress human readable

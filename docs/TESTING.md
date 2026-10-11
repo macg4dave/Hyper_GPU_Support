@@ -45,6 +45,8 @@ Add coverage for real missing behavior and failure boundaries. Reuse meaningful 
 
 APP-009 prepares the exact environment, targets, effects, workload interval, evidence locations, final power states, and stop conditions before requesting authorization.
 
+The [M2 preparation record](evidence/m2-preparation.md) contains the proposed sequence and missing environment/mapping facts. It is preparation, not authorization or executed evidence. The accepted selected-VM setup is not repeated solely for qualification.
+
 ### Available Hyper-V test VMs
 
 The following existing VMs are available for testing: `win_26300.9457  VM1` , `win_26300.9457  VM3`and `win_26200.9457 VM2`. Do not roll back either VM or add generic rollback warnings solely because these designated targets are used for testing; do not automatically reset or otherwise restore them. If a test requires a VM to be reset, stop and inform the user.

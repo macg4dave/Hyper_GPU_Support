@@ -535,7 +535,7 @@ fn resource_controls(ui: &AppWindow, state: &State) {
             let note = slider
                 .range_note
                 .map_or_else(String::new, |note| format!("\n{note}"));
-            ui.set_memory_hint(format!("Choose a request from 1 GB to the card's detected capacity. VRAM mapping needs correction before allocation testing.{note}").into());
+            ui.set_memory_hint(format!("Choose a request from 1 GB to the card's detected capacity. Hyper-V validates the requested bytes; actual allocation behavior awaits live qualification.{note}").into());
         }
         Err(reason) => {
             ui.set_memory_available(false);
@@ -969,24 +969,7 @@ fn review(
                             .map(|gpu| gpu.name.clone())
                     })
                     .unwrap_or_else(|| plan.desired.gpu_interface.clone());
-                let memory_display = super::memory::format_gb;
-                let memory_summary = if let Some(write) = &plan.preview.allocation {
-                    format!(
-                        "GPU Memory request: {} → {}\n",
-                        plan.observed
-                            .vram
-                            .as_ref()
-                            .map_or_else(|| "Unknown".into(), |v| memory_display(v.optimal)),
-                        memory_display(write.optimal)
-                    )
-                } else if let Some(request) = &plan.desired.vram {
-                    format!(
-                        "GPU Memory request: {}. No VRAM write is planned.\n",
-                        memory_display(request.optimal)
-                    )
-                } else {
-                    "GPU Memory: no explicit request.\n".into()
-                };
+                let memory_summary = super::live_state::memory_review(&plan);
                 ui.set_execution_ready(worker_available);
                 let accepted = review_state
                     .lock()
@@ -2061,7 +2044,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "shortcuts" => {
-                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. VRAM mapping is awaiting correction and live validation. Only the toggle disables support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable.";
+                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. VRAM requests use bytes without a metadata-derived 1 GB ceiling; hardware behavior awaits live validation. Only the toggle disables support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable.";
                 dialog(&ui, "info", "Application help", help); Ok(())
             },
             _ => Err("This action is not connected yet. Use the supported CLI; no operation was performed.".into()),

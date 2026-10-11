@@ -16,7 +16,6 @@ pub(super) struct MemorySlider {
     pub range_end: String,
     pub range_note: Option<String>,
     bounds: Allocation,
-    limits: Allocation,
     physical_capacity: u64,
 }
 
@@ -69,10 +68,10 @@ impl MemorySlider {
         }
         let bounds = current.unwrap_or(limits);
         bounds
-            .validate(limits)
+            .validate(bounds)
             .map_err(|_| "Correct the VRAM range in Advanced Allocation to use the slider.")?;
-        // Product range and provider admission are separate. The driver can reject
-        // points in the displayed physical range; never scale its limits to the card.
+        // Physical capacity bounds the slider. Reported partition metadata must
+        // not impose a second (for example 1 GB) ceiling on byte requests.
         let lower = BYTES_PER_GB / BYTES_PER_STEP;
         let upper = physical_capacity.div_ceil(BYTES_PER_STEP);
         if bounds.optimal > physical_capacity {
@@ -81,15 +80,6 @@ impl MemorySlider {
         if upper > MAX_EXACT_STEP {
             return Err(
                 "VRAM bounds exceed exact slider precision. Use Advanced Allocation.".into(),
-            );
-        }
-        let first_supported = limits.minimum.max(BYTES_PER_GB).div_ceil(BYTES_PER_STEP);
-        let last_supported = limits.maximum.min(physical_capacity) / BYTES_PER_STEP;
-        let endpoint_supported = (limits.minimum..=limits.maximum).contains(&physical_capacity);
-        if first_supported > last_supported && !endpoint_supported {
-            return Err(
-                "The current VRAM mapping cannot validate a selection; this does not establish a physical memory limit. Exact saved values remain available in Advanced Allocation."
-                    .into(),
             );
         }
         Ok(Self {
@@ -110,7 +100,6 @@ impl MemorySlider {
                 "The existing request is below 1 GB and has been retained exactly. The slider starts at 1 GB; edit it or use Advanced Allocation to change the request.".into()
             }),
             bounds: bounds.clone(),
-            limits: limits.clone(),
             physical_capacity,
         })
     }
@@ -124,15 +113,12 @@ impl MemorySlider {
             .checked_mul(BYTES_PER_STEP)
             .ok_or("Memory conversion overflow")?
             .min(self.physical_capacity);
-        if optimal < self.limits.minimum || optimal > self.limits.maximum {
-            return Err("The current VRAM mapping cannot validate this selection; the draft was retained. Raw provider metadata does not establish a physical GB ceiling.".into());
-        }
         let result = Allocation {
             minimum: self.bounds.minimum.min(optimal),
             optimal,
             maximum: self.bounds.maximum.max(optimal),
         };
-        result.validate(&self.limits)?;
+        result.validate(&result)?;
         Ok(result)
     }
 }
@@ -204,7 +190,15 @@ mod tests {
         assert_eq!(slider.select(10).unwrap().optimal, 1_000_000_000);
         assert!(slider.select(5).is_err());
         assert!(slider.select(0).is_err());
-        assert!(slider.select(40).is_err());
+        assert_eq!(slider.select(40).unwrap().optimal, 4_000_000_000);
+        let selected = slider.select(slider.maximum).unwrap();
+        assert_eq!(selected.maximum, 8_589_934_592);
+        assert_eq!(
+            MemorySlider::new(&limits, Some(&selected), 8_589_934_592)
+                .unwrap()
+                .label,
+            "8.589934592 GB"
+        );
     }
 
     #[test]
@@ -262,8 +256,8 @@ mod tests {
         let slider = MemorySlider::new(&limits, None, 8_000_000_000).unwrap();
         assert_eq!(slider.range_start, "1 GB");
         assert_eq!(slider.range_end, "8 GB");
-        assert!(slider.select(10).is_err());
-        assert!(slider.select(20).is_err());
+        assert_eq!(slider.select(10).unwrap().optimal, BYTES_PER_GB);
+        assert_eq!(slider.select(20).unwrap().optimal, 2_000_000_000);
         assert_eq!(slider.select(21).unwrap().optimal, 2_100_000_000);
     }
 
@@ -293,13 +287,20 @@ mod tests {
         };
         let endpoint = MemorySlider::new(&narrow, None, capacity).unwrap();
         assert_eq!(endpoint.select(11).unwrap().optimal, capacity);
-        assert!(endpoint.select(10).is_err());
-        // A narrow range between ticks cannot offer a guessed or rounded request.
-        assert!(MemorySlider::new(&narrow, None, 2_000_000_000).is_err());
+        assert_eq!(endpoint.select(10).unwrap().optimal, BYTES_PER_GB);
+        // Partition metadata does not narrow the physical slider range.
+        assert_eq!(
+            MemorySlider::new(&narrow, None, 2_000_000_000)
+                .unwrap()
+                .select(20)
+                .unwrap()
+                .optimal,
+            2_000_000_000
+        );
     }
 
     #[test]
-    fn invalid_narrow_and_imprecise_ranges_stay_unavailable() {
+    fn invalid_and_imprecise_ranges_stay_unavailable() {
         assert!(
             MemorySlider::new(
                 &Allocation {
@@ -312,7 +313,7 @@ mod tests {
             )
             .is_err()
         );
-        assert!(
+        assert_eq!(
             MemorySlider::new(
                 &Allocation {
                     minimum: 0,
@@ -322,7 +323,11 @@ mod tests {
                 None,
                 8_000_000_000
             )
-            .is_err()
+            .unwrap()
+            .select(80)
+            .unwrap()
+            .optimal,
+            8_000_000_000
         );
         assert!(
             MemorySlider::new(
