@@ -20,10 +20,16 @@ to the existing `Configuration::parse` and validates one target plus filename/GU
 agreement. `View::from_vm_file` loads those exact values as saved intent;
 `View::saved_desired_text` displays them independently of observation/draft.
 The CLI can already parse each sample with `--config`; no alternate fixture parser
-or configuration schema is introduced. These are the selected shared loading/
-display entry points for GUI-002; user-facing controller binding is still pending.
+or configuration schema is introduced. These are shared loading/display entry
+points. The live controller reads committed per-VM intent separately from observed
+inventory; snapshot rehearsal can read a candidate through
+`--mock-gui --snapshot FILE --config GUID.toml`.
 `Configuration::vm_documents` prepares canonical files from schema-2 bundles
 without writing files or modifying the original intent.
 
-See [configuration contract](../../docs/CONFIGURATION.md). The parser/fixture/import
-coverage is added in `tests/configuration_files.rs` but has **not been run**.
+See the [configuration contract](../../docs/CONFIGURATION.md) and
+[source baseline](../../docs/BASELINE.md). Schema 3 also supports optional
+Compute/Encode/Decode triples; these retained samples deliberately remain schema 2.
+The former external integration suite was deleted. Surviving inline parser/model
+tests and controller paths were inspected, but no tests or GUI runs were performed
+during the documentation reset.

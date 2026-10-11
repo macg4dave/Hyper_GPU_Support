@@ -1,224 +1,43 @@
-# Repository Agent Guide
+# Codex instructions
 
-## Development priorities
+This is an AI-led coding repository. The user sets product direction and authorizes work; Codex implements one requested task at a time. These are the authoritative repository instructions for Codex. Supporting prompts must reference them, not introduce competing rules.
 
-[ROADMAP](docs/ROADMAP.md) is authoritative for delivery order and milestone gates;
-[BACKLOG](docs/BACKLOG.md#next-implementation-action) owns task selection/status.
-Default to the next ready functional GUI slice. Inspect existing Rust code, then
-implement the missing behavior through approved controls. Do not restart completed
-workers, feasibility, diagnostics, historical investigations or laboratory work.
-If blocked, record the exact reason once and take another safe GUI slice.
+## Start here
 
-## Project
+1. Read [README](README.md), [roadmap](docs/ROADMAP.md), and [next implementation action](docs/BACKLOG.md#next-implementation-action).
+2. Inspect the working tree and the relevant source before proposing edits. Preserve existing user changes and deletions.
+3. Read the handbook pages relevant to the task. Use the [source baseline](docs/BASELINE.md) as an index, then verify its claims against current code.
+4. If the user names a task, follow that task. Otherwise select the next ready task from the backlog within the user's requested scope. A backlog entry alone does not authorize execution.
 
-Build a Rust GPU-PV management core for existing Windows Hyper-V Generation 2 VMs,
-with one `hyper-gpu-support.exe`: no arguments launch Slint, explicit commands run
-headlessly, and a restricted internal mode runs one elevated worker per approved
-operation. Both interfaces reuse the shared Rust core. Manage multiple selected VMs with one GPU
-each; GPU sharing requires qualification. Deliver NVIDIA preparation first, then
-incremental vendor adapters. Initial release includes physical GPU selection and
-Min/Optimal/Max for VRAM, compute, encode and decode, subject to truthful provider
-capability validation/readback. No invented units or enforcement promises. See the
-[roadmap](docs/ROADMAP.md) and approved [GUI guide](docs/GUI_GUIDE.md).
+## Product boundaries
 
-GPU Memory's displayed maximum comes from the selected GPU's detected physical
-VRAM capacity. Keep native provider request limits separate and enforce them;
-unsupported values require an explanation, never an invented physical/provider
-ratio. A decimal GB unit constant, fixture value or provider result is not a
-product-wide 1 GB cap. Unknown physical capacity stays explicitly unavailable.
+- Keep the existing Slint design. Complete behavior through the shared Rust core; do not create a replacement GUI, alternate configuration schema, or parallel effect implementation without an agreed change in direction.
+- The first release targets existing Generation 2 Windows 11 VMs and an NVIDIA GPU, with at least two guests rendering on hardware concurrently. Exact host/guest versions are selected before qualification. Resource isolation is not a release promise.
+- Preserve the separation between observed state, saved intent, drafts, enrollment authority, verification, and recovery. See [architecture](docs/ARCHITECTURE.md) and [configuration](docs/CONFIGURATION.md).
+- Product logic belongs in Rust. The existing PowerShell Direct transport is an explicit bridge, not evidence that the product is entirely native. Narrow development helpers may orchestrate tools; do not put a second product backend in scripts.
+- Respect the protected runner, fixed elevated worker/setup modes, authenticated IPC, artifact checks, ACL checks, fresh plan validation, operation locking, and durable recovery. See [security and recovery](docs/SECURITY.md).
+- Mock and snapshot routes must remain explicit and no-write. Simulated success does not establish live support.
 
-The completed Slint prototype is the authoritative v1.0 GUI, now in `src/gui/ui/` and
-`src/gui/`. No arguments launch it; explicit CLI commands retain the working Rust
-core. Do not redesign or restore removed pages, search/filters or other absent
-controls. Backend integration may connect existing controls only. Normal startup
-uses real inventory and supported real bindings; unconnected actions are blocked.
-`--mock-gui` explicitly selects rehearsal, currently with fixtures. As integration
-progresses it should read real data/plans but execute no effects or persistent
-writes, including config/credentials/journals/audits. Do not suppress mandatory
-runner audit; use the existing no-write fixture/snapshot routes. Preserve fixture scenarios
-for UI tests and clearly label simulated outcomes. Win32 is removed; preserve sound
-`gui_model`, workflow, runner, Named Pipe, locking and journal contracts.
-The protected runner and same-executable restricted worker already exist;
-inspect their current handlers before extending integration. Prioritize making
-the approved GUI functional; CLI functionality absent from the GUI
-remains supported. See [GUI scope](docs/GUI_GUIDE.md).
+## Authorization and uncertainty
 
-Feasibility is established on the RTX 5060/Windows 11 baseline. Treat old code and
-experiments as research material, not contracts that must be preserved. Discover
-current signed driver payloads dynamically; do not require laboratory paths, VM
-names, driver versions or fixed counts/hashes in operator configuration. Preserve
-disks, CPU/RAM quantities, Secure Boot and privilege boundaries. HCS remains paused.
-The standalone `tools/lab/` package retains useful contributor automation and is
-outside the production dependency graph. Do not extend it as the product.
+- Repository source, documentation, and local development tooling changes within the requested task can proceed without repeated permission questions.
+- Obtain explicit authorization before live VM/GPU operations, guest access, privileged setup/enrollment, protected-store writes, driver changes, or hardware qualification. Before requesting authorization, prepare a concrete operation sequence and identify targets, effects, and evidence. Authorization persists for its stated scope.
+- A GUI launch can initiate elevated first-install discovery. Do not treat launching the live application as a harmless visual check. Use an explicitly authorized mock preview for appearance checks.
+- Do not request passwords in chat or put them in files, logs, configuration, or persistent recovery. Use the product's local credential prompts and explicit vault opt-in.
+- On timeout, disconnect, missing terminal result, or uncertain mutation, retain evidence and recovery. Never automatically replay GPU work, rerun hardware qualification, restart the host, or clear a hold to make progress.
+- Do not restore deleted files simply because old guidance refers to them. Restore or replace individual tools only within a task that justifies doing so.
+- Use sub-agents only when the user explicitly requests delegation or parallel agent work.
 
-## Product and development boundary
+## Task and validation workflow
 
-We are past GPU-PV feasibility testing; implement the product for an existing
-user-selected Hyper-V VM. Golden images, disposable cloning/reset, test disks
-and laboratory setup are contributor infrastructure. Reuse existing helpers when
-testing; do not add these capabilities to the production CLI without an explicit
-user-facing roadmap requirement. Rust test utilities belong outside the default
-production library/application path.
+- Make a coherent change for one requested task; do not consume the rest of the backlog automatically. Fix directly related issues needed to complete that task.
+- Follow [engineering](docs/ENGINEERING.md) for statuses and completion reporting. Record implementation and validation separately in the backlog.
+- Normally run builds and automated tests at an agreed milestone's completion, or when the user explicitly requests them sooner. A task or subtask is not a milestone. Do not run checks after every small edit or redefine a milestone to justify doing so.
+- Follow [testing](docs/TESTING.md) for the intended gate and hardware scenarios. Check that a command exists and has the expected effects before using it. Never report a deleted script or an unexecuted command as a passing check.
+- Documentation-only work may use link, dependency, consistency, and diff checks without compiling or launching the product.
+- Add tests for meaningful behavior and failure boundaries where needed; reuse useful existing coverage. Defer execution according to the validation policy and label untested changes plainly.
+- Finish by reporting what changed, what checks actually ran, remaining uncertainty, and the next task. Update the backlog and affected handbook pages; update roadmap gates only when their criteria are met.
 
-**Test-environment automation may support development but must not become production application functionality unless it is explicitly required by the user-facing product. Production code may be used by test tooling; production code must not depend on test tooling.**
+## Instruction precedence and documentation ownership
 
-## Read only what the task needs
-
-Normal product operation, installation and recovery must be implemented in Rust.
-The user-approved DEC-028 exception permits only a fixed PowerShell Direct session,
-transfer, bootstrap-integrity and worker-launch bridge; application logic remains Rust.
-The [migration audit](scripts/PRODUCT-MIGRATION.md) maps current debt to
-CORE-024/025/026/027; read its affected row when porting or reviewing that boundary.
-Preserve working Rust and replace adapters incrementally, with focused tests and
-demonstrated replacement before removing production dependencies; defer
-execution/qualification under the testing and permission policy below. Keep
-scripts optional for development/manual diagnostics. Do not improve product
-PowerShell except for necessary correctness/safety fixes or a bounded comparison
-needed for the port. Any retained external interface requires DEC-027's concrete
-native-alternative, exact-command, validation, timeout and error/recovery rationale.
-Existing adapter decisions are historical context, not blanket v1 exemptions.
-
-| File | Owns / read when |
-|---|---|
-| [docs/BACKLOG.md](docs/BACKLOG.md) | Scheduled work, task selection, blockers and handover; read only relevant sections |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Current milestone and exit criteria; selecting work or checking a milestone gate |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Validated recipe, component boundaries and operation contracts; read affected sections |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Important choices and rationale; only relevant decision IDs |
-| [docs/ENGINEERING.md](docs/ENGINEERING.md) | Authoritative Rust, testing, tooling and documentation rules; read for coding, tests, dependencies or CI |
-| [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md) | Approved Slint UX/architecture requirements and unresolved technical questions |
-| [docs/GUI_ROADMAP.md](docs/GUI_ROADMAP.md) | Historical cross-reference; not a task queue |
-| [docs/SLINT_RULES.md](docs/SLINT_RULES.md) | Slint practice; [implementation prompt](.github/prompts/SLINT_CODEX_PROMPT.md) |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Concise meaningful completed changes; append on completion, no routine history reread |
-| [scripts/README.md](scripts/README.md) | Maintained development/setup/diagnostic script layout; read before adding or running substantial shell procedures |
-
-The active backlog owns status and dependencies; cards own objective,
-acceptance and concise results. Correct trivial drift in place without a new
-card. Historical evidence is outside normal startup reading. Prompts in
-`.github/prompts/` add task-specific guidance only when invoked or relevant.
-
-## Session workflow
-
-1. Read the selected task row/card and relevant source. Read a dependency result,
-   architecture section or blocker only when it affects implementation or safety.
-   Use BACKLOG next action and ROADMAP delivery order for task selection.
-   Historical evidence and Resume are not normal startup prerequisites.
-2. Check Git state and overlapping ownership before editing. Claim a backlog card
-   when work is scheduled/shared or spans a handover. A small direct request, bug
-   fix or documentation correction may proceed without inventing a card.
-3. Implement the smallest coherent product step. Preserve unrelated work and avoid
-   speculative abstractions or refactors. Resolve routine implementation choices
-   during coding.
-4. Author focused tests for meaningful new logic; defer execution under the
-   milestone testing policy below. Live tests require explicit permission.
-   Update documentation after behavior changes;
-   do not make prose, evidence files or cross-document reconciliation a prerequisite
-   for ordinary coding.
-5. Use independent `architecture_reviewer` review at an implementation milestone
-   or before live use of a materially changed privileged/security boundary. Supply
-   the affected contract, diff and actual validation status; fix blocking findings.
-   Routine patches need no review gate or architecture proposal.
-6. On completion, record a short result on an existing card when one owns the work,
-   update only affected architecture/decisions, and add a changelog entry only for
-   a meaningful product or process change. Refresh Resume only for a real handover;
-   correct trivial tracking drift in place without creating follow-up work.
-
-## Testing Policy — Codex
-
-Stop running tests, builds, compilation checks, or launching the UI after every small change.
-
-Follow these rules:
-
-1. **During development:** Make changes without automatically running tests, `cargo check`, `cargo test`, `cargo build`, or launching the GUI.
-2. **At milestone completion:** Run relevant tests and build checks once, after all work for that milestone is complete.
-3. **On explicit request:** Run tests whenever I specifically instruct you to.
-4. **Small changes:** Do not test individual edits, UI adjustments, layout changes, refactoring, or documentation updates.
-5. **Failures:** If a milestone test fails, fix the relevant issue and rerun only the necessary checks. Avoid repeatedly running the entire test suite.
-6. **Exceptions:** If you believe immediate testing is essential, explain why and request permission first.
-
-Prioritise implementing the planned work over repeatedly validating intermediate states.
-
-**Important:** Do not interpret completing an individual task or subtask as completing a milestone. A milestone is complete only when all its planned tasks are finished.
-
-At the end of each task, briefly report what changed and whether it remains untested. Do not automatically start validation.
-
-This policy overrides existing instructions to test continuously unless I explicitly tell you otherwise.
-
-An active instruction to defer validation takes precedence over default milestone
-timing. M3 and release validation follow ROADMAP's explicit-authorisation gates;
-an implemented slice is not a milestone or permission to start validation.
-
-## Mandatory rules
-
-- Application logic, CLI, configuration, diagnostics, GPU/Hyper-V management and
-  supporting utilities belong in Rust. Prefer Rust libraries and `windows` bindings;
-  investigate Rust alternatives and record the technical reason in DECISIONS before
-  introducing a non-Rust exception. Convenience is not a reason.
-  Calling an existing Windows utility does not itself introduce another language.
-- Discover values through reliable Windows facilities when they are inventory rather
-  than operator intent. Put remaining values expected to change between machines,
-  product intent in the versioned runtime schema (currently schema 2;
-  per-VM files follow [CONFIGURATION](docs/CONFIGURATION.md)) and contributor/test
-  values in `config/project.toml`;
-  deserialize and validate once at the boundary, then pass typed values. Scripts
-  consume the shared configuration or accept explicit overrides. Keep protocol/API
-  constants and fixed safety limits in code; never store secrets in configuration. See
-  [configuration policy](docs/CONFIGURATION.md).
-- Follow ENGINEERING for focused modules, explicit errors, safe FFI, meaningful
-  behavior coverage, formatting, strict Clippy/compiler warnings and documentation.
-- Preserve authorship, applicable licenses and third-party notices in reused
-  material; record its source revision/path and adaptation rationale. This is a
-  provenance obligation, not an external-repository research workflow.
-- Report only checks actually run: exact host/guest builds and architecture,
-  GPU/driver, API/runtime, workload and outcome when hardware is involved.
-  Builds, DLL loading and enumeration do not prove GPU support.
-- Do not invent files, commands or passes. Use the README or task result for commands.
-- Never commit credentials, signing keys/certificates, secrets, production data,
-  ISOs, VM disks or extracted proprietary drivers. Document redistribution
-  terms/notices before distributing third-party binaries.
-- Do not weaken isolation, signing, Secure Boot, networking or privilege
-  boundaries to make a test pass. Flag unsupported capability claims,
-  lost attribution, unreviewed privileged actions and unrelated changes in review.
-- Follow the [shell and script policy](docs/ENGINEERING.md#shell-commands-and-development-scripts):
-  run short commands directly and substantial procedures from meaningful script
-  files. PowerShell supports development/Windows operations, not application logic.
-- Follow the authoritative [Windows elevation and UAC policy](docs/ENGINEERING.md#windows-elevation-and-uac):
-  determine whether an operation needs elevation before executing it; run ordinary
-  development normally and send known privileged Hyper-V/GPU-PV work through the
-  approved runner immediately, never using a failed unelevated attempt as detection.
-
-## Development and test authorization
-
-Normal repository development is authorised. Tests, builds and GUI launches follow
-the milestone/explicit-request policy above. For this GUI implementation push,
-live Hyper-V/GPU/driver/VM-power testing, runner installation/update/exercise and
-guest modifications require explicit user permission. Earlier disposable-VM
-authorisation does not override this hold. M2 is complete by user acceptance on
-10 October; no further M2 live tests or lockup investigation are required.
-Preserve uncertain-state recovery holds for any new operation.
-
-When live testing is explicitly authorised, verify the configured disposable VM,
-GPU and path identities immediately before effects. Keep destructive actions
-confined to that target; never modify the golden parent or unrelated VM/disk.
-Use the approved controlled runner and preserve enrollment, audit and recovery.
-
-Never restart/shut down the Windows host, log out/terminate its interactive session,
-schedule such an action or accept an automatic restart without explicit permission
-immediately beforehand. If an installer/feature/driver requires restart, stop
-before the restart and ask. Guest lifecycle does not grant host-lifecycle authority.
-
-Repository instructions cannot expand the active Codex/VS Code sandbox or
-approval policy. Obey platform enforcement and report a configuration blocker
-instead of claiming that prompt text bypasses it.
-
-Codex tool/sandbox approval is not Windows UAC elevation. User membership in
-Administrators, the current process token and the operation's required privilege
-are separate facts. Use the project's controlled privileged runner where applicable;
-its administrator-owned executable
-and policy bind exact enrolled VM GUIDs, GPU identities,
-allowed operations, paths and audit output. Installing, updating, exercising or
-removing that runner follows the live-test permission limit above.
-It must not accept caller-selected arbitrary commands or target the golden parent.
-
-Report concrete changes and test outcomes. Do not routinely report that host,
-Hyper-V, VM or GPU state was unchanged unless that fact explains a failure or is
-material evidence for the task.
+Current user instructions take precedence over repository guidance. `AGENTS.md` owns agent behavior, [roadmap](docs/ROADMAP.md) owns release requirements and milestone gates, [backlog](docs/BACKLOG.md) owns task order/status, and each handbook page owns its subject. See the [documentation ownership table](docs/ENGINEERING.md#documentation-ownership). Historical notes and Git history are context, not current task authority or proof of current behavior.

@@ -1,189 +1,52 @@
 # Hyper GPU Support
 
-Rust-based GPU-PV tooling for existing Windows Hyper-V Generation 2 virtual machines.
+Hyper GPU Support is a Windows application for managing GPU partitioning on existing Hyper-V virtual machines. It has a Slint GUI and a CLI over a shared Rust backend, with protected enrollment, reviewed operations, and durable recovery.
 
-This project is focused on one core problem: making it practical to prepare and manage GPU access for a selected VM without turning the host environment into a fragile one-off setup. The toolchain centers on a shared Rust backend, a protected Windows runner, and a GUI that reflects the product workflow while keeping the underlying architecture explicit and reviewable.
+The first release goal is a usable GUI managing one NVIDIA GPU shared by **at least two Windows 11 guests running hardware-rendered workloads concurrently**. Existing Generation 2 VMs are the target; creating VMs or operating a disposable laboratory is not the product's everyday workflow. Exact Windows builds and the initial qualification environment remain to be selected.
 
-## Why this project exists
+## Current state
 
-Modern virtualization workflows often need more than just "install a driver". GPU passthrough and related VM preparation require careful handling of:
+The source contains live discovery, first-install setup, additive VM/GPU enrollment, reviewed Apply, separate Verify, configuration publication, and reconciliation paths. These are source findings, not a new runtime validation result. Concurrent sharing, host stability, packaging, and the complete GUI workflow have not been established by this documentation reset. Read the [source baseline](docs/BASELINE.md) for evidence and known gaps.
 
-- Hyper-V VM inventory and identity
-- GPU discovery and compatibility checks
-- Guest preparation and driver staging
-- Secure, audited admin operations
-- Recovery, status checks, and safe rollback boundaries
+GPU replacement and Forget pairing are unavailable in the live GUI. CLI `forget` removes a stored credential; it does not forget enrollment. Resource requests and physical VRAM display must not be presented as proven per-VM isolation or fair sharing.
 
-Hyper GPU Support is designed around that model: it treats GPU enablement as an operational workflow rather than a loose collection of scripts.
+## Entrypoints
 
-## Product status
+These describe the current dispatcher; they are not instructions to perform live operations now.
 
-This repository is an active engineering project with a clear product direction:
+| Entrypoint | Purpose |
+|---|---|
+| `hyper-gpu-support.exe` with no arguments | Live GUI; startup can request elevated discovery when installation is missing |
+| `--mock-gui` | Explicit fixture demonstration with no backend effects or persistent writes |
+| `--mock-gui --snapshot FILE [--config GUID.toml]` | Historical inventory and optional per-VM intent rehearsal, with no backend effects or writes |
+| `inventory`, `plan`, `status` | Discovery or selected-target inspection; live reads can require the installed protected runner |
+| `install`, `apply`, `enable`, `disable`, `verify` | Protected setup or operations; authorization and lifecycle review are required |
+| `credentials`, `forget` | Local credential storage/removal, separate from pairing authority |
+| `import`, `import-reconcile` | Explicit configuration import and interrupted import reconciliation |
+| `save-only`, `reconcile` | Bound configuration publication retry or uncertain-operation reconciliation |
 
-- The approved Slint GUI launches in live mode without arguments. `--mock-gui` explicitly selects simulated rehearsal.
-- The CLI uses the shared Rust backend; binding the existing GUI controls to that backend remains scheduled.
-- The CLI is still available for headless workflows and lower-level validation.
-- Live startup reads actual VM/GPU inventory; unconnected actions remain unavailable. Mock mode currently uses fixtures and simulated outcomes, with real-data read-only rehearsal planned as integration progresses.
-- Protected runner, guest worker, and transport boundaries remain intentionally separated as part of a staged, safe implementation approach.
+See [GUI workflows](docs/GUI_GUIDE.md), [configuration](docs/CONFIGURATION.md), and [security/recovery](docs/SECURITY.md) before using live operations. Help text is known to omit some implemented commands; the baseline records this discrepancy.
 
-Restricted same-executable worker consolidation and Windows GUI console packaging
-remain planned. The current host binary retains the console subsystem so CLI
-stdout/stderr and exit codes remain reliable.
+## Development
 
-## What is included
+The manifests pin Rust 1.94.0 and Slint 1.18.1 and select `x86_64-pc-windows-msvc`. Windows build tools are required. The intended local gate is described in [testing](docs/TESTING.md); its previous script and CI workflow were deleted and have not been restored. Existing inline Rust tests remain. Cached executables in `target/` are not evidence that this checkout builds or works.
 
-### Core capabilities
+`config/product.example.toml` and [sample configurations](config/samples/README.md) use the production intent schema. `config/project.toml`, artifact pins, and the old runner policy contain development context; they are not product runtime configuration or a support matrix. Keep passwords, VM disks, driver payloads, and machine-specific evidence out of Git.
 
-- Windows-focused VM and GPU inventory discovery
-- Protected administrator-side execution flow
-- Prepare/apply/verify/disable operation model
-- Shared Rust core retained for CLI operation and planned GUI binding
-- Reviewable, auditable operation logic for privileged tasks
+## Project and AI guidance
 
-### Current product shape
+| Document | Owns |
+|---|---|
+| [Roadmap](docs/ROADMAP.md) | First-release requirements, milestone sequence, and completion gates |
+| [Backlog](docs/BACKLOG.md) | Actionable tasks, dependencies, status, and next task |
+| [Baseline](docs/BASELINE.md) | Current source assessment, discrepancies, and validation limits |
+| [Architecture](docs/ARCHITECTURE.md) | Components, data flow, and boundaries |
+| [Configuration](docs/CONFIGURATION.md) | Intent schemas, storage, and compatibility |
+| [GUI guide](docs/GUI_GUIDE.md) | Existing design and workflow behavior |
+| [Security and recovery](docs/SECURITY.md) | Authority, trust, uncertainty, and recovery contracts |
+| [Engineering](docs/ENGINEERING.md) | Task/status conventions and documentation ownership |
+| [Testing](docs/TESTING.md) | Validation policy, planned gate, and qualification scenarios |
+| [Decisions](docs/DECISIONS.md) | Agreed project choices and their consequences |
+| [AGENTS.md](AGENTS.md) | Authoritative Codex instructions |
 
-- GUI in the Slint app layer
-- Rust core logic in the main project sources
-- Separate host/guest artifacts and runner boundaries for security and safety
-- Contributor infrastructure kept distinctly outside the product path
-
-## Architecture at a glance
-
-The project is organized around a small set of operating principles:
-
-- Rust owns the application logic and workflow coordination.
-- Hyper-V and Windows inventory are discovered from native interfaces rather than hardcoded assumptions.
-- Security-sensitive operations are routed through the protected runner model.
-- The GUI and CLI share the same execution concepts, even when the UI is currently mocked for presentation and validation work.
-
-For deeper technical detail, see:
-
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/ROADMAP.md](docs/ROADMAP.md)
-- [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md)
-- [docs/ENGINEERING.md](docs/ENGINEERING.md)
-
-## Quick start
-
-To run the main GUI against actual inventory:
-
-```powershell
-cargo run --locked
-```
-
-To run the mock GUI without persistent writes or real operations:
-
-```powershell
-cargo run --locked -- --mock-gui
-```
-
-Plain mock mode uses fixtures. To inspect an existing JSON capture from the
-`inventory` command without calling the backend:
-
-```powershell
-hyper-gpu-support --mock-gui --snapshot inventory.json
-```
-
-Snapshot input uses the real-data cards/System presentation and labels every
-observation historical. Recorded enrolled pairs support draft editing and shared
-plan rehearsal. An optional `--config GUID.toml` loads one candidate per-VM file
-through the production parser, separately from enrollment and observation.
-Enabled previews require a `plans` array containing shared CLI plan JSON with a
-unique recorded payload digest for the selected VM/GPU/driver; missing managed
-records remain unknown. Disabled previews do not require a payload digest.
-Review can display simulated stages without executing them or saving the draft.
-Refresh rereads the inputs; external changes block an existing draft until it is
-discarded and refreshed. Credentials and execution remain blocked.
-This route passed scoped automated and headless runtime
-[testing](docs/evidence/GUI-002-testing.md); desktop and protected-effect acceptance remain open;
-capturing inventory is a separate operation and may write mandatory runner audits.
-See the
-[mode contract](docs/GUI_GUIDE.md#mock-mode-development-direction).
-Normal mode never substitutes simulated success for an unconnected operation.
-Ordinary-token live discovery retains the existing runner's required audit records.
-Before first installation, fixed package discovery requests UAC; Details/Review
-separately reviews package setup and exact pair enrollment. Enrollment does not
-apply GPU changes; a subsequent fresh Review is required for Apply.
-
-To build the project and check the CLI surface:
-
-```powershell
-cargo build --locked
-cargo run --locked -- --help
-```
-
-The repository also includes validation scripts for project checks:
-
-```powershell
-.\scripts\testing\check.ps1
-.\scripts\testing\check-docs.ps1
-```
-
-## CLI usage
-
-The project retains headless CLI commands for operational flows. A typical admin workflow looks like this:
-
-```powershell
-hyper-gpu-support inventory
-hyper-gpu-support install --config my-vms.toml
-hyper-gpu-support plan --config my-vms.toml
-hyper-gpu-support apply --config my-vms.toml --vm VM-GUID
-hyper-gpu-support status --config my-vms.toml
-hyper-gpu-support verify --config my-vms.toml --vm VM-GUID
-hyper-gpu-support disable --config my-vms.toml --vm VM-GUID
-```
-
-Use the example configuration as a starting point:
-
-- [config/product.example.toml](config/product.example.toml)
-
-The configuration model keeps machine-specific values out of the code and supports the project’s Windows-native operation flow.
-
-## GUI preview
-
-The Slint UI is a first-class product surface and is the main GUI entry point for the project. It can be checked and previewed with the existing Slint tooling:
-
-```powershell
-slint-viewer --check src/gui/ui/app.slint
-slint-viewer --auto-reload src/gui/ui/app.slint
-```
-
-The approved design is preserved in both modes. Component preview uses fixture
-properties; normal executable startup uses actual discovery and `--mock-gui`
-selects the simulated callbacks.
-
-## Safety and boundaries
-
-This project is intentionally careful about privileged operations:
-
-- GPU-PV and Hyper-V operations are treated as high-risk workflows.
-- Protected runner and guest-side boundaries are separate by design.
-- Product operations avoid broad, unsafe assumptions about host state.
-- Contributor tooling and lab automation remain separate from the runtime product path.
-
-The product manages existing user-selected VMs. Development hardware testing uses
-verified disposable targets; that laboratory setup is not an operator requirement.
-
-Slint and dependency licensing/notices must be reviewed before distribution.
-Local icon attribution is preserved in [src/gui/ui/icons](src/gui/ui/icons/README.md).
-
-## Repository layout
-
-- [src](src) — Rust runtime, workflow logic, Windows integration, and model types
-- [src/gui/ui](src/gui/ui) — Slint UI sources and presentation layer
-- [config](config) — configuration examples and product policy inputs
-- [docs](docs) — architecture, roadmap, engineering, and design artifacts
-- [scripts](scripts) — helper scripts and validation-oriented tooling
-- [tools/lab](tools/lab) — contributor lab automation and research-only assets
-
-## Documentation and next steps
-
-The roadmap and architecture docs are the authoritative source for product direction and boundaries:
-
-- [docs/ROADMAP.md](docs/ROADMAP.md)
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md)
-- [docs/ENGINEERING.md](docs/ENGINEERING.md)
-- [docs/DECISIONS.md](docs/DECISIONS.md)
-
-This project is best understood as a serious Windows GPU virtualization workflow tool in active development: real enough to validate the architecture, clear enough to extend, and disciplined enough to keep privileged operations safe.
+Focused Codex prompts live in `.github/prompts/`: [plan a task](.github/prompts/task-plan.prompt.md), [implement a task](.github/prompts/implement-task.prompt.md), [review code](.github/prompts/code-review.prompt.md), [review security/recovery](.github/prompts/security-recovery-review.prompt.md), [maintain documentation](.github/prompts/maintain-docs.prompt.md), and [validate a milestone](.github/prompts/validate-milestone.prompt.md). Their location is a repository convention; Codex is the supported agent for this reset.

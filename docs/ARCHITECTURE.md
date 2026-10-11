@@ -1,318 +1,51 @@
-# GPU-PV management architecture
+# Architecture
 
-## Current state
-
-`hyper-gpu-support.exe` now opens the approved Slint GUI with no arguments and
-runs explicit CLI commands through the existing headless path. Root `build.rs`
-compiles `src/gui/ui/app.slint` with Fluent style; `src/gui/` owns the moved controller and
-explicit mock fixtures. Slint/slint-build are pinned to 1.18.1 with winit/software
-rendering and accessibility. The old Win32 entry/presentation was deleted.
-Normal startup uses the installed runner's Discover operation or fixed same-package
-UAC discovery before first install. Refresh/System show actual data or an explicit
-failure, with no fixture fallback. Source now binds exact enrollment/setup and
-existing Apply/Verify/save-only/reconciliation through approved controls; acceptance
-remains deferred. `--mock-gui` uses isolated simulated callbacks and fixtures, while
-snapshot rehearsal reads recorded inputs; neither performs persistent writes.
-Audited live discovery is not a no-write rehearsal route. Runner and guest/probe
-payloads remain separate; the same main executable contains restricted worker and
-fixed setup modes. See the enrollment/setup source contract below.
-[GUI_GUIDE](GUI_GUIDE.md) freezes v1.0 scope; [BACKLOG](BACKLOG.md) owns integration.
-The Windows application attaches the parent console for explicit CLI commands.
-
-The proven NVIDIA/Windows 11 baseline remains research evidence.
-The rewritten product is not hardware-qualified by inheritance. Status and remaining
-acceptance work belong to [ARCH-001](BACKLOG.md#arch-001).
-
-## GUI enrollment/setup source contract (10 October 2026)
-
-`enrollment::PairReview` binds one VM GUID/GPU interface, protected policy revision
-and initiating operator SID. Installed EnrollPair runs through the fixed trusted
-worker under the common lock, independently validates native identities, preserves
-other authority/artifact pins and publishes identity-only enrollment. A write-ahead
-hold survives publication/audit failure; explicit old/new-policy readback resolves
-it without replay. Configuration and GUI proposals never grant execution authority.
-
-Before installation, `setup` launches only the current fixed package executable via
-UAC, authenticates retained frontend/worker processes and the same operator/session,
-and reviews four fixed sibling hashes. Source files remain locked against replacement
-through setup. Bootstrap never replaces existing policy or reprotects its ACLs;
-admission/absence checks precede scheduler changes. Original setup pair/operator/pins
-remain durable until installed artifacts, enrollment, fixed task and terminal audit
-are complete. Interrupted published setup validates original authority and completes
-task/audit registration without rewriting authority/artifacts. Its GUI route requires
-the original package and discoverable eligible original pair; legacy CLI markers or
-mismatched state remain explicit administrator recovery cases. GPU effects need a
-separate fresh plan, credentials/downtime consent and reviewed worker operation.
-
-This source contract passed independent static review after fixes. Authorized
-quality checks passed on 10 October (145 tests, strict Clippy, formatting, Windows
-x64/MSVC debug build and docs); separately authorized native protected update
-preserved operator/pair intent with matching artifact hashes. Installed live GUI
-startup/Discover succeeded. Enrollment/bootstrap UAC, interruption, cancellation,
-render/layout and GPU-effect acceptance remain pending. GPU replacement is separate work.
-
-## Product versus development tooling
-
-**Test-environment automation may support development but must not become production application functionality unless it is explicitly required by the user-facing product. Production code may be used by test tooling; production code must not depend on test tooling.**
-
-The default package does not load contributor configuration or import reset helpers.
-The previous application is preserved in the independent `tools/lab/` package.
-Historical driver pins, package/alias staging and extended probes remain laboratory
-reference material, excluded from the shipped graph.
+This page owns component and data-flow boundaries. [Baseline](BASELINE.md) owns current implementation findings; [security](SECURITY.md) owns trust/recovery rules; [configuration](CONFIGURATION.md) owns formats and persistence.
 
 ## Components
 
-| Responsibility | Product modules |
-|---|---|
-| Runtime intent and observations | `model` |
-| Enable/disable, ownership and partial-state reconciliation | `workflow` |
-| Native discovery, assignment, settings, allocation and lifecycle | `windows_hyperv`, `windows_wmi`, `windows_com` |
-| Installed driver associations, complete payload and trust | `windows_driver`, `payload`, `trust` |
-| Fixed transfer/launch and Rust guest preparation | `guest`, `hyper-gpu-guest` |
-| Checked hardware rendering | `probe`, `windows_probe`, `d3d11-probe` |
-| Protected enrollment, authentication and typed requests | `runner`, `windows_pipe`, `security` |
-| Opt-in Windows vault credentials | `credentials` |
-| Bounded execution, independent of verification | `process` |
-| Presentation only | `src/main.rs` GUI/CLI dispatch, `src/gui/`, `src/gui/ui/` |
+| Layer | Responsibility | Source |
+|---|---|---|
+| Frontend dispatch | Select GUI, explicit mock/snapshot, CLI, or fixed internal modes | [main](../src/main.rs) |
+| Slint presentation | Existing dashboard, VM details, System, Settings, About, dialogs, resource controls | [UI root](../src/gui/ui/app.slint), [GUI host](../src/gui/mod.rs) |
+| Live controller/state | Asynchronous reads, draft/review state, progress, callbacks, model updates | [live](../src/gui/live.rs), [live state](../src/gui/live_state.rs), [GUI model](../src/gui_model.rs) |
+| Shared product model/workflow | Typed intent/observations, planning, lifecycle, selected-target effect decisions | [model](../src/model.rs), [workflow](../src/workflow.rs) |
+| Setup and enrollment | Fixed package bootstrap, additive reviewed pair authority, interrupted setup/pair records | [setup](../src/setup.rs), [enrollment](../src/enrollment.rs) |
+| Restricted elevated worker | Bind/recompute approval, serialize effects, persist recovery and intent | [worker](../src/worker.rs) |
+| Protected runner | Installed enrollment/artifacts, authenticated requests, audit, native backend | [runner](../src/runner.rs), [runner binary](../src/bin/hyper-gpu-runner.rs) |
+| Native Windows adapters | Hyper-V WMI/COM, driver inventory, path/security/trust, local pipes/processes | [Hyper-V](../src/windows_hyperv.rs), [WMI](../src/windows_wmi.rs), [pipe](../src/windows_pipe.rs) |
+| Guest preparation/verification | Authenticated payload, bounded PowerShell Direct bridge, fixed guest helper and checked D3D11 probe | [guest](../src/guest.rs), [guest helper](../src/bin/hyper-gpu-guest.rs), [transport](../src/guest_transport.ps1) |
+| Protected persistence | Revision-checked per-VM intent, publication receipts, distinct import records | [store](../src/configuration_store.rs), [protected writer](../src/configuration_store/protected.rs) |
+| Diagnostics/reporting | Bounded public failure context and opt-in protected tracing | [reporting](../src/reporting.rs), [diagnostics](../src/diagnostics.rs) |
 
-This table describes current modules. Consolidation replaces host presentation/
-runner entries, not the bounded ancillary guest preparation/probe payloads.
+The default application is `hyper-gpu-support.exe`. Setup currently expects that executable plus `hyper-gpu-runner.exe`, `hyper-gpu-guest.exe`, and `d3d11-probe.exe` in the same package directory. Internal setup/worker modes reuse the application executable; they are fixed protocol entrypoints, not general command execution. The installed runner is separate from the initiating user frontend.
 
-CLI/GUI → workflow → discovery/Hyper-V/preparation/verification → Windows APIs,
-guest transport and privilege runner. Production never invokes the laboratory.
+## State separation
 
-## Working recipe
+| State | Meaning | Does not establish |
+|---|---|---|
+| Observed inventory | Last read VM/GPU/provider state | Saved intent or verified rendering |
+| Saved intent | Valid production TOML committed for one VM | Current attachment or operation authority |
+| Draft | In-memory requested changes | Enrollment, publication, or effects |
+| Enrollment | Protected operator and exact VM/GPU authority | Desired enablement or guest health |
+| Plan | Reviewed proposed actions from current inputs | Permission to reuse stale inputs or proof of completion |
+| Journal / recovery receipt | Durable ownership and operation progress | Success merely because the frontend exited |
+| Verification result | Checked guest device/rendering outcome for a recorded context | Permanent health, concurrent sharing, or resource isolation |
 
-### GPU discovery and VM identification
+Stable VM GUIDs and exact GPU interfaces identify targets. Display names are presentation only. Sharing means several VM targets can reference one GPU; each VM has one selected GPU. The current global operation lock serializes protected operations; concurrent guest workloads do not require concurrent mutation workers.
 
-Enumerate normal Hyper-V VMs and partitionable GPUs. Select stable VM GUIDs and exact
-GPU interfaces; friendly names are display data. Enroll multiple existing VMs, one
-GPU each. No golden image or prescribed VHDX is required. Serialize conflicting
-mutations; sharing does not promise fairness and needs separate qualification.
+## Operation flow
 
-### Hyper-V settings and GPU partition resources
+1. Discovery provides inventory and protected authority/managed state. The frontend reads committed intent separately and preserves drafts where appropriate.
+2. A missing installation/pair leads to separate package/enrollment review. Setup/enrollment establishes authority without applying GPU intent.
+3. Review asks the shared planner for selected-target actions and required downtime/credentials. This can authenticate/hash driver payloads and should not be treated as a cheap polling operation.
+4. Confirmation submits the reviewed operation to a fixed elevated worker. The worker authenticates the session, acquires the lock, validates current enrollment/revisions, and recomputes approved facts.
+5. Durable admission precedes effects. The shared workflow uses native host adapters and the guest bridge, then independently reads effective state and graphics results.
+6. Successful effects and configuration publication remain separate phases. Publication failure leaves a bound save-only path; uncertainty leaves an explicit reconciliation path.
+7. The frontend receives bounded progress/outcome information and refreshes independent state. A missing terminal message does not authorize replay.
 
-Require Generation 2 and stable Running/Off state before mutations. Preserve disks,
-CPU/RAM quantities, Secure Boot and security devices. Capture preimages of compatibility
-MMIO/cache/checkpoint settings and independently read back effects. Conservative NVIDIA
-MMIO values retain the measured recipe pending affected qualification. First-core
-attachment omits explicit resources; optional raw category triples require fresh
-provider limits. GPU-010.1–2 / GUI-002.3 now implement all four categories in source,
-using schema-3 intent with schema-2 input compatibility and isolated capability
-evidence. Each native category write is independently read back; final verification,
-save-only and reconciliation compare every requested category. Partial failure keeps
-durable recovery. Independent static boundary review found no remaining blocker;
-tests/build/UI/provider validation and protected installation remain deferred.
-Attach using the selected GPU's discovered WMI object path, then map full/relative
-host-resource references against fresh local GPU inventory for interface readback.
-All-null adapter allocation fields mean provider defaults, not zero capacity.
+## UI and platform constraints
 
-### Driver/runtime manifest and guest placement
+Blocking discovery, payload work, and effects belong off the Slint event thread. UI updates return through event-loop callbacks; preserve stable selection, drafts, and editor focus when updating models. Installed status polling does inventory reads only. First-install elevation and snapshot rereads are not timer side effects.
 
-Discover current service/INF/associated files and package trees through Windows.
-NVIDIA is the first preparation adapter. Build the complete deterministic manifest,
-map DriverStore to HostDriverStore, and retain external Windows associations.
-Reject unsafe/reparse paths and conflicting destinations. Authenticate payload bytes
-using embedded signatures or signed catalog membership. Counts/hashes describe this
-operation; there are no static driver versions, signer thumbprints or payload counts.
-Windows-generated `.PNF` caches are the narrow data exception: protected installed
-DriverStore provenance, a same-stem INF authenticated in this manifest, and operation
-hashes authenticate their transfer. Runtime/executable files remain signature-bound.
-
-### Staging and guest startup
-
-Prepare a running guest without a newly attached GPU. The fixed Rust guest worker
-validates transferred inputs, derives Windows destinations, verifies copies and
-publishes a receipt. A narrow PowerShell Direct bridge supplies session, transfer,
-bootstrap integrity and fixed worker launch only; DEC-028 records its exception.
-The fixed bridge sends at most 1 MiB per remote stream write. Rust validates
-ordered acknowledgements against complete expected bootstrap/payload lengths,
-with 300-second per-file, 60-second no-byte-progress and 240-second setup/gap
-budgets. Coalesced worker progress reports acknowledged transport bytes/files,
-not authenticated preparation. Existing progress IPC may delay local kill-job
-termination by up to 20 seconds beyond a budget; the 3,600-second outer process
-budget has the same delivery caveat. Local termination cannot establish guest
-cancellation; interrupted transfer retains the existing durable recovery hold.
-Then shut down gracefully, configure/attach, start and verify. Restore initial power
-state. A running unchanged target is verified without a restart.
-
-### GPU readiness and workloads
-
-Require guest Code 0 and checked D3D11 rendering on the selected hardware. Loading
-DLLs or enumerating adapters does not prove support. CUDA/D3D12/stress remain optional
-contributor diagnostics. No interop or enforced VRAM ceiling is claimed.
-
-## Configuration and recovery contract
-
-The following describes the implemented baseline. Planned worker-owned per-VM
-configuration is defined in [CONFIGURATION](CONFIGURATION.md#approved-per-vm-contract-planned).
-CORE-028 replaces implicit pending-Apply recovery with explicit manual reconciliation
-and a host-wide unresolved-operation hold, extending existing journals/native guards.
-
-Parse runtime schema 2 or 3 once. Protected administrator enrollment independently
-authorizes VM/GPU pairs. The runner accepts fixed typed operations; no arbitrary
-commands, caller file sources or host lifecycle operations are exposed.
-Global mutation serialization and per-VM journals retain original/applied settings,
-prepared digest and pending state. Publish before effects with atomic replacement.
-The protected runner writes `audit/<nonce>.json` under product state before
-dispatch and publishes `Succeeded` or `Failed` before replying. `Started` without
-a terminal outcome means the operation needs inspection and reconciliation, not
-that it failed before effects. Records contain operation/target intent and exclude
-credentials, raw errors and response payloads; detailed errors stay in the
-authenticated reply. Admission publication failure prevents dispatch; terminal
-publication failure reports uncertainty and preserves the unfinished admission.
-Audit records are retained for administrator inspection.
-An interrupted first enable can end without replay only when independent fresh
-checks prove its original stopped, unattached host baseline, unchanged driver and
-configuration revision, and no trusted preparation or verification receipt. Archive
-the attempt before retiring its unprepared pending journal; publish the terminal
-audit before releasing recovery. Guest files remain unknown and untrusted.
-Reconcile fresh state before retry; preserve externally changed settings. Recovery
-never replaces a user disk. Disable retains guest driver files; stale preparation
-refreshes on apply. Credentials are ephemeral or explicitly stored per-user/per-VM.
-Invalidate the previous prepared digest durably before a stale refresh starts;
-publish the new digest only after complete preparation and graceful shutdown.
-Keep completed preparation after later settings/attachment failure for retry.
-Verification also records pending intent before checks on a running unchanged VM.
-Standalone verification reconciles power after an uncertain start and retains both
-the verification error and any restoration failure. Failed checks retain pending
-intent for retry; they do not replace the last successful verification timestamp.
-
-## Development strategy: guest image and disposable VM
-
-Reuse the [standalone laboratory](../tools/lab/README.md) for designated-target tests.
-Keep its separate artifacts, fixed parent protection and reset safeguards. Production
-has no reset command. Physical-host lifecycle still needs explicit permission;
-guest lifecycle does not.
-
-## Display and presentation boundary
-
-The completed prototype sources are the official GUI; preserve their existing
-Dashboard/System/Settings/About and controls. Navigation, drafts, dialogs, themes,
-splitter and scrolling work. In mock mode, inventory, allocations, enrollment, graphics checks,
-Apply/progress/recovery, credentials and saves are simulated only in `--mock-gui`;
-live mode does not claim those bindings. Inventory/System use actual discovery in
-normal mode. Keep mode/data provenance clear. No additional GUI feature.
-Reuse sound `gui_model` state/validation during GUI-002 binding. The GPU Memory
-slider is a separate visual mock preference in fixture mode. GPU-010.3 now has
-native VRAM byte-to-decimal-GB source mapping (DEC-034), adjusting the same draft
-Optimal field while preserving Minimum/Maximum. Empty triples use provider bounds
-only on an explicit slider edit. Historical inputs without unit provenance remain
-raw-only. Fresh shared planning/admission/readback are still required before
-publication; no physical reservation/enforcement meaning is demonstrated.
-Provider mapping for selector/allocation controls belongs to GPU-010.
-
-CORE-006's typed plan shares apply's read-only validation and decision calculation.
-It reports ordered semantic actions, settings before/after, raw allocation writes,
-preparation drift, credential need, downtime and recorded restoration power. Pending
-verification alone does not imply preparation or restart. The CLI consumes this
-shared summary. GUI-002 must bind the same fresh plan and independent execution
-rechecks; live Slint Review reads the shared plan but Apply is unavailable.
-Explicit snapshot rehearsal reuses the same planner with historical inventory,
-explicit managed records and a matching recorded payload digest for enabled
-targets. Its backend rejects mutations. An optional GUID-keyed per-VM candidate
-file is read separately from enrollment, observation and draft state; it does not
-establish trusted committed-store ownership. Changed input bytes block existing
-drafts, and confirmed rehearsal only displays simulated plan stages.
-Plan never saves a management journal or calls guest/VM mutators; protected audit
-records still apply. Enabled plans authenticate the payload, while status/inventory
-remain separate. Slint binding and process/UX acceptance belong to GUI-002/GUI-003.
-
-Inventory/status are dashboard reads, not guest verification. Status reports fresh
-Hyper-V state plus recorded journal state; a prepared digest or last-success timestamp
-does not authenticate the current guest receipt or prove current graphics health.
-Enable-plan currently validates/hashes the payload, so do not use it for periodic
-refresh. Runner requests write protected audit records even for reads. Per-VM partial
-discovery errors and a human-readable effect summary remain integration work.
-
-## Repository audit — 9 October 2026
-
-Historical pre-promotion source snapshot: inspected only; no builds, tests or hardware queries for that audit. Current presentation/dispatch is described above; retain this matrix as history, not current GUI status.
-Historical passes remain in existing cards/evidence and do not qualify new boundaries.
-
-| Existing implementation / evidence in source | Reuse and remaining work |
-|---|---|
-| `src/model.rs`: schema-2 input/schema-3 four-category targets, GUID normalization, strict fields and `ResourceCapability`; `windows_hyperv.rs`: exact GPU WMI selection, isolated category ranges/readback and native setters; `src/gui/memory.rs`: native VRAM decimal-GB conversion | GPU-010.1–3 and GUI-002.3 source is implemented pending validation. Native byte request units follow DEC-034; GPU replacement and hardware enforcement remain separate/unqualified. |
-| `src/workflow.rs`: shared decision/plan/apply/verify, typed effects, pre-effect journals, prepared digest invalidation, attributable settings restoration, fresh readback and power restoration; fake-backend ordering/failure tests | CORE-028 adds approved-plan binding, consent, real stage events and manual reconciliation. Current Apply can resume pending work and restores power on some failures; it is not the new host-wide manual-recovery contract. |
-| `src/runner.rs`: protected installed artifact hashes, separate enrollment, typed requests, nonce expiry/replay rejection, durable Started/Succeeded/Failed admission records, atomic JSON and no-reparse checks | SEC-001 adapts fixed SYSTEM scheduled-task execution to same-executable per-operation elevation. Current requests have no reviewed-plan revision, progress stream or SaveOnly operation. A worker flag alone must never grant authority. |
-| `src/windows_pipe.rs`: local-only first pipe instance, restrictive ACL excluding client server-instance creation, client token SID check via impersonation/reversion, client check of pipe owner SID, bounded framing/client deadlines; round-trip/wrong-peer/partial/oversized-frame tests | Preserve protections; adapt endpoint/identity and handshake for elevated user rather than SYSTEM, add session/operation binding and bounded progress/server waits. Owner SID alone does not authenticate a particular same-user worker. |
-| `src/runner.rs::execute`: exclusive `operation.lock` file handle (`share_mode(0)`) across requests, also used during install | OS-backed cross-process serialization already exists; extend its host-wide scope across new entry modes/sessions. It currently serializes reads too. Crash handle release does not resolve journals/audits. |
-| `src/gui_model.rs`: observed/saved/draft split, eligibility, single-draft retention, unsaved/readback gates, deliberate reapply, expected-content checks and flush/rename save; focused state/conflict tests | Reuse presentation state. CFG-001 moves persistence to protected per-VM worker path and makes pending-save recovery durable. GUI-002 adds first-time enrollment, GPU editor and switch confirmation. |
-| `src/main.rs`, `src/bin/hyper-gpu-gui.rs`, `src/bin/hyper-gpu-runner.rs`: separate CLI/Win32/SYSTEM entries; `tests/cli.rs`, opt-in `tests/m1_enrollment.rs` | APP-001 introduces dispatch/console handling and per-session activation. Existing tests are regression starting points, not Slint or consolidated-worker acceptance. |
-| `windows_driver`, `payload`, `trust`, `guest`, `probe`, `credentials`, `security`, `process`, `windows_wmi`: dynamic signed preparation, bounded bridge/guest logic, checked graphics, vault, protected paths and supervised native effects | Preserve working boundaries, DEC-028 and M1/M2 evidence. Qualify only affected paths. Discovery aborts on a failed VM inspection; CORE-012 adds partial unknown/denied results. |
-
-Implemented allocation extension (DEC-033): typed VRAM/Compute/Encode/Decode
-categories, positive/unavailable/unknown capability results, raw ranges and separate
-requested/observed triples. Missing observations remain unobserved, never zero.
-Enabled requests validate fresh category limits; unsupported saved values may be
-cleared through existing fields. Provider enforcement remains unqualified.
-
-Consolidation preserves enrollment, artifact integrity, replay/admission checks,
-ACL/reparse rules and bounded execution. SEC-001 independently reviews the changed
-trust boundary before live deployment. CFG-001 distinguishes saving from successful
-VM effects; save-only rechecks success/identity and stale file/provider state without
-GPU mutation. CORE-028 retains recovery holds across restarts and opens the normal
-dashboard with a persistent warning. GUI-003 defers normal close while work is active;
-crashes/disconnects stay uncertain. No automatic GPU rollback, blind retry or second
-IPC/locking/journaling stack.
-
-Restricted-worker Apply retains its freshly authenticated admission decision under
-the existing exclusive operation lock and consumes it once for execution. The
-in-process admission type cannot be supplied over IPC or deserialized from a plan.
-Full approved-plan matching and pending-recovery rejection precede admission;
-fresh VM/GPU/journal checks precede workflow writes/effects. This removes the
-duplicate execution payload pass while preserving guest file-hash verification
-and independent full post-effect payload validation before configuration commit.
-An enabled operation therefore has three full payload passes: frontend preview,
-worker admission and final validation. The optimization is not yet built or tested.
-
-## Native Windows boundaries
-
-Associated-driver-file resolution uses semisynchronous WMI completion with
-one-second waits capped by the remaining discovery deadline, preserving positive
-timeout status and native operation failures. Complete deduplicated payload bytes
-are admitted against a 16 GiB safety ceiling before hashing; expansion/hashing
-share a 300-second cooperative budget and reject file-length drift. These do not
-interrupt blocked COM/filesystem/trust calls or contain host-wide GPU activity.
-
-DEC-028 bootstrap publication copies to unique protected staged leaves, checks
-hashes under write/delete-denying handles, then replaces/moves the fixed leaf.
-Replacement retains a unique backup until protected ACLs and the published hash
-are validated. Failures retain uncertainty and staging/backup artifacts; no
-automatic rollback/retry. Final locked-handle validation before launch remains.
-Publication is per file, not an atomic executable pair. These changes are untested;
-see [M2 source containment](evidence/m2-source-containment-20261010.md).
-
-CFG-001 / OPEN-01's [selected configuration contract](CONFIGURATION.md) retains schema-2 input
-TOML with one target per GUID-keyed file. `Configuration::read_vm_file` is a
-read-only syntax/filename boundary; `View::from_vm_file` keeps saved intent
-separate from observations/drafts. Neither authenticates protected storage or
-grants enrollment. Synthetic files use the production parser, not a mock schema.
-Live Refresh reads committed intent independently of enrollment and preserves
-conflicting drafts. The old fixture `Saved` representation remains transitional
-(GUI-002.5). `Configuration::vm_documents` splits validated intent without writes
-and preserves its declared schema. Protected publication/import and schema-3
-four-category bindings exist in source; expanded validation remains deferred.
-
-Keep COM/VARIANT/job handling and native security in focused adapters. Supervised
-process deadlines bound synchronous-provider/remoting limitations. Timeout means
-uncertainty, not rollback. Record exact retained external interfaces in DECISIONS.
-
-## Validation contract
-
-Review privileged changes before deployment. Qualify rewritten NVIDIA preparation,
-provider-default attachment and two-VM sharing separately. Old laboratory/cmdlet
-passes do not close these gates. Report actual environment and checked workloads.
-
-## Test lanes
-
-Hardware-free tests cover identities, mapping, provider-range validation, workflow
-ordering, reapply, interruption and protocol refusal. Native tests cover safe OS
-primitives. Hardware tests explicitly target designated disposable VMs with immediate
-identity checks; do not run repeated feasibility campaigns.
-
-Product host artifacts/state use separate `HyperGpuSupportProduct` known-folder
-directories. Interrupted installation disables admission and requires rerunning
-administrator install; it never kills an active guest operation. Guest runtime
-files retain vetted Windows destination read/execute inheritance. Private worker
-bundles and state remain restricted to SYSTEM/Administrators.
+Rust is the product implementation. PowerShell Direct remains the current guest transport bridge; replacing it requires its own scoped work. The deleted laboratory/reset tooling is not a product dependency. Non-Windows code paths do not establish Hyper-V support.

@@ -1,9 +1,0 @@
-# Project default for future local Codex sessions. An explicit UI or CLI model wins.
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
-
-[sandbox_workspace_write]
-network_access = true
-
-[agents]
-enabled = true

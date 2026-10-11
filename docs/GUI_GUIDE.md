@@ -1,195 +1,39 @@
-# Hyper GPU Support v1.0 GUI specification
+# GUI guide
 
-**Approved:** 9 October 2026. The completed Slint prototype is the authoritative
-v1.0 GUI. Sources now live in [src/gui/ui/](../src/gui/ui/app.slint) and
-[src/gui/](../src/gui/mod.rs). Preserve layout, navigation, styling, controls and
-interactions. Backend integration may make existing controls functional; it must
-not expand the interface without user approval.
+This page owns the existing interface and workflow expectations. [Baseline](BASELINE.md) distinguishes source implementation from validation. The design in [Slint components](../src/gui/ui/app.slint) is retained; behavior work must reuse the Rust controller/core rather than redesign the application.
 
-## Approved interface
+## Existing interface
 
-- **Dashboard:** VM cards, OS icons, state dots, selection highlight, ellipsized
-  names and full-name tooltips; heading and Refresh in one row. Adjustable split,
-  independent vertical scrolling and horizontal overflow at narrow widths.
-- **Details:** observed attachment, saved desired state, graphics status; staged
-  GPU switch, physical GPU selector, GPU Memory slider, expandable Advanced
-  Allocation (VRAM/Compute/Encode/Decode Minimum/Optimal/Maximum), setup guidance,
-  review/apply, discard, VM actions and technical details.
-- **System:** read-only prerequisites and GPU capabilities.
-- **Settings:** Follow Windows/Light/Dark, contextual help, mock scenarios/reset
-  and credential information. Preferences currently last for the session.
-- **About:** application information and shortcuts.
-- **Dialogs:** dirty-VM switch, draft review, downtime consent, progress,
-  verification, forget pairing, errors, recovery/reconciliation, save-only retry
-  and dirty-close confirmation. Technical output remains selectable black text
-  on white in both themes, with bounded scrolling and fixed-size disclosure.
+The application has Dashboard, System, Settings, and About pages. Dashboard combines the VM list, selected-VM details, GPU enablement and selection, memory/resource controls, review actions, and status/recovery information. System presents discovered host/GPU details. Settings includes appearance, contextual help, and local credentials; fixture mode also includes scenario controls. Dialogs handle review, progress, dirty navigation, failures, and recovery.
 
-There is no Activity page, VM search/filter control, separate setup wizard,
-host GPU editor or diagnostic history. Exact source components determine the
-details. Do not restore removed features or require Win32 parity.
+Preserve selection by stable identity, meaningful keyboard navigation, scrollable long content, theme behavior, and focus during inventory updates. Busy/modal states must prevent conflicting actions while presenting useful progress. User-facing explanations should name the VM, proposed action, downtime, and outcome; low-level protocol details belong in expandable technical output.
 
-## Implemented and simulated behavior
+## Modes
 
-On 11 October, supported reconciliation resolved the interrupted first-enable
-record on `test-001`. Fresh installed Apply succeeded: preparation, RTX 5060
-attachment, PnP/D3D11 verification, restored Stopped power and configuration saving.
-Live polling, default suggestions, draft reversal/discard, navigation, clean close
-and dialog wrapping passed; software Review/footer/close checks also passed.
-GPU Memory uses exact native-byte requests under DEC-034; physical memory remains
-independent inventory. The reported provider maximum may be smaller than physical
-card capacity. See the [open issue tracker](evidence/issues.md) for precise evidence
-and remaining implementation/acceptance scope.
+| Mode | Inputs | Effects |
+|---|---|---|
+| Live, no arguments | Current protected/native inventory, committed intent, recovery | Setup/credential/VM/GPU operations may occur only through their reviewed paths; launch can request first-install elevated discovery |
+| `--mock-gui` | Explicit fixtures and scenarios | No backend effects or persistent writes; labels/results are simulated |
+| `--mock-gui --snapshot FILE [--config GUID.toml]` | Bounded historical inventory and optional production-format candidate intent | No effects, credential access, publication, or recovery clearing; Refresh rereads files |
 
-BUGS-002 source repairs (10 October, acceptance pending) keep automatic status
-reads non-modal and update existing model rows in place where counts match.
-Provider allocation defaults are labelled suggestions until explicitly edited;
-viewing them does not create a draft. The memory slider spans the provider's
-validated request range and expands draft bounds only on explicit movement.
-Physical VRAM capacity is not inferred from that range. Failure Technical Details
-retain stages, classified backend context and available native error codes;
-untrusted adapter text remains omitted to protect credentials. Full safe component
-messages and physical-capacity mapping remain open as ISS-002 and ISS-001.
+Snapshot input is capped at 8 MiB. Enabled shared-plan rehearsal needs a uniquely matching recorded payload digest from snapshot plans; it does not hash/discover the current host payload. Changed input bytes invalidate approval. A snapshot cannot establish current guest verification or physical VRAM provenance.
 
-No arguments to `hyper-gpu-support.exe` open Slint. Explicit CLI commands remain
-independent of GUI initialization. Navigation, themes, resizing, splitter, scrolling,
-draft editing/validation, selection prompts and dialogs are real UI behavior.
-Page navigation preserves the draft; switching VM or closing with edits prompts.
-Normal close is deferred while simulated progress runs in mock mode.
+## Workflow contract
 
-**Normal startup is live mode.** It reads actual VM/GPU inventory in the background
-through the shared core; Refresh repeats that read. Errors never fall back to
-fixtures. Attachment does not imply enrollment, guest health or saved intent.
-Unconnected configuration actions are unavailable, not simulated. Current source
-includes protected Apply, Verify, save-only retry and manual reconciliation;
-end-to-end acceptance remains pending. First-time GUI enrollment and fixed package
-setup now have source bindings through Details/Review. On 10 October, authorized
-quality checks passed (145 tests, strict Clippy, formatting, build and docs), the
-protected installation was updated with verified hashes, and installed live GUI
-startup/discovery succeeded. Enrollment/setup and GPU-effect acceptance remain
-pending. Enrollment confirmation grants the exact pair only;
-a subsequent fresh Review is required for GPU Apply. Interrupted setup retains
-the original operator/pair/package pins; GUI recovery requires that original
-package and a discoverable eligible original pair. GPU replacement remains blocked.
-The CLI retains its existing capabilities independently.
+1. **Refresh and select:** show real inventory or a truthful read failure. Installed status polls every 15 seconds, skipping busy/modal work; it must not prompt for first-install elevation in the background. Select VM/GPU by identities, not display names.
+2. **Setup/enrollment review:** for an uninstalled product or new pair, Review & Apply first reviews the fixed package/exact pair. Confirmation establishes authority only. Adding another VM preserves existing pairs. GPU effects require a subsequent review.
+3. **Draft:** enable/disable and supported resource edits stay in memory. Show saved intent, last observation, and draft separately. Switching/closing a dirty draft asks whether to discard or keep editing. A refresh conflict preserves the draft and blocks stale approval until explicit discard/review.
+4. **GPU review:** use the shared plan to explain changes, preparation, required guest downtime, power restoration, and credentials. Reapply/Update stages enabled intent and reviews a fresh plan; it is not an unconditional repeat command.
+5. **Confirm:** use the fixed protected worker and local credential prompt where needed. Display bounded stages and real transfer progress. Cancellation or disconnect must not imply that effects were undone.
+6. **Complete or recover:** refresh independent state. A successful effect with failed publication offers save-only retry; uncertain work offers explicit reconciliation. Inspection alone never clears recovery or establishes rendering.
+7. **Verify:** review the separate health/rendering check and any temporary guest lifecycle. Successful standalone verification does not commit desired configuration.
 
-Enrolled pairs have source bindings for in-memory toggles and all four raw resource
-triples, enabled per category only with complete provider capability evidence.
-Existing unsupported requests can be cleared; structurally valid disabled intent
-performs no category writes. Review enumerates each write and schema-3 publication,
-and observed/saved labels plus System show category values/bounds or unknown state.
-Independent static boundary review found no remaining blocker; new source is
-built successfully for Windows x64/MSVC debug and separately authorized for protected
-installation on 10 October, with all four installed/policy hashes confirmed and
-existing enrollment preserved. Tests/UI/provider acceptance remains pending.
-Older installed startup checks do not validate the new bindings.
-Fresh shared plan previews and the native credential dialog reuse the existing core. Live
-details distinguish unread, absent and previous preparation records from pending
-recovery. Graphics timestamps are historical records for the enrolled pair,
-never current health or current-driver parity. A failed Refresh marks retained
-observations historical; mismatched durable records require inspection.
+## Resources and unavailable actions
 
-**`--mock-gui` explicitly selects rehearsal.** It currently uses deterministic
-fixtures and simulates controls/review/stages/recovery in memory. No real effects
-or persistent writes occur. Scenario/reset controls appear only in this mode.
-The GPU Memory slider remains illustrative, independent of advanced allocation;
-its GB label promises no real allocation or enforcement.
-After the user's subsequent GPU-010.3 source request on 10 October, native VRAM
-uses Microsoft's documented byte parameter contract: decimal GB is exactly
-1,000,000,000 bytes. The live slider maximum is the selected GPU's detected physical
-VRAM capacity, with exact capacity at its final tick. Intermediate ticks adjust
-Optimal in 0.1 GB steps. Provider request bounds remain independently enforced;
-above-range selections are blocked with the supported range and retain the draft.
-No physical/provider ratio is used. When all three fields are empty, the first supported selection
-initializes Minimum/Maximum from provider bounds. Both editors update the same
-typed draft. Non-grid raw values remain exact in the label/configuration; the
-thumb represents the lower adjacent grid point, without silently rewriting them.
-Review displays requested GB and raw values. These are requested API values,
-not a physical card share, reserved memory or demonstrated enforcement. Invalid,
-stale, missing, too narrow or precision-incompatible ranges disable the slider
-with a reason. Historical captures without unit provenance retain raw editing
-only. Prior conversion/draft tests and live edit/discard passed; subsequent physical-range
-and progress source changes are untested. Explicit allocation
-write/readback acceptance remains tracked as ISS-003. See DEC-034.
+The live memory slider uses the selected GPU's matched physical-capacity information and native VRAM byte requests; it does not reserve physical memory. Preserve invalid/out-of-range raw drafts rather than silently clamp or rescale them. Historical/unknown-capability paths use raw Advanced Allocation or explain why editing is blocked. Compute/Encode/Decode require supported provider capabilities and schema 3. See [configuration](CONFIGURATION.md).
 
-Implemented GUI repairs use saved-intent comparisons for the
-dirty indicator; unchanged/reverted values do not create a draft. Review shows
-before/after resource writes and ordered VM steps, with backend information in
-expandable Technical Details. Downtime consent and approval stay outside the
-scroll area. Main GPU status is concise; detailed observations, saved intent and
-previous verification remain expandable. Modal availability is reactive. Installed
-inventory is reread every 15 seconds when dialogs/operations are idle, preserving
-drafts and conflict/recovery checks; snapshots and first-install elevation do not
-poll. Read failures mark retained observations historical and require Refresh.
-These changes have not been built, tested or rendered.
+GPU replacement and **Forget pairing** are not connected. Keep their unavailable state truthful. CLI `forget` deletes a stored credential and is unrelated to pairing removal. GUI import/export is deferred; pending import currently points to explicit CLI reconciliation.
 
-**`--mock-gui --snapshot FILE [--config GUID.toml]`** selects an existing JSON capture from CLI
-`inventory`, instead of fixtures. It uses the existing real-data cards/System
-view, labels observations historical and only rereads that file on Refresh.
-Missing managed/enrollment data remains unknown; it is never inferred. Snapshot
-contents cannot authorize live plans, credentials, verification or execution.
-Recorded enrolled pairs support raw category/toggle drafts and the shared Rust planner.
-Missing new capabilities remain unknown; older direct VRAM ranges remain readable.
-Positive recorded capability is required for every nonempty enabled category request.
-The optional candidate configuration is read through the production per-VM parser;
-it is labelled candidate intent, never trusted machine-wide committed state.
-Enrollment is not substituted for saved desired configuration. Enabled previews
-require a `plans` JSON array of recorded shared plans supplying a unique historical
-payload digest for the same VM/GPU/driver. No payload discovery/authentication is
-performed. Unread managed state blocks planning rather than implying absence.
-Review confirmation displays the plan's stages as simulated, with the draft still
-unapplied. The snapshot backend rejects all mutation methods. Credentials, saving,
-verification and recovery clearance remain blocked. Refresh/Review/confirmation
-detect changed capture/configuration inputs and preserve the draft.
-The inventory reader is
-bounded to 8 MiB; invalid input reports an error without a fixture fallback.
-This implementation remains untested/unqualified pending M3 validation.
+## Appearance and interaction validation
 
-## Mock mode development direction
-
-As real bindings are added, mock mode should read the same actual inventory,
-capabilities and existing configuration as live mode, validate the same draft and
-show the same proposed plan, then rehearse stages without executing effects.
-Reads are real; execution outcomes are explicitly simulated, never presented as
-successful host/guest operations. Saving, forget, credentials and recovery clearance
-remain session-only. Never modify Hyper-V, guest power/files/registry, GPU/driver
-state, enrollment, configuration, vault entries, journals or audit files. Guest
-verification that launches probes is an effect, not a read-only rehearsal.
-Retain fixture scenarios for isolated/failure UI tests, not automatic fallback
-after failed real discovery. No extra pages or second backend implementation.
-
-**Current limitation:** ordinary-token live discovery uses the protected runner,
-which writes mandatory security audit records even for reads. Mock mode therefore
-does not call it. The optional snapshot reader needs no-write qualification;
-authorized native discovery remains future work. Never suppress
-required security audit to satisfy rehearsal mode.
-
-## Backend integration
-
-Reuse the shared Rust core, sound `gui_model`, workflow/planner, configuration,
-credentials, protected runner, Named Pipe, lock and journals. Preserve CLI
-capabilities absent from the GUI. No second GPU or security system in Slint.
-
-Use stable identities and lightweight discovery/status for Refresh, full fresh
-planning for Review & Apply. Report missing/denied/unsupported/unknown truthfully;
-attachment does not prove graphics health. Validate provider units/bounds/readback
-before using real values. Editing changes only an in-memory draft.
-
-Protected effects require validated enrollment, fresh approved scope and separate
-elevation, guest credentials and downtime consent where needed. Preserve audit,
-security and uncertain recovery records. Real stages replace the demonstration
-timer. Failed saving retries saving only; no GPU replay, automatic rollback or
-blind retry. No host lifecycle action.
-
-## Remaining work and retired requirements
-
-[BACKLOG](BACKLOG.md) owns task status; [GUI_ROADMAP](GUI_ROADMAP.md) maps integration.
-Bind discovery/status, supported selection/allocation, reviewed execution/progress/
-recovery, persistence and credentials through existing controls. Then qualify
-packaging, keyboard/DPI/accessibility and software rendering.
-
-DEC-029's D01–D18/A18–A32 and former OPEN items are historical planning references.
-GUI requirements absent from the completed prototype are retired from v1.0:
-search/filters, extra pages/actions, persistent preferences and session activation.
-Backend security/persistence plans stay on existing cards without authorizing
-extra controls or weakening CLI behavior. Same-executable worker consolidation
-is still planned and requires independent boundary review.
+The documentation reset did not render or launch the interface. V1-009 owns a later explicit mock preview, screenshots, keyboard/scroll/theme checks, and relevant milestone tests. V1-015 owns actual two-guest workflows. A fixture screenshot or mock success must never be labeled live GPU validation.
