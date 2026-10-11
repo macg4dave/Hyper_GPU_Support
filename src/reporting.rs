@@ -53,6 +53,8 @@ pub enum Component {
     GuestTransport,
     /// Independent preparation receipt validation.
     GuestReceipt,
+    /// Current guest driver files compared with the authenticated host manifest.
+    GuestPayload,
     /// Checked guest hardware rendering.
     GuestGraphics,
 }
@@ -74,6 +76,16 @@ pub enum FailureCause {
     ReadbackMismatch,
     /// The checked probe did not establish hardware rendering.
     RenderingFailed,
+    /// A required driver payload file is absent.
+    FileMissing,
+    /// A required driver payload file has a different length or hash.
+    FileChanged,
+    /// The current guest observation was denied.
+    AccessDenied,
+    /// The bounded observation exceeded its deadline.
+    TimedOut,
+    /// Current guest facts could not be established.
+    Unavailable,
 }
 
 /// Typed numeric code namespace; values never originate in adapter text.
@@ -265,6 +277,33 @@ impl Diagnostic {
 /// Present arbitrary failure text safely at the frontend boundary.
 pub fn operator_error(stage: &str, error: &str) -> String {
     if let Some(failure) = ComponentFailure::decode(error) {
+        let description = match (failure.component, failure.cause) {
+            (Component::GuestPayload, FailureCause::FileMissing) => Some(
+                "Required guest driver files are missing. Current preparation does not match the host payload.",
+            ),
+            (Component::GuestPayload, FailureCause::FileChanged) => {
+                Some("Guest driver files differ from the current authenticated host payload.")
+            }
+            (Component::GuestReceipt, FailureCause::ReadbackMismatch) => Some(
+                "The guest preparation receipt is absent or does not match the current payload and guest identity.",
+            ),
+            (Component::GuestPayload | Component::GuestReceipt, FailureCause::AccessDenied) => {
+                Some("Current guest payload verification was denied; payload health is unknown.")
+            }
+            (Component::GuestPayload | Component::GuestReceipt, FailureCause::TimedOut) => {
+                Some("Current guest payload verification timed out; payload health is unknown.")
+            }
+            (
+                Component::GuestPayload | Component::GuestReceipt,
+                FailureCause::Unavailable | FailureCause::InvalidReply,
+            ) => Some("Current guest payload facts are unavailable; payload health is unknown."),
+            _ => None,
+        };
+        if let Some(description) = description {
+            return format!(
+                "{stage}: {description} Refresh and inspect recovery before any reviewed repair; do not repeat Apply automatically."
+            );
+        }
         return format!(
             "{stage}: {:?} reported {:?}. Refresh and inspect recovery before retrying; reconcile uncertain effects rather than repeating Apply.",
             failure.component, failure.cause
@@ -274,6 +313,7 @@ pub fn operator_error(stage: &str, error: &str) -> String {
     // message can still include secrets and must never be echoed wholesale.
     let lower = error.to_ascii_lowercase();
     let guidance = [
+        ("selected gpu is not attached", "The selected GPU is not attached on the host. Review GPU support changes or removal before Verify; no guest verification ran."),
         ("write-capable", "The protected installation or state has unsafe write permissions. Restore trusted administrator/SYSTEM ownership and restricted ACLs before installing or operating."),
         ("untrusted", "Protected ownership or integrity validation failed. Inspect the installed artifacts and state; do not bypass trust checks."),
         ("--config file is required", "Supply --config FILE with validated runtime configuration."),
@@ -391,6 +431,28 @@ pub fn collect_observations<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn payload_failures_distinguish_mismatch_from_unknown_without_claiming_rollback() {
+        for (cause, text) in [
+            (FailureCause::FileMissing, "files are missing"),
+            (FailureCause::FileChanged, "files differ"),
+            (FailureCause::AccessDenied, "was denied"),
+            (FailureCause::TimedOut, "timed out"),
+            (FailureCause::Unavailable, "facts are unavailable"),
+        ] {
+            let error = ComponentFailure {
+                stage: Some(FailureStage::Verification),
+                component: Component::GuestPayload,
+                cause,
+                code: None,
+            }
+            .into_error();
+            let message = operator_error("Verify", &error);
+            assert!(message.contains(text), "{message}");
+            assert!(!message.contains("rollback"));
+        }
+    }
 
     #[test]
     fn transfer_sizes_use_readable_decimal_units_and_promote_rounded_boundaries() {

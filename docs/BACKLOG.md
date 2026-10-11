@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**Checkpoint rollback follow-up: APP-017 — Report saved-versus-observed host configuration differences.** The user's rollback report authorizes investigation, separate fix cards and incremental source implementation. APP-016 is source implemented; continue one card at a time through APP-022. Automated checks wait for the agreed milestone checkpoint; APP-023 requires a separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
+**Checkpoint rollback follow-up: APP-019 — Invalidate stale success when verification fails.** APP-016 through APP-018 are source implemented; continue one card at a time through APP-022. The user authorized source work with compilation checks where useful; test execution waits for the agreed milestone checkpoint. APP-023 requires a separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
 
 **APP-009 / APP-011 — Resolve the allocation contract and complete M2 preparation.** M1 is closed with [gate evidence](evidence/m1-closure.md). The [prepared sequence and source assessment](evidence/m2-preparation.md) record remaining environment facts and proposed effects. Selected-VM setup is already user-accepted; the remaining live sequence has not run. APP-011 source removes the metadata-derived VRAM ceiling; validate these changes at the agreed checkpoint before separately authorized live allocation checks.
 
@@ -28,8 +28,8 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-014 | M2 | Clarify slider-to-VRAM triple semantics | APP-011 | Ready (card-capacity maximum confirmed) | Not run |
 | APP-015 | M2 | Prepare sustained concurrent-render evidence | APP-008 | Ready | Not run |
 | APP-016 | M2 | Separate authorization from guest setup status | APP-008 | Done (source implemented) | Pending milestone gate and visual acceptance |
-| APP-017 | M2 | Report saved-versus-observed host configuration differences | APP-016 | Ready | Not run |
-| APP-018 | M2 | Verify current guest payload after rollback | APP-016 | Ready | Not run |
+| APP-017 | M2 | Report saved-versus-observed host configuration differences | APP-016 | Done (source implemented) | Pending milestone gate and visual acceptance |
+| APP-018 | M2 | Verify current guest payload after rollback | APP-016 | Done (source implemented) | Compilation check passed; tests and live acceptance pending |
 | APP-019 | M2 | Invalidate stale success when verification fails | APP-016 | Ready | Not run |
 | APP-020 | M2 | Add explicitly reviewed driver reinstall | APP-019 | Blocked: APP-019 | Not run |
 | APP-021 | M2 | Make GPU removal usable after rollback | APP-016 | Ready | Not run |
@@ -190,11 +190,21 @@ Compare readable saved intent with fresh Hyper-V attachment, explicitly requeste
 
 Acceptance: report expected versus observed values for missing/wrong attachments and changed requested resources/settings; saved disabled state with no attachment is consistent. Missing/unreadable intent, unavailable observations and omitted allocations remain Unknown rather than an invented failure/default. Cover matching, missing, unrelated-GPU, changed-allocation, malformed/unavailable and stale-read cases using isolated controller/model tests. Refresh does not write state or access the guest; protected admission still rejects unrelated hardware and stale reviews.
 
+Implementation (11 October 2026): the selected VM support summary now compares readable committed intent with the latest Hyper-V inventory. Differences name expected/observed attachments, explicit resource triples and compatibility values from the applicable managed host baseline. Drafts and enrollment allocation settings are never comparison intent. Missing/unreadable intent, incomplete or historical observations, omitted requests and unavailable managed baselines remain Unknown. Disabled intent with no attachment is consistent; old applied settings are not treated as its required baseline. Missing expected attachment retains the existing reviewed edit/removal route; unrelated hardware and stale execution remain blocked. Added isolated comparison/controller regressions; no provider writes, guest checks or authority changes are introduced.
+
+Validation: targeted Rust formatting, documentation/link/task checks and diff whitespace only. Compilation, regression execution and visual acceptance are pending the agreed milestone gate. No GUI launch, guest access, VM/GPU effects or rollback qualification ran.
+
 ### APP-018 — Verify current guest payload after rollback
 
 Extend explicit Verify through the existing protected worker and guest transport to check current guest preparation independently of the host digest receipt. Compare the current authenticated manifest with actual guest files and any matching guest receipt, alongside the existing selected-hardware PnP/rendering check. Guest checks require the existing reviewed lifecycle and local credentials. A matching host receipt must never bypass this explicit check.
 
 Acceptance: removed, changed or partial guest driver files are detected even with unchanged host receipts and driver version; distinguish payload mismatch, graphics failure and unavailable/denied checks. An absent host GPU produces an actionable host discrepancy without falsely claiming guest verification. Cover complete, absent, partial, corrupted, wrong-pair, denied and timed-out guest observations with isolated doubles. Verify never reinstalls driver payloads or silently updates desired settings; disclose any existing helper bootstrap writes and power effects accurately. Unknown checkpoint origin is not reported as proven rollback.
+
+Implementation (11 October 2026): explicit Verify now discovers/authenticates the current host manifest for its review and binds the digest into worker admission and recovery evidence. The native guest check compares every current destination's length/hash and the guest receipt's manifest digest, file count and current machine identity before checking PnP/rendering. It never accepts host preparation history as a substitute. Manifest membership is bound to the selected physical GPU, validated relative destinations, uniqueness and size limits; reads use bounded buffers/deadlines, protected paths and handles that deny writes/deletion. The existing guest preparation lock prevents overlapping product preparation. Missing/changed files, mismatched receipts, denied/unavailable/timed-out observations and graphics failures have separate safe component/cause diagnostics. A missing host attachment blocks Verify with a reviewed-change/removal instruction before guest work.
+
+Review discloses temporary start/graceful restoration for an off guest, guest administrator credentials, refreshed protected helper executables, verification metadata/lock and optional diagnostics. Verify transfers no driver payload, rewrites no preparation receipt or saved intent, and does not infer a proven checkpoint rollback. The shared native verification path also checks payload parity during setup and explicitly reviewed recovery. Verify-only reconciliation checks the recorded current payload independently without requiring or upgrading an old host preparation digest; management/setup reconciliation still requires matching preparation. Failure retains recovery and approved lifecycle restoration; stale-success persistence and preparation eligibility remain APP-019.
+
+Validation: `cargo check --locked --all-targets` passed, including compilation of isolated payload, review, failure/lifecycle and diagnostic regressions. Targeted formatting, PowerShell syntax parsing, documentation/link/task checks and diff whitespace passed. No tests were executed; no full binary build, GUI launch, credentials, guest access, protected writes or VM/GPU effects ran. Behavioral and live acceptance remain pending the agreed gate.
 
 ### APP-019 — Invalidate stale success when verification fails
 

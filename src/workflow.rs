@@ -78,7 +78,7 @@ pub trait Backend {
         let _ = progress;
         self.prepare(target)
     }
-    /// Require device health and checked hardware rendering.
+    /// Compare current guest payload/receipt, then require device health and hardware rendering.
     fn verify(&mut self, target: &Target, gpu: &Gpu) -> Result<(), String>;
 }
 
@@ -709,6 +709,9 @@ pub fn verification_power(
     old: Option<&Journal>,
 ) -> Result<Power, String> {
     target.validate()?;
+    if before.vm_id == target.vm_id && before.gpus.is_empty() {
+        return Err("Host configuration differs: the selected GPU is not attached. Review GPU support changes or removal before Verify; no guest verification ran.".into());
+    }
     if before.vm_id != target.vm_id
         || before.generation != 2
         || before.gpus != vec![target.gpu_interface.clone()]
@@ -735,7 +738,7 @@ pub fn verification_power(
     }
     Ok(power.clone())
 }
-/// Check graphics and restore the independently validated recovery power intent.
+/// Check current payload and graphics, restoring the validated recovery power intent.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VerificationPlan {
@@ -747,6 +750,8 @@ pub struct VerificationPlan {
     pub gpu: Gpu,
     /// Exact management state; pending operations prohibit fresh verification.
     pub managed: Option<Journal>,
+    /// Current authenticated host manifest, bound into the explicit review.
+    pub payload_digest: String,
 }
 /// Preview verification without guest, journal or power effects.
 pub fn plan_verification(
@@ -763,11 +768,13 @@ pub fn plan_verification(
     if gpu.interface != target.gpu_interface {
         return Err("selected GPU identity changed".into());
     }
+    let payload_digest = backend.payload(target)?;
     Ok(VerificationPlan {
         target: target.clone(),
         observed,
         gpu,
         managed,
+        payload_digest,
     })
 }
 /// Independently check reviewed verification scope immediately before effects.
@@ -781,10 +788,21 @@ pub fn verify_approved(
     {
         return Err("verification observations changed; Refresh and review".into());
     }
-    verify(backend, &approved.target)
+    verify_current_payload(backend, &approved.target)
 }
-/// Check graphics and restore the independently validated recovery power intent.
+/// Check current payload and graphics, restoring the validated recovery power intent.
 pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
+    let before = backend.inspect(target)?;
+    let managed = backend.journal(target)?;
+    verification_power(target, &before, managed.as_ref())?;
+    backend.payload(target)?;
+    verify_current_payload(backend, target)
+}
+
+fn verify_current_payload(
+    backend: &mut impl Backend,
+    target: &Target,
+) -> Result<OperationResult, String> {
     target.validate()?;
     let before = backend.inspect(target)?;
     let old = backend.journal(target)?;
@@ -894,7 +912,11 @@ pub(crate) fn reconcile_with_graphics(
         || journal.schema != 1
         || journal.restore_power != restore
         || !matches!(restore, Power::Off | Power::Running)
-        || (target.enabled && payload.is_some_and(|p| journal.prepared.as_deref() != Some(p)))
+        // Verify-only recovery proves current guest facts independently; it
+        // neither requires nor upgrades historical host preparation authority.
+        || (target.enabled
+            && !journal.verification_only
+            && payload.is_some_and(|p| journal.prepared.as_deref() != Some(p)))
     {
         return Err(
             "operation journal does not prove the reviewed preparation and power intent".into(),
@@ -984,6 +1006,7 @@ mod tests {
         fail_prepare: bool,
         fail_settings: bool,
         fail_verify: bool,
+        payload_check_failure: Option<crate::reporting::FailureCause>,
         ignore_shutdown: bool,
         fail_shutdown: bool,
         fail_final_shutdown: bool,
@@ -1036,6 +1059,7 @@ mod tests {
             fail_prepare: false,
             fail_settings: false,
             fail_verify: false,
+            payload_check_failure: None,
             ignore_shutdown: false,
             fail_shutdown: false,
             fail_final_shutdown: false,
@@ -1174,6 +1198,134 @@ mod tests {
         assert_eq!(backend.journal_writes, 0);
         backend.journal.as_mut().unwrap().pending = true;
         assert!(plan_verification(&mut backend, &target()).is_err());
+    }
+
+    #[test]
+    fn verification_binds_current_payload_and_rejects_same_version_payload_change() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.events.clear();
+        backend.journal_writes = 0;
+        let approved = plan_verification(&mut backend, &target()).unwrap();
+        assert_eq!(approved.payload_digest, backend.driver);
+        // Driver identity reported by gpu() is unchanged; the manifest digest changed.
+        backend.driver = "different-content";
+        assert!(
+            verify_approved(&mut backend, &approved)
+                .unwrap_err()
+                .contains("observations changed")
+        );
+        assert!(backend.events.is_empty());
+        assert_eq!(backend.journal_writes, 0);
+    }
+
+    #[test]
+    fn verify_without_host_attachment_reports_discrepancy_before_guest_or_journal_work() {
+        let mut backend = fake();
+        backend.state.gpus.clear();
+        let error = plan_verification(&mut backend, &target()).unwrap_err();
+        assert!(error.contains("no guest verification ran"));
+        assert!(verify(&mut backend, &target()).is_err());
+        assert_eq!(backend.payload_reads, 0);
+        assert_eq!(backend.journal_writes, 0);
+        assert!(backend.events.is_empty());
+    }
+
+    #[test]
+    fn explicit_verify_discovers_current_payload_even_when_historical_receipt_matches() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.events.clear();
+        backend.payload_reads = 0;
+        verify(&mut backend, &target()).unwrap();
+        assert_eq!(backend.payload_reads, 1);
+        assert_eq!(backend.events, ["start", "graphics", "shutdown"]);
+        assert!(!backend.events.contains(&"prepare"));
+    }
+
+    #[test]
+    fn payload_mismatch_or_unavailable_verify_preserves_recovery_and_restores_only_reviewed_power()
+    {
+        use crate::reporting::{ComponentFailure, FailureCause};
+        for power in [Power::Off, Power::Running] {
+            for cause in [
+                FailureCause::FileMissing,
+                FailureCause::FileChanged,
+                FailureCause::AccessDenied,
+                FailureCause::TimedOut,
+            ] {
+                let mut backend = fake();
+                apply(&mut backend, &target()).unwrap();
+                backend.state.power = power.clone();
+                let history = backend.journal.as_ref().unwrap().last_verified;
+                backend.events.clear();
+                backend.payload_check_failure = Some(cause);
+                let error = verify(&mut backend, &target()).unwrap_err();
+                let failure = ComponentFailure::decode(&error).unwrap();
+                assert_eq!(format!("{:?}", failure.cause), format!("{cause:?}"));
+                assert_eq!(backend.state.power, power);
+                assert!(backend.journal.as_ref().unwrap().pending);
+                assert!(backend.journal.as_ref().unwrap().verification_only);
+                assert_eq!(backend.journal.as_ref().unwrap().last_verified, history);
+                assert!(
+                    !backend
+                        .events
+                        .iter()
+                        .any(|e| matches!(*e, "graphics" | "prepare" | "attach" | "allocation"))
+                );
+                assert_eq!(
+                    backend.events,
+                    if power == Power::Off {
+                        vec!["start", "payload-check", "shutdown"]
+                    } else {
+                        vec!["payload-check"]
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn verify_only_reconciliation_checks_current_payload_without_certifying_old_preparation() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.journal.as_mut().unwrap().prepared = Some("historical-payload".into());
+        backend.fail_verify = true;
+        assert!(verify(&mut backend, &target()).is_err());
+        assert!(backend.journal.as_ref().unwrap().verification_only);
+        backend.fail_verify = false;
+        backend.events.clear();
+        let observed = backend.state.clone();
+        let result = reconcile_with_graphics(
+            &mut backend,
+            &target(),
+            &observed,
+            Power::Off,
+            Some("current"),
+            true,
+        )
+        .unwrap();
+        assert!(result.verified);
+        assert_eq!(backend.events, ["start", "graphics", "shutdown"]);
+        assert_eq!(
+            backend.journal.as_ref().unwrap().prepared.as_deref(),
+            Some("historical-payload")
+        );
+        // Management/setup recovery still needs a matching preparation receipt.
+        backend.journal.as_mut().unwrap().verification_only = false;
+        backend.events.clear();
+        assert!(
+            reconcile_with_graphics(
+                &mut backend,
+                &target(),
+                &observed,
+                Power::Off,
+                Some("current"),
+                true
+            )
+            .is_err()
+        );
+        assert!(backend.events.is_empty());
     }
     #[test]
     fn explicit_reconciliation_never_reassigns_reprepares_or_reallocates() {
@@ -1338,6 +1490,16 @@ mod tests {
             }
         }
         fn verify(&mut self, _: &Target, _: &Gpu) -> Result<(), String> {
+            if let Some(cause) = self.payload_check_failure {
+                self.events.push("payload-check");
+                return Err(crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestPayload,
+                    cause,
+                    code: None,
+                }
+                .into_error());
+            }
             if let Some(resource) = self.corrupt_resource {
                 match resource {
                     Resource::Vram => self.state.vram = None,

@@ -204,6 +204,20 @@ try {
         Set-Acl -LiteralPath $path -AclObject $acl
     }
     Write-Stage 'bundle-path' 'done' $bundle $timer.ElapsedMilliseconds
+    if ($r.mode -eq 'verify') {
+        # Metadata only: Verify never transfers driver payloads or rewrites prepared.json.
+        Invoke-Command -Session $session -ArgumentList $bundle, $r.verification -ScriptBlock {
+            param($path, $json)
+            $leaf = Join-Path $path 'verification.json'
+            if (Test-Path -LiteralPath $leaf) {
+                $item = Get-Item -LiteralPath $leaf -Force
+                if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe verification metadata' }
+                if ((Get-Acl -LiteralPath $leaf).GetOwner([Security.Principal.SecurityIdentifier]).Value -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted verification metadata' }
+            }
+            [IO.File]::WriteAllText($leaf, $json, [Text.UTF8Encoding]::new($false))
+            Set-Acl -LiteralPath $leaf -AclObject (Get-Acl -LiteralPath $path)
+        }
+    }
     if ($r.mode -eq 'prepare') {
         $timer.Restart()
         Write-Stage 'transfer-leaves' 'start' $bundle

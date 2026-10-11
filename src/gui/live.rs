@@ -306,7 +306,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         ui.set_vm_name("Selected VM unavailable".into());
         ui.set_power("Unknown".into());
         ui.set_status("Unavailable".into());
-        ui.set_support_summary("VM information is unavailable. Use Refresh to retry.".into());
+        ui.set_support_summary(state.host_configuration_text(id).into());
         ui.set_observed("Selected VM was not returned by the latest inventory read".into());
         ui.set_verification("Unknown; the selected VM is unavailable".into());
         ui.set_desired(state.saved_desired_text(id).into());
@@ -388,7 +388,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_verification(recorded.graphics.into());
     ui.set_support_summary(
         format!(
-            "Management: {}. GPU support: {}. Saved setting: {}. Graphics: {}.",
+            "Management: {}. GPU support: {}. Saved setting: {}. Graphics: {}. {}",
             if state.view.needs_readback {
                 "status unavailable"
             } else if inventory.enrolled.iter().any(|target| target.vm_id == *id) {
@@ -432,6 +432,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
             } else {
                 "not verified"
             },
+            state.host_configuration_text(id),
         )
         .into(),
     );
@@ -1542,11 +1543,12 @@ fn review_verification(
                 ui.set_execution_ready(worker_available);
                 ui.set_needs_shutdown(plan.observed.power == hyper_gpu_support::model::Power::Off);
                 let body = format!(
-                    "VM: {}\nVM ID: {}\nGPU: {}\nDriver: {}\n\nCheck guest device health and hardware rendering using guest administrator credentials. {}\nGPU assignment, resources, preparation and committed configuration are not changed by this check. The worker independently rechecks the reviewed state before effects.",
+                    "VM: {}\nVM ID: {}\nGPU: {}\nDriver: {}\nPayload digest: {}\n\nCompare current guest driver files and the preparation receipt with the authenticated host manifest, then check device health and hardware rendering using this VM's guest administrator credentials. {}\nVerify refreshes its protected guest helper executables, manifest metadata and optional diagnostic files. It does not reinstall driver payloads, rewrite the preparation receipt, or change GPU assignment, resources or saved settings. The worker independently rechecks the reviewed state before effects.",
                     plan.observed.name,
                     plan.target.vm_id,
                     plan.target.gpu_interface,
                     plan.gpu.driver_version,
+                    plan.payload_digest,
                     if plan.observed.power == hyper_gpu_support::model::Power::Off {
                         "Temporarily start the stopped guest, then gracefully restore it to stopped."
                     } else {
@@ -1620,8 +1622,8 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
                 Ok(outcome) if outcome.finished => dialog(
                     ui,
                     "info",
-                    "Graphics verification passed",
-                    "Fresh guest device health and hardware rendering passed. Disclosed guest power was restored. Refresh to read the new protected verification record.",
+                    "Guest verification passed",
+                    "Current guest driver files and preparation receipt matched the authenticated host manifest; device health and hardware rendering passed. Disclosed guest power was restored. Refresh to read the new protected verification record.",
                 ),
                 Ok(_) => dialog(
                     ui,

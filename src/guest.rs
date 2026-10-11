@@ -42,6 +42,21 @@ struct BridgeRequest<'a> {
     device: u32,
     artifacts: Vec<Artifact>,
     diagnostics: bool,
+    verification: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerificationInput {
+    target: Target,
+    manifest: Manifest,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerificationReport {
+    payload: Receipt,
+    graphics: crate::probe::ProbeReport,
 }
 #[derive(Serialize)]
 struct Artifact {
@@ -97,6 +112,7 @@ fn bridge(
                 .map(|a| a.bytes)
                 .chain(
                     manifest
+                        .filter(|_| mode == "prepare")
                         .into_iter()
                         .flat_map(|m| m.files.iter().map(|f| f.bytes)),
                 )
@@ -108,15 +124,35 @@ fn bridge(
                 password: &credential.password,
                 install,
                 mode,
-                manifest,
+                manifest: manifest.filter(|_| mode == "prepare"),
                 digest: manifest
                     .map(Manifest::digest)
                     .transpose()?
-                    .unwrap_or_else(|| "verify".into()),
+                    .map(|digest| {
+                        if mode == "verify" {
+                            format!("verify-{digest}")
+                        } else {
+                            digest
+                        }
+                    })
+                    .ok_or("current manifest required for guest operation")?,
                 vendor: gpu.map_or(0, |g| g.vendor),
                 device: gpu.map_or(0, |g| g.device),
                 artifacts,
                 diagnostics: crate::diagnostics::enabled()?,
+                verification: if mode == "verify" {
+                    Some(
+                        serde_json::to_string(&VerificationInput {
+                            target: t.clone(),
+                            manifest: manifest
+                                .ok_or("verification requires current manifest")?
+                                .clone(),
+                        })
+                        .map_err(|e| e.to_string())?,
+                    )
+                } else {
+                    None
+                },
             };
             let bytes =
                 zeroize::Zeroizing::new(serde_json::to_vec(&request).map_err(|e| e.to_string())?);
@@ -230,18 +266,55 @@ pub fn prepare_with_progress(
     }
     Ok(digest)
 }
-/// Require PnP Code 0 and checked D3D11 rendering on the selected hardware.
-pub fn verify(t: &Target, gpu: &Gpu, credential: &Credential) -> Result<(), String> {
+/// Require current driver payload/receipt parity, PnP Code 0 and selected-hardware rendering.
+pub fn verify(
+    t: &Target,
+    gpu: &Gpu,
+    manifest: &Manifest,
+    credential: &Credential,
+) -> Result<(), String> {
     let text = bridge(
         t,
         credential,
         "verify",
-        None,
+        Some(manifest),
         Some(gpu),
         &mut |_, _, _, _| Ok(()),
     )?;
-    let report = crate::probe::parse_success_report(text.trim(), "d3d11-offscreen")
-        .map_err(|e| e.to_string())?;
+    let checked: VerificationReport = serde_json::from_str(text.trim()).map_err(|_| {
+        crate::reporting::ComponentFailure {
+            stage: None,
+            component: crate::reporting::Component::GuestPayload,
+            cause: crate::reporting::FailureCause::InvalidReply,
+            code: None,
+        }
+        .into_error()
+    })?;
+    if checked.payload.digest != manifest.digest()?
+        || checked.payload.files != manifest.files.len()
+        || checked.payload.machine_guid.is_empty()
+    {
+        return Err(crate::reporting::ComponentFailure {
+            stage: None,
+            component: crate::reporting::Component::GuestPayload,
+            cause: crate::reporting::FailureCause::ReadbackMismatch,
+            code: None,
+        }
+        .into_error());
+    }
+    let report = crate::probe::parse_success_report(
+        &serde_json::to_string(&checked.graphics).map_err(|e| e.to_string())?,
+        "d3d11-offscreen",
+    )
+    .map_err(|_| {
+        crate::reporting::ComponentFailure {
+            stage: None,
+            component: crate::reporting::Component::GuestGraphics,
+            cause: crate::reporting::FailureCause::InvalidReply,
+            code: None,
+        }
+        .into_error()
+    })?;
     if report.adapter.vendor_id != gpu.vendor
         || report.adapter.device_id != gpu.device
         || !report.adapter.paravirtualized
@@ -282,7 +355,61 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
     }
     crate::security::verify(bundle)?;
     if mode == "verify" {
-        crate::diagnostics::run("guest-pnp-health", "selected GPU", health)?;
+        use std::{io::Read, os::windows::fs::OpenOptionsExt};
+        let request_path = bundle.join("verification.json");
+        crate::security::verify(&request_path)?;
+        let mut input = Vec::new();
+        fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&request_path)
+            .map_err(|e| e.to_string())?
+            .take(32 * 1024 * 1024 + 1)
+            .read_to_end(&mut input)
+            .map_err(|e| e.to_string())?;
+        if input.len() > 32 * 1024 * 1024 {
+            return Err("verification manifest exceeds safety limit".into());
+        }
+        let request: VerificationInput =
+            serde_json::from_slice(&input).map_err(|_| "invalid verification input")?;
+        request.target.validate()?;
+        crate::guest_payload::validate(&request.manifest, &request.target.gpu_interface)?;
+        if bundle.file_name().and_then(|n| n.to_str())
+            != Some(format!("verify-{}", request.manifest.digest()?).as_str())
+        {
+            return Err("verification bundle identity mismatch".into());
+        }
+        let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
+        let _lock = preparation_lock(root)?;
+        let payload = crate::diagnostics::run(
+            "guest-current-payload",
+            "current destination hashes and preparation receipt",
+            || {
+                crate::guest_payload::check(
+                    &request.manifest,
+                    &windows,
+                    &root.join("prepared.json"),
+                    &machine_guid().map_err(|_| {
+                        crate::reporting::ComponentFailure {
+                            stage: None,
+                            component: crate::reporting::Component::GuestPayload,
+                            cause: crate::reporting::FailureCause::Unavailable,
+                            code: None,
+                        }
+                        .into_error()
+                    })?,
+                )
+            },
+        )?;
+        crate::diagnostics::run("guest-pnp-health", "selected GPU", health).map_err(|_| {
+            crate::reporting::ComponentFailure {
+                stage: None,
+                component: crate::reporting::Component::GuestGraphics,
+                cause: crate::reporting::FailureCause::RenderingFailed,
+                code: None,
+            }
+            .into_error()
+        })?;
         let mut command = Command::new(root.join("d3d11-probe.exe"));
         command.args([vendor.to_string(), device.to_string()]);
         let out = crate::diagnostics::run(
@@ -300,7 +427,15 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
             .into_error());
         }
         let report = crate::probe::parse_success_report(out.stdout.trim(), "d3d11-offscreen")
-            .map_err(|e| e.to_string())?;
+            .map_err(|_| {
+                crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestGraphics,
+                    cause: crate::reporting::FailureCause::InvalidReply,
+                    code: None,
+                }
+                .into_error()
+            })?;
         if report.adapter.vendor_id != vendor
             || report.adapter.device_id != device
             || !report.adapter.paravirtualized
@@ -313,7 +448,11 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
             }
             .into_error());
         }
-        return Ok(out.stdout);
+        return serde_json::to_string(&VerificationReport {
+            payload,
+            graphics: report,
+        })
+        .map_err(|e| e.to_string());
     }
     if mode != "prepare" {
         return Err("unknown guest operation".into());
@@ -331,19 +470,7 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
         return Err("preparation bundle identity mismatch".into());
     }
     let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
-    let lock_path = root.join("preparation.lock");
-    if lock_path.exists() {
-        crate::security::verify(&lock_path)?;
-    }
-    use std::os::windows::fs::OpenOptionsExt;
-    let _lock = fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .share_mode(0)
-        .open(&lock_path)
-        .map_err(|_| "another guest preparation is active")?;
-    crate::runner::protect(&lock_path, "S-1-5-32-544")?;
+    let _lock = preparation_lock(root)?;
     let mut destinations = std::collections::BTreeSet::new();
     for (index, file) in manifest.files.iter().enumerate() {
         payload::validate_relative(&file.destination)?;
@@ -468,6 +595,23 @@ pub(crate) fn replace_file(from: &Path, to: &Path) -> Result<(), String> {
     }
     .map_err(|e| e.to_string())
 }
+fn preparation_lock(root: &Path) -> Result<fs::File, String> {
+    use std::os::windows::fs::OpenOptionsExt;
+    let path = root.join("preparation.lock");
+    if path.exists() {
+        crate::security::verify(&path)?;
+    }
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .share_mode(0)
+        .open(&path)
+        .map_err(|_| "another guest preparation or verification is active")?;
+    crate::runner::protect(&path, "S-1-5-32-544")?;
+    Ok(lock)
+}
+
 fn machine_guid() -> Result<String, String> {
     let _a = crate::windows_com::Apartment::initialize().map_err(|e| e.to_string())?;
     let cim = crate::windows_com::connect(r"ROOT\cimv2").map_err(|e| e.to_string())?;

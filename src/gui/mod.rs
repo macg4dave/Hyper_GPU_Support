@@ -1,4 +1,5 @@
 //! Approved Slint presentation over the protected live backend.
+mod host_configuration;
 mod live;
 mod live_state;
 mod memory;

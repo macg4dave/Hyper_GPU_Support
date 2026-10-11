@@ -10,6 +10,8 @@ pub mod enrollment;
 #[cfg(windows)]
 pub mod guest;
 #[cfg(windows)]
+mod guest_payload;
+#[cfg(windows)]
 mod guest_transfer;
 pub mod gui_model;
 pub mod model;

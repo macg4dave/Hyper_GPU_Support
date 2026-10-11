@@ -1365,9 +1365,15 @@ impl Backend for NativeBackend {
         )
     }
     fn verify(&mut self, t: &Target, g: &Gpu) -> Result<(), String> {
+        if self.manifest.is_none() {
+            self.payload(t)?;
+        }
         crate::guest::verify(
             t,
             g,
+            self.manifest
+                .as_ref()
+                .ok_or("current manifest unavailable for verification")?,
             self.credential
                 .as_ref()
                 .ok_or("guest credentials required")?,

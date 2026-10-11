@@ -883,7 +883,7 @@ fn execute(
                 target: approved.target.clone(),
                 expected: configuration_store::protected::revision(&approved.target.vm_id)?,
                 driver_version: approved.gpu.driver_version.clone(),
-                payload_digest: None,
+                payload_digest: Some(approved.payload_digest.clone()),
                 plan_revision: Revision::of(
                     &serde_json::to_vec(&approved).map_err(|e| e.to_string())?,
                 ),
