@@ -1,6 +1,135 @@
 //! Bounded public diagnostics. Adapter text is untrusted and may contain secrets.
 use serde::{Deserialize, Serialize};
 
+/// Application-owned failure context. No adapter message, path or user input is
+/// carried across the authenticated worker boundary.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum Component {
+    /// Native Hyper-V management provider.
+    HyperV,
+    /// Bounded PowerShell Direct transport/guest worker.
+    GuestTransport,
+    /// Independent preparation receipt validation.
+    GuestReceipt,
+    /// Checked guest hardware rendering.
+    GuestGraphics,
+}
+
+/// A cause established at its adapter source, rather than inferred from text.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum FailureCause {
+    /// The source has not established a more specific safe cause.
+    Unclassified,
+    /// Windows returned a failing HRESULT.
+    NativeCall,
+    /// The provider returned a nonzero method/job result.
+    ProviderRejected,
+    /// A bounded guest process exited unsuccessfully or had no terminal exit.
+    ProcessFailed,
+    /// A guest reply could not be parsed.
+    InvalidReply,
+    /// Independent receipt or selected GPU identity did not match.
+    ReadbackMismatch,
+    /// The checked probe did not establish hardware rendering.
+    RenderingFailed,
+}
+
+/// Typed numeric code namespace; values never originate in adapter text.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum FailureCode {
+    /// Native Windows HRESULT bits.
+    HResult(u32),
+    /// Hyper-V method/job return value.
+    Provider(u64),
+    /// Guest bridge process exit code.
+    Exit(i32),
+}
+
+/// Fixed operation stages; labels cannot carry arbitrary adapter output.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum FailureStage {
+    /// Durable operation journaling.
+    RecoveryPersistence,
+    /// Guest shutdown or startup.
+    GuestPower,
+    /// Selected GPU attach/detach.
+    GpuAssignment,
+    /// VM compatibility settings.
+    Compatibility,
+    /// Explicit provider resource write.
+    Allocation,
+    /// Transfer and independently checked preparation.
+    Preparation,
+    /// Guest health and rendering verification.
+    Verification,
+}
+
+/// Safe failure envelope over existing String-based backend contracts.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComponentFailure {
+    /// Enclosing effect stage, if the worker established it.
+    #[serde(default)]
+    pub stage: Option<FailureStage>,
+    /// Fixed component identity.
+    pub component: Component,
+    /// Fixed cause established by the adapter.
+    pub cause: FailureCause,
+    /// Actual numeric source code, if available.
+    pub code: Option<FailureCode>,
+}
+
+impl ComponentFailure {
+    /// Retain typed facts without changing operation/recovery error semantics.
+    pub fn into_error(self) -> String {
+        format!("HGFAIL1:{}", serde_json::to_string(&self).expect("fixed failure serialization"))
+    }
+
+    pub(crate) fn decode(error: &str) -> Option<Self> {
+        if error.len() > 8192 { return None; }
+        // Existing adapters may prepend fixed operation context. Parsing must
+        // consume the whole remaining envelope; appended text is never accepted.
+        let (_, envelope) = error.split_once("HGFAIL1:")?;
+        serde_json::from_str(envelope).ok()
+    }
+
+    /// Publish only fixed typed facts from the guest worker's failure output.
+    pub fn guest_error(error: &str) -> String {
+        Self::decode(error).unwrap_or(Self {
+            stage: None,
+            component: Component::GuestTransport,
+            cause: FailureCause::Unclassified,
+            code: None,
+        }).into_error()
+    }
+
+    fn text(&self) -> String {
+        let code = match self.code {
+            Some(FailureCode::HResult(code)) => format!("HRESULT 0x{code:08X}"),
+            Some(FailureCode::Provider(code)) => format!("provider code {code}"),
+            Some(FailureCode::Exit(code)) => format!("process exit {code}"),
+            None => "no terminal numeric code available".into(),
+        };
+        format!("Stage: {:?}\nComponent: {:?}\nCause: {:?}\nCode: {code}", self.stage, self.component, self.cause)
+    }
+}
+
+/// Attach fixed worker context to an already structured adapter failure.
+pub(crate) fn failure_at_stage(error: String, name: &str) -> String {
+    let Some(mut failure) = ComponentFailure::decode(&error) else { return error; };
+    failure.stage = match name {
+        "Persist operation recovery" => Some(FailureStage::RecoveryPersistence),
+        "Graceful guest shutdown" | "Start guest" => Some(FailureStage::GuestPower),
+        "Attach selected GPU" | "Detach selected GPU" => Some(FailureStage::GpuAssignment),
+        "Compatibility settings" => Some(FailureStage::Compatibility),
+        "Provider allocation" => Some(FailureStage::Allocation),
+        "Prepare current signed payload" => Some(FailureStage::Preparation),
+        "Check guest health and hardware rendering" => Some(FailureStage::Verification),
+        _ => failure.stage,
+    };
+    failure.into_error()
+}
+
 /// Why an observation could not be obtained; absence is not successful discovery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Availability {
@@ -31,7 +160,10 @@ pub struct Diagnostic {
 impl Diagnostic {
     /// Classify an adapter failure without copying its text into public output.
     pub fn observation(stage: &str, target: Option<String>, error: &str) -> Self {
-        let text = error.to_ascii_lowercase();
+        let text = match ComponentFailure::decode(error).and_then(|failure| failure.code) {
+            Some(FailureCode::HResult(code)) => format!("0x{code:08x}"),
+            _ => error.to_ascii_lowercase(),
+        };
         let availability = if text.contains("access denied")
             || text.contains("access is denied")
             || text.contains("0x80070005")
@@ -78,6 +210,9 @@ impl Diagnostic {
 }
 /// Present arbitrary failure text safely at the frontend boundary.
 pub fn operator_error(stage: &str, error: &str) -> String {
+    if let Some(failure) = ComponentFailure::decode(error) {
+        return format!("{stage}: {:?} reported {:?}. Refresh and inspect recovery before retrying; reconcile uncertain effects rather than repeating Apply.", failure.component, failure.cause);
+    }
     // Match application conditions, but emit only fixed text: a matching adapter
     // message can still include secrets and must never be echoed wholesale.
     let lower = error.to_ascii_lowercase();
@@ -116,6 +251,9 @@ pub fn operator_error(stage: &str, error: &str) -> String {
 /// Preserve native error codes and classified context without echoing untrusted
 /// adapter text, which can contain credential material even without key labels.
 pub fn technical_error(stage: &str, error: &str) -> String {
+    if let Some(failure) = ComponentFailure::decode(error) {
+        return format!("Operation: {stage}\n{}\n{}", failure.text(), operator_error(stage, error));
+    }
     let mut codes = Vec::new();
     let lower = error.to_ascii_lowercase();
     if !["password", "token", "secret", "credential", "bearer"]
@@ -192,6 +330,26 @@ pub fn collect_observations<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn typed_component_facts_survive_stage_binding_and_reject_untrusted_fields() {
+        let error = ComponentFailure {
+            stage: None,
+            component: Component::HyperV,
+            cause: FailureCause::NativeCall,
+            code: Some(FailureCode::HResult(0x80070005)),
+        }.into_error();
+        let error = failure_at_stage(error, "Attach selected GPU");
+        let details = technical_error("Apply", &error);
+        assert!(details.contains("GpuAssignment"));
+        assert!(details.contains("0x80070005"));
+        assert_eq!(Diagnostic::observation("Apply", None, &error).availability, Availability::Denied);
+        assert!(ComponentFailure::decode(&format!("{error}; private-secret")).is_none());
+        let mut value: serde_json::Value = serde_json::from_str(error.strip_prefix("HGFAIL1:").unwrap()).unwrap();
+        value["password"] = "private-secret".into();
+        let injected = format!("HGFAIL1:{value}");
+        assert!(ComponentFailure::decode(&injected).is_none());
+        assert!(!technical_error("Apply", &injected).contains("private-secret"));
+    }
     #[test]
     fn technical_diagnostics_preserve_codes_without_echoing_adapter_text() {
         let details = technical_error("Apply", "Access is denied (0x80070005); private-content");

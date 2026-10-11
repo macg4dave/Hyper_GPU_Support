@@ -12,33 +12,25 @@ If replacement work is blocked by a concrete external prerequisite, record it on
 
 ## Status and selection rules
 
-**Authorized BUGS-001/002 acceptance attempt (11 October):** user authorized live
-testing and subsequently included the second enrolled VM, now `test-001`. Live
-discovery succeeded; navigation remained enabled and no false draft appeared
-through two automatic polling intervals. Explicit reconciliation failed and
-retained that VM's `EffectsStarted` record/pending journal. Fresh inventory differs
-from the approved enabled outcome (stopped, no attached GPU). Native update was
-refused before installation because recovery remains; further Apply, slider,
-enrollment and VM-power acceptance are blocked. Do not delete the record or replay
-Apply to unblock testing. CORE-028 owns supported administrator recovery for this
-partial state; GUI-002/GUI-003/GPU-010 retain acceptance ownership.
+**Authorized bug acceptance (11 October):** supported reconciliation independently
+proved `test-001`'s original stopped/unattached baseline, archived the interrupted
+attempt and released recovery after terminal audit. The protected update preserved
+both enrolled pairs. Fresh Apply then succeeded: signed guest preparation, RTX 5060
+attachment, PnP/D3D11 verification, restored Stopped power and configuration saving.
+Workspace 173 tests/four ignored, strict Clippy, software layout and x64/MSVC debug
+build passed. Live polling/defaults/draft/discard/navigation/clean-close checks passed.
+This is scoped acceptance, not M3 closure.
 
-The review found an unqualified card/provider memory ratio in the current source.
-Restored DEC-034's exact native-byte requests, keeping physical capacity separate;
-the reported 1 GB provider ceiling is not expanded to a physical-card claim.
-Added safe exact application failure messages and partial-state guidance without
-echoing arbitrary adapter text. Fixed an outdated schema-3 rejection test and
-Clippy failures (boxed completion storage preserves the JSON wire contract).
-The initial suite passed 169 tests with four ignored; subsequent reporting,
-GUI/memory and worker-wire regressions passed, strict Clippy passed, and Windows
-x64 debug/MCP bins built. Existing software layout/close qualification and sample
-toggle/slider reversal, discard and expanded fixed-footer interactions passed.
-These are scoped checks, not live Apply acceptance or M3 closure. See both bug
-reports and `local/evidence/bugs-20261011/` for evidence and remaining limits.
+[Open issue tracker](evidence/issues.md) replaces both bug reports and owns stable
+ISS-001–007 acceptance records. GPU-010 owns physical VRAM mapping and explicit
+allocation acceptance; GUI-002/GUI-003/SEC-001 own enrollment/credential/power-refresh
+acceptance; CORE-028/GUI-002 own structured safe diagnostics and failure/recovery
+acceptance. The old partial-state blocker is resolved. Actual provider enforcement,
+native credential rendering and remaining failure/enrollment cases are not accepted.
 
 **Authorized BUGS-001 / GPU-010.3 build and installation (10 October):** fixed the Slint duplicate binding in modal availability by deriving its value from dialog/operation state and synchronizing the global from that value. `cargo build --locked --all-features --bins --jobs 2` succeeded for Windows x64/MSVC debug with the configured static CRT. The existing development wrapper then invoked native Rust `install` using the full existing enrollment. All four built/installed/policy SHA-256 hashes match; the original operator and one enrolled pair were preserved. Evidence: `local/gui-update/0852293a78f94462a5a03e3ab3462074/result.json`. No tests, GUI launch or VM/GPU/guest effect exercise was run; behavior acceptance remains pending.
 
-**Requested bug repair — [BUGS-001](evidence/BUGS-001.md) (10 October):** GUI-002/GUI-003 source changes implement concise GPU status, before/after Review summaries with expandable technical output, fixed downtime/Apply footer, reactive modal availability, baseline-based dirty tracking and installed read-only status polling every 15 seconds while dialogs/operations are idle. Navigation does not stage intent; reverted edits clear the draft and invalid edits remain visible with their validation reason. Tests/builds/render/GUI acceptance are deferred; BUG-05's reported interaction still needs reproduction/acceptance. The subsequent user request implemented BUG-06 / GPU-010.3 native byte-to-GB request conversion (DEC-034), pending acceptance. Individual bugs are not marked completed.
+**Requested bug repair — [open issue tracker](evidence/issues.md) (10 October):** GUI-002/GUI-003 source changes implement concise GPU status, before/after Review summaries with expandable technical output, fixed downtime/Apply footer, reactive modal availability, baseline-based dirty tracking and installed read-only status polling every 15 seconds while dialogs/operations are idle. Navigation does not stage intent; reverted edits clear the draft and invalid edits remain visible with their validation reason. Tests/builds/render/GUI acceptance are deferred; BUG-05's reported interaction still needs reproduction/acceptance. The subsequent user request implemented BUG-06 / GPU-010.3 native byte-to-GB request conversion (DEC-034), pending acceptance. Individual bugs are not marked completed.
 
 - **ready:** implementation can start with present dependencies.
 - **in progress:** scoped coding is underway; aggregate parent cards may contain delivered slices.
@@ -55,7 +47,7 @@ presentation edit guards, reported allocation default suggestions, full provider
 slider with explicit draft-bound expansion, clearer enrollment/planning/guest credential
 and actual-stage Apply text, failure context and safe native-code diagnostics implemented.
 Physical-card VRAM request mapping (BUG-02) and structured safe component error messages
-(BUG-10) remain open for the exact reasons in [BUGS-002](evidence/BUGS-002.md).
+(BUG-10) remain open for the exact reasons in [open issue tracker](evidence/issues.md).
 GUI-002/GUI-003/GPU-010 own these repairs; tests/builds/render/live acceptance are deferred.
 
 | Order | Slice / owner | Status | Depends on |
@@ -185,6 +177,7 @@ Ready does not mean qualified. Provider-dependent fields may remain unavailable 
 - **What / Why:** settle the existing illustrative GB slider without inventing real allocation semantics.
 - **Where:** `src/gui/ui/details.slint`, `src/gui/live_state.rs`, shared GPU capability/model.
 - **Depends on / Status:** GPU-010.1–2 and native byte contract; **implemented pending validation**.
+- **Result (11 October, ISS-001):** selected-GPU native physical capacity now determines the displayed slider maximum, with an exact final endpoint. Provider bounds independently reject unsupported selections and retain the draft; no card/provider rescaling. Missing/ambiguous capacity stays unavailable. Updated instructions/guides and focused regressions; above-range mapping remains unsupported and acceptance deferred.
 - **Result (10 October):** user requested source mapping after the earlier BUG-06 hold. Microsoft's current Set-VMGpuPartitionAdapter reference explicitly defines Min/Optimal/MaxPartitionVRAM in bytes. DEC-034 records decimal GB conversion without physical-card ratios or enforcement claims. `src/gui/memory.rs` uses checked integer 0.1 GB ticks within fresh native bounds and existing Minimum/Maximum; omitted triples remain omitted until an edit initializes provider bounds. Slider and raw fields share the same typed draft/review path. Raw non-grid values are displayed exactly, not rewritten on refresh. Invalid/stale/unknown/historical/narrow/imprecise ranges remain unavailable. Focused conversion/draft regressions authored; no tests/builds/UI renders/launches/live provider checks executed. Source evidence establishes the documented request conversion; actual provider/guest semantics and GUI acceptance remain pending.
 - **Done when:** the documented native-byte conversion yields the same validated triple as Advanced Allocation, with truthful units/readback and no contradictory settings. Accept the actual GUI/provider behavior at the authorized gate. Unknown/historical unit provenance stays unavailable. Other raw categories are not GB/GiB/percentages; byte conversion does not demonstrate reservation or enforcement.
 

@@ -126,13 +126,21 @@ fn prompt_wide(text: &str) -> Vec<u16> {
 /// Credentials are scoped to the current user and VM and never passed in command arguments.
 #[allow(unsafe_code)]
 pub fn prompt(vm: &str, parent: windows::Win32::Foundation::HWND) -> Result<Credential, String> {
+    prompt_named(vm, vm, parent)
+}
+
+/// Prompt for one VM's guest account, naming it without changing its GUID vault key.
+#[allow(unsafe_code)]
+pub fn prompt_named(
+    vm: &str,
+    name: &str,
+    parent: windows::Win32::Foundation::HWND,
+) -> Result<Credential, String> {
     if let Some(c) = read(vm)? {
         return Ok(c);
     }
-    let caption = prompt_wide("Hyper GPU Support — guest credentials");
-    let message = prompt_wide(
-        "Sign in with an administrator account inside the selected virtual machine, NOT your Windows host account. The application uses it to install GPU driver files or check graphics inside that VM. Remember saves it in your Windows Credential Manager for this VM only.",
-    );
+    let caption = prompt_wide("Hyper GPU Support — VM username and password");
+    let message = prompt_wide(&guest_prompt_message(vm, name));
     let target = prompt_wide(&format!("HyperGpuSupport/guest/{vm}"));
     let info = CREDUI_INFOW {
         cbSize: std::mem::size_of::<CREDUI_INFOW>() as u32,
@@ -180,4 +188,28 @@ pub fn prompt(vm: &str, parent: windows::Win32::Foundation::HWND) -> Result<Cred
         store(vm, &credential)?;
     }
     Ok(credential)
+}
+
+fn guest_prompt_message(vm: &str, name: &str) -> String {
+    let name: String = name.chars().filter(|c| !c.is_control()).take(256).collect();
+    format!(
+        "Virtual machine: {name}\nVM ID: {vm}\n\nEnter this VM's guest administrator username and password, NOT your Windows host credentials. They are used to install GPU driver files or check graphics inside this VM. Remember saves them in your Windows Credential Manager for this VM only."
+    )
+}
+
+#[cfg(test)]
+mod prompt_tests {
+    #[test]
+    fn prompt_names_the_guest_and_explains_which_account_is_needed() {
+        let text = super::guest_prompt_message("vm-guid", "test-001");
+        for expected in [
+            "test-001",
+            "vm-guid",
+            "username and password",
+            "guest administrator",
+            "NOT your Windows host",
+        ] {
+            assert!(text.contains(expected));
+        }
+    }
 }

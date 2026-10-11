@@ -15,6 +15,8 @@ export component DemoDialog inherits Rectangle {
     in property <bool> needs-shutdown;
     private property <bool> consent: false;
     private property <bool> technical: false;
+    private property <bool> follow-progress: true;
+    changed kind => { root.follow-progress = true; }
     changed body => { root.consent = false; }
     init => { detail-button.focus(); }
     callback action(string);
@@ -25,24 +27,55 @@ export component DemoDialog inherits Rectangle {
         Rectangle { horizontal-stretch: 1; }
         Surface {
             max-width: 620px; min-width: 0px; preferred-width: 620px;
+            min-height: 0px;
+            clip: true;
             VerticalLayout {
                 padding: 24px; spacing: 16px;
                 Label { text: root.snapshot-mode ? "HISTORICAL PREVIEW · NO CHANGES" : root.mock-mode ? "DEMONSTRATION · NO CHANGES" : "Hyper GPU Support"; font-size: 11px; font-weight: 600; color: Theme.muted; }
-                Heading { text: root.title; wrap: word-wrap; }
+                Heading { text: root.title; wrap: word-wrap; overflow: clip; min-width: 0px; }
                 body-scroll := ScrollView {
+                    min-height: 0px;
+                    preferred-height: root.stages.length > 0 ? 90px : 240px;
+                    max-height: root.stages.length > 0 ? 130px : 10000px;
                     vertical-stretch: 1;
                     horizontal-scrollbar-policy: always-off;
                     content-width: self.visible-width;
                     VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
                         width: body-scroll.visible-width;
-                        Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: char-wrap; }
-                        for stage in root.stages : Hint { text: stage; font-size: 13px; width: max(0px, body-scroll.visible-width - 8px); wrap: char-wrap; }
-                        if root.running : ProgressIndicator { indeterminate: true; }
-                        if root.technical : TechnicalOutput {
-                            vertical-stretch: 0;
-                            text: root.details != "" ? root.details : root.body;
+                        Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
+                    }
+                }
+                if root.stages.length > 0 : Rectangle {
+                    min-height: 0px; preferred-height: 180px; max-height: 240px;
+                    vertical-stretch: 1;
+                    clip: true;
+                    progress-scroll := ScrollView {
+                        horizontal-scrollbar-policy: always-off;
+                        content-width: self.visible-width;
+                        changed content-height => {
+                            if root.follow-progress { self.content-y = min(0px, self.visible-height - self.content-height); }
+                        }
+                        changed visible-height => {
+                            if root.follow-progress { self.content-y = min(0px, self.visible-height - self.content-height); }
+                        }
+                        scrolled => {
+                            root.follow-progress = self.content-y <= min(0px, self.visible-height - self.content-height) + 2px;
+                        }
+                        VerticalLayout {
+                            spacing: 8px; alignment: start; padding-right: 8px;
+                            width: progress-scroll.visible-width;
+                            for stage in root.stages : Hint {
+                                text: stage; font-size: 13px;
+                                width: max(0px, progress-scroll.visible-width - 8px);
+                                wrap: word-wrap; overflow: clip;
+                            }
                         }
                     }
+                }
+                if root.running : ProgressIndicator { indeterminate: true; }
+                if root.technical : TechnicalOutput {
+                    vertical-stretch: 1;
+                    text: root.details != "" ? root.details : root.body;
                 }
                 if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox { text: root.mock-mode || root.snapshot-mode ? "Demonstrate graceful guest shutdown & restore" : "Approve graceful guest shutdown and safe restoration"; checked <=> root.consent; }
                 if root.kind == "review" && !root.mock-mode && !root.snapshot-mode && !root.execution-ready : Hint { text: "Apply is unavailable. Close this review and use Refresh to check setup or recovery."; color: Theme.accent; }

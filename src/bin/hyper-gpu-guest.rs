@@ -23,7 +23,9 @@ fn main() -> std::process::ExitCode {
                 std::process::ExitCode::SUCCESS
             }
             Err(e) => {
-                eprintln!("guest worker: {e}");
+                // The fixed bridge forwards stdout and the exit code; never
+                // transport raw error text that could contain credential input.
+                println!("{}", hyper_gpu_support::reporting::ComponentFailure::guest_error(&e));
                 std::process::ExitCode::FAILURE
             }
         }

@@ -162,6 +162,11 @@ credentials, raw errors and response payloads; detailed errors stay in the
 authenticated reply. Admission publication failure prevents dispatch; terminal
 publication failure reports uncertainty and preserves the unfinished admission.
 Audit records are retained for administrator inspection.
+An interrupted first enable can end without replay only when independent fresh
+checks prove its original stopped, unattached host baseline, unchanged driver and
+configuration revision, and no trusted preparation or verification receipt. Archive
+the attempt before retiring its unprepared pending journal; publish the terminal
+audit before releasing recovery. Guest files remain unknown and untrusted.
 Reconcile fresh state before retry; preserve externally changed settings. Recovery
 never replaces a user disk. Disable retains guest driver files; stale preparation
 refreshes on apply. Credentials are ephemeral or explicitly stored per-user/per-VM.

@@ -552,7 +552,7 @@ source interpretation, not actual driver enforcement or observed guest capacity.
 
 1 GB is decimal 1,000,000,000 bytes, distinct from GiB. Slider ticks are exact
 100,000,000-byte (0.1 GB) integers. `src/gui/memory.rs` validates ordered native
-ranges with the shared Allocation contract, rounds selectable endpoints inward
+ranges with the shared Allocation contract, rounds the minimum endpoint inward
 and checks selected ticks/ranges/overflow. Reject ranges beyond exact Slint f32
 integer precision; do not truncate uint64 values through floats. Existing
 Minimum/Maximum are preserved. For omitted intent the first explicit edit uses
@@ -560,6 +560,16 @@ provider Minimum/Maximum; viewing/refreshing alone never creates an allocation.
 Raw Optimal values between ticks remain exact in the label and draft, with a
 lower adjacent thumb position until explicitly edited. Invalid/partial raw text
 is never replaced, and other categories are untouched.
+
+**11 October source correction (ISS-001):** the displayed slider maximum is the
+selected GPU's unambiguously matched native physical VRAM capacity, rather than
+the provider request maximum. The final integer tick represents the exact physical
+endpoint, including non-grid capacities. Provider limits remain independent validation:
+selections outside their range are blocked and retain intent, with an explicit range
+explanation. No supported mapping above the provider range has been established.
+Unknown/ambiguous capacity disables the slider; raw supported requests remain usable.
+The decimal-byte constant is a unit conversion, never a 1 GB cap. New source and
+focused regressions remain untested.
 
 Only the native inventory source uses this conversion. Historical snapshots lack
 recorded byte-unit provenance and keep the slider unavailable even if raw ranges
@@ -586,5 +596,7 @@ driver evidence. Restored the native byte contract for editing and Review; physi
 dedicated memory discovery stays read-only inventory. Full provider-range editing
 and explicit-only draft expansion remain. A one-GB provider ceiling cannot be
 expanded using physical memory alone. Software conversion/draft tests pass; actual
-provider/guest acceptance remains blocked by the retained partial-operation recovery
-record described in BUGS-002. No mapping or enforcement qualification is claimed.
+explicit-allocation provider acceptance remains pending as ISS-003 in the
+[open issue tracker](evidence/issues.md). The interrupted attempt was subsequently
+reconciled and a fresh GPU preparation/attachment/graphics Apply passed. No physical
+mapping or enforcement qualification is claimed (ISS-001).

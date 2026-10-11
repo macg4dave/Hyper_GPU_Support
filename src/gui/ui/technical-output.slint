@@ -16,14 +16,15 @@ export component TechnicalOutput inherits Rectangle {
     VerticalLayout {
         padding: 12px;
         viewport := ScrollView {
-            content-width: max(self.visible-width, output.preferred-width);
+            content-width: self.visible-width;
             content-height: max(self.visible-height, output.preferred-height);
             output := TextInput {
                 accessible-label: "Technical details, read only";
                 text: root.text;
                 read-only: true;
                 single-line: false;
-                wrap: no-wrap;
+                width: viewport.visible-width;
+                wrap: word-wrap;
                 horizontal-alignment: left;
                 vertical-alignment: top;
                 font-family: "Consolas";

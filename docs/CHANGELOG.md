@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-11 - Apply progress, physical memory range and component diagnostics
+
+- Separate the information header, bounded progress, Technical Details and footer;
+  display each received event once and follow newest output while at the bottom.
+- Use selected-GPU physical VRAM for the slider maximum, retaining independent
+  provider restrictions, exact byte intent and explicit unsupported-range guidance.
+- Carry typed component/stage/cause and numeric failure codes from native and guest
+  adapters to safe frontend diagnostics; idle polling can recover after failed reads.
+- Source and focused regressions only; tests/builds/UI/live acceptance deferred.
+
+## 2026-10-11 - Consolidated open issue tracking
+
+- Replaced BUGS-001/002 with `docs/evidence/issues.md`: stable ISS-001–007,
+  legacy IDs, owner workstreams, priorities, statuses, next actions and closure criteria.
+- Preserved scoped successful Apply evidence, separated implementation gaps from
+  pending acceptance, and updated active documentation links and recovery status.
+
+## 2026-10-11 - Named guest prompts and interrupted-attempt reconciliation
+
+- Wrap Apply dialog text and Technical Details within the available width.
+- Name the selected VM in progress and native credential prompts, explicitly asking
+  for its guest administrator username and password rather than the host account.
+- Permit audited retirement of an interrupted first enable only after independently
+  proving its original stopped, unattached baseline; retain unknown guest files.
+  Independent recovery review found no blocking safety issue.
+- Installed live Apply on `test-001` succeeded: guest preparation, RTX 5060
+  attachment, PnP/D3D11 verification, restored Stopped power and configuration
+  publication. Live polling, suggested defaults, draft reversal/discard and clean
+  close passed; the reported provider VRAM limit remains separate from physical VRAM.
+
 ## 2026-10-11 - GUI bug acceptance and safe request corrections
 
 - Restored exact native VRAM byte requests after independent review rejected an
@@ -37,7 +67,7 @@
   added idle installed inventory polling without first-install elevation.
 - Retained the GPU Memory slider hold by user direction until GB mapping is
   verified. Focused draft/review regressions authored; builds/tests/render and
-  GUI acceptance remain deferred. See BUGS-001 for per-issue status.
+  GUI acceptance remain deferred. See [open issue tracker](evidence/issues.md) for current per-issue status.
 
 ## 2026-10-10 - Four-category live allocation source
 

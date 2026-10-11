@@ -52,6 +52,10 @@ struct Artifact {
 #[derive(Deserialize)]
 struct BridgeResult {
     output: String,
+    #[serde(default)]
+    worker_exit: Option<i32>,
+    #[serde(default)]
+    transport_hresult: Option<i32>,
 }
 fn bridge(
     t: &Target,
@@ -141,12 +145,43 @@ fn bridge(
                 format!("guest transport supervision failed: {error}; preparation may be partial")
             })?;
             if result.exit_code != Some(0) {
-                return Err(
-                    "guest transport/worker failed; reconcile the selected VM before retry".into(),
-                );
+                if let Ok(reply) = serde_json::from_str::<BridgeResult>(result.stdout.trim())
+                    && let Some(code) = reply.transport_hresult
+                {
+                    return Err(crate::reporting::ComponentFailure {
+                        stage: None,
+                        component: crate::reporting::Component::GuestTransport,
+                        cause: crate::reporting::FailureCause::NativeCall,
+                        code: Some(crate::reporting::FailureCode::HResult(code as u32)),
+                    }.into_error());
+                }
+                return Err(crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestTransport,
+                    cause: crate::reporting::FailureCause::ProcessFailed,
+                    code: result.exit_code.map(crate::reporting::FailureCode::Exit),
+                }.into_error());
             }
             let reply: BridgeResult = serde_json::from_str(result.stdout.trim())
-                .map_err(|_| "malformed guest transport result")?;
+                .map_err(|_| crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestTransport,
+                    cause: crate::reporting::FailureCause::InvalidReply,
+                    code: None,
+                }.into_error())?;
+            if let Some(code) = reply.worker_exit
+                && code != 0
+            {
+                if let Some(failure) = crate::reporting::ComponentFailure::decode(&reply.output) {
+                    return Err(failure.into_error());
+                }
+                return Err(crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestTransport,
+                    cause: crate::reporting::FailureCause::ProcessFailed,
+                    code: Some(crate::reporting::FailureCode::Exit(code)),
+                }.into_error());
+            }
             Ok(reply.output)
         },
     )
@@ -171,7 +206,12 @@ pub fn prepare_with_progress(
         || receipt.files != manifest.files.len()
         || receipt.machine_guid.is_empty()
     {
-        return Err("guest preparation receipt mismatch".into());
+        return Err(crate::reporting::ComponentFailure {
+            stage: None,
+            component: crate::reporting::Component::GuestReceipt,
+            cause: crate::reporting::FailureCause::ReadbackMismatch,
+            code: None,
+        }.into_error());
     }
     Ok(digest)
 }
@@ -191,7 +231,12 @@ pub fn verify(t: &Target, gpu: &Gpu, credential: &Credential) -> Result<(), Stri
         || report.adapter.device_id != gpu.device
         || !report.adapter.paravirtualized
     {
-        return Err("guest graphics probe selected the wrong GPU".into());
+        return Err(crate::reporting::ComponentFailure {
+            stage: None,
+            component: crate::reporting::Component::GuestGraphics,
+            cause: crate::reporting::FailureCause::ReadbackMismatch,
+            code: None,
+        }.into_error());
     }
     Ok(())
 }
@@ -230,7 +275,12 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
             || process::bounded_process(command, Duration::from_secs(60)),
         )?;
         if out.exit_code != Some(0) {
-            return Err("hardware rendering failed".into());
+            return Err(crate::reporting::ComponentFailure {
+                stage: None,
+                component: crate::reporting::Component::GuestGraphics,
+                cause: crate::reporting::FailureCause::RenderingFailed,
+                code: out.exit_code.map(crate::reporting::FailureCode::Exit),
+            }.into_error());
         }
         let report = crate::probe::parse_success_report(out.stdout.trim(), "d3d11-offscreen")
             .map_err(|e| e.to_string())?;
@@ -238,7 +288,12 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
             || report.adapter.device_id != device
             || !report.adapter.paravirtualized
         {
-            return Err("wrong guest GPU selected".into());
+            return Err(crate::reporting::ComponentFailure {
+                stage: None,
+                component: crate::reporting::Component::GuestGraphics,
+                cause: crate::reporting::FailureCause::ReadbackMismatch,
+                code: None,
+            }.into_error());
         }
         return Ok(out.stdout);
     }

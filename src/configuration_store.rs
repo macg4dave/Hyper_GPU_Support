@@ -206,6 +206,60 @@ impl ImportRecord {
     }
 }
 impl SaveRecord {
+    /// Retire a stopped, unattached interrupted first enable only after independent
+    /// host readback proves the starting configuration. Guest files may remain;
+    /// no preparation/graphics receipt or desired configuration is published.
+    pub fn validate_restored_baseline(
+        &self,
+        state: &VmState,
+        driver: &str,
+        revision: &Revision,
+        journal: Option<&crate::workflow::Journal>,
+    ) -> Result<(), String> {
+        self.target.validate()?;
+        let initial = &self.initial;
+        if self.schema != 1
+            || self.operation_id.len() != 32
+            || !self.operation_id.bytes().all(|b| b.is_ascii_hexdigit())
+            || !matches!(self.phase, SavePhase::EffectsStarted)
+            || !self.publication_required
+            || !self.target.enabled
+            || self.initial_journal.is_some()
+            || initial.vm_id != self.target.vm_id
+            || initial.generation != 2
+            || initial.power != crate::model::Power::Off
+            || !initial.gpus.is_empty()
+            || state.vm_id != initial.vm_id
+            || state.generation != initial.generation
+            || state.power != initial.power
+            || state.gpus != initial.gpus
+            || state.settings != initial.settings
+            || driver != self.driver_version
+            || revision != &self.expected
+            || crate::model::Resource::ALL
+                .into_iter()
+                .any(|r| initial.allocation(r).is_some() || state.allocation(r).is_some())
+            || journal.is_some_and(|j| {
+                j.schema != 1
+                    || j.vm_id != self.target.vm_id
+                    || j.gpu_interface != self.target.gpu_interface
+                    || j.original != initial.settings
+                    || j.applied != self.expected_settings
+                    || j.prepared.is_some()
+                    || j.last_verified.is_some()
+                    || !j.pending
+                    || j.restore_power != crate::model::Power::Off
+                    || j.verification_only
+            })
+        {
+            return Err(
+                "original stopped VM state is not independently established; retain recovery"
+                    .into(),
+            );
+        }
+        Ok(())
+    }
+
     /// Manual reconciliation accepts only the already achieved reviewed outcome;
     /// partial assignment/settings are blocked rather than repaired or replayed.
     pub fn validate_reconciliation(&self, state: &VmState, driver: &str) -> Result<(), String> {
@@ -485,6 +539,121 @@ mod tests {
         assert!(
             record
                 .validate_save_only(&changed, "driver", &Revision::Missing)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn restored_first_enable_requires_exact_host_baseline_and_unprepared_journal() {
+        let mut target = Configuration::parse(SOURCE).unwrap().targets.remove(0);
+        target.enabled = true;
+        let initial = VmState {
+            vm_id: target.vm_id.clone(),
+            name: "Original name".into(),
+            power: crate::model::Power::Off,
+            generation: 2,
+            gpus: vec![],
+            settings: crate::model::Settings {
+                low_mmio: 128,
+                high_mmio: 512,
+                cache_types: false,
+                automatic_checkpoints: true,
+            },
+            vram: None,
+            compute: None,
+            encode: None,
+            decode: None,
+        };
+        let record = SaveRecord {
+            schema: 1,
+            operation_id: "0123456789abcdef0123456789abcdef".into(),
+            target: target.clone(),
+            expected: Revision::Missing,
+            driver_version: "driver".into(),
+            payload_digest: Some("untrusted-files-may-remain".into()),
+            plan_revision: Revision::Missing,
+            intended_source: SOURCE.into(),
+            publication_required: true,
+            initial: initial.clone(),
+            initial_journal: None,
+            expected_settings: initial.settings.for_gpu(),
+            phase: SavePhase::EffectsStarted,
+        };
+        let journal = crate::workflow::Journal {
+            schema: 1,
+            vm_id: target.vm_id,
+            gpu_interface: target.gpu_interface,
+            original: initial.settings.clone(),
+            applied: record.expected_settings.clone(),
+            prepared: None,
+            pending: true,
+            restore_power: crate::model::Power::Off,
+            verification_only: false,
+            last_verified: None,
+        };
+        let check = |state: &VmState, j: Option<&crate::workflow::Journal>| {
+            record.validate_restored_baseline(state, "driver", &Revision::Missing, j)
+        };
+        let mut renamed = initial.clone();
+        renamed.name = "test-001".into();
+        assert!(check(&renamed, Some(&journal)).is_ok());
+        assert!(check(&renamed, None).is_ok()); // retry after journal retirement, before terminal audit
+        for change in 0..5 {
+            let mut state = initial.clone();
+            match change {
+                0 => state.power = crate::model::Power::Running,
+                1 => state.gpus.push(record.target.gpu_interface.clone()),
+                2 => state.settings.high_mmio += 1,
+                3 => state.vm_id = "different".into(),
+                _ => {
+                    state.vram = Some(crate::model::Allocation {
+                        minimum: 0,
+                        optimal: 1,
+                        maximum: 1,
+                    })
+                }
+            }
+            assert!(check(&state, Some(&journal)).is_err());
+        }
+        for change in 0..6 {
+            let mut j = journal.clone();
+            match change {
+                0 => j.prepared = Some("receipt".into()),
+                1 => j.last_verified = Some(1),
+                2 => j.pending = false,
+                3 => j.verification_only = true,
+                4 => j.original.high_mmio += 1,
+                _ => j.gpu_interface = "different".into(),
+            }
+            assert!(check(&initial, Some(&j)).is_err());
+        }
+        assert!(
+            record
+                .validate_restored_baseline(&initial, "changed", &Revision::Missing, Some(&journal))
+                .is_err()
+        );
+        assert!(
+            record
+                .validate_restored_baseline(
+                    &initial,
+                    "driver",
+                    &Revision::of(b"external"),
+                    Some(&journal)
+                )
+                .is_err()
+        );
+        let mut other = record.clone();
+        other.phase = SavePhase::Verified(initial.clone());
+        assert!(
+            other
+                .validate_restored_baseline(&initial, "driver", &Revision::Missing, None)
+                .is_err()
+        );
+        other = record.clone();
+        other.initial_journal = Some(journal.clone());
+        assert!(
+            other
+                .validate_restored_baseline(&initial, "driver", &Revision::Missing, None)
                 .is_err()
         );
     }

@@ -21,6 +21,12 @@ Min/Optimal/Max for VRAM, compute, encode and decode, subject to truthful provid
 capability validation/readback. No invented units or enforcement promises. See the
 [roadmap](docs/ROADMAP.md) and approved [GUI guide](docs/GUI_GUIDE.md).
 
+GPU Memory's displayed maximum comes from the selected GPU's detected physical
+VRAM capacity. Keep native provider request limits separate and enforce them;
+unsupported values require an explanation, never an invented physical/provider
+ratio. A decimal GB unit constant, fixture value or provider result is not a
+product-wide 1 GB cap. Unknown physical capacity stays explicitly unavailable.
+
 The completed Slint prototype is the authoritative v1.0 GUI, now in `src/gui/ui/` and
 `src/gui/`. No arguments launch it; explicit CLI commands retain the working Rust
 core. Do not redesign or restore removed pages, search/filters or other absent

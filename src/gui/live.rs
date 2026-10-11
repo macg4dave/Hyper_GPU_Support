@@ -98,9 +98,9 @@ impl Source {
         }
     }
 
-    fn credentials(&self, id: &str) -> Result<bool, String> {
+    fn credentials(&self, id: &str, name: &str) -> Result<bool, String> {
         match self {
-            Self::Protected => credential_dialog(id),
+            Self::Protected => credential_dialog(id, name),
             Self::Snapshot(..) => Err(
                 "Credential access and storage are blocked in no-write snapshot rehearsal.".into(),
             ),
@@ -184,14 +184,18 @@ fn plan(_: Target) -> Result<Plan, String> {
 }
 
 #[cfg(windows)]
-fn credential_dialog(id: &str) -> Result<bool, String> {
-    hyper_gpu_support::credentials::prompt(id, windows::Win32::Foundation::HWND::default())?;
+fn credential_dialog(id: &str, name: &str) -> Result<bool, String> {
+    hyper_gpu_support::credentials::prompt_named(
+        id,
+        name,
+        windows::Win32::Foundation::HWND::default(),
+    )?;
     // This settings action has no guest operation to consume ephemeral input.
     // Apply/Verify prompt separately; confirm actual opt-in vault storage here.
     Ok(hyper_gpu_support::credentials::read(id)?.is_some())
 }
 #[cfg(not(windows))]
-fn credential_dialog(_: &str) -> Result<bool, String> {
+fn credential_dialog(_: &str, _: &str) -> Result<bool, String> {
     Err("Guest credentials require Windows".into())
 }
 
@@ -493,7 +497,13 @@ fn resource_controls(ui: &AppWindow, state: &State) {
             ui.set_memory_label(slider.label.into());
             ui.set_memory_range_start(slider.range_start.into());
             ui.set_memory_range_end(slider.range_end.into());
-            ui.set_memory_hint("Requested memory within the GPU driver's supported range. The range may be smaller than the card's physical memory; reserved memory and driver enforcement are not established.".into());
+            let provider = state.view.inventory.as_ref()
+                .and_then(|inventory| usize::try_from(ui.get_gpu_index()).ok()
+                    .and_then(|index| inventory.discovery.gpus.get(index)))
+                .and_then(|gpu| gpu.limits(Resource::Vram))
+                .map(|limits| format!("{} to {}", super::memory::format_gb(limits.minimum), super::memory::format_gb(limits.maximum)))
+                .unwrap_or_else(|| "unavailable".into());
+            ui.set_memory_hint(format!("Slider maximum: detected physical VRAM. Supported driver requests: {provider}. Values outside that range are blocked; no physical-capacity conversion or reservation is established.").into());
         }
         Err(reason) => {
             ui.set_memory_available(false);
@@ -542,6 +552,17 @@ fn background<T: Send + 'static>(
     task: impl FnOnce() -> Result<T, String> + Send + 'static,
     complete: impl FnOnce(&AppWindow, Result<T, String>) + Send + 'static,
 ) -> Result<(), String> {
+    background_for_vm(ui, busy, title, None, task, complete)
+}
+
+fn background_for_vm<T: Send + 'static>(
+    ui: &AppWindow,
+    busy: &Arc<AtomicBool>,
+    title: &str,
+    vm_name: Option<&str>,
+    task: impl FnOnce() -> Result<T, String> + Send + 'static,
+    complete: impl FnOnce(&AppWindow, Result<T, String>) + Send + 'static,
+) -> Result<(), String> {
     if busy.swap(true, Ordering::AcqRel) {
         return Err("Another GUI operation is still running.".into());
     }
@@ -550,14 +571,22 @@ fn background<T: Send + 'static>(
         ui.set_running(true);
     }
     if !silent {
+        let guest_message = format!(
+            "Virtual machine: {}\n\nWhen asked, enter this VM's guest administrator username and password—not your Windows host account. These credentials are used for GPU driver installation or graphics checks inside this VM. Windows will separately ask for administrator approval. The current steps will appear below.",
+            vm_name.unwrap_or("the selected VM")
+        );
         dialog(
             ui,
             "progress",
             title,
-            if title == "Apply approved changes" {
-                "Preparing to apply the changes you approved. If access inside the VM is needed, sign in with its guest administrator account. Windows will also ask for approval before the protected operation. Actual steps will appear as they run."
-            } else if title == "Verify approved graphics" || title == "Reconcile observed outcome" {
-                "Requesting Windows elevation before the approved operation. Actual stages will appear as the shared backend executes."
+            if matches!(
+                title,
+                "Apply approved changes"
+                    | "Verify approved graphics"
+                    | "Reconcile observed outcome"
+                    | "Guest credentials"
+            ) {
+                &guest_message
             } else if title == "Building fresh plan" {
                 "Preparing your changes may take some time. Checking the selected VM, GPU and installed driver files before showing the changes for approval. Nothing is being applied yet."
             } else if title == "Retry configuration save only" {
@@ -1192,22 +1221,10 @@ fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support:
                 hyper_gpu_support::worker::StageStatus::Done => "Complete",
                 hyper_gpu_support::worker::StageStatus::Failed => "Failed",
             };
-            ui.set_dialog_body(format!("{stage} — {status}.\nPlease wait while the approved changes or checks finish. This can take some time.").into());
+            // The information header is stable; each received event belongs only
+            // to the progress pane, including distinct events with identical text.
             let mut rows: Vec<_> = ui.get_stages().iter().collect();
-            if progress.stage.starts_with("Transfer acknowledged:")
-                && rows
-                    .last()
-                    .is_some_and(|row| row.starts_with("Transfer acknowledged:"))
-            {
-                if let Some(row) = rows.last_mut() {
-                    *row = format!("{stage} · {status}").into();
-                }
-            } else {
-                if rows.len() >= 256 {
-                    rows.remove(0);
-                }
-                rows.push(format!("{stage} · {status}").into());
-            }
+            rows.push(format!("{stage} · {status}").into());
             ui.set_stages(model(rows));
         });
     }
@@ -1232,17 +1249,20 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
     let selected = approved.desired.clone();
     let finished_state = state.clone();
     let progress = progress_to_ui(ui.as_weak());
-    background(
+    let vm_name = approved.observed.name.clone();
+    background_for_vm(
         ui,
         busy,
         "Apply approved changes",
+        Some(&vm_name),
         move || {
             let credential = if approved.preview.credentials_required {
                 Some(
                     hyper_gpu_support::credentials::read(&approved.desired.vm_id)?.map_or_else(
                         || {
-                            hyper_gpu_support::credentials::prompt(
+                            hyper_gpu_support::credentials::prompt_named(
                                 &approved.desired.vm_id,
+                                &approved.observed.name,
                                 windows::Win32::Foundation::HWND::default(),
                             )
                         },
@@ -1429,16 +1449,19 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
     let shutdown = approved.observed.power == hyper_gpu_support::model::Power::Off;
     let progress = progress_to_ui(ui.as_weak());
     let finished_state = state.clone();
-    background(
+    let vm_name = approved.observed.name.clone();
+    background_for_vm(
         ui,
         busy,
         "Verify approved graphics",
+        Some(&vm_name),
         move || {
             let credential = hyper_gpu_support::credentials::read(&approved.target.vm_id)?
                 .map_or_else(
                     || {
-                        hyper_gpu_support::credentials::prompt(
+                        hyper_gpu_support::credentials::prompt_named(
                             &approved.target.vm_id,
+                            &approved.observed.name,
                             windows::Win32::Foundation::HWND::default(),
                         )
                     },
@@ -1493,18 +1516,57 @@ fn reconcile_live(
     let finished_state = state.clone();
     let target = record.target.clone();
     let publication = record.publication_required;
-    background(
+    let (vm_name, restored_candidate) = {
+        let s = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let vm = s
+            .view
+            .vm(&target.vm_id)
+            .ok_or("Recovery VM unavailable; Refresh first")?;
+        let journal = s
+            .view
+            .inventory
+            .as_ref()
+            .and_then(|i| i.managed.get(&target.vm_id))
+            .and_then(Option::as_ref);
+        let driver = s
+            .view
+            .inventory
+            .as_ref()
+            .and_then(|i| {
+                i.discovery
+                    .gpus
+                    .iter()
+                    .find(|g| g.interface == target.gpu_interface)
+            })
+            .map(|g| g.driver_version.as_str())
+            .unwrap_or_default();
+        (
+            vm.name.clone(),
+            record
+                .validate_restored_baseline(
+                    vm,
+                    driver,
+                    &s.committed.revision(&target.vm_id)?,
+                    journal,
+                )
+                .is_ok(),
+        )
+    };
+    let prompt_name = vm_name.clone();
+    background_for_vm(
         ui,
         busy,
         "Reconcile observed outcome",
+        Some(&vm_name),
         move || {
             let graphics = record.target.enabled || !record.publication_required;
-            let credential = if graphics {
+            let credential = if graphics && !restored_candidate {
                 Some(
                     hyper_gpu_support::credentials::read(&record.target.vm_id)?.map_or_else(
                         || {
-                            hyper_gpu_support::credentials::prompt(
+                            hyper_gpu_support::credentials::prompt_named(
                                 &record.target.vm_id,
+                                &prompt_name,
                                 windows::Win32::Foundation::HWND::default(),
                             )
                         },
@@ -1540,6 +1602,14 @@ fn reconcile_live(
                 Ok(())
             });
             match result {
+                Ok(outcome) if publication && outcome.finished && outcome.operation.is_none() => {
+                    dialog(
+                        ui,
+                        "info",
+                        "Interrupted attempt ended",
+                        "Fresh checks established the VM's recorded starting host configuration. The interrupted attempt ended without repeating GPU work or saving its requested changes. Guest files may remain; no preparation or graphics result is trusted. Refresh, then review a new GPU setup attempt.",
+                    )
+                }
                 Ok(outcome) if outcome.finished => dialog(
                     ui,
                     "info",
@@ -1707,7 +1777,11 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 // The state guard above is released before invoking this callback.
                 ui.invoke_edited();
             }
-            Err(error) => dialog(&ui, "error", "Memory selection unavailable", &error),
+            Err(error) => {
+                // This is application-owned numeric validation text, with no
+                // adapter output. Keep the selected draft/position unchanged.
+                ui.set_memory_hint(error.into());
+            }
         }
     });
     let weak = ui.as_weak();
@@ -1788,9 +1862,11 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             },
             "credentials" => {
                 let selected = ui.get_selected_id().to_string();
+                let vm_name = ui.get_vm_name().to_string();
+                let prompt_name = vm_name.clone();
                 let credential_source = action_source.clone();
                 action_state.lock().map_err(|_| "Live presentation state unavailable".to_owned()).and_then(|s| s.target(&selected))
-                    .and_then(|target| background(&ui, &action_busy, "Guest credentials", move || credential_source.credentials(&target.vm_id), |ui, result| match result {
+                    .and_then(|target| background_for_vm(&ui, &action_busy, "Guest credentials", Some(&vm_name), move || credential_source.credentials(&target.vm_id, &prompt_name), |ui, result| match result {
                         Ok(true) => dialog(ui, "info", "Stored guest credentials available", "A stored credential was confirmed in this user's Windows Credential Manager for the selected VM. No guest connection or graphics check was performed."),
                         Ok(false) => dialog(ui, "info", "Guest credentials not retained", "No stored credential is available. Apply or Verify will prompt locally when credentials are needed. Select Remember to store them in Windows Credential Manager."),
                         Err(error) => dialog(ui, "error", "Guest credentials unavailable", &error),
@@ -1827,7 +1903,9 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                                 }
                             }
                             hyper_gpu_support::configuration_store::SavePhase::Admitted | hyper_gpu_support::configuration_store::SavePhase::EffectsStarted => {
-                                dialog(&ui, "recovery", "Review explicit reconciliation", &format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\n\nIndependently check whether the reviewed outcome was achieved. Partial assignment/settings or changed driver/payload remain blocked. An enabled pair requires fresh guest health and hardware rendering; the stopped guest may be temporarily started, then the originally approved power restored only if safe. GPU assignment, allocation, settings and preparation are never replayed. Verified intent can then be saved; conflicts retain a save-only hold.", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power));
+                                let name = state.view.vm(&record.target.vm_id).map_or(record.initial.name.as_str(), |vm| vm.name.as_str());
+                                dialog(&ui, "recovery", "Review interrupted operation", &format!("Virtual machine: {name}\n\nCheck the interrupted GPU operation without repeating it. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."));
+                                ui.set_dialog_details(format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power).into());
                             }
                         }
                         return Ok(());
@@ -1873,7 +1951,6 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             std::time::Duration::from_secs(15),
             move || {
                 if let Some(ui) = weak.upgrade()
-                    && ui.get_execution_ready()
                     && !busy.load(Ordering::Acquire)
                     && ui.get_dialog_kind().is_empty()
                     && let Err(error) = refresh(&ui, &state, &busy, &source, true)
@@ -1913,7 +1990,12 @@ mod tests {
                 .unwrap_err()
                 .contains("Cannot open inventory snapshot")
         );
-        assert!(source.credentials("vm").unwrap_err().contains("blocked"));
+        assert!(
+            source
+                .credentials("vm", "Recorded VM")
+                .unwrap_err()
+                .contains("blocked")
+        );
     }
     #[test]
     fn unknown_health_enrollment_and_unresolved_attachment_are_not_samples() {

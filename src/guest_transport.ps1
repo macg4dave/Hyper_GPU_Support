@@ -261,16 +261,16 @@ try {
                 $handles += [IO.File]::Open($path, 'Open', 'Read', 'Read')
                 if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $a.hash) { throw 'Worker integrity failure' }
             }
-            $result = & (Join-Path $root 'hyper-gpu-guest.exe') $mode $bundle ([string]$vendor) ([string]$device)
-            if ($LASTEXITCODE -ne 0) { throw 'Guest worker failed' }
-            $result -join "`n"
+            $result = & (Join-Path $root 'hyper-gpu-guest.exe') $mode $bundle ([string]$vendor) ([string]$device) 2>$null
+            @{ output = ($result -join "`n"); worker_exit = $LASTEXITCODE }
         } finally { foreach ($handle in $handles) { $handle.Dispose() }; if ($ownedMarker) { [IO.File]::Delete($marker) } }
     }
     Write-Stage 'guest-integrity-and-worker' 'done' $r.mode $timer.ElapsedMilliseconds
-    @{ output = [string]$output } | ConvertTo-Json -Compress
+    @{ output = [string]$output.output; worker_exit = $output.worker_exit } | ConvertTo-Json -Compress
 } catch {
     Write-Stage 'transport' 'failed' "HRESULT=$($_.Exception.HResult); type=$($_.Exception.GetType().FullName)"
     [Console]::Error.WriteLine('Fixed guest transport failed; reconcile before retry.')
+    @{ output = ''; transport_hresult = $_.Exception.HResult } | ConvertTo-Json -Compress
     exit 1
 } finally {
     if ($session) {

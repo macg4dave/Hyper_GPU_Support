@@ -85,7 +85,9 @@ impl State {
             .ok_or("VRAM bounds are unavailable. Use Refresh to retry.")?;
         let current =
             super::memory::request(values.get(..3).ok_or("VRAM fields are unavailable.")?)?;
-        super::memory::MemorySlider::new(limits, current.as_ref())
+        let capacity = gpu.physical_vram_bytes.filter(|bytes| *bytes > 0)
+            .ok_or("Physical VRAM capacity could not be matched to the selected GPU. Use raw Advanced Allocation within the provider range.")?;
+        super::memory::MemorySlider::new(limits, current.as_ref(), capacity)
     }
 
     /// Compare intent without treating validation, navigation or formatting as edits.
@@ -631,6 +633,24 @@ mod tests {
         raw[1] = "invalid".into();
         assert!(s.memory_slider(0, &raw).is_err());
         assert_eq!(raw[1], "invalid");
+    }
+
+    #[test]
+    fn slider_capacity_follows_selected_gpu_and_unknown_capacity_stays_unknown() {
+        let mut s = state();
+        let gpus = &mut s.view.inventory.as_mut().unwrap().discovery.gpus;
+        gpus[0].vram = Allocation { minimum: 0, optimal: 1_000_000_000, maximum: 1_000_000_000 }.into();
+        gpus[0].physical_vram_bytes = Some(8_000_000_000);
+        let mut second = gpus[0].clone();
+        second.interface = "second physical GPU".into();
+        second.physical_vram_bytes = Some(16_000_000_000);
+        gpus.push(second);
+        let raw = vec![String::new(); 12];
+        assert_eq!(s.memory_slider(0, &raw).unwrap().maximum, 80);
+        assert_eq!(s.memory_slider(1, &raw).unwrap().maximum, 160);
+        assert!(s.memory_slider(1, &raw).unwrap().select(20).is_err());
+        s.view.inventory.as_mut().unwrap().discovery.gpus[1].physical_vram_bytes = None;
+        assert!(s.memory_slider(1, &raw).is_err());
     }
 
     #[test]

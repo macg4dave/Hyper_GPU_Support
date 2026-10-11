@@ -855,6 +855,52 @@ fn execute(
                 data: data.clone(),
             };
             let before = backend.inspect(&record.target)?;
+            if matches!(record.phase, SavePhase::EffectsStarted) && shutdown_approved {
+                crate::windows_wmi::require_no_pending_operation()?;
+                let journal = backend.journal(&record.target)?;
+                if record
+                    .validate_restored_baseline(
+                        &before,
+                        &backend.gpu(&record.target)?.driver_version,
+                        &configuration_store::protected::revision(&record.target.vm_id)?,
+                        journal.as_ref(),
+                    )
+                    .is_ok()
+                {
+                    // Archive the original uncertain attempt before retiring its journal.
+                    // Partial guest files remain untrusted: there is no preparation receipt.
+                    let archive =
+                        audit_directory.join(format!("ended-{}.json", record.operation_id));
+                    runner::atomic_json(
+                        &archive,
+                        &serde_json::json!({"schema":1,"disposition":"OriginalHostStateEstablished","record":record,"guest_files":"Unknown; retained without a preparation receipt"}),
+                    )?;
+                    record.validate_restored_baseline(
+                        &backend.inspect(&record.target)?,
+                        &backend.gpu(&record.target)?.driver_version,
+                        &configuration_store::protected::revision(&record.target.vm_id)?,
+                        backend.journal(&record.target)?.as_ref(),
+                    )?;
+                    if journal.is_some() {
+                        let path = data.join(format!("{}.json", record.target.vm_id));
+                        crate::security::verify(&path)?;
+                        fs::remove_file(path).map_err(|e| e.to_string())?;
+                    }
+                    record.validate_restored_baseline(
+                        &backend.inspect(&record.target)?,
+                        &backend.gpu(&record.target)?.driver_version,
+                        &configuration_store::protected::revision(&record.target.vm_id)?,
+                        backend.journal(&record.target)?.as_ref(),
+                    )?;
+                    return Ok(Outcome {
+                        operation: None,
+                        saved: false,
+                        finished: true,
+                        operation_id,
+                        save_error: None,
+                    });
+                }
+            }
             if matches!(record.phase, SavePhase::Admitted) {
                 // The wrapper marks EffectsStarted before every guest/Hyper-V
                 // adapter, so this phase proves no such effect was dispatched.
@@ -1144,7 +1190,7 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B
                 StageStatus::Failed
             },
         })?;
-        result
+        result.map_err(|error| crate::reporting::failure_at_stage(error, name))
     }
 }
 impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedBackend<'_, B, F> {
@@ -1217,7 +1263,7 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
                 StageStatus::Failed
             },
         })?;
-        result
+        result.map_err(|error| crate::reporting::failure_at_stage(error, "Prepare current signed payload"))
     }
     fn verify(&mut self, t: &Target, g: &Gpu) -> Result<(), String> {
         self.effect("Check guest health and hardware rendering", |b| {

@@ -16,6 +16,7 @@ pub(super) struct MemorySlider {
     pub range_end: String,
     bounds: Allocation,
     limits: Allocation,
+    physical_capacity: u64,
 }
 
 pub(super) fn format_gb(bytes: u64) -> String {
@@ -56,20 +57,23 @@ pub(super) fn request(values: &[String]) -> Result<Option<Allocation>, String> {
 
 impl MemorySlider {
     /// Call only for native VRAM bytes, never arbitrary historical provider units.
-    pub fn new(limits: &Allocation, current: Option<&Allocation>) -> Result<Self, String> {
+    pub fn new(limits: &Allocation, current: Option<&Allocation>, physical_capacity: u64) -> Result<Self, String> {
         limits.validate(limits)?;
         let bounds = current.unwrap_or(limits);
         bounds
             .validate(limits)
             .map_err(|_| "Correct the VRAM range in Advanced Allocation to use the slider.")?;
         let lower = limits.minimum.div_ceil(BYTES_PER_STEP);
-        let upper = limits.maximum / BYTES_PER_STEP;
+        let upper = physical_capacity.div_ceil(BYTES_PER_STEP);
+        if bounds.optimal > physical_capacity {
+            return Err("The current request exceeds detected physical VRAM. Use Advanced Allocation; it has not been rewritten.".into());
+        }
         if upper > MAX_EXACT_STEP {
             return Err(
                 "VRAM bounds exceed exact slider precision. Use Advanced Allocation.".into(),
             );
         }
-        if lower >= upper {
+        if lower >= upper || limits.maximum / BYTES_PER_STEP <= lower {
             return Err(
                 "This VRAM range has no usable 0.1 GB slider interval. Use Advanced Allocation."
                     .into(),
@@ -78,15 +82,20 @@ impl MemorySlider {
         Ok(Self {
             minimum: lower as i32,
             maximum: upper as i32,
-            position: (bounds.optimal / BYTES_PER_STEP).clamp(lower, upper) as i32,
+            position: if bounds.optimal == physical_capacity {
+                upper as i32
+            } else {
+                (bounds.optimal / BYTES_PER_STEP).clamp(lower, upper) as i32
+            },
             label: current.map_or_else(
                 || format!("{} (default request)", format_gb(limits.optimal)),
                 |v| format_gb(v.optimal),
             ),
             range_start: format_gb(lower * BYTES_PER_STEP),
-            range_end: format_gb(upper * BYTES_PER_STEP),
+            range_end: format_gb(physical_capacity),
             bounds: bounds.clone(),
             limits: limits.clone(),
+            physical_capacity,
         })
     }
 
@@ -97,7 +106,14 @@ impl MemorySlider {
         let optimal = u64::try_from(position)
             .map_err(|_| "Invalid memory value")?
             .checked_mul(BYTES_PER_STEP)
-            .ok_or("Memory conversion overflow")?;
+            .ok_or("Memory conversion overflow")?
+            .min(self.physical_capacity);
+        if optimal < self.limits.minimum || optimal > self.limits.maximum {
+            return Err(format!(
+                "The driver supports VRAM requests from {} to {}. The selected physical-capacity value has no supported provider mapping; the draft was retained.",
+                format_gb(self.limits.minimum), format_gb(self.limits.maximum),
+            ));
+        }
         let result = Allocation {
             minimum: self.bounds.minimum.min(optimal),
             optimal,
@@ -127,7 +143,7 @@ mod tests {
             optimal: 4_000_000_001,
             maximum: 6_099_999_999,
         };
-        let slider = MemorySlider::new(&limits(), Some(&current)).unwrap();
+        let slider = MemorySlider::new(&limits(), Some(&current), 8_000_000_000).unwrap();
         assert_eq!((slider.minimum, slider.maximum), (1, 80));
         assert_eq!(slider.label, "4.000000001 GB");
         let selected = slider.select(55).unwrap();
@@ -144,7 +160,7 @@ mod tests {
     #[test]
     fn unspecified_request_is_not_invented_until_selection() {
         let limits = limits();
-        let slider = MemorySlider::new(&limits, None).unwrap();
+        let slider = MemorySlider::new(&limits, None, 8_000_000_000).unwrap();
         assert_eq!(slider.label, "4 GB (default request)");
         assert_eq!(
             slider.select(80).unwrap(),
@@ -167,11 +183,24 @@ mod tests {
             optimal: 1_000_000_000,
             maximum: 1_000_000_000,
         };
-        let slider = MemorySlider::new(&limits, None).unwrap();
-        assert_eq!(slider.range_end, "1 GB");
+        let slider = MemorySlider::new(&limits, None, 8_589_934_592).unwrap();
+        assert_eq!(slider.range_end, "8.589934592 GB");
+        assert_eq!(slider.maximum, 86);
         assert_eq!(slider.select(5).unwrap().optimal, 500_000_000);
         assert_eq!(slider.select(0).unwrap().optimal, 0);
         assert!(slider.select(40).is_err());
+    }
+
+    #[test]
+    fn physical_endpoint_retains_exact_bytes_without_exceeding_capacity() {
+        let capacity = 8_589_934_592;
+        let limits = Allocation { minimum: 0, optimal: 1_000_000_000, maximum: capacity };
+        let slider = MemorySlider::new(&limits, None, capacity).unwrap();
+        let selected = slider.select(slider.maximum).unwrap();
+        assert_eq!(selected.optimal, capacity);
+        let refreshed = MemorySlider::new(&limits, Some(&selected), capacity).unwrap();
+        assert_eq!(refreshed.position, refreshed.maximum);
+        assert_eq!(refreshed.label, "8.589934592 GB");
     }
 
     #[test]
@@ -183,7 +212,7 @@ mod tests {
                     optimal: 8,
                     maximum: 10
                 },
-                None
+                None, 8_000_000_000
             )
             .is_err()
         );
@@ -194,7 +223,7 @@ mod tests {
                     optimal: 1,
                     maximum: 99_999_999
                 },
-                None
+                None, 8_000_000_000
             )
             .is_err()
         );
@@ -205,7 +234,7 @@ mod tests {
                     optimal: 1,
                     maximum: u64::MAX
                 },
-                None
+                None, u64::MAX
             )
             .is_err()
         );
@@ -216,7 +245,7 @@ mod tests {
                     minimum: 1,
                     optimal: 9_000_000_000,
                     maximum: 9_000_000_000
-                })
+                }), 8_000_000_000
             )
             .is_err()
         );

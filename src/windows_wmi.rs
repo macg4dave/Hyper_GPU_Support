@@ -87,7 +87,21 @@ fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(Some(0)).collect()
 }
 fn win(e: windows::core::Error) -> String {
-    format!("Hyper-V WMI {}: {}", e.code(), e.message())
+    crate::reporting::ComponentFailure {
+        stage: None,
+        component: crate::reporting::Component::HyperV,
+        cause: crate::reporting::FailureCause::NativeCall,
+        code: Some(crate::reporting::FailureCode::HResult(e.code().0 as u32)),
+    }.into_error()
+}
+
+fn provider_failure(code: Option<u64>) -> String {
+    crate::reporting::ComponentFailure {
+        stage: None,
+        component: crate::reporting::Component::HyperV,
+        cause: crate::reporting::FailureCause::ProviderRejected,
+        code: code.map(crate::reporting::FailureCode::Provider),
+    }.into_error()
 }
 
 pub(crate) struct OwnedVariant(VARIANT);
@@ -428,20 +442,13 @@ impl Session {
                 if (7..=10).contains(&state) {
                     clear_operation()?;
                 }
-                match job_status(state).map_err(|reason| {
-                    format!(
-                        "{method}: {reason}; error code {}; {}",
-                        job.number("ErrorCode")
-                            .map_or_else(|e| e, |code| code.to_string()),
-                        job.string("ErrorDescription").unwrap_or_else(|e| e)
-                    )
+                match job_status(state).map_err(|_| {
+                    provider_failure(job.number("ErrorCode").ok())
                 })? {
                     true => {
-                        if job.number("ErrorCode")? != 0 {
-                            return Err(format!(
-                                "{method}: job failed: {}",
-                                job.string("ErrorDescription")?
-                            ));
+                        let code = job.number("ErrorCode")?;
+                        if code != 0 {
+                            return Err(provider_failure(Some(code)));
                         }
                         break;
                     }
@@ -450,9 +457,7 @@ impl Session {
             }
         } else if code != 0 {
             clear_operation()?;
-            return Err(format!(
-                "{method}: provider return code {code}; reconcile before retry"
-            ));
+            return Err(provider_failure(Some(code)));
         } else {
             clear_operation()?;
         }

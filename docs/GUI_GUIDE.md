@@ -30,16 +30,15 @@ details. Do not restore removed features or require Win32 parity.
 
 ## Implemented and simulated behavior
 
-On 11 October, authorized bug acceptance confirmed live discovery and non-modal
-polling/navigation without false drafts; sample reversal/discard and software
-Review/footer/close checks passed. A retained partial-operation recovery record
-blocked installation/update and further live Apply acceptance. Reconciliation
-readback refused the unmatched outcome and now shows a clear reason and safe exact
-component message. Independent review removed an unqualified physical/provider
-ratio: GPU Memory uses exact native-byte requests under DEC-034; physical memory
-remains independent inventory. The reported provider maximum may be smaller than
-physical card capacity. See [BUGS-001](evidence/BUGS-001.md) and
-[BUGS-002](evidence/BUGS-002.md) for scoped results and remaining acceptance.
+On 11 October, supported reconciliation resolved the interrupted first-enable
+record on `test-001`. Fresh installed Apply succeeded: preparation, RTX 5060
+attachment, PnP/D3D11 verification, restored Stopped power and configuration saving.
+Live polling, default suggestions, draft reversal/discard, navigation, clean close
+and dialog wrapping passed; software Review/footer/close checks also passed.
+GPU Memory uses exact native-byte requests under DEC-034; physical memory remains
+independent inventory. The reported provider maximum may be smaller than physical
+card capacity. See the [open issue tracker](evidence/issues.md) for precise evidence
+and remaining implementation/acceptance scope.
 
 BUGS-002 source repairs (10 October, acceptance pending) keep automatic status
 reads non-modal and update existing model rows in place where counts match.
@@ -49,7 +48,7 @@ validated request range and expands draft bounds only on explicit movement.
 Physical VRAM capacity is not inferred from that range. Failure Technical Details
 retain stages, classified backend context and available native error codes;
 untrusted adapter text remains omitted to protect credentials. Full safe component
-messages and physical-capacity mapping remain open in BUGS-002.
+messages and physical-capacity mapping remain open as ISS-002 and ISS-001.
 
 No arguments to `hyper-gpu-support.exe` open Slint. Explicit CLI commands remain
 independent of GUI initialization. Navigation, themes, resizing, splitter, scrolling,
@@ -96,8 +95,11 @@ The GPU Memory slider remains illustrative, independent of advanced allocation;
 its GB label promises no real allocation or enforcement.
 After the user's subsequent GPU-010.3 source request on 10 October, native VRAM
 uses Microsoft's documented byte parameter contract: decimal GB is exactly
-1,000,000,000 bytes. The live slider adjusts Optimal in 0.1 GB steps within the
-existing Minimum/Maximum; when all three fields are empty, the first selection
+1,000,000,000 bytes. The live slider maximum is the selected GPU's detected physical
+VRAM capacity, with exact capacity at its final tick. Intermediate ticks adjust
+Optimal in 0.1 GB steps. Provider request bounds remain independently enforced;
+above-range selections are blocked with the supported range and retain the draft.
+No physical/provider ratio is used. When all three fields are empty, the first supported selection
 initializes Minimum/Maximum from provider bounds. Both editors update the same
 typed draft. Non-grid raw values remain exact in the label/configuration; the
 thumb represents the lower adjacent grid point, without silently rewriting them.
@@ -105,10 +107,11 @@ Review displays requested GB and raw values. These are requested API values,
 not a physical card share, reserved memory or demonstrated enforcement. Invalid,
 stale, missing, too narrow or precision-incompatible ranges disable the slider
 with a reason. Historical captures without unit provenance retain raw editing
-only. Conversion/draft regressions are authored; builds/tests/render/provider
-acceptance remain deferred. See DEC-034.
+only. Prior conversion/draft tests and live edit/discard passed; subsequent physical-range
+and progress source changes are untested. Explicit allocation
+write/readback acceptance remains tracked as ISS-003. See DEC-034.
 
-BUGS-001 source repairs (acceptance pending) use saved-intent comparisons for the
+Implemented GUI repairs use saved-intent comparisons for the
 dirty indicator; unchanged/reverted values do not create a draft. Review shows
 before/after resource writes and ordered VM steps, with backend information in
 expandable Technical Details. Downtime consent and approval stay outside the
