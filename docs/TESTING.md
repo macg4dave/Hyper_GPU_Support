@@ -14,6 +14,8 @@ Retired mock/snapshot GUI tooling is not used or maintained. Meaningful isolated
 
 APP-008 prepares the gate against the current source and runs it at M1 completion. The prior gate script is absent. Do not claim an absent command passed or restore old tooling wholesale.
 
+Repeat the [APP-001 through APP-008 source review](evidence/m1-source-review.md) after APP-006/APP-007 implementation and before this gate. Current-source fixes and added regressions do not constitute a passing gate.
+
 | Order | Check | Intended command or behavior |
 |---|---|---|
 | 1 | Documentation | Local links/anchors, task references/dependencies, instruction consistency, diff whitespace |
@@ -30,10 +32,11 @@ The gate is non-elevated, fails on the first failed stage, reports what ran, and
 - VRAM minimum is 1 GB; upper bound follows matched card capacity; units/provider mapping remain truthful; incompatible settings are not silently rewritten.
 - Edits have no effects; review binds the target, proposed settings, and lifecycle; stale review is rejected.
 - Initial setup includes verification and confirmed final-off intent; later toggles/VRAM changes do not repeat preparation or graphics verification.
-- Credential explanation names the VM and precedes the local prompt; remembering requires opt-in.
+- Credential explanation names the VM and precedes the local prompt; cancelling either panel prevents worker submission and retains edits/recovery; remembering requires opt-in; explanation/vault failures remain explicit.
 - Settings survive reload, drafts remain separate, and conflicts block stale execution.
 - Additive enrollment and selected-VM operations preserve other targets.
 - Publication failure permits bound save-only retry; uncertain effects retain recovery and never trigger blind replay.
+- Reconciliation handles a start error after a power change, safely restores only unchanged approved facts, retains refused-shutdown failures, and blocks restoration after changed facts. Pending journals without a save record still block new controller reviews.
 - Existing trust, IPC, locking, transport/output budgets, and interruption boundaries remain enforced.
 
 Add coverage for real missing behavior and failure boundaries. Reuse meaningful existing tests. Dedicated retired GUI simulation tests were removed through APP-001. The replacement startup-dispatch regression and retained live controller/state tests await APP-008 execution.

@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**APP-005 — Explain guest credentials before the local prompt (R4).** Ready after APP-004 source implementation. Name the selected VM and explain its Windows sign-in before prompting; preserve optional vault opt-in and cancellation. Validation waits for APP-008; live work requires separate authorization.
+**APP-006 — Separate ordinary changes from initial setup (R5).** Ready after APP-005 source implementation. Clarify the final power policy for ordinary changes before altering their lifecycle; reuse review, fresh validation, readback, and recovery. Validation waits for APP-008; live work requires separate authorization.
 
 ## Task register
 
@@ -14,12 +14,14 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-002 | M1 | Match the simple toggle and VRAM control | APP-001 | Done | Pending milestone gate |
 | APP-003 | M1 | Complete review and confirmation | APP-002 | Done (R2 source; requested ahead of APP-002) | Pending milestone gate |
 | APP-004 | M1 | Complete initial setup, verification, and final shutdown | APP-003 | Done | Pending milestone gate |
-| APP-005 | M1 | Explain guest credentials before the local prompt | APP-004 | Ready | Not run |
-| APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Blocked | Not run |
+| APP-005 | M1 | Explain guest credentials before the local prompt | APP-004 | Done | Pending milestone gate |
+| APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Ready | Not run |
 | APP-007 | M1 | Complete saved state, progress, and failure handling | APP-006 | Blocked | Not run |
 | APP-008 | M1 | Prepare and run the milestone's non-hardware gate | APP-007 | Blocked | Not run |
 | APP-009 | M2 | Qualify the real GUI and two-VM workflow | APP-008 | Blocked | Not run |
 | APP-010 | M3 | Package and document the qualified product | APP-009 | Blocked | Not run |
+
+Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records five in-scope source fixes and unrun regression coverage. APP-006/APP-007 remain unimplemented. Repeat the review after those tasks before running APP-008; larger issues needing separate tasks require user review before implementation.
 
 ## Implementation tasks
 
@@ -61,6 +63,8 @@ Before opening a credential prompt, show the selected VM's friendly name and exp
 
 Acceptance: explanatory panel precedes the prompt, cancellation has a clear outcome, optional remembering is not pre-authorized, and credentials never enter logs/configuration/chat. Reuse existing local credential handling.
 
+Implementation (11 October 2026): the shared native credential path now opens a blocking explanation panel naming the bound VM and distinguishing its Windows sign-in from the host account before opening credential entry. OK continues; Cancel at either panel stops before worker submission. Remember remains unchecked and only explicit selection writes to the existing per-user/per-VM vault. Already stored opt-in credentials remain reusable without prompting. GUI Settings, Apply, Verify, and recovery distinguish local cancellation from failure; pending edits remain, cancelled Apply/Verify reviews are cleared, and recovery cancellation retains its record/hold without reconciliation. Added isolated regressions for explanation/input order, both cancellation stages, explanation/vault failure, stored reuse, optional storage/write failure, and display-name sanitization. Static source/reference review and `git diff --check` only; no formatter, build, tests, render, GUI launch, credential prompt, guest access, or protected write ran. APP-008/APP-009 acceptance remains pending; M1 stays open.
+
 ### APP-006 — Separate ordinary changes from initial setup
 
 Later enable/disable and VRAM updates use the same review and confirmation but do not repeat full preparation or initial rendering verification. Retain fresh authorization, provider validation, attachment/settings readback, and recovery.
@@ -80,6 +84,8 @@ Acceptance: saved settings survive reopen; state labels distinguish pending, obs
 Prepare a narrow non-elevated gate against current files; do not restore deleted tooling wholesale. Inspect selected tests for effects. At M1 completion run appropriate documentation, formatting, non-hardware tests, lint, product binary, and rustdoc checks described in [testing](TESTING.md#planned-automated-gate).
 
 Acceptance: intended checks pass or failures keep M1 open; evidence states exact commands, revision, outcomes, and exclusions. Tests cover initial-versus-ordinary operations, final-off setup, credentials explanation, review binding, slider bounds, and meaningful failure boundaries. No GUI launch, VM access, privileged setup, or GPU probe in the automated gate.
+
+Prerequisite from the user's review request: repeat the [current-source review](evidence/m1-source-review.md) after APP-006/APP-007 implementation, fix in-scope gaps, and present larger issues requiring separate tasks before their implementation. This review does not replace executed gate evidence.
 
 ### APP-009 — Qualify the real GUI and two-VM workflow
 

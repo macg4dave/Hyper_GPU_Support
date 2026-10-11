@@ -13,6 +13,26 @@ use windows::{
     core::{PCWSTR, PWSTR},
 };
 use zeroize::Zeroize;
+
+const PROMPT_CANCELLED: &str = "Guest credential request cancelled. No guest operation was started.";
+
+/// Distinguish local cancellation from a credential or operation failure.
+pub fn is_prompt_cancelled(error: &str) -> bool {
+    error == PROMPT_CANCELLED
+}
+
+fn prompt_if_needed<T>(
+    stored: Result<Option<T>, String>,
+    explain: impl FnOnce() -> Result<(), String>,
+    prompt: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    if let Some(credential) = stored? {
+        return Ok(credential);
+    }
+    explain()?;
+    prompt()
+}
+
 /// Ephemeral guest credentials. Debug intentionally omits credential data entirely.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -136,9 +156,58 @@ pub fn prompt_named(
     name: &str,
     parent: windows::Win32::Foundation::HWND,
 ) -> Result<Credential, String> {
-    if let Some(c) = read(vm)? {
-        return Ok(c);
+    prompt_if_needed(
+        read(vm),
+        || explain_guest_sign_in(vm, name, parent),
+        || prompt_native(vm, name, parent),
+    )
+}
+
+#[allow(unsafe_code)]
+fn explain_guest_sign_in(
+    vm: &str,
+    name: &str,
+    parent: windows::Win32::Foundation::HWND,
+) -> Result<(), String> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        IDCANCEL, IDOK, MB_ICONINFORMATION, MB_OKCANCEL, MessageBoxW,
+    };
+    let caption = prompt_wide("Windows sign-in inside your VM");
+    let message = prompt_wide(&format!(
+        "{}\n\nChoose OK to open the local Windows credential dialog. Cancel stops this request before guest work begins. Remember is optional and starts unchecked; continuing here does not authorize saving credentials.",
+        guest_prompt_message(vm, name),
+    ));
+    // SAFETY: live terminated strings, optional dialog owner; no credentials are collected here.
+    let result = unsafe {
+        MessageBoxW(
+            Some(parent),
+            PCWSTR(message.as_ptr()),
+            PCWSTR(caption.as_ptr()),
+            MB_OKCANCEL | MB_ICONINFORMATION,
+        )
+    };
+    match result {
+        IDOK => Ok(()),
+        IDCANCEL => Err(PROMPT_CANCELLED.into()),
+        _ => Err("Guest sign-in explanation could not be opened.".into()),
     }
+}
+
+fn prompt_status(status: windows::Win32::Foundation::WIN32_ERROR) -> Result<(), String> {
+    if status == windows::Win32::Foundation::ERROR_CANCELLED {
+        return Err(PROMPT_CANCELLED.into());
+    }
+    status
+        .ok()
+        .map_err(|_| "Guest credential dialog failed.".into())
+}
+
+#[allow(unsafe_code)]
+fn prompt_native(
+    vm: &str,
+    name: &str,
+    parent: windows::Win32::Foundation::HWND,
+) -> Result<Credential, String> {
     let caption = prompt_wide("Hyper GPU Support — VM username and password");
     let message = prompt_wide(&guest_prompt_message(vm, name));
     let target = prompt_wide(&format!("HyperGpuSupport/guest/{vm}"));
@@ -153,7 +222,7 @@ pub fn prompt_named(
     let mut password = zeroize::Zeroizing::new([0u16; 256]);
     let mut remember = windows::core::BOOL(0);
     // SAFETY: live dialog owner, bounded mutable credential buffers, no automatic persistence.
-    unsafe {
+    let status = unsafe {
         CredUIPromptForCredentialsW(
             Some(&info),
             PCWSTR(target.as_ptr()),
@@ -169,9 +238,8 @@ pub fn prompt_named(
                     | CREDUI_FLAGS_SHOW_SAVE_CHECK_BOX.0,
             ),
         )
-    }
-    .ok()
-    .map_err(|_| "guest credential dialog cancelled or failed")?;
+    };
+    prompt_status(status)?;
     let user_end = username
         .iter()
         .position(|c| *c == 0)
@@ -184,8 +252,18 @@ pub fn prompt_named(
         username: String::from_utf16(&username[..user_end]).map_err(|_| "invalid username")?,
         password: String::from_utf16(&password[..password_end]).map_err(|_| "invalid password")?,
     };
-    if remember.as_bool() {
-        store(vm, &credential)?;
+    retain_if_requested(credential, remember.as_bool(), |credential| {
+        store(vm, credential)
+    })
+}
+
+fn retain_if_requested(
+    credential: Credential,
+    remember: bool,
+    store: impl FnOnce(&Credential) -> Result<(), String>,
+) -> Result<Credential, String> {
+    if remember {
+        store(&credential)?;
     }
     Ok(credential)
 }
@@ -193,12 +271,14 @@ pub fn prompt_named(
 fn guest_prompt_message(vm: &str, name: &str) -> String {
     let name: String = name.chars().filter(|c| !c.is_control()).take(256).collect();
     format!(
-        "Virtual machine: {name}\nVM ID: {vm}\n\nEnter this VM's guest administrator username and password, NOT your Windows host credentials. They are used to install GPU driver files or check graphics inside this VM. Remember saves them in your Windows Credential Manager for this VM only."
+        "Virtual machine: {name}\nVM ID: {vm}\n\nUse the Windows sign-in for the account inside this VM: its guest administrator username and password, NOT your Windows host credentials. They are used to install GPU driver files or check graphics inside this VM. Selecting Remember saves them in your Windows Credential Manager for this VM only. Leave Remember unchecked to use them for this request only. Credentials are not written to application logs or configuration."
     )
 }
 
 #[cfg(test)]
 mod prompt_tests {
+    use super::*;
+
     #[test]
     fn prompt_names_the_guest_and_explains_which_account_is_needed() {
         let text = super::guest_prompt_message("vm-guid", "test-001");
@@ -208,8 +288,116 @@ mod prompt_tests {
             "username and password",
             "guest administrator",
             "NOT your Windows host",
+            "Leave Remember unchecked",
+            "logs or configuration",
         ] {
             assert!(text.contains(expected));
         }
+    }
+
+    #[test]
+    fn explanation_precedes_input_and_guest_work_for_the_bound_vm() {
+        let events = std::cell::RefCell::new(Vec::new());
+        let vm = "reviewed-vm";
+        let credential = prompt_if_needed(
+            Ok(None),
+            || {
+                events.borrow_mut().push(("explain", vm));
+                Ok(())
+            },
+            || {
+                events.borrow_mut().push(("prompt", vm));
+                Ok("ephemeral-input")
+            },
+        )
+        .unwrap();
+        assert_eq!(credential, "ephemeral-input");
+        events.borrow_mut().push(("guest-work", vm));
+        assert_eq!(
+            *events.borrow(),
+            [("explain", vm), ("prompt", vm), ("guest-work", vm)]
+        );
+    }
+
+    #[test]
+    fn cancellation_or_explanation_failure_prevents_input_and_guest_work() {
+        for error in [PROMPT_CANCELLED, "Explanation unavailable"] {
+            let result = prompt_if_needed::<()>(
+                Ok(None),
+                || Err(error.into()),
+                || panic!("Input must not open after cancelled/failed explanation"),
+            );
+            let mut guest_work = false;
+            let result = result.map(|()| guest_work = true);
+            assert_eq!(result.unwrap_err(), error);
+            assert!(!guest_work);
+        }
+    }
+
+    #[test]
+    fn stored_opt_in_skips_both_panels_and_vault_errors_do_not_prompt() {
+        let stored = prompt_if_needed(
+            Ok(Some("stored-input")),
+            || panic!("No explanation without a prompt"),
+            || panic!("No prompt when stored input is available"),
+        );
+        assert_eq!(stored.unwrap(), "stored-input");
+        let error = prompt_if_needed::<()>(
+            Err("Vault unavailable".into()),
+            || panic!("Vault failure must be reported"),
+            || panic!("Vault failure must not fall back to input"),
+        );
+        assert_eq!(error.unwrap_err(), "Vault unavailable");
+    }
+
+    #[test]
+    fn native_cancel_is_distinct_from_dialog_failure_and_stops_guest_work() {
+        use windows::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_CANCELLED, ERROR_SUCCESS};
+        let result = prompt_if_needed(
+            Ok(None),
+            || Ok(()),
+            || prompt_status(ERROR_CANCELLED),
+        );
+        let mut guest_work = false;
+        let result = result.map(|()| guest_work = true);
+        assert!(is_prompt_cancelled(&result.unwrap_err()));
+        assert!(!guest_work);
+        assert!(!is_prompt_cancelled(
+            &prompt_status(ERROR_ACCESS_DENIED).unwrap_err()
+        ));
+        assert!(prompt_status(ERROR_SUCCESS).is_ok());
+    }
+
+    fn test_credential() -> Credential {
+        Credential {
+            username: "test-account".into(),
+            password: "test-input".into(),
+        }
+    }
+
+    #[test]
+    fn remembering_requires_explicit_opt_in_and_reports_storage_failure() {
+        let ephemeral = retain_if_requested(test_credential(), false, |_| {
+            panic!("Unchecked Remember must not write to the vault")
+        })
+        .unwrap();
+        assert_eq!(ephemeral.username, "test-account");
+        let mut writes = 0;
+        let retained = retain_if_requested(test_credential(), true, |credential| {
+            assert_eq!(credential.username, "test-account");
+            writes += 1;
+            Ok(())
+        });
+        assert!(retained.is_ok());
+        assert_eq!(writes, 1);
+        let failed = retain_if_requested(test_credential(), true, |_| Err("Vault unavailable".into()));
+        assert_eq!(failed.err().unwrap(), "Vault unavailable");
+    }
+
+    #[test]
+    fn vm_display_name_cannot_inject_lines_or_terminate_native_text() {
+        let text = guest_prompt_message("bound-id", "guest\0\n\tname");
+        assert!(text.starts_with("Virtual machine: guestname\nVM ID: bound-id\n"));
+        assert!(!text.contains('\0'));
     }
 }

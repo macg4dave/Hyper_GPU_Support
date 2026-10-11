@@ -24,9 +24,13 @@ The application manages required VM power transitions, guest preparation, GPU co
 
 Before the local credential prompt, show a friendly explanation such as: “Setup needs the Windows sign-in for this VM. Use the account inside the VM, rather than the account for your host computer.” Include the actual VM name. Remembering credentials is optional and requires explicit opt-in.
 
+APP-005 source now presents a blocking local Windows explanation panel before the native username/password dialog, naming the reviewed VM and explaining its guest administrator account. OK opens credential entry; Cancel stops the request before any guest operation starts. Remember begins unchecked and stores credentials only when explicitly selected, in this user's Windows Credential Manager for that VM. Existing stored credentials can be reused without opening either panel. Settings uses the same path and does not check guest connectivity. Cancel retains pending edits, clears an Apply/Verify review, and leaves any existing recovery hold intact. These dialogs and cancellation interactions await APP-008 checks and APP-009 live validation.
+
 An interrupted or failed operation must not pretend setup completed or promise a final power state that has not been confirmed.
 
 APP-004 source now identifies initial setup when completed preparation and graphics receipts are absent. Existing completed receipts remain valid historical setup evidence; an attachment or standalone graphics check alone does not establish preparation. Package setup/additive enrollment retain their existing separate reviews, followed by a fresh GPU effect review. Initial setup success requires graphics pass and confirmed final-off readback; its completion message names the VM and tells the user to start it through Hyper-V. A publication failure reports the guest setup result separately and offers save-only retry. Interrupted effects retain recovery with the reviewed final power; reconciliation does not repeat preparation/assignment/allocation. These source changes have not been compiled, rendered, or qualified on real VMs.
+
+The first-time setup card now stages enabled support and opens the existing enrollment/setup review. It remains unavailable while eligibility or recovery blocks the selected VM; clicking it alone grants no effect authority. Real interaction is pending validation.
 
 ## Later changes
 
@@ -39,6 +43,8 @@ If preparation becomes invalid, clearly identify the setup/update work needed ra
 Keep saved settings, pending edits, actual observations, and the last initial verification result distinct. Preserve drafts through refresh conflicts and require resolution before effects. Busy/modal states prevent conflicting actions.
 
 Progress names actual stages and explains delays plainly. Failed configuration publication offers bound save-only retry; uncertain effects require explicit reconciliation. Do not replay GPU work or clear recovery to make a status look successful.
+
+Current-source review additionally blocks new editing/reviews when the selected journal requires recovery, even without a loaded save record. Failed controller state/recovery reads remain visible and disable execution instead of being replaced by a completion dialog. Installed worker availability is checked in background jobs; admission still performs fresh authentication. See the [review record](evidence/m1-source-review.md) for validation limits.
 
 ## Validation
 

@@ -889,10 +889,14 @@ pub fn reconcile_observed(
     }
     if target.enabled {
         let gpu = backend.gpu(target)?;
-        if observed.power == Power::Off {
-            backend.power(target, Power::Running)?;
-        }
-        let checked = backend.verify(target, &gpu);
+        // A failed start can follow a real power change. Keep it inside the
+        // checked stage so fresh fact checks and safe restoration still run.
+        let checked = (|| {
+            if observed.power == Power::Off {
+                backend.power(target, Power::Running)?;
+            }
+            backend.verify(target, &gpu)
+        })();
         let restoration = (|| {
             let current = backend.inspect(target)?;
             let mut expected = observed.clone();
@@ -966,6 +970,7 @@ mod tests {
         fail_final_shutdown: bool,
         ignore_final_shutdown: bool,
         fail_start_after_effect: bool,
+        change_settings_on_start_failure: bool,
         driver: &'static str,
         gpu_driver: &'static str,
         payload_reads: usize,
@@ -1016,6 +1021,7 @@ mod tests {
             fail_final_shutdown: false,
             ignore_final_shutdown: false,
             fail_start_after_effect: false,
+            change_settings_on_start_failure: false,
             driver: "current",
             gpu_driver: "new",
             payload_reads: 0,
@@ -1261,6 +1267,9 @@ mod tests {
             }
             self.state.power = p;
             if self.state.power == Power::Running && self.fail_start_after_effect {
+                if self.change_settings_on_start_failure {
+                    self.state.settings.high_mmio += 1;
+                }
                 return Err("start readback interrupted".into());
             }
             Ok(())
@@ -1832,6 +1841,67 @@ mod tests {
         assert_eq!(backend.events, ["graphics", "shutdown"]);
         assert_eq!(backend.allocation_writes, 0);
         assert!(!backend.journal.as_ref().unwrap().pending);
+    }
+
+    #[test]
+    fn reconciliation_start_failure_restores_off_and_retains_pending_without_replay() {
+        for refuse_shutdown in [false, true] {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            backend.journal.as_mut().unwrap().pending = true;
+            backend.events.clear();
+            backend.allocation_writes = 0;
+            backend.fail_start_after_effect = true;
+            backend.fail_shutdown = refuse_shutdown;
+            let observed = backend.state.clone();
+            let error = reconcile_observed(
+                &mut backend,
+                &target(),
+                &observed,
+                Power::Off,
+                Some("current"),
+            )
+            .unwrap_err();
+            assert!(error.contains("start readback interrupted"));
+            assert_eq!(backend.events, ["start", "shutdown"]);
+            assert_eq!(backend.allocation_writes, 0);
+            assert_eq!(
+                backend.state.power,
+                if refuse_shutdown {
+                    Power::Running
+                } else {
+                    Power::Off
+                }
+            );
+            assert!(backend.journal.as_ref().unwrap().pending);
+            if refuse_shutdown {
+                assert!(error.contains("shutdown refused"));
+            }
+        }
+    }
+
+    #[test]
+    fn reconciliation_start_failure_with_changed_facts_blocks_restoration() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.journal.as_mut().unwrap().pending = true;
+        backend.events.clear();
+        backend.fail_start_after_effect = true;
+        backend.change_settings_on_start_failure = true;
+        let observed = backend.state.clone();
+        let error = reconcile_observed(
+            &mut backend,
+            &target(),
+            &observed,
+            Power::Off,
+            Some("current"),
+        )
+        .unwrap_err();
+        assert!(error.contains("start readback interrupted"));
+        assert!(error.contains("unsafe power restoration blocked"));
+        assert_eq!(backend.events, ["start"]);
+        assert_eq!(backend.state.power, Power::Running);
+        assert!(backend.journal.as_ref().unwrap().pending);
     }
     #[test]
     fn partial_preparation_is_durable_and_never_attached() {

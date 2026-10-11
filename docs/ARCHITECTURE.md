@@ -40,7 +40,7 @@ Stable VM GUIDs and exact GPU interfaces identify targets. Display names are pre
 2. A missing installation/pair leads to separate package/enrollment review. Setup/enrollment establishes authority without applying GPU intent.
 3. Review asks the shared planner for selected-target actions and required downtime/credentials. This can authenticate/hash driver payloads and should not be treated as a cheap polling operation.
 4. Confirmation submits the reviewed operation to a fixed elevated worker. The worker authenticates the session, acquires the lock, validates current enrollment/revisions, and recomputes approved facts.
-5. Durable admission precedes effects. The shared workflow uses native host adapters and the guest bridge, then independently reads effective state. The requested workflow adds graphics verification during initial setup only; current source must be adapted under APP-004/APP-006.
+5. Durable admission precedes effects. The shared workflow uses native host adapters and the guest bridge, then independently reads effective state. Initial setup includes graphics verification and confirmed final shutdown under APP-004. Ordinary enabled changes still repeat graphics checks until APP-006 separates them.
 6. Successful effects and configuration publication remain separate phases. Publication failure leaves a bound save-only path; uncertainty leaves an explicit reconciliation path.
 7. The frontend receives bounded progress/outcome information and refreshes independent state. A missing terminal message does not authorize replay.
 

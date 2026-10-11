@@ -98,7 +98,7 @@ export component VmDetails inherits Rectangle {
                         padding: 16px; spacing: 10px;
                         Label { text: "First-time setup"; font-weight: 600; }
                         Hint { text: "This Generation 2 VM has no saved GPU configuration. Review the pairing and enrollment before preparing the guest."; }
-                        Button { enabled: !Theme.modal-active; text: "Stage enrollment & NVIDIA preparation"; clicked => { root.action("enroll"); } }
+                        Button { enabled: !Theme.modal-active && root.eligible && !root.recovery; text: "Review enrollment & NVIDIA setup"; clicked => { root.action("reapply"); } }
                     }
                 }
                 if !root.eligible : Surface {

@@ -1,6 +1,8 @@
 # Source baseline
 
-Assessment: 11 October 2026, static source inspection during the product Q&A. APP-001 through APP-004 source work subsequently completed on the same date, with static reference/diff review only. No build, automated product test, render, GUI launch, guest operation, or hardware qualification ran. This page distinguishes current code from the requested workflow; [backlog](BACKLOG.md) owns fixes.
+Assessment: 11 October 2026, static source inspection during the product Q&A. APP-001 through APP-005 source work subsequently completed on the same date, with static reference/diff review only. No build, automated product test, render, GUI launch, credential prompt, guest operation, or hardware qualification ran. This page distinguishes current code from the requested workflow; [backlog](BACKLOG.md) owns fixes.
+
+The subsequent [current-source review](evidence/m1-source-review.md) fixed the disconnected setup button, uncertain-start reconciliation restoration, pending-journal editor admission, concealed controller state errors, and UI-thread worker availability checks. Regression additions remain unrun. APP-006/APP-007 are still open; follow-up review precedes APP-008.
 
 ## Source and requested changes
 
@@ -11,7 +13,7 @@ Assessment: 11 October 2026, static source inspection during the product Q&A. AP
 | VRAM | [Memory control](../src/gui/memory.rs) displays 1 decimal GB to matched physical capacity, preserves exact requests/endpoints, and separately rejects unsupported driver values; native writer passes byte integers without rescaling | APP-002 source implemented; compilation, UI acceptance, and supported-hardware behavior await APP-008/APP-009 |
 | Initial and later effects | [Workflow](../src/workflow.rs) identifies initial setup from preparation/graphics receipts and includes guest verification before final shutdown | APP-004 source implemented; ordinary changes still repeat graphics checking until APP-006 separates them |
 | Final power | Initial setup requires verified final-off state; [protected receipt](../src/configuration_store.rs) persists reviewed final power for reconciliation/publication independently of the starting observation | APP-004 validation pending; ordinary-operation final power policy remains to be clarified under APP-006 |
-| Credentials | Existing [credential module](../src/credentials.rs) and live controller supply local prompting/storage paths | Audit and add the friendly named-VM explanation before the prompt under APP-005 |
+| Credentials | [Credential module](../src/credentials.rs) blocks on a named-VM explanation before native input; Remember stays opt-in; the live controller distinguishes cancellation before worker submission and preserves drafts/recovery | APP-005 source implemented; automated checks and real dialog/interaction acceptance await APP-008/APP-009 |
 | State and recovery | [Model](../src/model.rs), [store](../src/configuration_store.rs), [worker](../src/worker.rs), and [enrollment](../src/enrollment.rs) support intent, publication, and protected operation state | Preserve boundaries and audit concrete workflow gaps under APP-007 |
 | Hardware verification | [Guest module](../src/guest.rs) and [D3D11 probe](../src/bin/d3d11-probe.rs) provide hardware checks | Reuse for initial setup; real results require APP-009 authorization |
 | Quality gate and release | Previous development tooling was deleted; existing inline tests and cached outputs do not establish a current pass | APP-008 prepares/runs the milestone gate; APP-009 qualifies; APP-010 packages |

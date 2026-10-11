@@ -310,6 +310,14 @@ impl State {
                 "A host-wide operation requires manual reconciliation or save-only retry.".into(),
             );
         }
+        if self
+            .view
+            .inventory
+            .as_ref()
+            .is_some_and(|inventory| inventory.recorded_state(id).recovery_required)
+        {
+            return Err("The selected VM has pending or inconsistent managed recovery. Inspect and reconcile it before editing or reviewing new changes.".into());
+        }
         self.committed.revision(id)?;
         let mut pair = self.target(id)?;
         // Pair eligibility must allow correcting a now-invalid old allocation or
@@ -1178,6 +1186,63 @@ mod tests {
             s.draft(id(&s), true, 0, &values("10", "50", "100"))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn pending_journal_blocks_new_reviews_without_a_save_record_and_retains_the_draft() {
+        for verification_only in [false, true] {
+            let mut s = state();
+            let vm_id = id(&s).to_owned();
+            let draft = s
+                .draft(&vm_id, true, 0, &values("10", "50", "100"))
+                .unwrap();
+            s.view.draft = Some(draft.clone());
+            let mut next = inventory();
+            let settings = next.discovery.vms[0].settings.clone();
+            next.managed.insert(
+                vm_id.clone(),
+                Some(hyper_gpu_support::workflow::Journal {
+                    schema: 1,
+                    vm_id: vm_id.clone(),
+                    gpu_interface: draft.gpu_interface.clone(),
+                    original: settings.clone(),
+                    applied: settings,
+                    prepared: None,
+                    pending: true,
+                    restore_power: Power::Off,
+                    verification_only,
+                    last_verified: None,
+                }),
+            );
+            s.refresh(next.clone());
+            assert!(s.recovery.is_none());
+            assert!(s.editor_eligibility(&vm_id).unwrap_err().contains("recovery"));
+            assert!(s.draft(&vm_id, true, 0, &values("10", "50", "100")).is_err());
+            assert!(
+                s.accept_review(
+                    review_plan(),
+                    &draft,
+                    hyper_gpu_support::configuration_store::Revision::Missing,
+                )
+                .is_err()
+            );
+            assert!(s.approved_plan.is_none());
+            assert_eq!(s.view.draft, Some(draft));
+            assert!(
+                s.view.inventory.as_ref().unwrap().managed[&vm_id]
+                    .as_ref()
+                    .unwrap()
+                    .pending
+            );
+            next.managed
+                .get_mut(&vm_id)
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .pending = false;
+            s.refresh(next);
+            assert!(s.editor_eligibility(&vm_id).is_ok());
+        }
     }
     #[test]
     fn disappearing_vm_keeps_its_draft_identity_until_discard() {

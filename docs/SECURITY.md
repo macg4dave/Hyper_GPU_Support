@@ -17,6 +17,8 @@ The relevant implementations are [runner](../src/runner.rs), [worker](../src/wor
 
 Credentials are obtained locally, retained only through explicit Windows Credential Manager opt-in, and kept out of desired configuration, journals, audits, public reports, and persistent recovery. Before the prompt, name the selected VM and clearly explain that its Windows credentials are needed, not the host computer's credentials. A credentials settings action does not establish guest connectivity or graphics health. Credential deletion does not revoke pairing.
 
+The shared native prompt path requires acknowledgement of a named-VM explanation before collecting input. Acknowledgement does not authorize remembering; the native Remember checkbox starts unchecked. Cancelling either panel returns before worker submission, so it starts no guest work and does not clear an existing recovery hold. Vault errors remain failures rather than silently falling back to a prompt. Existing explicit opt-in entries may be reused without prompting. Source implementation is complete under APP-005; runtime acceptance remains pending.
+
 Treat adapter error text as untrusted and potentially secret-bearing. Public outcomes use bounded application-owned failure context. Preserve component/stage/numeric-code evidence where safe rather than copy arbitrary stderr into UI/audit output. Diagnostic tracing is opt-in through trusted fixed product paths; local qualification records must exclude secrets.
 
 ## Operation recovery
@@ -35,6 +37,8 @@ A missing reply, timeout, worker exit, or absent terminal audit is not proof tha
 GPU recovery receipts retain the independently recomputed plan's expected final power separately from the initial observation. Initial setup requires final-off readback before recording graphics/setup completion or allowing configuration publication. Explicit reconciliation must match the journal's recorded power intent and can restore only that intent; save-only cannot accept a running outcome where the receipt promises off. Receipts predating this field retain their original-power contract. Pending operations continue to block new Apply admission; this change introduces no automatic retry or replay.
 
 Standalone Verify has no configuration-publication authority. Its recovery can inspect graphics and safely restore the approved original power state; it cannot import the target's intent or replay preparation/assignment/allocation.
+
+If reconciliation's temporary start changes power and then reports failure, fresh matching host/GPU/payload facts may still authorize restoring the recorded power intent. Changed facts block restoration; refused shutdown retains both failures and pending recovery. This source fix does not authorize replay, forced power-off, or automatic reconciliation.
 
 The interrupted-first-enable baseline retirement path is narrow: fresh independent state must prove the recorded starting configuration under the record's checks. Guest files may remain, and no preparation/graphics success or desired intent is invented. Other partial/changed states stay blocked.
 
