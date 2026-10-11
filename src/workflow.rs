@@ -1007,19 +1007,29 @@ mod tests {
     }
     #[test]
     fn approved_plan_changes_block_before_any_journal_or_effect() {
-        for changed in 0..3 {
+        for changed in 0..6 {
             let mut backend = fake();
             let approved = plan(&mut backend, &target()).unwrap();
             match changed {
                 0 => backend.state.power = Power::Off,
                 1 => backend.driver = "changed-payload",
-                _ => backend.state.settings.high_mmio += 1,
+                2 => backend.state.settings.high_mmio += 1,
+                3 => backend.state.vm_id = "22222222-2222-2222-2222-222222222222".into(),
+                4 => backend.state.gpus.push(target().gpu_interface),
+                _ => {
+                    backend.state.vram = Some(Allocation {
+                        minimum: 10,
+                        optimal: 50,
+                        maximum: 100,
+                    });
+                }
             }
-            assert!(
-                apply_approved(&mut backend, &approved)
-                    .unwrap_err()
-                    .contains("stale")
-            );
+            let error = apply_approved(&mut backend, &approved).unwrap_err();
+            assert!(error.contains(if changed == 3 {
+                "selected VM"
+            } else {
+                "stale"
+            }));
             assert_eq!(backend.journal_writes, 0);
             assert!(backend.events.is_empty());
         }

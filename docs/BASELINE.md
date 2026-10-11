@@ -1,14 +1,14 @@
 # Source baseline
 
-Assessment: 11 October 2026, static source inspection during the product Q&A. APP-001 source removal subsequently completed on the same date, with static reference/diff review only. No build, automated product test, GUI launch, guest operation, or hardware qualification ran. This page distinguishes current code from the requested workflow; [backlog](BACKLOG.md) owns fixes.
+Assessment: 11 October 2026, static source inspection during the product Q&A. APP-001 source removal, APP-002 controls, and APP-003 review/confirmation subsequently completed on the same date, with static reference/diff review only. No build, automated product test, render, GUI launch, guest operation, or hardware qualification ran. This page distinguishes current code from the requested workflow; [backlog](BACKLOG.md) owns fixes.
 
 ## Source and requested changes
 
 | Area | Current source finding | Required direction |
 |---|---|---|
-| Dispatch and GUI | [Main](../src/main.rs) selects only live GUI startup; [GUI host](../src/gui/mod.rs) retains shared model/dialog helpers after mock/snapshot removal | APP-001 source implemented; compilation and UI acceptance pending; APP-002 controls remain incomplete |
-| Discovery and review | [Live controller](../src/gui/live.rs) contains protected inventory, draft, review, Apply, Verify, and recovery paths | Keep existing design and complete the simple reviewed workflow under APP-002/APP-003 |
-| VRAM | [Memory control](../src/gui/memory.rs) converts byte requests and uses provider-derived lower bounds with matched physical capacity | Enforce the agreed 1 GB displayed minimum and card-dependent upper bound; verify provider mapping under APP-002 |
+| Dispatch and GUI | [Main](../src/main.rs) selects only live GUI startup; [GUI host](../src/gui/mod.rs) retains shared model/dialog helpers after mock/snapshot removal | APP-001/APP-002 source implemented; compilation and UI acceptance pending |
+| Discovery and review | [Live controller](../src/gui/live.rs) and [review state](../src/gui/live_state.rs) bind fresh review to VM/draft/committed revision; first Apply reviews, second confirms, Cancel retains edits; ordered effects and time warnings come from the plan | APP-003 source implemented, validation pending; APP-004/APP-006 lifecycle changes remain |
+| VRAM | [Memory control](../src/gui/memory.rs) displays 1 decimal GB to matched physical capacity, preserves exact requests/endpoints, and separately rejects unsupported driver values; native writer passes byte integers without rescaling | APP-002 source implemented; compilation, UI acceptance, and supported-hardware behavior await APP-008/APP-009 |
 | Initial and later effects | [Workflow](../src/workflow.rs) supports preparation, GPU/resource effects, guest verification, and recorded power restoration | Distinguish initial setup from ordinary toggle/VRAM changes under APP-004/APP-006; no repeated initial verification during ordinary changes |
 | Final power | Shared workflow retains original/recorded restore power | Completed initial setup must instead end off; ordinary-operation final power policy remains to be clarified |
 | Credentials | Existing [credential module](../src/credentials.rs) and live controller supply local prompting/storage paths | Audit and add the friendly named-VM explanation before the prompt under APP-005 |

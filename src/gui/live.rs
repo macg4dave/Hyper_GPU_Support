@@ -103,7 +103,7 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
     use hyper_gpu_support::{process, runner, windows_hyperv};
     if runner::pending_setup()?.is_some() || !runner::installed()? {
         return hyper_gpu_support::setup::discover().map(|inventory| (inventory,
-            Some("First-install inventory read through Windows elevation. Select a VM/GPU and Review & Apply to review package setup and exact enrollment. GPU changes require a separate subsequent review.".into())));
+            Some("First-install inventory read through Windows elevation. Select a VM/GPU and Apply to review package setup and exact enrollment. GPU changes require a separate subsequent review.".into())));
     }
     match runner::submit(runner::request(runner::Operation::Discover, None, None)) {
         Ok(value) => serde_json::from_value(value)
@@ -470,7 +470,10 @@ fn resource_controls(ui: &AppWindow, state: &State) {
                 .and_then(|gpu| gpu.limits(Resource::Vram))
                 .map(|limits| format!("{} to {}", super::memory::format_gb(limits.minimum), super::memory::format_gb(limits.maximum)))
                 .unwrap_or_else(|| "unavailable".into());
-            ui.set_memory_hint(format!("Slider maximum: detected physical VRAM. Supported driver requests: {provider}. Values outside that range are blocked; no physical-capacity conversion or reservation is established.").into());
+            let note = slider
+                .range_note
+                .map_or_else(String::new, |note| format!("\n{note}"));
+            ui.set_memory_hint(format!("Choose a request from 1 GB to the card's detected capacity. Supported driver requests: {provider}; unsupported selections are blocked.{note}").into());
         }
         Err(reason) => {
             ui.set_memory_available(false);
@@ -815,6 +818,7 @@ fn review(
             })
         })?;
     let expected = target.clone();
+    let planning_revision = committed_revision.clone();
     let source = source.clone();
     let review_state = state.clone();
     background(
@@ -823,7 +827,7 @@ fn review(
         "Building fresh plan",
         move || {
             if let Some(committed) = source.committed()
-                && committed.revision(&target.vm_id)? != committed_revision
+                && committed.revision(&target.vm_id)? != planning_revision
             {
                 return Err("Committed configuration changed externally. Draft preserved; discard and Refresh.".into());
             }
@@ -866,17 +870,24 @@ fn review(
                 };
                 #[cfg(windows)]
                 ui.set_execution_ready(hyper_gpu_support::worker::available().is_ok());
-                with_state(ui, &review_state, |state| {
-                    state.approved_plan = Some(plan.clone());
-                    Ok(())
-                });
+                let accepted = review_state
+                    .lock()
+                    .map_err(|_| "Presentation state unavailable".to_owned())
+                    .and_then(|mut state| {
+                        let current = draft_target(ui, &state)?;
+                        state.accept_review(plan.clone(), &current, committed_revision.clone())
+                    });
+                if let Err(error) = accepted {
+                    dialog(ui, "error", "Review again", &error);
+                    return;
+                }
                 ui.set_needs_shutdown(plan.preview.guest_downtime);
                 dialog(
                     ui,
                     "review",
-                    "Review your draft",
+                    "Review changes before Apply",
                     &format!(
-                        "Physical GPU: {gpu_name}\n{memory_summary}\n{}\n\nWindows will request approval before changes. Configuration is saved only after verification.",
+                        "Physical GPU: {gpu_name}\n{memory_summary}\n{}\n\nThese changes are still pending. Apply confirms this review; Cancel returns to editing. Windows will request approval before changes. Configuration is saved only after verification.",
                         review_summary(&plan)
                     ),
                 );
@@ -949,7 +960,7 @@ fn review_enrollment(
                     summary.push_str("\n\nWindows approval is required to save this permission.");
                 }
                 let mut body = format!(
-                    "VM ID: {}\nGPU interface: {}\nOperator: {}\nPolicy revision: {:?}\n\nAuthorize this exact VM/GPU pair through Windows elevation, preserving all other enrolled VMs. Enrollment does not enable GPU support, change guest power, prepare drivers or save desired configuration. Your draft is retained. After fresh authority readback, Review & Apply obtains a separate GPU operation plan.",
+                    "VM ID: {}\nGPU interface: {}\nOperator: {}\nPolicy revision: {:?}\n\nAuthorize this exact VM/GPU pair through Windows elevation, preserving all other enrolled VMs. Enrollment does not enable GPU support, change guest power, prepare drivers or save desired configuration. Your draft is retained. After fresh authority readback, Apply obtains a separate GPU operation plan.",
                     approved.vm_id,
                     approved.gpu_interface,
                     approved.operator_sid,
@@ -1120,15 +1131,8 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
     }
     let (approved, revision) = {
         let state = state.lock().map_err(|_| "Presentation state unavailable")?;
-        let approved = state
-            .approved_plan
-            .clone()
-            .ok_or("Review the current draft before Apply")?;
-        if draft_target(ui, &state)? != approved.desired {
-            return Err("The draft changed after review; review it again.".into());
-        }
-        let revision = state.committed.revision(&approved.desired.vm_id)?;
-        (approved, revision)
+        let reviewed = state.reviewed_plan(&draft_target(ui, &state)?)?;
+        (reviewed.plan, reviewed.revision)
     };
     let selected = approved.desired.clone();
     let finished_state = state.clone();
@@ -1636,7 +1640,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         if ui.get_presenting() || ui.get_running() || !ui.get_dialog_kind().is_empty() {
             return;
         }
-        let mut values = ui
+        let values = ui
             .get_values()
             .iter()
             .map(|v| v.to_string())
@@ -1645,18 +1649,17 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             .lock()
             .map_err(|_| "Presentation state unavailable".to_owned())
             .and_then(|state| {
-                state.editor_eligibility(ui.get_selected_id().as_str())?;
-                state
-                    .memory_slider(ui.get_gpu_index(), &values)?
-                    .select(position)
+                state.memory_values(
+                    ui.get_selected_id().as_str(),
+                    ui.get_gpu_index(),
+                    &values,
+                    position,
+                )
             });
         match selection {
-            Ok(allocation) => {
-                // Only the typed VRAM triple changes. Other resources and invalid
-                // text remain intact; the normal draft callback revalidates all intent.
-                values[0] = allocation.minimum.to_string();
-                values[1] = allocation.optimal.to_string();
-                values[2] = allocation.maximum.to_string();
+            Ok(values) => {
+                // The shared presentation helper changes only VRAM. The normal
+                // draft callback revalidates all retained compatibility intent.
                 ui.set_values(model(values.into_iter().map(Into::into).collect()));
                 // The state guard above is released before invoking this callback.
                 ui.invoke_edited();
@@ -1687,7 +1690,8 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             "confirm-enroll" => enroll_live(&ui, &action_state, &action_busy, &action_source),
             #[cfg(windows)]
             "reconcile-enrollment" => reconcile_enrollment_live(&ui, &action_state, &action_busy, &action_source),
-            "confirm" => apply_live(&ui, &action_state, &action_busy),
+            "confirm" if ui.get_dialog_kind() == "review" => apply_live(&ui, &action_state, &action_busy),
+            "confirm" => Err("Open a fresh review before Apply.".into()),
             "save-only" => save_only_live(&ui, &action_state, &action_busy),
             "verify" => review_verification(&ui, &action_state, &action_busy),
             "confirm-verify" => verify_live(&ui, &action_state, &action_busy),
@@ -1698,7 +1702,14 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 ui.invoke_edited();
                 review(&ui, &action_state, &action_busy, &action_source)
             }
-            "close" => { ui.set_dialog_kind("".into()); Ok(()) },
+            "close" => {
+                with_state(&ui, &action_state, |state| {
+                    state.cancel_review();
+                    ui.set_dialog_kind("".into());
+                    Ok(())
+                });
+                Ok(())
+            },
             "exit" => { ui.set_dirty(false); slint::quit_event_loop().map_err(|e| e.to_string()) },
             "discard" | "switch" => {
                 with_state(&ui, &action_state, |state| {
@@ -1769,7 +1780,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "shortcuts" => {
-                let help = "Select a real VM and physical GPU, then enable GPU support in the draft. Review & Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Review & Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. Enrolled pairs support toggles and provider-supported raw VRAM/Compute/Encode/Decode triples, Apply and separate Verify. Leave an entire triple empty for no explicit category write. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable.";
+                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. Driver limits still block unsupported requests. Only the toggle disables support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable.";
                 dialog(&ui, "info", "Application help", help); Ok(())
             },
             _ => Err("This action is not connected yet. Use the supported CLI; no operation was performed.".into()),

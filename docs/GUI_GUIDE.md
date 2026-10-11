@@ -8,11 +8,15 @@ Select a supported existing VM, toggle GPU support, and select GPU VRAM from 1 G
 
 The existing Dashboard, System, Settings, About, and dialog design remain the foundation. Preserve stable selection, keyboard navigation, scrolling, themes, focus, and responsive progress.
 
+APP-002 source now displays the 1 GB-to-card-capacity slider, with exact physical endpoints and separate driver-limit rejection. Unknown capacity or a range with no supported selection is unavailable. Existing requests below 1 GB remain labeled exactly; moving the slider is an explicit edit, not a rewrite on load. Advanced Allocation retains exact VRAM fields for compatibility and correction. Compute/Encode/Decode editors are removed from this GUI; saved requests are preserved and shown in review. Only the toggle disables support. Compilation, rendering, and real hardware acceptance remain pending.
+
 ## Review and Apply
 
 Toggle/VRAM changes remain drafts. Apply opens a review panel naming the selected VM, showing what will change and relevant time warnings, and explaining every required start, shutdown, or restart. Show the expected final power state. A second Apply confirms; cancellation returns to editing.
 
 Review must reflect a fresh backend plan. Changed target or inputs invalidate approval. Setup/enrollment authority remains distinct from GPU effects, even when presented as one understandable setup journey.
+
+APP-003 source now provides first Apply → review → second Apply, with Cancel retaining the draft and clearing approval. Review shows ordered backend steps, changed compatibility values, final power, and relevant time warnings. It binds the original committed revision as well as the VM and draft; the protected worker independently rechecks backend state before effects. Source acceptance awaits APP-008 checks and APP-009 real interaction validation. Until APP-004/APP-006 change the lifecycle, review reports the current backend's preparation, graphics checks, and recorded power restoration.
 
 ## First GPU setup
 

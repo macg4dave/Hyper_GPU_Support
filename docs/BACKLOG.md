@@ -4,16 +4,16 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**APP-002 — Match the simple toggle and VRAM control (R1).** Ready after APP-001 source removal. Inspect slider bounds/conversion and native provider mapping, enforce the 1 GB displayed minimum, and assess advanced controls against the simple product scope. Preserve exact saved values and truthful unavailable states; validation waits for APP-008.
+**APP-004 — Complete initial setup, verification, and final shutdown (R3).** Ready after APP-002/APP-003 source implementation. Inspect the existing preparation, graphics verification, and power restoration path; bind the initial setup sequence to review and require confirmed graceful final shutdown for success. Validation waits for APP-008; live work requires separate authorization.
 
 ## Task register
 
 | ID | Milestone | Task | Depends on | Implementation | Validation |
 |---|---|---|---|---|---|
 | APP-001 | M1 | Remove retired mock GUI tooling | None | Done | Pending milestone gate |
-| APP-002 | M1 | Match the simple toggle and VRAM control | APP-001 | Ready | Not run |
-| APP-003 | M1 | Complete review and confirmation | APP-002 | Blocked | Not run |
-| APP-004 | M1 | Complete initial setup, verification, and final shutdown | APP-003 | Blocked | Not run |
+| APP-002 | M1 | Match the simple toggle and VRAM control | APP-001 | Done | Pending milestone gate |
+| APP-003 | M1 | Complete review and confirmation | APP-002 | Done (R2 source; requested ahead of APP-002) | Pending milestone gate |
+| APP-004 | M1 | Complete initial setup, verification, and final shutdown | APP-003 | Ready | Not run |
 | APP-005 | M1 | Explain guest credentials before the local prompt | APP-004 | Blocked | Not run |
 | APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Blocked | Not run |
 | APP-007 | M1 | Complete saved state, progress, and failure handling | APP-006 | Blocked | Not run |
@@ -37,11 +37,15 @@ Keep the existing design. Provide the GPU support toggle and card-dependent VRAM
 
 Acceptance: range follows the selected card, minimum is 1 GB, saved/draft values remain distinct, and unsupported or unknown capacity produces a truthful unavailable state. Displayed units and provider writes agree for supported hardware. No balancing, new allocation policy, or full-capacity warning feature. Assess existing advanced controls against the simple product scope without redesigning the GUI.
 
+Implementation (11 October 2026): slider starts at 1 decimal GB and ends at matched physical capacity, retaining exact non-grid endpoint bytes. Provider admission remains separate: unsupported points are rejected, and ranges with no supported selection or unknown/sub-1 GB capacity are unavailable. Existing requests below 1 GB are labeled exactly with an explanation, not silently rewritten. A single-value 1 GB range uses an explicit selection button. The native writer passes the same byte integers directly to Hyper-V's VRAM properties with fresh limits and readback; no capacity ratio or backend mapping change was introduced. Removed Compute/Encode/Decode editors from the GUI; existing schema-3 requests remain intact and visible in review. Advanced Allocation retains exact VRAM fields for compatibility/correction. Added boundary and controller tests covering saved schemas, other VMs/categories, toggle independence, and rejected/stale edits. Static source/reference review and `git diff --check` only; no formatter, build, tests, render, GUI launch, or live effects ran. Supported-hardware behavior still awaits APP-009 qualification; M1 remains open.
+
 ### APP-003 — Complete review and confirmation
 
 Edits stay pending. First Apply opens a review naming the VM and describing actual changes, downtime, required start/shutdown/restart steps, expected final power state, and relevant time warnings. Second Apply confirms the fresh bound plan; cancel returns to editing.
 
 Acceptance: review matches effects, target changes cannot redirect execution, stale inputs require renewed review, and no effects occur merely by editing. Keep protected setup/enrollment boundaries while making the flow understandable.
+
+Implementation (11 October 2026): R2 source work was explicitly requested ahead of APP-002. First Apply opens the existing review dialog; second Apply confirms. Review names the VM/GPU, shows allocation and changed compatibility settings, ordered lifecycle/effect steps, the backend's expected final power, downtime, and preparation/boot/graphics time warnings. Cancel clears approval while retaining edits. Approval binds the selected VM, exact draft, and original committed revision; late plan replies and confirmation reject changed inputs. The protected worker continues to independently reject stale backend plans before journaling or effects. Added controller review/cancel/revision and presentation regressions; expanded backend stale-state coverage. Static source/diff review and `git diff --check` only; no formatter, build, tests, render, GUI launch, or live effects ran. APP-002 controls, APP-004 initial lifecycle, and APP-006 ordinary lifecycle remain separate; review truthfully describes the current backend until those tasks change it. M1 remains open.
 
 ### APP-004 — Complete initial setup, verification, and final shutdown
 

@@ -43,12 +43,6 @@ export component VmDetails inherits Rectangle {
         if value != "" {
             if index < 3 && root.values[0] == "" && root.values[1] == "" && root.values[2] == "" {
                 root.values[0] = root.resource-defaults[0]; root.values[1] = root.resource-defaults[1]; root.values[2] = root.resource-defaults[2];
-            } else if index >= 3 && index < 6 && root.values[3] == "" && root.values[4] == "" && root.values[5] == "" {
-                root.values[3] = root.resource-defaults[3]; root.values[4] = root.resource-defaults[4]; root.values[5] = root.resource-defaults[5];
-            } else if index >= 6 && index < 9 && root.values[6] == "" && root.values[7] == "" && root.values[8] == "" {
-                root.values[6] = root.resource-defaults[6]; root.values[7] = root.resource-defaults[7]; root.values[8] = root.resource-defaults[8];
-            } else if index >= 9 && root.values[9] == "" && root.values[10] == "" && root.values[11] == "" {
-                root.values[9] = root.resource-defaults[9]; root.values[10] = root.resource-defaults[10]; root.values[11] = root.resource-defaults[11];
             }
         }
         root.values[index] = value;
@@ -79,6 +73,7 @@ export component VmDetails inherits Rectangle {
                             Label { text: root.memory-label; font-weight: 600; horizontal-alignment: right; }
                         }
                         memory-slider := Slider {
+                            visible: root.memory-minimum != root.memory-maximum;
                             accessible-label: "Requested GPU memory in GB";
                             accessible-value-step: 1;
                             minimum: root.memory-minimum; maximum: root.memory-maximum; step: 1;
@@ -87,6 +82,11 @@ export component VmDetails inherits Rectangle {
                             changed(value) => {
                                 if !root.presenting && round(value) != root.memory-position { root.memory-edited(round(value)); self.value = root.memory-position; }
                             }
+                        }
+                        if root.memory-available && root.memory-minimum == root.memory-maximum : Button {
+                            text: "Use " + root.memory-range-start;
+                            enabled: !Theme.modal-active && root.eligible && !root.recovery;
+                            clicked => { root.memory-edited(root.memory-minimum); }
                         }
                         HorizontalLayout { Hint { text: root.memory-range-start; } Hint { text: root.memory-range-end; horizontal-alignment: right; } }
                         Hint { text: root.memory-hint; }
@@ -114,11 +114,8 @@ export component VmDetails inherits Rectangle {
                 }
                 if root.advanced-expanded : VerticalLayout {
                     spacing: 14px;
-                    Hint { text: "Minimum ≤ Optimal ≤ Maximum. Grey default values are suggestions reported by the selected GPU. Editing an empty group fills its other defaults. Clear all three fields for no explicit write; an existing attachment keeps its current values."; }
+                    Hint { text: "Exact VRAM request for compatibility with saved settings. Minimum ≤ Optimal ≤ Maximum, in native bytes. Grey defaults are suggestions. Editing an empty group fills its other defaults. Clear all three fields for no explicit write. Only the GPU support toggle disables support."; }
                     ResourceEditor { title: "VRAM"; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index, value); } }
-                    ResourceEditor { title: "Compute"; capability-text: root.resource-hints[1]; minimum : root.values[3]; optimal : root.values[4]; maximum : root.values[5]; default-minimum: root.resource-defaults[3]; default-optimal: root.resource-defaults[4]; default-maximum: root.resource-defaults[5]; editable: (root.resource-available[1] || root.values[3] != "" || root.values[4] != "" || root.values[5] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index + 3, value); } }
-                    ResourceEditor { title: "Encode"; capability-text: root.resource-hints[2]; minimum : root.values[6]; optimal : root.values[7]; maximum : root.values[8]; default-minimum: root.resource-defaults[6]; default-optimal: root.resource-defaults[7]; default-maximum: root.resource-defaults[8]; editable: (root.resource-available[2] || root.values[6] != "" || root.values[7] != "" || root.values[8] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index + 6, value); } }
-                    ResourceEditor { title: "Decode"; capability-text: root.resource-hints[3]; minimum : root.values[9]; optimal : root.values[10]; maximum : root.values[11]; default-minimum: root.resource-defaults[9]; default-optimal: root.resource-defaults[10]; default-maximum: root.resource-defaults[11]; editable: (root.resource-available[3] || root.values[9] != "" || root.values[10] != "" || root.values[11] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index + 9, value); } }
                 }
                 if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }
                 HorizontalLayout {
@@ -132,7 +129,7 @@ export component VmDetails inherits Rectangle {
                         Hint { text: "Saved configuration: " + root.desired; }
                         Hint { text: "Graphics: " + root.verification; }
                         Hint { text: root.inventory-details; }
-                        Hint { text: "GPU Memory shows the selected GPU's detected physical capacity as its maximum. Requests use native bytes: 1 GB = 1,000,000,000 bytes. The driver may support a smaller request range; unsupported selections are blocked. Advanced Allocation and saved configuration retain exact values. Physical capacity does not rescale requests or establish reservation or enforcement."; }
+                        Hint { text: "GPU Memory ranges from 1 GB to the selected GPU's detected physical capacity. Requests use native bytes: 1 GB = 1,000,000,000 bytes. The driver may support a smaller request range; unsupported selections are blocked. Advanced Allocation retains exact VRAM triples, including older values below 1 GB. Saved Compute/Encode/Decode requests are preserved for compatibility and appear in review; this GUI does not edit them. Physical capacity does not rescale requests or establish reservation or enforcement."; }
                         Hint { text: "Protected enrollment: " + root.status; }
                         Hint { text: "Observed attachment: " + root.observed; }
                         Hint { text: "Host partition count and Secure Boot: not queried. CPU, RAM and disks are outside this editor."; }
@@ -141,7 +138,7 @@ export component VmDetails inherits Rectangle {
             }
         }
         HorizontalLayout { spacing: 8px;
-            review := Button { enabled: !Theme.modal-active && (root.dirty && root.eligible && !root.recovery && root.validation == ""); text: "Review & Apply"; primary: true;  clicked => { root.action("review"); } }
+            review := Button { enabled: !Theme.modal-active && (root.dirty && root.eligible && !root.recovery && root.validation == ""); text: "Apply"; primary: true;  clicked => { root.action("review"); } }
             Button { enabled: !Theme.modal-active && (root.dirty); text: "Discard draft";  clicked => { root.action("discard"); } }
             Button { enabled: !Theme.modal-active; text: "More actions…"; clicked => { root.action("more"); } }
         }

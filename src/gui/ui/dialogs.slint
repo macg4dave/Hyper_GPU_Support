@@ -87,8 +87,8 @@ export component OperationDialog inherits Rectangle {
                     if root.kind == "enroll-review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
                     if root.kind == "enroll-review" : Button { text: "Allow GPU management"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-enroll"); } }
                     if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
-                    if root.kind == "review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
-                    if root.kind == "review" : Button { text: root.execution-ready ? "Apply approved changes" : "Apply unavailable"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
+                    if root.kind == "review" : Button { text: "Cancel"; clicked => { root.action("close"); } }
+                    if root.kind == "review" : Button { text: root.execution-ready ? "Apply" : "Apply unavailable"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
                     if root.kind == "verify-review" : Button { text: "Verify approved graphics"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
                     if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
                     if root.kind == "recovery" : Button { text: "Reconcile observed outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }

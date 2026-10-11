@@ -9,7 +9,7 @@ pub(super) struct State {
     pub view: View,
     pub pending_selection: Option<String>,
     pub draft_gpu: Option<String>,
-    pub approved_plan: Option<Plan>,
+    pub approved_plan: Option<ReviewedPlan>,
     pub verification_plan: Option<hyper_gpu_support::workflow::VerificationPlan>,
     pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
     /// A draft's original committed revision changed; only discard releases it.
@@ -21,6 +21,13 @@ pub(super) struct State {
     pub enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
     pub enrollment_recovery_revision: Option<hyper_gpu_support::configuration_store::Revision>,
     pub setup_artifacts: Option<std::collections::BTreeMap<String, String>>,
+}
+
+/// The GPU effect review also binds the exact committed intent it was built against.
+#[derive(Clone)]
+pub(super) struct ReviewedPlan {
+    pub plan: Plan,
+    pub revision: hyper_gpu_support::configuration_store::Revision,
 }
 
 impl Default for State {
@@ -48,6 +55,49 @@ impl Default for State {
 }
 
 impl State {
+    pub fn accept_review(
+        &mut self,
+        plan: Plan,
+        current: &Target,
+        revision: hyper_gpu_support::configuration_store::Revision,
+    ) -> Result<(), String> {
+        self.approved_plan = None;
+        self.editor_eligibility(&current.vm_id)?;
+        self.view.eligibility(current)?;
+        if self.view.selected.as_deref() != Some(current.vm_id.as_str())
+            || plan.desired != *current
+            || plan.observed.vm_id != current.vm_id
+            || self.committed.revision(&current.vm_id)? != revision
+        {
+            return Err("The target, draft or saved settings changed while planning. Review again.".into());
+        }
+        self.approved_plan = Some(ReviewedPlan { plan, revision });
+        Ok(())
+    }
+
+    pub fn reviewed_plan(&self, current: &Target) -> Result<ReviewedPlan, String> {
+        self.editor_eligibility(&current.vm_id)?;
+        self.view.eligibility(current)?;
+        let reviewed = self
+            .approved_plan
+            .as_ref()
+            .ok_or("Review the current draft before Apply")?;
+        if self.view.selected.as_deref() != Some(current.vm_id.as_str())
+            || *current != reviewed.plan.desired
+            || self.committed.revision(&current.vm_id)? != reviewed.revision
+        {
+            return Err("The target, draft or saved settings changed after review. Review again.".into());
+        }
+        Ok(reviewed.clone())
+    }
+
+    pub fn cancel_review(&mut self) {
+        self.approved_plan = None;
+        self.enrollment_review = None;
+        self.setup_artifacts = None;
+        self.verification_plan = None;
+    }
+
     /// Native byte requests; physical capacity never rescales provider intent.
     pub fn memory_slider(
         &self,
@@ -75,6 +125,26 @@ impl State {
         let capacity = gpu.physical_vram_bytes.filter(|bytes| *bytes > 0)
             .ok_or("Physical VRAM capacity could not be matched to the selected GPU. Use raw Advanced Allocation within the provider range.")?;
         super::memory::MemorySlider::new(limits, current.as_ref(), capacity)
+    }
+
+    /// Edit only the VRAM request; saved intent and compatibility categories stay intact.
+    pub fn memory_values(
+        &self,
+        id: &str,
+        gpu_index: i32,
+        values: &[String],
+        position: i32,
+    ) -> Result<Vec<String>, String> {
+        self.editor_eligibility(id)?;
+        if values.len() != 12 {
+            return Err("Expected four complete allocation triples".into());
+        }
+        let allocation = self.memory_slider(gpu_index, values)?.select(position)?;
+        let mut edited = values.to_vec();
+        edited[0] = allocation.minimum.to_string();
+        edited[1] = allocation.optimal.to_string();
+        edited[2] = allocation.maximum.to_string();
+        Ok(edited)
     }
 
     /// Compare intent without treating validation, navigation or formatting as edits.
@@ -430,24 +500,55 @@ pub(super) fn review_summary(plan: &Plan) -> String {
             ));
         }
     }
-    lines.push("\nPlanned steps:".into());
-    lines.extend(plan.preview.actions.iter().map(|action| {
-        match action {
-            PreviewAction::Shutdown => "• Gracefully stop the VM.",
-            PreviewAction::Start => "• Start the VM.",
-            PreviewAction::Detach => "• Remove the GPU attachment.",
-            PreviewAction::Prepare => {
-                "• Prepare the guest with the current signed GPU driver files."
+    if let Some(settings) = &plan.preview.settings {
+        for (name, before, after) in [
+            (
+                "Low MMIO (MiB)",
+                settings.before.low_mmio.to_string(),
+                settings.after.low_mmio.to_string(),
+            ),
+            (
+                "High MMIO (MiB)",
+                settings.before.high_mmio.to_string(),
+                settings.after.high_mmio.to_string(),
+            ),
+            (
+                "Guest cache types",
+                settings.before.cache_types.to_string(),
+                settings.after.cache_types.to_string(),
+            ),
+            (
+                "Automatic checkpoints",
+                settings.before.automatic_checkpoints.to_string(),
+                settings.after.automatic_checkpoints.to_string(),
+            ),
+        ] {
+            if before != after {
+                lines.push(format!("{name}: {before} → {after}"));
             }
-            PreviewAction::Settings => "• Update or restore GPU compatibility settings.",
-            PreviewAction::Attach => "• Attach the selected physical GPU.",
-            PreviewAction::Allocation => "• Set the GPU resources shown above.",
-            PreviewAction::Verify => "• Check guest graphics health and hardware rendering.",
         }
-        .to_owned()
+    }
+    lines.push("\nPlanned steps, in order:".into());
+    if plan.preview.actions.is_empty() {
+        lines.push("No VM or guest changes are needed. Save the reviewed intent.".into());
+    }
+    lines.extend(plan.preview.actions.iter().enumerate().map(|(index, action)| {
+        let step = match action {
+            PreviewAction::Shutdown => "Gracefully stop the VM.",
+            PreviewAction::Start => "Start the VM.",
+            PreviewAction::Detach => "Remove the GPU attachment.",
+            PreviewAction::Prepare => {
+                "Prepare the guest with the current signed GPU driver files."
+            }
+            PreviewAction::Settings => "Update or restore GPU compatibility settings.",
+            PreviewAction::Attach => "Attach the selected physical GPU.",
+            PreviewAction::Allocation => "Set the GPU resources shown above.",
+            PreviewAction::Verify => "Check guest graphics health and hardware rendering.",
+        };
+        format!("{}. {step}", index + 1)
     }));
     lines.push(format!(
-        "\nFinal VM power: {}.",
+        "\nExpected final VM power after successful completion: {}.",
         match plan.preview.restore_power {
             hyper_gpu_support::model::Power::Running => "Running",
             hyper_gpu_support::model::Power::Off => "Stopped",
@@ -455,7 +556,21 @@ pub(super) fn review_summary(plan: &Plan) -> String {
         }
     ));
     if plan.preview.guest_downtime {
-        lines.push("The running VM will be interrupted. Approval below is required.".into());
+        lines.push("The running VM will be interrupted. Save work inside it before Apply. Approval below is required.".into());
+    }
+    if plan.preview.actions.contains(&PreviewAction::Prepare) {
+        lines.push("Driver preparation and file transfer can take several minutes.".into());
+    }
+    if plan.preview.actions.contains(&PreviewAction::Start)
+        || plan.preview.actions.contains(&PreviewAction::Shutdown)
+    {
+        lines.push("Allow time for Windows to start or shut down gracefully. Shutdown refusal stops further changes.".into());
+    }
+    if plan.preview.actions.contains(&PreviewAction::Verify) {
+        lines.push("The graphics check may take additional time and requires Windows credentials inside this VM.".into());
+    }
+    if !plan.preview.actions.is_empty() {
+        lines.push("Completion time varies; no exact duration is promised. Keep the application open until it reports an outcome.".into());
     }
     if plan.preview.settings_preserved {
         lines.push("Externally changed compatibility settings will be preserved.".into());
@@ -585,7 +700,7 @@ mod tests {
         s.view.inventory.as_mut().unwrap().discovery.gpus[0].total_vram = Some(8_000_000_000);
         let mut raw = values("2000000000", "4000000000", "6000000000");
         let selected = s.memory_slider(0, &raw).unwrap().select(55).unwrap();
-        raw[1] = selected.optimal.to_string();
+        raw = s.memory_values(id(&s), 0, &raw, 55).unwrap();
         let draft = s.draft(id(&s), true, 0, &raw).unwrap();
         assert_eq!(draft.vram, Some(selected));
         assert!(s.draft_changed(
@@ -612,11 +727,88 @@ mod tests {
         second.physical_vram_bytes = Some(16_000_000_000);
         gpus.push(second);
         let raw = vec![String::new(); 12];
+        assert_eq!(s.memory_slider(0, &raw).unwrap().range_start, "1 GB");
+        assert_eq!(s.memory_slider(1, &raw).unwrap().range_start, "1 GB");
         assert_eq!(s.memory_slider(0, &raw).unwrap().maximum, 80);
         assert_eq!(s.memory_slider(1, &raw).unwrap().maximum, 160);
         assert!(s.memory_slider(1, &raw).unwrap().select(20).is_err());
         s.view.inventory.as_mut().unwrap().discovery.gpus[1].physical_vram_bytes = None;
         assert!(s.memory_slider(1, &raw).is_err());
+        s.view.inventory.as_mut().unwrap().discovery.gpus[1].physical_vram_bytes = Some(0);
+        assert!(s.memory_slider(1, &raw).is_err());
+    }
+
+    #[test]
+    fn memory_edits_preserve_saved_schemas_other_categories_and_other_vms() {
+        for schema in [2, 3] {
+            let mut s = state();
+            let vm_id = id(&s).to_owned();
+            let gpu = &mut s.view.inventory.as_mut().unwrap().discovery.gpus[0];
+            gpu.vram = Allocation {
+                minimum: 0,
+                optimal: 4_000_000_000,
+                maximum: 8_000_000_000,
+            }
+            .into();
+            gpu.physical_vram_bytes = Some(8_000_000_000);
+            let compatible = Allocation {
+                minimum: 10,
+                optimal: 50,
+                maximum: 100,
+            };
+            gpu.compute = compatible.clone().into();
+            gpu.encode = compatible.clone().into();
+            gpu.decode = compatible.clone().into();
+            let mut saved = s.target(&vm_id).unwrap();
+            saved.vram = Some(Allocation {
+                minimum: 0,
+                optimal: 0,
+                maximum: 0,
+            });
+            if schema == 3 {
+                saved.compute = Some(compatible.clone());
+                saved.encode = Some(compatible.clone());
+                saved.decode = Some(compatible);
+            }
+            let mut other = saved.clone();
+            other.vm_id = "87654321-4321-4321-4321-cba987654321".into();
+            let configuration = Configuration {
+                schema,
+                targets: vec![saved.clone(), other.clone()],
+            };
+            let mut store = hyper_gpu_support::configuration_store::StoreSnapshot::default();
+            for (filename, source) in configuration.vm_documents().unwrap() {
+                store.insert(&filename, Ok(source));
+            }
+            s.load_committed(store).unwrap();
+            let source = s.committed.documents[&vm_id].source.clone();
+            let original = allocation_values(&saved);
+            assert_eq!(s.memory_slider(0, &original).unwrap().label, "0 GB");
+            assert!(s.memory_values(&vm_id, 0, &original, 9).is_err());
+            let edited = s.memory_values(&vm_id, 0, &original, 10).unwrap();
+            assert_eq!(&edited[3..], &original[3..]);
+            let enabled = s.draft(&vm_id, true, 0, &edited).unwrap();
+            assert!(enabled.enabled);
+            assert_eq!(enabled.vram.as_ref().unwrap().optimal, 1_000_000_000);
+            assert_eq!(enabled.compute, saved.compute);
+            assert_eq!(enabled.encode, saved.encode);
+            assert_eq!(enabled.decode, saved.decode);
+            // A zero or omitted request does not disable GPU support.
+            assert!(s.draft(&vm_id, true, 0, &original).unwrap().enabled);
+            assert!(
+                s.draft(&vm_id, true, 0, &vec![String::new(); 12])
+                    .unwrap()
+                    .enabled
+            );
+            assert!(!s.draft(&vm_id, false, 0, &edited).unwrap().enabled);
+            assert_eq!(s.target(&vm_id).unwrap(), saved);
+            assert_eq!(s.committed.documents[&vm_id].source, source);
+            assert_eq!(s.committed.documents[&other.vm_id].target, other);
+            assert_eq!(s.view.vm(&vm_id).unwrap().power, Power::Off);
+            assert!(s.view.vm(&vm_id).unwrap().gpus.is_empty());
+            s.view.needs_readback = true;
+            assert!(s.memory_values(&vm_id, 0, &original, 10).is_err());
+        }
     }
 
     #[test]
@@ -1027,14 +1219,13 @@ mod tests {
         assert!(!error.contains("private-parser-secret"));
     }
 
-    #[test]
-    fn review_distinguishes_requested_triples_and_no_write_semantics() {
+    fn review_plan() -> Plan {
         use hyper_gpu_support::workflow::EffectPreview;
         let s = state();
         let target = s
             .draft(id(&s), true, 0, &values("10", "50", "100"))
             .unwrap();
-        let mut plan = Plan {
+        Plan {
             desired: target.clone(),
             observed: s.view.vm(id(&s)).unwrap().clone(),
             managed: None,
@@ -1055,7 +1246,12 @@ mod tests {
             },
             allocation_units: "provider-defined".into(),
             automatic_guest_restart: false,
-        };
+        }
+    }
+
+    #[test]
+    fn review_distinguishes_requested_triples_and_no_write_semantics() {
+        let mut plan = review_plan();
         let first = review_text(&plan);
         let summary = review_summary(&plan);
         assert!(summary.contains("GPU support: Disabled → Enabled"));
@@ -1074,5 +1270,123 @@ mod tests {
         assert!(review_text(&plan).contains("No allocation write planned"));
         plan.desired.vram = None;
         assert!(review_text(&plan).contains("Unspecified; no explicit VRAM request"));
+    }
+
+    #[test]
+    fn review_binds_target_draft_and_exact_saved_revision() {
+        use hyper_gpu_support::configuration_store::{Revision, SavedDocument};
+        let mut s = state();
+        let plan = review_plan();
+        let target = plan.desired.clone();
+        let revision = s.committed.revision(&target.vm_id).unwrap();
+        s.accept_review(plan.clone(), &target, revision.clone())
+            .unwrap();
+        assert_eq!(s.reviewed_plan(&target).unwrap().revision, revision);
+
+        let mut edited = target.clone();
+        edited.enabled = false;
+        assert!(s.reviewed_plan(&edited).is_err());
+        edited = target.clone();
+        edited.vram.as_mut().unwrap().optimal += 1;
+        assert!(s.reviewed_plan(&edited).is_err());
+        s.view.selected = Some("another-vm".into());
+        assert!(s.reviewed_plan(&target).is_err());
+        assert!(
+            s.accept_review(plan.clone(), &target, revision.clone())
+                .is_err()
+        );
+        s.view.selected = Some(target.vm_id.clone());
+        s.accept_review(plan.clone(), &target, revision.clone())
+            .unwrap();
+        s.committed.documents.insert(
+            target.vm_id.clone(),
+            SavedDocument {
+                target: target.clone(),
+                source: "externally changed bytes".into(),
+                revision: Revision::of(b"externally changed bytes"),
+            },
+        );
+        assert!(s.reviewed_plan(&target).is_err());
+        assert!(s.accept_review(plan, &target, revision).is_err());
+        assert!(s.approved_plan.is_none());
+    }
+
+    #[test]
+    fn late_plan_reply_cannot_approve_an_edited_draft_or_different_observed_vm() {
+        let mut s = state();
+        let mut plan = review_plan();
+        let target = plan.desired.clone();
+        let revision = s.committed.revision(&target.vm_id).unwrap();
+        let mut edited = target.clone();
+        edited.enabled = false;
+        assert!(
+            s.accept_review(plan.clone(), &edited, revision.clone())
+                .is_err()
+        );
+        assert!(s.approved_plan.is_none());
+        plan.observed.vm_id = "another-vm".into();
+        assert!(s.accept_review(plan, &target, revision).is_err());
+        assert!(s.approved_plan.is_none());
+    }
+
+    #[test]
+    fn cancel_returns_to_draft_and_refresh_requires_new_review() {
+        let mut s = state();
+        let plan = review_plan();
+        let target = plan.desired.clone();
+        s.view.draft = Some(target.clone());
+        let revision = s.committed.revision(&target.vm_id).unwrap();
+        s.accept_review(plan.clone(), &target, revision.clone())
+            .unwrap();
+        s.cancel_review();
+        assert_eq!(s.view.draft.as_ref(), Some(&target));
+        assert!(s.reviewed_plan(&target).is_err());
+        s.accept_review(plan, &target, revision).unwrap();
+        s.sync_recovery(None, None, None).unwrap();
+        assert!(s.reviewed_plan(&target).is_err());
+        assert_eq!(s.view.draft.as_ref(), Some(&target));
+    }
+
+    #[test]
+    fn review_reports_ordered_power_steps_changed_settings_and_time_warnings() {
+        use hyper_gpu_support::workflow::{PreviewAction, SettingsPreview};
+        let mut plan = review_plan();
+        plan.observed.power = Power::Running;
+        plan.preview.guest_downtime = true;
+        plan.preview.restore_power = Power::Running;
+        plan.preview.actions = vec![
+            PreviewAction::Shutdown,
+            PreviewAction::Start,
+            PreviewAction::Prepare,
+            PreviewAction::Shutdown,
+            PreviewAction::Settings,
+            PreviewAction::Attach,
+            PreviewAction::Start,
+            PreviewAction::Verify,
+        ];
+        let before = plan.observed.settings.clone();
+        let mut after = before.clone();
+        after.high_mmio = 32768;
+        plan.preview.settings = Some(SettingsPreview { before, after });
+        let summary = review_summary(&plan);
+        assert!(summary.contains("VM: Renamable VM"));
+        assert!(summary.contains("1. Gracefully stop the VM."));
+        assert!(summary.contains("2. Start the VM."));
+        assert!(summary.contains("4. Gracefully stop the VM."));
+        assert!(summary.contains("Expected final VM power after successful completion: Running."));
+        assert!(summary.contains("High MMIO (MiB): 0 → 32768"));
+        assert!(!summary.contains("Low MMIO (MiB)"));
+        assert!(summary.contains("Save work inside it"));
+        assert!(summary.contains("several minutes"));
+        assert!(summary.contains("Shutdown refusal"));
+        assert!(summary.contains("graphics check may take additional time"));
+        plan.preview.actions.clear();
+        plan.preview.guest_downtime = false;
+        plan.preview.settings = None;
+        let summary = review_summary(&plan);
+        assert!(summary.contains("No VM or guest changes are needed"));
+        assert!(!summary.contains("several minutes"));
+        assert!(!summary.contains("Save work inside it"));
+        assert!(!summary.contains("graphics check may take additional time"));
     }
 }
