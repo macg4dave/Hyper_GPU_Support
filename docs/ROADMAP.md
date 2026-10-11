@@ -1,38 +1,42 @@
-# First-release roadmap
+# Product roadmap
 
-This document owns release requirements and milestone gates. [Backlog](BACKLOG.md) owns task order and status; [baseline](BASELINE.md) records source findings. A milestone closes only when its implementation and relevant validation criteria are satisfied. Finishing one task does not close a milestone.
+This page owns product scope and milestone gates. [Backlog](BACKLOG.md) owns the work queue; [baseline](BASELINE.md) records the gap between current source and the requested behavior. This plan replaces the previous roadmap following the user Q&A on 11 October 2026.
 
-## Release target
+## Product
 
-A usable GUI for existing Generation 2 Windows 11 VMs sharing an NVIDIA GPU. At least two guests must run hardware-rendered workloads concurrently. The existing Slint design and shared Rust backend remain the foundation. Exact Windows versions are selected before qualification; the user's current NVIDIA hardware is the initial target, not a claim of support for every NVIDIA GPU.
+A simple GUI for enabling or disabling GPU support on supported existing Hyper-V VMs and selecting their GPU VRAM amount. Hyper-V remains responsible for creating VMs, general VM management, and system RAM.
 
-| Requirement | Acceptance | Owning tasks |
+Keep the existing Slint design and shared Rust backend. The initial target is NVIDIA hardware and existing Generation 2 Windows 11 guests, including at least two guests using one GPU concurrently. Exact supported host, guest, GPU, and driver versions are established through qualification.
+
+## Required behavior
+
+| Requirement | User-visible result | Tasks |
 |---|---|---|
-| R1: setup and pairing | A complete package enables reviewed setup and additive enrollment of two existing VMs without replacing the first VM's authority | V1-006, V1-015, V1-016 |
-| R2: independent GPU control | Enable, disable, and Reapply/Update operate on the selected VM; another enrolled/rendering VM keeps working | V1-007, V1-014, V1-015 |
-| R3: saved settings and truthful state | Saved intent survives reopen; drafts, observed attachment, verification, and enrollment stay distinct; external changes block stale approval | V1-008, V1-009, V1-015 |
-| R4: hardware verification and sharing | Both guests identify the selected hardware and produce checked hardware-rendered results during an overlapping workload interval | V1-007, V1-014, V1-015 |
-| R5: safe failure and recovery | Uncertain work blocks new effects; readback/reconciliation resolves only established outcomes; save-only retry does not replay GPU work | V1-010, V1-011, V1-012, V1-013, V1-015 |
-| R6: usable release | Existing GUI remains responsive and understandable; a reproducible gate, complete package, support statement, and troubleshooting instructions are available | V1-002, V1-005, V1-009, V1-013, V1-016, V1-017 |
+| R1: simple controls | GPU on/off toggle and VRAM range from 1 GB to the selected card's physical capacity; range changes with the card | APP-002 |
+| R2: reviewed changes | Edits stay pending. Apply opens a panel naming the VM, actual changes, power transitions, and relevant time warnings. A second Apply confirms | APP-003 |
+| R3: initial setup | App prepares GPU support, manages required starts/shutdowns, verifies it works in that VM, reports pass/fail, then leaves the VM off after completed setup | APP-004 |
+| R4: clear credentials | Before a local prompt, explain which VM needs its Windows credentials and clearly distinguish them from host credentials; remembering is optional | APP-005 |
+| R5: ordinary changes | Later toggle/VRAM changes use review and Apply without repeating full setup or initial rendering verification; report the real operation result | APP-006 |
+| R6: useful, reliable product | Saved settings and current state remain truthful; selected-VM changes preserve other VMs; failures retain recovery; the package and instructions work on the qualified environment | APP-007, APP-008, APP-009, APP-010 |
 
-Resource isolation, fairness, non-NVIDIA preparation, Linux guests, VM creation, GPU replacement, pairing removal, and GUI import/export are outside first-release acceptance. Current unsupported controls stay unavailable. Future work requires a new agreed requirement.
+The VRAM control is a requested amount. Its displayed range alone does not establish reservation or enforced isolation. Do not invent provider mapping to make the slider appear functional. No automatic balancing, full-capacity warning policy, or additional allocation rules are required now.
+
+VM creation, general VM controls, guest system RAM, new advanced Compute/Encode/Decode workflows, broad hardware support, and other management features are outside this delivery. Existing extra source paths do not automatically become release requirements.
+
+Legacy mock/snapshot GUI tooling is retired and removed from source through APP-001; validation is pending. Do not use it for previews or maintain its scenarios.
 
 ## Milestones
 
-| Milestone | Work | Completion gate |
-|---|---|---|
-| B1: trustworthy baseline | Fresh guidance, reproducible non-hardware gate, qualification environment selection, accurate help/source comments | Documentation checks pass; exact environment proposal is recorded; baseline automated gate runs successfully and its limits are recorded |
-| G1: complete GUI workflow | Existing setup/enrollment, review/apply/verify, saved settings, drafts, and allocation presentation | Relevant automated checks pass at milestone completion; explicit mock preview confirms appearance/interactions; live correctness remains a separate qualification claim |
-| S1: reliable operations and recovery | Trust/IPC review, interruption and save-failure coverage, bounded transport/progress diagnostics | Non-hardware failure scenarios and gate pass; unresolved security/recovery findings block qualification; live containment claims remain unproven until authorized tests |
-| Q1: concurrent sharing qualification | Reviewed two-VM tooling and authorized NVIDIA/Windows guest trials | R1-R5 pass on the recorded environment, including independent operation while the other guest renders; evidence records stable terminal outcomes and no observed host lockup during the defined runs |
-| P1: release readiness | Package, notices, clean setup/upgrade checks, final support and troubleshooting documentation | Package hashes and required files are checked; final automated gate and separately authorized package trials pass; R1-R6 have evidence and all release blockers are resolved |
+| Milestone | Completion gate |
+|---|---|
+| M1: implement the agreed workflow | APP-001 through APP-007 are implemented; APP-008 runs the appropriate non-hardware checks at this milestone's completion and records their outcomes |
+| M2: validate on real VMs | APP-009 passes the separately authorized setup, toggle, VRAM, lifecycle, and concurrent-sharing scenarios on the recorded environment; relevant live GUI interactions are checked |
+| M3: deliver a usable package | APP-010 produces a complete package and accurate instructions; final automated checks and separately authorized installation trials pass |
 
-Delivery order is B1 → G1 → S1 → Q1 → P1. Each milestone has its own gate; validation is normally deferred until that milestone is ready to close. Packaging work may be prepared earlier when needed for setup trials, without claiming P1 completion.
+Implementation and validation are recorded separately. No milestone is closed by this documentation rewrite. Do not run builds or tests after individual tasks unless explicitly requested. Mock GUI checks are not part of any gate.
 
 ## Current position
 
-The documentation reset (V1-001) is complete with static documentation validation only. B1 remains open; its product gate has not run in this reset. All later milestones remain open. Existing implemented code reduces the amount of new implementation needed, but is not carried forward as completed milestone evidence.
+The product requirements above are confirmed through the Q&A. The source has substantial existing functionality, but requires targeted changes to match this workflow. APP-001 source removal is implemented with validation pending; APP-002 (R1 controls) is the next implementation task. No build, test, application launch, guest operation, or hardware qualification ran during this rewrite.
 
-## Release evidence
-
-[Testing](TESTING.md) defines evidence and scenarios. Qualification establishes the recorded hardware/software/workload combination and observation interval; it cannot establish universal stability or resource enforcement. Failed or interrupted runs retain their evidence and require an explicit next action rather than automatic retry.
+Normal later-operation final power behavior still needs a precise policy: automatic required shutdown/restart is agreed, while the explicit final-off decision applies to completed initial setup. Record that policy in APP-006 before changing the lifecycle implementation.

@@ -2,13 +2,13 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 mod gui;
 use std::process::ExitCode;
-const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n\nOptions:\n  --config FILE   Runtime TOML schema 2 or 3 (required except inventory/help/version)\n  --vm GUID       Select one target from the configuration\n  --help          Show this help\n  --version       Show version\n\nGUI: hyper-gpu-support (live inventory; unconnected actions unavailable)\n     hyper-gpu-support --mock-gui (no-write simulated workflow)\nResource values are raw provider units, without proven enforcement guarantees.\n";
+const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n\nOptions:\n  --config FILE   Runtime TOML schema 2 or 3 (required except inventory/help/version)\n  --vm GUID       Select one target from the configuration\n  --help          Show this help\n  --version       Show version\n\nGUI: hyper-gpu-support (live inventory; unconnected actions unavailable)\nResource values are raw provider units, without proven enforcement guarantees.\n";
 fn main() -> ExitCode {
     #[cfg(windows)]
     {
         let first = std::env::args().nth(1);
         if first.as_deref().is_some_and(|arg| {
-            arg != "--mock-gui" && arg != "--internal-worker" && arg != "--internal-setup"
+            arg != "--internal-worker" && arg != "--internal-setup"
         }) {
             hyper_gpu_support::console::attach_parent();
         }
@@ -25,29 +25,10 @@ fn main() -> ExitCode {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum GuiMode {
-    Live,
-    Fixtures,
-    Snapshot(std::path::PathBuf),
-    SnapshotConfiguration(std::path::PathBuf, std::path::PathBuf),
-}
-
-fn gui_mode(args: &[String]) -> Result<Option<GuiMode>, String> {
-    match args {
-        [] => Ok(Some(GuiMode::Live)),
-        [flag] if flag == "--mock-gui" => Ok(Some(GuiMode::Fixtures)),
-        [flag, option, path] if flag == "--mock-gui" && option == "--snapshot" && !path.is_empty() => {
-            Ok(Some(GuiMode::Snapshot(path.as_str().into())))
-        }
-        [flag, option, path, config, candidate] if flag == "--mock-gui" && option == "--snapshot" && config == "--config" && !path.is_empty() && !candidate.is_empty() => {
-            Ok(Some(GuiMode::SnapshotConfiguration(path.as_str().into(), candidate.as_str().into())))
-        }
-        [flag, ..] if flag == "--mock-gui" => Err(
-            "Use --mock-gui for fixtures, or --mock-gui --snapshot FILE [--config GUID.toml] for historical rehearsal".into(),
-        ),
-        _ => Ok(None),
-    }
+/// Only an argument-free launch enters the live GUI. Explicit commands and
+/// unknown flags stay on the CLI path and cannot trigger GUI startup/elevation.
+fn starts_gui(args: &[String]) -> bool {
+    args.is_empty()
 }
 
 fn run() -> Result<(), String> {
@@ -72,21 +53,11 @@ fn run() -> Result<(), String> {
             _ => Err("invalid restricted worker mode".into()),
         };
     }
-    if let Some(mode) = gui_mode(&args)? {
-        return match mode {
-            GuiMode::Live => gui::run(false),
-            GuiMode::Fixtures => gui::run(true),
-            GuiMode::Snapshot(path) => gui::run_snapshot(path, None),
-            GuiMode::SnapshotConfiguration(path, configuration) => {
-                gui::run_snapshot(path, Some(configuration))
-            }
-        }
-        .map_err(|error| error.to_string());
+    if starts_gui(&args) {
+        return gui::run().map_err(|error| error.to_string());
     }
     if matches!(args.as_slice(),[v]if v=="--help"||v=="-h") {
-        print!(
-            "{HELP}\nSnapshot rehearsal: --mock-gui --snapshot FILE [--config GUID.toml]\n  Read historical inventory and an optional per-VM candidate file; no backend effects or writes.\n  Enabled plan rehearsal requires a plans array of shared CLI plan JSON in the snapshot.\n"
-        );
+        print!("{HELP}");
         return Ok(());
     }
     if matches!(args.as_slice(),[v]if v=="--version"||v=="-V") {
@@ -393,49 +364,22 @@ mod dispatch_tests {
     }
 
     #[test]
-    fn snapshot_rehearsal_requires_explicit_input_and_does_not_change_cli_dispatch() {
-        assert_eq!(gui_mode(&[]).unwrap(), Some(GuiMode::Live));
-        assert_eq!(
-            gui_mode(&args(&["--mock-gui"])).unwrap(),
-            Some(GuiMode::Fixtures)
-        );
-        assert_eq!(
-            gui_mode(&args(&[
-                "--mock-gui",
-                "--snapshot",
-                "recorded inventory.json"
-            ]))
-            .unwrap(),
-            Some(GuiMode::Snapshot("recorded inventory.json".into()))
-        );
-        for values in [
-            vec!["--mock-gui", "--snapshot"],
-            vec!["--mock-gui", "--snapshot", ""],
-            vec!["--mock-gui", "--config", "intent.toml"],
-            vec!["--mock-gui", "--snapshot", "inventory.json", "--vm", "id"],
-        ] {
-            assert!(gui_mode(&args(&values)).is_err());
-        }
-        assert_eq!(
-            gui_mode(&args(&[
-                "--mock-gui",
-                "--snapshot",
-                "capture.json",
-                "--config",
-                "vm.toml"
-            ]))
-            .unwrap(),
-            Some(GuiMode::SnapshotConfiguration(
-                "capture.json".into(),
-                "vm.toml".into()
-            ))
-        );
+    fn only_argument_free_startup_selects_live_gui() {
+        assert!(starts_gui(&[]));
         for values in [
             vec!["inventory"],
             vec!["--help"],
+            vec!["--version"],
             vec!["status", "--config", "intent.toml"],
+            vec!["--internal-worker", "session", "123"],
+            vec!["--internal-setup", "session", "123"],
+            vec!["--mock-gui"],
+            vec!["--mock-gui", "--snapshot", "capture.json"],
+            vec!["--snapshot", "capture.json"],
         ] {
-            assert_eq!(gui_mode(&args(&values)).unwrap(), None);
+            assert!(!starts_gui(&args(&values)), "unexpected GUI dispatch: {values:?}");
         }
+        assert!(!HELP.contains("--mock-gui"));
+        assert!(!HELP.contains("--snapshot"));
     }
 }

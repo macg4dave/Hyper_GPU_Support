@@ -227,7 +227,7 @@ pub fn operator_error(stage: &str, error: &str) -> String {
         ("--approve-shutdown", "Guest lifecycle consent is required. Review the plan, then supply --approve-shutdown to approve graceful shutdown and restoration."),
         ("shutdown was not separately approved", "Guest lifecycle consent is required. Review and approve graceful guest shutdown and restoration before effects."),
         ("shutdown were not approved", "Guest lifecycle consent is required. Review and approve temporary guest startup, graceful shutdown and restoration before effects."),
-        ("changed externally", "Configuration or snapshot changed externally. Keep the draft; resolve the conflict, discard if appropriate, and refresh."),
+        ("changed externally", "Configuration changed externally. Keep the draft; resolve the conflict, discard if appropriate, and refresh."),
         ("save-only", "Inspect the recorded recovery phase. Use save-only only for verified effects; reconcile uncertain effects before another operation."),
         ("publication incomplete", "Publication is incomplete. Retain the receipt and retry saving only; do not repeat GPU effects."),
         ("worker elevation refused", "Windows elevation was refused or unavailable. Check UAC consent and the protected installation; inspect recovery before retrying."),

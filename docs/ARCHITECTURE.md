@@ -6,7 +6,7 @@ This page owns component and data-flow boundaries. [Baseline](BASELINE.md) owns 
 
 | Layer | Responsibility | Source |
 |---|---|---|
-| Frontend dispatch | Select GUI, explicit mock/snapshot, CLI, or fixed internal modes | [main](../src/main.rs) |
+| Frontend dispatch | Select the live GUI for argument-free startup, CLI for explicit commands, or fixed internal modes; retired simulation entrypoints removed under APP-001 | [main](../src/main.rs) |
 | Slint presentation | Existing dashboard, VM details, System, Settings, About, dialogs, resource controls | [UI root](../src/gui/ui/app.slint), [GUI host](../src/gui/mod.rs) |
 | Live controller/state | Asynchronous reads, draft/review state, progress, callbacks, model updates | [live](../src/gui/live.rs), [live state](../src/gui/live_state.rs), [GUI model](../src/gui_model.rs) |
 | Shared product model/workflow | Typed intent/observations, planning, lifecycle, selected-target effect decisions | [model](../src/model.rs), [workflow](../src/workflow.rs) |
@@ -40,12 +40,12 @@ Stable VM GUIDs and exact GPU interfaces identify targets. Display names are pre
 2. A missing installation/pair leads to separate package/enrollment review. Setup/enrollment establishes authority without applying GPU intent.
 3. Review asks the shared planner for selected-target actions and required downtime/credentials. This can authenticate/hash driver payloads and should not be treated as a cheap polling operation.
 4. Confirmation submits the reviewed operation to a fixed elevated worker. The worker authenticates the session, acquires the lock, validates current enrollment/revisions, and recomputes approved facts.
-5. Durable admission precedes effects. The shared workflow uses native host adapters and the guest bridge, then independently reads effective state and graphics results.
+5. Durable admission precedes effects. The shared workflow uses native host adapters and the guest bridge, then independently reads effective state. The requested workflow adds graphics verification during initial setup only; current source must be adapted under APP-004/APP-006.
 6. Successful effects and configuration publication remain separate phases. Publication failure leaves a bound save-only path; uncertainty leaves an explicit reconciliation path.
 7. The frontend receives bounded progress/outcome information and refreshes independent state. A missing terminal message does not authorize replay.
 
 ## UI and platform constraints
 
-Blocking discovery, payload work, and effects belong off the Slint event thread. UI updates return through event-loop callbacks; preserve stable selection, drafts, and editor focus when updating models. Installed status polling does inventory reads only. First-install elevation and snapshot rereads are not timer side effects.
+Blocking discovery, payload work, and effects belong off the Slint event thread. UI updates return through event-loop callbacks; preserve stable selection, drafts, and editor focus when updating models. Installed status polling does inventory reads only. First-install elevation is not a timer side effect.
 
 Rust is the product implementation. PowerShell Direct remains the current guest transport bridge; replacing it requires its own scoped work. The deleted laboratory/reset tooling is not a product dependency. Non-Windows code paths do not establish Hyper-V support.

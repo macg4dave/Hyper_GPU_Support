@@ -11,11 +11,11 @@ This page owns product authority/trust boundaries and recovery semantics. [AGENT
 - Installed artifacts are hash-bound to enrollment. Driver payload trust uses Windows signatures/catalog membership and per-file integrity; the mere presence of a catalog is insufficient.
 - Effects revalidate fresh enrollment, target identity, provider limits, power, conflicts, driver/payload identity, and the reviewed plan under the protected operation lock. Never execute an old approved plan merely because its displayed summary has not changed.
 
-The relevant implementations are [runner](../src/runner.rs), [worker](../src/worker.rs), [setup](../src/setup.rs), [session pipes](../src/windows_pipe/session.rs), [security](../src/security.rs), and [trust](../src/trust.rs). V1-010 reviews these together and identifies missing negative coverage.
+The relevant implementations are [runner](../src/runner.rs), [worker](../src/worker.rs), [setup](../src/setup.rs), [session pipes](../src/windows_pipe/session.rs), [security](../src/security.rs), and [trust](../src/trust.rs). APP-007 audits concrete trust/recovery gaps in the agreed workflow; APP-008 validates meaningful failure coverage.
 
 ## Credentials and diagnostics
 
-Credentials are obtained locally, retained only through explicit Windows Credential Manager opt-in, and kept out of desired configuration, journals, audits, public reports, and persistent recovery. A credentials settings action does not establish guest connectivity or graphics health. Credential deletion does not revoke pairing.
+Credentials are obtained locally, retained only through explicit Windows Credential Manager opt-in, and kept out of desired configuration, journals, audits, public reports, and persistent recovery. Before the prompt, name the selected VM and clearly explain that its Windows credentials are needed, not the host computer's credentials. A credentials settings action does not establish guest connectivity or graphics health. Credential deletion does not revoke pairing.
 
 Treat adapter error text as untrusted and potentially secret-bearing. Public outcomes use bounded application-owned failure context. Preserve component/stage/numeric-code evidence where safe rather than copy arbitrary stderr into UI/audit output. Diagnostic tracing is opt-in through trusted fixed product paths; local qualification records must exclude secrets.
 

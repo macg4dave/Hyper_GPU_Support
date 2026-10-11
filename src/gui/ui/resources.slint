@@ -60,18 +60,16 @@ component AllocationField inherits Rectangle {
 }
 
 export component ResourceEditor inherits Surface {
-    in property <bool> mock-mode: true;
     in property <string> title;
-    in property <string> units: "Mock provider units";
     in property <string> capability-text: "Raw provider capability unknown; editing unavailable";
-    in property <string> minimum: "100";
-    in property <string> optimal: "500";
-    in property <string> maximum: "1000";
+    in property <string> minimum;
+    in property <string> optimal;
+    in property <string> maximum;
     in property <string> default-minimum;
     in property <string> default-optimal;
     in property <string> default-maximum;
     in-out property <bool> expanded: true;
-    in property <bool> editable: true;
+    in property <bool> editable: false;
     callback edited(int, string);
     VerticalLayout {
         padding: 14px; spacing: 10px;
@@ -81,7 +79,7 @@ export component ResourceEditor inherits Surface {
         }
         if root.expanded : VerticalLayout {
             spacing: 7px;
-            Hint { text: root.mock-mode ? root.units + " · illustrative bounds 0–1000; no hardware guarantees" : root.capability-text; }
+            Hint { text: root.capability-text; }
             HorizontalLayout {
                 spacing: 12px;
                 AllocationField { label: "Minimum"; value: root.minimum; default-value: root.default-minimum; editable: root.editable; edited(value) => { root.edited(0, value); } }

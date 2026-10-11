@@ -34,6 +34,7 @@ Evidence for a gate/run records revision and working-tree context, exact command
 |---|---|
 | [README](../README.md) | Product overview and navigation |
 | [AGENTS.md](../AGENTS.md) | Codex behavior and authorization |
+| [Rust guidance](../.github/prompts/rust.prompt.md), [Slint guidance](../.github/prompts/slint.prompt.md) | Focused coding practices, loaded for applicable source work |
 | [Roadmap](ROADMAP.md) | Release requirements, sequence, milestone gates |
 | [Backlog](BACKLOG.md) | Task IDs, dependencies, implementation/validation status, next action |
 | [Baseline](BASELINE.md) | Source inventory, discrepancies, assessment limits |
@@ -43,9 +44,11 @@ Evidence for a gate/run records revision and working-tree context, exact command
 | [Security](SECURITY.md) | Authority, trust, recovery semantics |
 | [Testing](TESTING.md) | Validation timing, planned gate, acceptance scenarios |
 | [Decisions](DECISIONS.md) | Agreed choices, rationale, consequences |
-| `.github/prompts/*.prompt.md` | Task entrypoints that reference the authorities above |
+| `.github/prompts/*.prompt.md` | Focused task/coding guidance routed by AGENTS.md; no duplicated product requirements |
 
 Change the authoritative page, then update links/summaries that need it. Source behavior outranks stale descriptions; current user decisions outrank historical plans. Keep machine-specific values in explicit local configuration/evidence and general policy in the handbook. Old task IDs remain context only; new IDs are stable once assigned.
+
+The root agent file routes Codex to only the applicable specialist/task guidance. Supporting prompt files are read through that explicit routing; their filenames are not an automatic Codex loading mechanism. Keep operational guidance concise and product requirements in their owning pages.
 
 ## Tooling and change hygiene
 

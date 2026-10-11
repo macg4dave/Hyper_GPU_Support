@@ -13,9 +13,6 @@ pub(crate) fn enabled() -> Result<bool, String> {
 }
 fn logger() -> Result<Option<&'static Mutex<File>>, String> {
     LOG.get_or_init(|| {
-        if std::env::args().any(|a| a == "--mock-gui") {
-            return Ok(None);
-        }
         let executable = std::env::current_exe().map_err(|e| e.to_string())?;
         let root = if executable
             .file_name()

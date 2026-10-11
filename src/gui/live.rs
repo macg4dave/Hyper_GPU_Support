@@ -15,7 +15,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 type SharedState = Arc<Mutex<State>>;
-type InventoryRead = (Inventory, Option<String>, Option<Vec<u8>>);
+type InventoryRead = (Inventory, Option<String>);
 
 // Preserve repeated UI elements and editor focus when an inventory read only
 // changes row contents. Rebuild only when the number of rows changes.
@@ -38,86 +38,63 @@ fn update_model<T: Clone + PartialEq + 'static>(
 }
 
 #[derive(Clone)]
-pub(super) enum Source {
-    Protected,
-    Snapshot(std::path::PathBuf, Option<std::path::PathBuf>),
-}
+pub(super) struct Source;
 
 impl Source {
     fn enrollment_recovery(
         &self,
     ) -> Result<Option<hyper_gpu_support::enrollment::PendingPair>, String> {
-        match self {
-            #[cfg(windows)]
-            Self::Protected => hyper_gpu_support::runner::pending_pair(),
-            _ => Ok(None),
+        #[cfg(windows)]
+        {
+            hyper_gpu_support::runner::pending_pair()
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(None)
         }
     }
     fn import_recovery(
         &self,
     ) -> Result<Option<hyper_gpu_support::configuration_store::ImportRecord>, String> {
-        match self {
-            #[cfg(windows)]
-            Self::Protected => hyper_gpu_support::runner::import_record(),
-            _ => Ok(None),
+        #[cfg(windows)]
+        {
+            hyper_gpu_support::runner::import_record()
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(None)
         }
     }
     fn recovery(
         &self,
     ) -> Result<Option<hyper_gpu_support::configuration_store::SaveRecord>, String> {
-        match self {
-            #[cfg(windows)]
-            Self::Protected => hyper_gpu_support::runner::recovery_record(),
-            _ => Ok(None),
+        #[cfg(windows)]
+        {
+            hyper_gpu_support::runner::recovery_record()
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(None)
         }
     }
     fn committed(&self) -> Option<hyper_gpu_support::configuration_store::StoreSnapshot> {
-        match self {
-            #[cfg(windows)]
-            Self::Protected => Some(hyper_gpu_support::configuration_store::read_committed()),
-            _ => None,
+        #[cfg(windows)]
+        {
+            Some(hyper_gpu_support::configuration_store::read_committed())
+        }
+        #[cfg(not(windows))]
+        {
+            None
         }
     }
-    fn historical(&self) -> bool {
-        matches!(self, Self::Snapshot(..))
-    }
-
     fn discover(&self) -> Result<InventoryRead, String> {
-        match self {
-            Self::Protected => discover().map(|(i, w)| (i, w, None)),
-            Self::Snapshot(path, _) => super::snapshot::capture(path).map(|(inventory, bytes)| {
-                (inventory, Some("Historical snapshot loaded. Drafts and shared plan rehearsal use recorded inputs only. No runner, credential access or persistent writes.".into()), Some(bytes))
-            }),
-        }
+        discover()
     }
-
-    fn plan(&self, target: Target, expected_snapshot: Option<&[u8]>) -> Result<Plan, String> {
-        match self {
-            Self::Protected => plan(target),
-            Self::Snapshot(path, _) => super::snapshot::plan(path, &target, expected_snapshot),
-        }
+    fn plan(&self, target: Target) -> Result<Plan, String> {
+        plan(target)
     }
-
     fn credentials(&self, id: &str, name: &str) -> Result<bool, String> {
-        match self {
-            Self::Protected => credential_dialog(id, name),
-            Self::Snapshot(..) => Err(
-                "Credential access and storage are blocked in no-write snapshot rehearsal.".into(),
-            ),
-        }
-    }
-}
-
-impl Source {
-    fn configuration(
-        &self,
-    ) -> Result<Option<(hyper_gpu_support::model::Configuration, String)>, String> {
-        match self {
-            Self::Snapshot(_, Some(path)) => {
-                hyper_gpu_support::model::Configuration::read_vm_file(path).map(Some)
-            }
-            _ => Ok(None),
-        }
+        credential_dialog(id, name)
     }
 }
 
@@ -163,7 +140,7 @@ fn discover_status() -> Result<InventoryRead, String> {
     }
     let value = runner::submit(runner::request(runner::Operation::Discover, None, None))?;
     serde_json::from_value(value)
-        .map(|inventory| (inventory, None, None))
+        .map(|inventory| (inventory, None))
         .map_err(|e| format!("Invalid protected inventory reply: {e}"))
 }
 
@@ -294,7 +271,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(inventory) = state.view.inventory.as_ref() else {
         return;
     };
-    let row = observed_row(vm, inventory, state.view.needs_readback || state.historical);
+    let row = observed_row(vm, inventory, state.view.needs_readback);
     ui.set_vm_name(row.name);
     ui.set_power(row.power);
     let enrolled = state.target(id).ok();
@@ -309,7 +286,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_observed(
         format!(
             "{}{}; {}; {}",
-            if state.view.needs_readback || state.historical {
+            if state.view.needs_readback {
                 "Historical: "
             } else {
                 ""
@@ -337,22 +314,12 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         )
         .into(),
     );
-    ui.set_desired(
-        if state.historical && state.configuration_source.is_some() {
-            format!(
-                "Candidate file (read-only rehearsal): {}",
-                state.saved_desired_text(id)
-            )
-        } else {
-            state.saved_desired_text(id)
-        }
-        .into(),
-    );
+    ui.set_desired(state.saved_desired_text(id).into());
     ui.set_verification(recorded.graphics.into());
     ui.set_support_summary(
         format!(
             "GPU support: {}. Saved setting: {}. Graphics: {}.",
-            if state.view.needs_readback || state.historical {
+            if state.view.needs_readback {
                 "historical observation"
             } else if vm.gpus.is_empty() {
                 "not attached"
@@ -635,13 +602,8 @@ fn refresh(
     source: &Source,
     automatic: bool,
 ) -> Result<(), String> {
-    let historical = source.historical();
     if !automatic {
-        ui.set_notice(if historical {
-        "Reading a historical inventory snapshot; no backend operations will be requested."
-    } else {
-        "Reading protected inventory. Existing observations remain historical until refresh succeeds."
-    }.into());
+        ui.set_notice("Reading protected inventory. Existing observations remain historical until refresh succeeds.".into());
     }
     let state = state.clone();
     let source = source.clone();
@@ -654,7 +616,7 @@ fn refresh(
             "Refreshing inventory"
         },
         move || {
-            let (inventory, warning, snapshot) = if automatic {
+            let (inventory, warning) = if automatic {
                 discover_status()?
             } else {
                 source.discover()?
@@ -662,8 +624,6 @@ fn refresh(
             Ok((
                 inventory,
                 warning,
-                source.configuration()?,
-                snapshot,
                 source.committed(),
                 source.recovery()?,
                 source.import_recovery()?,
@@ -676,8 +636,6 @@ fn refresh(
                     Ok((
                         inventory,
                         warning,
-                        configuration,
-                        snapshot,
                         committed,
                         recovery,
                         import_recovery,
@@ -687,30 +645,8 @@ fn refresh(
                         state.enrollment_review = None;
                         state.setup_artifacts = None;
                         state.enrollment_recovery_revision = None;
-                        state.rehearsal_plan = None;
+                        state.approved_plan = None;
                         state.verification_plan = None;
-                        if state.view.draft.is_some() && snapshot != state.snapshot_source {
-                            state.view.needs_readback = true;
-                            present(ui, state, false);
-                            ui.set_eligible(false);
-                            ui.set_validation("Snapshot changed externally. Draft preserved; discard and Refresh.".into());
-                            return Err("Snapshot changed externally. Draft preserved; discard and Refresh.".into());
-                        }
-                        if let Some((configuration, text)) = configuration
-                            && let Err(error) = state.load_configuration(configuration, text)
-                        {
-                            state.view.needs_readback = true;
-                            present(ui, state, false);
-                            ui.set_eligible(false);
-                            ui.set_validation(
-                                hyper_gpu_support::reporting::operator_error(
-                                    "Configuration validation",
-                                    &error,
-                                )
-                                .into(),
-                            );
-                            return Err(error);
-                        }
                         // A conflicting draft blocks that editor, not fresh VM/GPU
                         // observations or readable intent for other VMs.
                         let configuration_warning =
@@ -720,7 +656,7 @@ fn refresh(
                             .discovery
                             .vms
                             .iter()
-                            .map(|vm| observed_row(vm, &inventory, historical))
+                            .map(|vm| observed_row(vm, &inventory, false))
                             .collect();
                         ui.set_vms(update_model(ui.get_vms(), rows));
                         ui.set_gpu_information(update_model(ui.get_gpu_information(), inventory.discovery.gpus.iter().map(|gpu| GpuRow {
@@ -743,13 +679,9 @@ fn refresh(
                             .err();
                         #[cfg(windows)]
                         ui.set_execution_ready(
-                            !historical
-                                && recovery_warning.is_none()
+                            recovery_warning.is_none()
                                 && hyper_gpu_support::worker::available().is_ok(),
                         );
-                        state.snapshot_source = snapshot;
-                        // Imported enrollment is display data, never execution authorization.
-                        state.historical = historical;
                         let reset = !ui.get_dirty();
                         // Bind the draft GPU by identity across provider enumeration changes.
                         if !reset {
@@ -772,11 +704,7 @@ fn refresh(
                                 draft_target(ui, state).err().unwrap_or_default().into(),
                             );
                         }
-                        ui.set_system_summary(if historical {
-                            "Historical inventory snapshot. Provider bounds, enrollment and records describe its capture, not current machine state. No runner, credentials, journal or audit writes are requested."
-                        } else {
-                            "Hyper-V virtual machines and available GPUs. Graphics results reflect previous checks."
-                        }.into());
+                        ui.set_system_summary("Hyper-V virtual machines and available GPUs. Graphics results reflect previous checks.".into());
                         let issues = &state
                             .view
                             .inventory
@@ -820,7 +748,7 @@ fn refresh(
                         Ok(())
                     }
                     Err(error) => {
-                        state.rehearsal_plan = None;
+                        state.approved_plan = None;
                         state.verification_plan = None;
                         state.enrollment_review = None;
                         state.setup_artifacts = None;
@@ -846,17 +774,7 @@ fn refresh(
                         );
                         ui.set_inventory_details(error.clone().into());
                         ui.set_notice("VM status could not be refreshed. Displayed observations are historical; use Refresh to retry.".into());
-                        ui.set_system_summary(
-                            format!(
-                                "{} unavailable: {error}",
-                                if historical {
-                                    "Snapshot read"
-                                } else {
-                                    "Live discovery"
-                                }
-                            )
-                            .into(),
-                        );
+                        ui.set_system_summary(format!("Live discovery unavailable: {error}").into());
                         if automatic { Ok(()) } else { Err(error) }
                     }
                 }
@@ -872,13 +790,13 @@ fn review(
     source: &Source,
 ) -> Result<(), String> {
     #[cfg(windows)]
-    if !source.historical() {
+    {
         let target = {
             let mut state = state
                 .lock()
                 .map_err(|_| "Live presentation state unavailable")?;
             state.enrollment_review = None;
-            state.rehearsal_plan = None;
+            state.approved_plan = None;
             let target = draft_target(ui, &state)?;
             (!state.enrolled(&target)).then_some(target)
         };
@@ -886,43 +804,30 @@ fn review(
             return review_enrollment(ui, state, busy, target);
         }
     }
-    let (target, configuration_source, snapshot_source, committed_revision) = state
+    let (target, committed_revision) = state
         .lock()
         .map_err(|_| "Live presentation state unavailable".to_owned())
         .and_then(|mut state| {
-            state.rehearsal_plan = None;
+            state.approved_plan = None;
             draft_target(ui, &state).and_then(|target| {
                 let revision = state.committed.revision(&target.vm_id)?;
-                Ok((
-                    target,
-                    state.configuration_source.clone(),
-                    state.snapshot_source.clone(),
-                    revision,
-                ))
+                Ok((target, revision))
             })
         })?;
     let expected = target.clone();
-    let historical = source.historical();
     let source = source.clone();
     let review_state = state.clone();
     background(
         ui,
         busy,
-        if historical {
-            "Building historical rehearsal plan"
-        } else {
-            "Building fresh plan"
-        },
+        "Building fresh plan",
         move || {
-            if source.configuration()?.map(|(_, text)| text) != configuration_source {
-                return Err("Candidate configuration changed externally. Draft preserved; discard and Refresh.".into());
-            }
             if let Some(committed) = source.committed()
                 && committed.revision(&target.vm_id)? != committed_revision
             {
                 return Err("Committed configuration changed externally. Draft preserved; discard and Refresh.".into());
             }
-            source.plan(target, snapshot_source.as_deref())
+            source.plan(target)
         },
         move |ui, result| match result {
             Ok(plan) if plan.desired == expected && plan.observed.vm_id == expected.vm_id => {
@@ -942,9 +847,7 @@ fn review(
                     })
                     .unwrap_or_else(|| plan.desired.gpu_interface.clone());
                 let memory_display = super::memory::format_gb;
-                let memory_summary = if historical {
-                    String::new()
-                } else if let Some(write) = &plan.preview.allocation {
+                let memory_summary = if let Some(write) = &plan.preview.allocation {
                     format!(
                         "GPU Memory request: {} → {}\n",
                         plan.observed
@@ -962,33 +865,20 @@ fn review(
                     "GPU Memory: no explicit request.\n".into()
                 };
                 #[cfg(windows)]
-                ui.set_execution_ready(
-                    !historical && hyper_gpu_support::worker::available().is_ok(),
-                );
+                ui.set_execution_ready(hyper_gpu_support::worker::available().is_ok());
                 with_state(ui, &review_state, |state| {
-                    state.rehearsal_plan = Some(plan.clone());
+                    state.approved_plan = Some(plan.clone());
                     Ok(())
                 });
                 ui.set_needs_shutdown(plan.preview.guest_downtime);
                 dialog(
                     ui,
                     "review",
-                    if historical {
-                        "Review historical draft · rehearsal only"
-                    } else {
-                        "Review your draft"
-                    },
-                    &if historical {
-                        format!(
-                            "Historical preview only. Nothing will be changed or saved.\nPhysical GPU: {gpu_name}\n\n{}",
-                            review_summary(&plan)
-                        )
-                    } else {
-                        format!(
-                            "Physical GPU: {gpu_name}\n{memory_summary}\n{}\n\nWindows will request approval before changes. Configuration is saved only after verification.",
-                            review_summary(&plan)
-                        )
-                    },
+                    "Review your draft",
+                    &format!(
+                        "Physical GPU: {gpu_name}\n{memory_summary}\n{}\n\nWindows will request approval before changes. Configuration is saved only after verification.",
+                        review_summary(&plan)
+                    ),
                 );
                 ui.set_dialog_details(review_text(&plan).into());
             }
@@ -1093,9 +983,6 @@ fn enroll_live(
     busy: &Arc<AtomicBool>,
     source: &Source,
 ) -> Result<(), String> {
-    if source.historical() {
-        return Err("Snapshot rehearsal cannot enroll a pair".into());
-    }
     let (approved, artifacts) = {
         let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
         let approved = state
@@ -1158,9 +1045,6 @@ fn reconcile_enrollment_live(
     busy: &Arc<AtomicBool>,
     source: &Source,
 ) -> Result<(), String> {
-    if source.historical() {
-        return Err("Snapshot rehearsal cannot reconcile authority".into());
-    }
     let (operation_id, expected) = {
         let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
         let id = state
@@ -1237,7 +1121,7 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
     let (approved, revision) = {
         let state = state.lock().map_err(|_| "Presentation state unavailable")?;
         let approved = state
-            .rehearsal_plan
+            .approved_plan
             .clone()
             .ok_or("Review the current draft before Apply")?;
         if draft_target(ui, &state)? != approved.desired {
@@ -1284,7 +1168,7 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                     }
                     state.committed = hyper_gpu_support::configuration_store::read_committed();
                     state.recovery = hyper_gpu_support::runner::recovery_record()?;
-                    state.rehearsal_plan = None;
+                    state.approved_plan = None;
                     ui.set_dirty(false);
                     present(ui, state, false);
                     Ok(())
@@ -1313,7 +1197,7 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                 with_state(ui, &finished_state, |state| {
                     state.recovery = hyper_gpu_support::runner::recovery_record()?;
                     state.view.needs_readback = true;
-                    state.rehearsal_plan = None;
+                    state.approved_plan = None;
                     present(ui, state, false);
                     Ok(())
                 });
@@ -1687,7 +1571,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 return;
             }
             with_state(&ui, &edit_state, |state| {
-                state.rehearsal_plan = None;
+                state.approved_plan = None;
                 state.enrollment_review = None;
                 state.setup_artifacts = None;
                 state.draft_gpu = state
@@ -1803,39 +1687,11 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             "confirm-enroll" => enroll_live(&ui, &action_state, &action_busy, &action_source),
             #[cfg(windows)]
             "reconcile-enrollment" => reconcile_enrollment_live(&ui, &action_state, &action_busy, &action_source),
-            "confirm" => {
-                if !action_source.historical() {
-                    apply_live(&ui, &action_state, &action_busy)
-                } else {
-                    let inputs = action_state.lock().map_err(|_| "Presentation state unavailable".to_owned())
-                        .and_then(|state| {
-                            let plan = state.rehearsal_plan.clone().ok_or("Review the historical draft first.")?;
-                            Ok((plan, state.configuration_source.clone(), state.snapshot_source.clone()))
-                        });
-                    inputs.and_then(|(recorded, configuration, snapshot)| {
-                        let source = action_source.clone();
-                        background(&ui, &action_busy, "Checking rehearsal inputs", move || {
-                            if source.configuration()?.map(|(_, text)| text) != configuration {
-                                return Err("Candidate configuration changed externally. Draft preserved; discard and Refresh.".into());
-                            }
-                            // Recompute the plan from identical captured bytes, then display
-                            // its actions. No workflow apply or mutation adapter is called.
-                            source.plan(recorded.desired, snapshot.as_deref())
-                        }, |ui, result| match result {
-                            Ok(plan) => {
-                                dialog(ui, "info", "Historical stage rehearsal complete", "These stages come from the shared plan. No VM operation, guest verification, configuration save, credential access or recovery clearing occurred. The draft remains unapplied; simulated stages do not prove GPU support.");
-                                ui.set_stages(model(plan.preview.actions.iter().enumerate()
-                                    .map(|(i, action)| format!("{}. {:?} · simulated only, not executed", i + 1, action).into()).collect()));
-                            }
-                            Err(error) => dialog(ui, "error", "Rehearsal blocked", &error),
-                        })
-                    })
-                }
-            }
-            "save-only" if !action_source.historical() => save_only_live(&ui, &action_state, &action_busy),
-            "verify" if !action_source.historical() => review_verification(&ui, &action_state, &action_busy),
-            "confirm-verify" if !action_source.historical() => verify_live(&ui, &action_state, &action_busy),
-            "reconcile" if !action_source.historical() => reconcile_live(&ui, &action_state, &action_busy),
+            "confirm" => apply_live(&ui, &action_state, &action_busy),
+            "save-only" => save_only_live(&ui, &action_state, &action_busy),
+            "verify" => review_verification(&ui, &action_state, &action_busy),
+            "confirm-verify" => verify_live(&ui, &action_state, &action_busy),
+            "reconcile" => reconcile_live(&ui, &action_state, &action_busy),
             "reapply" => {
                 // Preserve allocation edits while deliberately previewing enabled support.
                 ui.set_gpu_enabled(true);
@@ -1853,11 +1709,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "more" => {
-                let body = if action_source.historical() {
-                    "Reapply rehearses an enabled draft against historical inputs. Verification and forgetting remain blocked. No backend effect or persistent write will occur."
-                } else {
-                    "Reapply / Update reviews a fresh shared plan. Verify reviews a separate graphics check; both require the protected worker and any guest downtime consent. Forget pairing is not connected."
-                };
+                let body = "Reapply / Update reviews a fresh shared plan. Verify reviews a separate graphics check; both require the protected worker and any guest downtime consent. Forget pairing is not connected.";
                 dialog(&ui, "more", "VM actions", body); Ok(())
             },
             "credentials" => {
@@ -1875,7 +1727,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             "diagnostics" | "recovery" => {
                 with_state(&ui, &action_state, |state| {
                     #[cfg(windows)]
-                    if action == "recovery" && !action_source.historical()
+                    if action == "recovery"
                         && let Some(record) = &state.enrollment_recovery {
                         let revision = hyper_gpu_support::runner::pair_revision()?;
                         let outcome = if revision == record.resulting { "The complete new enrollment policy is present." }
@@ -1891,7 +1743,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                         dialog(&ui, "info", "Configuration import requires reconciliation", &format!("Import operation: {}\n{} destinations, {} recorded as published. Resolve this explicit CLI import with import-reconcile --operation {}. Changed files block continuation; import never changes enrollment or GPU state.", record.operation_id, record.documents.len(), record.documents.values().filter(|item| item.published).count(), record.operation_id));
                         return Ok(());
                     }
-                    if action == "recovery" && !action_source.historical()
+                    if action == "recovery"
                         && let Some(record) = &state.recovery {
                         ui.set_needs_shutdown(record.target.enabled || !record.publication_required);
                         match record.phase {
@@ -1912,20 +1764,12 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     }
                     let id = ui.get_selected_id(); let inventory = state.view.inventory.as_ref().ok_or("Refresh inventory first.")?;
                     let body = serde_json::to_string_pretty(&serde_json::json!({"observed": state.view.vm(&id), "managed": inventory.managed.get(id.as_str()).and_then(Option::as_ref), "historical": state.view.needs_readback, "enrollment": inventory.enrolled.iter().find(|t| t.vm_id == id.as_str())})).map_err(|e| e.to_string())?;
-                    let provenance = if action_source.historical() {
-                        "Historical snapshot only; no fresh guest verification. Refresh rereads the input file, not the host. No journal, enrollment or audit is modified."
-                    } else {
-                        "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection."
-                    };
+                    let provenance = "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection.";
                     dialog(&ui, "info", "Observed state and recovery records", &format!("{provenance}\n\n{body}")); Ok(())
                 }); Ok(())
             }
             "shortcuts" => {
-                let help = if action_source.historical() {
-                    "Select a recorded enrolled VM, edit categories with recorded raw provider capabilities or enable/disable intent and Review. Missing category capability is unknown. The shared planner uses recorded inputs only; enabled previews require snapshot plans with a matching historical payload digest. Optional --config reads one schema-2 or schema-3 GUID-keyed candidate file. Refresh rereads inputs; credentials, verification and execution remain blocked."
-                } else {
-                    "Select a real VM and physical GPU, then enable GPU support in the draft. Review & Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Review & Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. Enrolled pairs support toggles and provider-supported raw VRAM/Compute/Encode/Decode triples, Apply and separate Verify. Leave an entire triple empty for no explicit category write. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable. --mock-gui rehearses fixtures without writes."
-                };
+                let help = "Select a real VM and physical GPU, then enable GPU support in the draft. Review & Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Review & Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. Enrolled pairs support toggles and provider-supported raw VRAM/Compute/Encode/Decode triples, Apply and separate Verify. Leave an entire triple empty for no explicit category write. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable.";
                 dialog(&ui, "info", "Application help", help); Ok(())
             },
             _ => Err("This action is not connected yet. Use the supported CLI; no operation was performed.".into()),
@@ -1941,10 +1785,9 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         slint::CloseRequestResponse::HideWindow
     });
     refresh(&ui, &state, &busy, &source, false)?;
-    // Only the installed read path polls. First-install elevation remains explicit;
-    // historical snapshots are reread only by the user's Refresh action.
+    // Only the installed read path polls. First-install elevation remains explicit.
     let status_timer = slint::Timer::default();
-    if !source.historical() {
+    {
         let weak = ui.as_weak();
         status_timer.start(
             slint::TimerMode::Repeated,
@@ -1971,32 +1814,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
 mod tests {
     use super::*;
     use hyper_gpu_support::model::Settings;
-    #[test]
-    fn snapshot_source_requires_captured_input_and_refuses_credentials() {
-        let source = Source::Snapshot("unused-snapshot.json".into(), None);
-        assert!(source.historical());
-        let target = Target {
-            compute: None,
-            encode: None,
-            decode: None,
-            vm_id: "12345678-1234-1234-1234-123456789abc".into(),
-            gpu_interface: "untrusted-snapshot-interface".into(),
-            enabled: true,
-            vram: None,
-        };
-        assert!(
-            source
-                .plan(target, None)
-                .unwrap_err()
-                .contains("Cannot open inventory snapshot")
-        );
-        assert!(
-            source
-                .credentials("vm", "Recorded VM")
-                .unwrap_err()
-                .contains("blocked")
-        );
-    }
+
     #[test]
     fn unknown_health_enrollment_and_unresolved_attachment_are_not_samples() {
         let vm = VmState {

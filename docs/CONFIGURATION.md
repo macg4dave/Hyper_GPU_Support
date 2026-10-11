@@ -4,7 +4,7 @@ This page owns runtime intent, parsing, storage, and compatibility. The producti
 
 ## Runtime intent
 
-`Configuration` contains `schema` and `targets`. Each `Target` contains a stable `vm_id`, exact partitionable `gpu_interface`, `enabled`, and optional resource request triples. The same types/parser serve the CLI, GUI, imports, and sample intent. Do not create a separate mock configuration system.
+`Configuration` contains `schema` and `targets`. Each `Target` contains a stable `vm_id`, exact partitionable `gpu_interface`, `enabled`, and optional resource request triples. The same types/parser serve the CLI, GUI, imports, and sample intent. Preserve this shared production schema.
 
 | Schema | Supported intent |
 |---|---|
@@ -15,7 +15,7 @@ Each triple has `minimum`, `optimal`, and `maximum` unsigned integers, with `min
 
 An omitted triple requests **no explicit category write**. A newly attached/recreated adapter gets provider defaults; an adapter retained in place keeps its existing values where no write is requested. Omission does not mean zero allocation or a guaranteed reset. Blank all three GUI fields to omit a category; a partial triple is not a valid request.
 
-Advanced fields represent provider requests. The live memory slider treats the native Hyper-V VRAM request as bytes and displays decimal GB in 0.1 GB steps; physical capacity is independently matched to the selected hardware and can also be displayed in GiB. Historical snapshots use raw fields, not a current physical-capacity claim. Conversion, requested values, observed values, and enforced limits are different concepts. No reservation, fair-sharing, or isolation guarantee follows from the display.
+Current advanced fields represent provider requests. The memory slider converts native VRAM byte requests to decimal GB in 0.1 GB steps and independently matches physical capacity to selected hardware. APP-002 must adapt its lower bound to the agreed 1 GB minimum and retain a card-dependent upper bound. Only the toggle disables support. Schema-3 advanced categories remain compatibility context, not new GUI requirements. Conversion, requested values, observed values, and enforced limits are different concepts. No reservation, fair-sharing, or isolation guarantee follows from the display.
 
 ## Input and committed files
 
@@ -24,7 +24,7 @@ Advanced fields represent provider requests. The live memory slider treats the n
 - The per-VM reader is bounded to 64 KiB of UTF-8 TOML; the CLI bundle reader uses the 1 MiB frame limit. A valid candidate file is still untrusted input, not a protected-store admission result.
 - `Configuration::vm_documents` produces canonical documents without writing them. Schema 2 remains readable; current worker effect publication serializes schema 3.
 - The protected store is under the product's fixed Windows known-folder data root, in `config/vms`. Paths are derived by the product; callers do not choose privileged publication destinations.
-- Expected revisions detect external changes. Unreadable, malformed, untrusted, or conflicting committed state must be reported as unknown/blocked, not silently replaced by fixtures or defaults.
+- Expected revisions detect external changes. Unreadable, malformed, untrusted, or conflicting committed state must be reported as unknown/blocked, not silently replaced by invented values.
 
 The [example](../config/product.example.toml) and [samples](../config/samples/README.md) use synthetic identities. They must not be installed against real targets. Do not add passwords, payload integrity pins, machine names, display names, or observed power/health to desired intent.
 
@@ -36,6 +36,6 @@ Explicit CLI `import` is distinct from effects. It imports an approved bundle in
 
 ## Development configuration
 
-`config/project.toml`, `config/artifact-pins.toml`, and `config/runner-policy-v1.json` are retained development context, not runtime intent. Their former scripts were deleted. V1-003 determines what still serves a current development purpose.
+`config/project.toml`, `config/artifact-pins.toml`, and `config/runner-policy-v1.json` are retained development context, not runtime intent. Their former scripts were deleted. Assess individual files only when required for the current task; APP-009 selects the actual qualification environment.
 
 Keep mutable host/guest/GPU paths and identities in explicit local environment configuration/evidence rather than general handbook or prompts. Use ignored `local/` or `config/*.local.toml` where suitable. Do not silently wire old development pins into the production schema or turn a single recorded environment into a universal support promise.

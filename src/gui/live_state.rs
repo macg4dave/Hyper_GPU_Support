@@ -9,11 +9,7 @@ pub(super) struct State {
     pub view: View,
     pub pending_selection: Option<String>,
     pub draft_gpu: Option<String>,
-    /// Exact candidate source retained for read-only rehearsal conflict detection.
-    pub configuration_source: Option<String>,
-    pub historical: bool,
-    pub snapshot_source: Option<Vec<u8>>,
-    pub rehearsal_plan: Option<Plan>,
+    pub approved_plan: Option<Plan>,
     pub verification_plan: Option<hyper_gpu_support::workflow::VerificationPlan>,
     pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
     /// A draft's original committed revision changed; only discard releases it.
@@ -36,10 +32,7 @@ impl Default for State {
             }),
             pending_selection: None,
             draft_gpu: None,
-            configuration_source: None,
-            historical: false,
-            snapshot_source: None,
-            rehearsal_plan: None,
+            approved_plan: None,
             verification_plan: None,
             committed: Default::default(),
             committed_conflict: None,
@@ -56,17 +49,11 @@ impl Default for State {
 
 impl State {
     /// Native byte requests; physical capacity never rescales provider intent.
-    /// Historical captures cannot grant current physical capacity provenance.
     pub fn memory_slider(
         &self,
         gpu_index: i32,
         values: &[String],
     ) -> Result<super::memory::MemorySlider, String> {
-        if self.historical {
-            return Err(
-                "GB units are not recorded in this snapshot. Use raw Advanced Allocation.".into(),
-            );
-        }
         if self.view.needs_readback {
             return Err("Refresh VM and GPU information before using the memory slider.".into());
         }
@@ -123,7 +110,7 @@ impl State {
         self.recovery = recovery;
         self.import_recovery = import_recovery;
         self.enrollment_recovery = enrollment_recovery;
-        self.rehearsal_plan = None;
+        self.approved_plan = None;
         self.verification_plan = None;
         if let Some(record) = &self.recovery {
             self.view.unsaved =
@@ -162,7 +149,7 @@ impl State {
                 .any(|t| t.vm_id == draft.vm_id && t.gpu_interface == draft.gpu_interface)
         {
             self.authority_conflict = Some(draft.vm_id.clone());
-            self.rehearsal_plan = None;
+            self.approved_plan = None;
             self.enrollment_review = None;
             self.setup_artifacts = None;
         }
@@ -224,7 +211,7 @@ impl State {
     }
 
     fn proposal_eligibility(&self, target: &Target) -> Result<(), String> {
-        if self.enrolled(target) || self.historical {
+        if self.enrolled(target) {
             return self.view.eligibility(target);
         }
         if self
@@ -236,19 +223,6 @@ impl State {
             return Err("This selected GPU is not enrolled. Changing an enrolled GPU requires the separate replacement transition, which is not connected yet.".into());
         }
         self.view.proposal_eligibility(target)
-    }
-
-    pub fn load_configuration(
-        &mut self,
-        configuration: Configuration,
-        source: String,
-    ) -> Result<(), String> {
-        if self.view.draft.is_some() && self.configuration_source.as_ref() != Some(&source) {
-            return Err("The candidate configuration changed externally. Your draft is preserved; discard it and Refresh before reviewing.".into());
-        }
-        self.view.configuration = configuration;
-        self.configuration_source = Some(source);
-        Ok(())
     }
 
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
@@ -290,7 +264,7 @@ impl State {
             };
             if !unchanged {
                 self.committed_conflict = Some(draft.vm_id.clone());
-                self.rehearsal_plan = None;
+                self.approved_plan = None;
             }
         }
         // Refresh all readable intent even when one draft conflicts. This never
@@ -307,7 +281,7 @@ impl State {
         self.view.discard();
         self.committed_conflict = None;
         self.authority_conflict = None;
-        self.rehearsal_plan = None;
+        self.approved_plan = None;
         self.enrollment_review = None;
         self.setup_artifacts = None;
         self.draft_gpu = None;
@@ -586,16 +560,8 @@ mod tests {
     }
 
     #[test]
-    fn historical_and_stale_values_cannot_authorize_gb_mapping() {
+    fn stale_inventory_cannot_authorize_gb_mapping() {
         let mut s = state();
-        s.historical = true;
-        assert!(
-            s.memory_slider(0, &vec![String::new(); 12])
-                .err()
-                .unwrap()
-                .contains("not recorded")
-        );
-        s.historical = false;
         s.view.needs_readback = true;
         assert!(
             s.memory_slider(0, &vec![String::new(); 12])
@@ -682,17 +648,6 @@ mod tests {
     }
 
     #[test]
-    fn historical_unenrolled_pair_cannot_enter_enrollment_journey() {
-        let mut s = State::default();
-        let mut i = inventory();
-        i.enrolled.clear();
-        s.refresh(i);
-        s.historical = true;
-        assert!(s.draft(id(&s), true, 0, &values("", "", "")).is_err());
-        assert!(s.enrollment_review.is_none());
-    }
-
-    #[test]
     fn saved_intent_remains_distinct_from_enrollment_observation_and_draft() {
         let mut s = state();
         assert!(s.view.configuration.targets.is_empty());
@@ -703,8 +658,7 @@ mod tests {
             schema: 2,
             targets: vec![candidate.clone()],
         };
-        s.load_configuration(configuration.clone(), "original source".into())
-            .unwrap();
+        s.view.configuration = configuration;
         assert!(!s.target(id(&s)).unwrap().enabled);
         assert!(s.view.inventory.as_ref().unwrap().enrolled[0].enabled);
         s.view.draft = Some(
@@ -714,12 +668,6 @@ mod tests {
         s.refresh(inventory());
         assert_eq!(s.view.configuration.targets[0], candidate);
         assert!(s.view.draft.as_ref().unwrap().enabled);
-        assert!(
-            s.load_configuration(configuration, "changed source".into())
-                .unwrap_err()
-                .contains("changed externally")
-        );
-        assert_eq!(s.configuration_source.as_deref(), Some("original source"));
         assert!(s.view.draft.is_some());
     }
     fn id(s: &State) -> &str {

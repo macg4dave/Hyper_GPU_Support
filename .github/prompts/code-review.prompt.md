@@ -1,14 +1,5 @@
----
-name: code-review
-description: Review a scoped change for correctness and product-contract drift.
----
+# Review
 
-Read [AGENTS.md](../../AGENTS.md), the relevant [backlog](../../docs/BACKLOG.md) card, [architecture](../../docs/ARCHITECTURE.md), and [engineering](../../docs/ENGINEERING.md). Apply [configuration](../../docs/CONFIGURATION.md) and [GUI guide](../../docs/GUI_GUIDE.md) where relevant.
+Follow [AGENTS.md](../../AGENTS.md) and relevant specialists.
 
-- Inspect the actual diff and related source. Preserve user changes; do not assume old descriptions or completion claims are current truth.
-- Look for concrete correctness problems, stale target/plan approval, lost drafts, intent/observation confusion, unsafe retries, broken compatibility, and misleading outcomes.
-- Check meaningful decision/failure coverage and whether claimed validation actually ran. Respect milestone timing in [testing](../../docs/TESTING.md).
-- Report actionable findings by severity with source references, triggering conditions, and consequences. Separate confirmed defects from open questions.
-- If no findings are established, state that plainly with material validation limits. Static review does not prove live support.
-
-Do not edit files, run tests/builds, launch the UI, or perform live operations unless the current request separately authorizes that work.
+Inspect the actual diff and callers. Find actionable regressions in behavior, state/target binding, compatibility, failure handling, and coverage. Verify claimed checks actually ran. Report severity, location, trigger, and consequence; distinguish confirmed defects from questions. If none, state that with validation limits. Review alone does not authorize edits, checks, or live effects.

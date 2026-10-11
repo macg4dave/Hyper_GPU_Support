@@ -1,52 +1,43 @@
 # Hyper GPU Support
 
-Hyper GPU Support is a Windows application for managing GPU partitioning on existing Hyper-V virtual machines. It has a Slint GUI and a CLI over a shared Rust backend, with protected enrollment, reviewed operations, and durable recovery.
+A Windows GUI for turning GPU support on or off for supported existing Hyper-V VMs and choosing their GPU VRAM amount. Hyper-V handles VM creation, general management, and system RAM.
 
-The first release goal is a usable GUI managing one NVIDIA GPU shared by **at least two Windows 11 guests running hardware-rendered workloads concurrently**. Existing Generation 2 VMs are the target; creating VMs or operating a disposable laboratory is not the product's everyday workflow. Exact Windows builds and the initial qualification environment remain to be selected.
+The initial target is NVIDIA hardware and existing Generation 2 Windows 11 guests, including multiple VMs sharing one GPU. Keep the existing Slint design and shared Rust backend.
+
+## Agreed workflow
+
+- Select a VM, set GPU support on/off, and choose VRAM from 1 GB to the selected card's capacity.
+- Apply opens a review showing actual changes, required VM power transitions, and relevant time warnings. A second Apply confirms.
+- First GPU setup manages preparation and VM power, explains guest credentials before the local prompt, verifies GPU operation with a pass/fail result, then leaves the VM off after completed setup.
+- Later toggle/VRAM changes follow review and Apply without repeating full setup or initial verification.
+- Remembering guest credentials is optional. Saved settings, current observations, drafts, and failures stay truthful.
+
+The VRAM range does not establish enforced isolation. Automatic balancing and full-capacity warnings are outside current scope.
 
 ## Current state
 
-The source contains live discovery, first-install setup, additive VM/GPU enrollment, reviewed Apply, separate Verify, configuration publication, and reconciliation paths. These are source findings, not a new runtime validation result. Concurrent sharing, host stability, packaging, and the complete GUI workflow have not been established by this documentation reset. Read the [source baseline](docs/BASELINE.md) for evidence and known gaps.
+The source already contains discovery, setup/enrollment, reviewed GPU effects, saved settings, recovery, and guest verification. It still needs targeted changes to match the agreed workflow. [Baseline](docs/BASELINE.md) records the differences. This documentation rewrite ran no product build, test, GUI launch, or live operation.
 
-GPU replacement and Forget pairing are unavailable in the live GUI. CLI `forget` removes a stored credential; it does not forget enrollment. Resource requests and physical VRAM display must not be presented as proven per-VM isolation or fair sharing.
+Legacy mock/snapshot GUI tooling has been removed from source under APP-001. Its flags are unsupported; backend unit test doubles remain. Removal validation is pending the milestone gate.
 
-## Entrypoints
+Running the executable without arguments opens the live GUI and can request elevated first-install discovery. CLI and fixed internal modes share the backend; source entrypoints are not authorization to perform live operations.
 
-These describe the current dispatcher; they are not instructions to perform live operations now.
+## Project guidance
 
-| Entrypoint | Purpose |
+| Document | Purpose |
 |---|---|
-| `hyper-gpu-support.exe` with no arguments | Live GUI; startup can request elevated discovery when installation is missing |
-| `--mock-gui` | Explicit fixture demonstration with no backend effects or persistent writes |
-| `--mock-gui --snapshot FILE [--config GUID.toml]` | Historical inventory and optional per-VM intent rehearsal, with no backend effects or writes |
-| `inventory`, `plan`, `status` | Discovery or selected-target inspection; live reads can require the installed protected runner |
-| `install`, `apply`, `enable`, `disable`, `verify` | Protected setup or operations; authorization and lifecycle review are required |
-| `credentials`, `forget` | Local credential storage/removal, separate from pairing authority |
-| `import`, `import-reconcile` | Explicit configuration import and interrupted import reconciliation |
-| `save-only`, `reconcile` | Bound configuration publication retry or uncertain-operation reconciliation |
-
-See [GUI workflows](docs/GUI_GUIDE.md), [configuration](docs/CONFIGURATION.md), and [security/recovery](docs/SECURITY.md) before using live operations. Help text is known to omit some implemented commands; the baseline records this discrepancy.
-
-## Development
-
-The manifests pin Rust 1.94.0 and Slint 1.18.1 and select `x86_64-pc-windows-msvc`. Windows build tools are required. The intended local gate is described in [testing](docs/TESTING.md); its previous script and CI workflow were deleted and have not been restored. Existing inline Rust tests remain. Cached executables in `target/` are not evidence that this checkout builds or works.
-
-`config/product.example.toml` and [sample configurations](config/samples/README.md) use the production intent schema. `config/project.toml`, artifact pins, and the old runner policy contain development context; they are not product runtime configuration or a support matrix. Keep passwords, VM disks, driver payloads, and machine-specific evidence out of Git.
-
-## Project and AI guidance
-
-| Document | Owns |
-|---|---|
-| [Roadmap](docs/ROADMAP.md) | First-release requirements, milestone sequence, and completion gates |
-| [Backlog](docs/BACKLOG.md) | Actionable tasks, dependencies, status, and next task |
-| [Baseline](docs/BASELINE.md) | Current source assessment, discrepancies, and validation limits |
-| [Architecture](docs/ARCHITECTURE.md) | Components, data flow, and boundaries |
-| [Configuration](docs/CONFIGURATION.md) | Intent schemas, storage, and compatibility |
-| [GUI guide](docs/GUI_GUIDE.md) | Existing design and workflow behavior |
-| [Security and recovery](docs/SECURITY.md) | Authority, trust, uncertainty, and recovery contracts |
-| [Engineering](docs/ENGINEERING.md) | Task/status conventions and documentation ownership |
-| [Testing](docs/TESTING.md) | Validation policy, planned gate, and qualification scenarios |
-| [Decisions](docs/DECISIONS.md) | Agreed project choices and their consequences |
+| [Roadmap](docs/ROADMAP.md) | Agreed scope and milestone gates |
+| [Backlog](docs/BACKLOG.md) | Source tasks and next action |
+| [Baseline](docs/BASELINE.md) | Current source gaps and validation limits |
+| [GUI guide](docs/GUI_GUIDE.md) | User workflow |
+| [Architecture](docs/ARCHITECTURE.md) | Shared Rust components and boundaries |
+| [Configuration](docs/CONFIGURATION.md) | Intent formats and storage |
+| [Security](docs/SECURITY.md) | Protected operations and recovery |
+| [Testing](docs/TESTING.md) | Validation timing and scenarios |
+| [Engineering](docs/ENGINEERING.md) | Status and documentation ownership |
+| [Decisions](docs/DECISIONS.md) | Confirmed product choices |
 | [AGENTS.md](AGENTS.md) | Authoritative Codex instructions |
 
-Focused Codex prompts live in `.github/prompts/`: [plan a task](.github/prompts/task-plan.prompt.md), [implement a task](.github/prompts/implement-task.prompt.md), [review code](.github/prompts/code-review.prompt.md), [review security/recovery](.github/prompts/security-recovery-review.prompt.md), [maintain documentation](.github/prompts/maintain-docs.prompt.md), and [validate a milestone](.github/prompts/validate-milestone.prompt.md). Their location is a repository convention; Codex is the supported agent for this reset.
+Build prerequisites come from the current manifests/toolchain. The previous gate script is absent; APP-008 prepares its replacement at the implementation milestone. Cached binaries are not current validation evidence. Keep passwords, driver payloads, VM disks, and machine-specific evidence out of Git.
+
+Codex starts with [AGENTS.md](AGENTS.md), which routes to short task prompts and focused [Rust](.github/prompts/rust.prompt.md) and [Slint](.github/prompts/slint.prompt.md) guidance. Read only the guidance relevant to the requested task; product requirements stay in the handbook.
