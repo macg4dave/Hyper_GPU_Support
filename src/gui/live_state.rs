@@ -221,6 +221,7 @@ impl State {
         self.enrollment_review = None;
         self.setup_artifacts = None;
         self.verification_plan = None;
+        self.enrollment_recovery_revision = None;
     }
 
     /// Native byte requests; physical capacity never rescales provider intent.
@@ -479,9 +480,7 @@ impl State {
         self.view.discard();
         self.committed_conflict = None;
         self.authority_conflict = None;
-        self.approved_plan = None;
-        self.enrollment_review = None;
-        self.setup_artifacts = None;
+        self.cancel_review();
         self.draft_gpu = None;
     }
 
@@ -1826,6 +1825,39 @@ mod tests {
         s.sync_recovery(None, None, None).unwrap();
         assert!(s.reviewed_plan(&target).is_err());
         assert_eq!(s.view.draft.as_ref(), Some(&target));
+    }
+
+    #[test]
+    fn cancel_and_discard_clear_verification_and_authority_approvals() {
+        use hyper_gpu_support::{configuration_store::Revision, workflow::VerificationPlan};
+        for discard in [false, true] {
+            let mut s = state();
+            let plan = review_plan();
+            let target = plan.desired.clone();
+            let saved = s.view.configuration.targets.clone();
+            s.view.draft = Some(target.clone());
+            let revision = s.committed.revision(&target.vm_id).unwrap();
+            s.accept_review(plan.clone(), &target, revision).unwrap();
+            s.verification_plan = Some(VerificationPlan {
+                target: target.clone(),
+                observed: plan.observed,
+                gpu: s.view.inventory.as_ref().unwrap().discovery.gpus[0].clone(),
+                managed: None,
+            });
+            s.enrollment_recovery_revision = Some(Revision::of(b"reviewed authority"));
+            if discard {
+                s.discard();
+                assert!(s.view.draft.is_none());
+            } else {
+                s.cancel_review();
+                assert_eq!(s.view.draft.as_ref(), Some(&target));
+            }
+            assert!(s.approved_plan.is_none());
+            assert!(s.verification_plan.is_none());
+            assert!(s.enrollment_recovery_revision.is_none());
+            assert_eq!(s.view.configuration.targets, saved);
+            assert!(s.view.vm(&target.vm_id).unwrap().gpus.is_empty());
+        }
     }
 
     #[test]

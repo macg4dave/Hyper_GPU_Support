@@ -260,7 +260,7 @@ fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool) -> VmRow 
         row.status = if inventory.recorded_state(&vm.vm_id).recovery_required {
             "Recovery required"
         } else {
-            "Enrolled"
+            "Authorized"
         }
         .into();
     }
@@ -388,7 +388,14 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_verification(recorded.graphics.into());
     ui.set_support_summary(
         format!(
-            "GPU support: {}. Saved setting: {}. Graphics: {}.",
+            "Management: {}. GPU support: {}. Saved setting: {}. Graphics: {}.",
+            if state.view.needs_readback {
+                "status unavailable"
+            } else if inventory.enrolled.iter().any(|target| target.vm_id == *id) {
+                "authorized; guest drivers are not verified by authorization"
+            } else {
+                "not authorized"
+            },
             if state.view.needs_readback {
                 "status unavailable"
             } else if vm.gpus.is_empty() {
@@ -2224,7 +2231,7 @@ mod tests {
         };
         let current = observed_row(&vm, &inventory, false);
         assert_eq!(current.power, "Running");
-        assert_eq!(current.status, "Enrolled");
+        assert_eq!(current.status, "Authorized");
         let historical = observed_row(&vm, &inventory, true);
         assert_eq!(historical.id, current.id);
         assert_eq!(historical.name, current.name);

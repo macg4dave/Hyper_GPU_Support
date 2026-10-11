@@ -86,6 +86,17 @@ fn selected_gpu_interface(
     }
     Ok(interface.clone())
 }
+fn require_selected_adapter(
+    resources: &[String],
+    providers: &[(String, String)],
+    expected: &str,
+) -> Result<(), String> {
+    if selected_gpu_interface(resources, providers)? != expected {
+        return Err("GPU adapter changed before the GPU operation; review again".into());
+    }
+    Ok(())
+}
+
 fn read_optional_resource(o: &Object, resource: Resource) -> Result<Option<Allocation>, String> {
     let name = resource.name();
     match (
@@ -273,10 +284,23 @@ pub fn assign(t: &Target, enabled: bool) -> Result<(), String> {
             ],
         )?;
     } else if !enabled && !adapters.is_empty() {
+        let adapter = one(adapters)?;
+        let gpu = s.one(&format!(
+            "SELECT * FROM Msvm_PartitionableGpu WHERE Name='{}'",
+            quoted(&t.gpu_interface)
+        ))?;
+        require_selected_adapter(
+            &adapter.strings("HostResource")?,
+            &[
+                (gpu.path()?, t.gpu_interface.clone()),
+                (gpu.string("__PATH")?, t.gpu_interface.clone()),
+            ],
+            &t.gpu_interface,
+        )?;
         s.invoke(
             &service,
             "RemoveResourceSettings",
-            vec![("ResourceSettings", string_array(&[adapters[0].path()?])?)],
+            vec![("ResourceSettings", string_array(&[adapter.path()?])?)],
         )?;
     }
     let expected = if enabled {
@@ -327,6 +351,15 @@ pub fn allocation(t: &Target, resource: Resource, value: &Allocation) -> Result<
     value.validate_request(resource, &limits)?;
     let cfg = settings(&s, &t.vm_id)?;
     let adapter = one(s.related(&cfg, "Msvm_GpuPartitionSettingData")?)?;
+    // Bind the actual adapter being modified, not only the earlier VM inspection.
+    require_selected_adapter(
+        &adapter.strings("HostResource")?,
+        &[
+            (gpu.path()?, t.gpu_interface.clone()),
+            (gpu.string("__PATH")?, t.gpu_interface.clone()),
+        ],
+        &t.gpu_interface,
+    )?;
     let name = resource.name();
     for (property, n) in [
         (format!("MinPartition{name}"), value.minimum),
@@ -410,7 +443,43 @@ fn read_power(s: &Session, id: &str) -> Result<Power, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::selected_gpu_interface;
+    use super::{require_selected_adapter, selected_gpu_interface};
+
+    #[test]
+    fn allocation_and_detach_adapter_binding_rejects_replacement_and_missing_resources() {
+        let providers = vec![
+            ("relative-path".into(), "selected-interface".into()),
+            ("absolute-path".into(), "selected-interface".into()),
+            ("replacement-path".into(), "other-interface".into()),
+        ];
+        for path in ["relative-path", "absolute-path"] {
+            assert!(
+                require_selected_adapter(&[path.into()], &providers, "selected-interface").is_ok()
+            );
+        }
+        assert!(
+            require_selected_adapter(
+                &["replacement-path".into()],
+                &providers,
+                "selected-interface"
+            )
+            .unwrap_err()
+            .contains("changed before the GPU operation")
+        );
+        assert!(require_selected_adapter(&[], &providers, "selected-interface").is_err());
+        assert!(
+            require_selected_adapter(
+                &["relative-path".into(), "replacement-path".into()],
+                &providers,
+                "selected-interface"
+            )
+            .is_err()
+        );
+        assert!(
+            require_selected_adapter(&["unknown-path".into()], &providers, "selected-interface")
+                .is_err()
+        );
+    }
 
     #[test]
     fn host_resources_resolve_only_to_discovered_local_gpu_identities() {

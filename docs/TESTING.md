@@ -38,6 +38,7 @@ The gate is non-elevated, fails on the first failed stage, reports what ran, and
 - Publication failure permits bound save-only retry; uncertain effects retain recovery and never trigger blind replay.
 - Reconciliation handles a start error after a power change, safely restores only unchanged approved facts, retains refused-shutdown failures, and blocks restoration after changed facts. Pending journals without a save record still block new controller reviews.
 - Existing trust, IPC, locking, transport/output budgets, and interruption boundaries remain enforced.
+- Checkpoint rollback follow-ups (APP-016 through APP-022): unchanged host receipts remain historical, current host/guest discrepancies and unavailable checks are distinct, explicit same-digest reinstall cannot skip preparation, and removal/forget preserve other targets and recovery evidence. Execute added isolated regressions at the agreed milestone gate; APP-016 regressions are currently unrun.
 
 Add coverage for real missing behavior and failure boundaries. Reuse meaningful existing tests. Dedicated retired GUI simulation tests were removed through APP-001. The replacement startup-dispatch regression and retained live controller/state tests passed APP-008 execution; real interaction remains APP-009 acceptance.
 
@@ -46,6 +47,8 @@ Add coverage for real missing behavior and failure boundaries. Reuse meaningful 
 APP-009 prepares the exact environment, targets, effects, workload interval, evidence locations, final power states, and stop conditions before requesting authorization.
 
 The [M2 preparation record](evidence/m2-preparation.md) contains the proposed sequence and missing environment/mapping facts. It is preparation, not authorization or executed evidence. The accepted selected-VM setup is not repeated solely for qualification.
+
+APP-023 adds separately prepared checkpoint rollback qualification after the source fixes. Name a disposable target and checkpoint, disclose checkpoint creation/application and subsequent setup/repair/removal effects, and obtain explicit authorization before execution. Record the actual Verify failure details, fresh mismatch detection, same-digest reinstall, removal and fresh setup results; preserve other VMs. The bug report does not authorize rollback of the designated test VMs below.
 
 ### Available Hyper-V test VMs
 
@@ -66,6 +69,8 @@ All tests can be unsafe to the VM and its contents.
 | Host observation | Record responsiveness and any failures during the defined interval |
 
 Select exact host/guest builds, GPU/driver, two existing Generation 2 Windows 11 guests, and representative workloads before executing. Qualification checks can observe concurrent rendering without adding repeated rendering verification to ordinary product operations.
+
+For the Windows exposure repaint fix, an authorized GUI check should allow an existing read-only UI update while the window is partially off-screen or beneath the taskbar, then bring it fully into view without pressing Refresh or changing controls. Confirm all newly visible content shows the latest state. Also check covering/uncovering, minimize/restore, resize, and fractional-DPI monitor transitions. These checks authorize no VM/GPU effects. The [local backend patch](../vendor/i-slint-backend-winit/LOCAL_PATCH.md) also defines two unrun in-memory regressions and their separate test command; root-package tests do not execute dependency unit tests.
 
 Do not force power-off, induce hangs, restart the host, or automatically retry. Stop on uncertain outcomes and retain evidence. Live fault injection requires specific authorization. APP-010 adds separately authorized package installation and upgrade trials.
 

@@ -14,7 +14,6 @@ export component AppWindow inherits Window {
     in-out property <int> page: 0;
     in-out property <int> theme-index: 0;
     in-out property <bool> execution-ready: false;
-    in property <string> workspace-label: "VIRTUAL MACHINES";
     in property <[string]> gpu-options;
     in property <string> system-summary;
     in property <[GpuRow]> gpu-information;
@@ -72,7 +71,6 @@ export component AppWindow inherits Window {
                 Rectangle { width: 30px; height: 30px; border-radius: 7px; background: Theme.navigation; Text { text: "H"; color: Theme.text; font-weight: 700; font-size: 20px; } }
                 Label { text: "Hyper GPU Support"; font-size: 18px; font-weight: 600; }
                 Rectangle { horizontal-stretch: 1; }
-                Label { text: root.workspace-label; color: Theme.muted; font-size: 11px; font-weight: 600; }
             }
         }
         HorizontalLayout {

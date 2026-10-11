@@ -26,6 +26,20 @@ Current build health is established by the scoped M1 gate. Exact supported Windo
 
 Existing advanced resource and CLI recovery/import capabilities are implementation context. They do not expand the agreed simple GUI requirements. Legacy task status and past milestone claims are not imported into this plan.
 
+## Checkpoint rollback investigation
+
+User-reported reproduction (11 October 2026): enroll/setup GPU support, restore a guest checkpoint from before GPU drivers were installed, then reopen. The report says enrollment still appears successful, Verify does not work correctly, and recovery controls are unavailable. This investigation inspected source only; no checkpoint, guest access or application launch was performed and the exact live Verify failure remains unconfirmed.
+
+[Runner](../src/runner.rs) stores protected `enrollment.json` on the host: operator, exact VM/GPU pairs and installed artifact identities. Its per-VM `<vm-guid>.json` workflow journal also lives on the host and retains `prepared` (payload digest), `last_verified` (historical graphics-check timestamp), ownership settings and pending recovery. Saved `<vm-guid>.toml` files separately record intent. These records are not guest-disk state and the reported rollback does not invalidate them automatically.
+
+[Workflow](../src/workflow.rs) decides whether setup is required by comparing the current host payload digest with the journal and checking for historical preparation/graphics receipts. It does not inspect current guest files in the read-only Apply plan. Consequently, unchanged receipts can select ordinary Apply after a guest rollback. [GUI Reapply](../src/gui/live.rs) only enables a draft and reviews that same plan; it does not force driver reinstallation.
+
+Explicit Verify does perform a fresh guest device-health and selected-hardware rendering check through [guest code](../src/guest.rs); it does not simply return the old timestamp. However, its plan requires the selected stable host GPU assignment, its guest check does not compare the complete driver manifest with current guest files, and failures leave a pending journal with the previous success fields retained. The existing transport bootstraps authenticated guest helper executables even in Verify mode. These are source-backed gaps and possible failure paths, not a diagnosis of the unobserved runtime error.
+
+GPU-off already uses shared disable logic: detach the selected adapter, restore only owned compatibility settings, check host readback and finish off, without preparing or verifying guest graphics. Pending recovery and unrelated assignments still block effects. There is no connected Forget pairing transition, and the GUI's Reapply label does not provide a reliable same-digest reinstall route.
+
+APP-016 source changes label host authority as Authorized, explain that authorization does not verify guest drivers, and explicitly mark prior preparation as uncertain after checkpoint rollback. Graphics timestamps remain historical; no rollback is inferred or authority revoked. Added regression source is unrun. [APP-017 through APP-023](BACKLOG.md#app-017--report-saved-versus-observed-host-configuration-differences) separate detection, stale-result handling, reinstall, removal and qualification. Compilation, new test execution and real interaction remain pending; M1's previous gate does not validate these changes.
+
 ## Updating this page
 
 Record actual source changes separately from executed checks. Link validation to its revision, environment, and evidence. Do not claim a slider reserves VRAM, that an operation succeeded from a simulation, or that a successful build proves GPU sharing.

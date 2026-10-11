@@ -128,11 +128,10 @@ impl Allocation {
 
     /// Validate ordering and the currently reported provider range.
     pub fn validate(&self, limits: &Self) -> Result<(), String> {
-        if self.minimum > self.optimal
-            || self.optimal > self.maximum
-            || self.minimum < limits.minimum
-            || self.maximum > limits.maximum
-        {
+        if self.minimum > self.optimal || self.optimal > self.maximum {
+            return Err("resource request requires minimum <= optimal <= maximum".into());
+        }
+        if self.minimum < limits.minimum || self.maximum > limits.maximum {
             return Err("resource request is outside the provider's reported range".into());
         }
         Ok(())
@@ -617,6 +616,12 @@ enabled = false
             ..request
         };
         assert!(invalid.validate_request(Resource::Vram, &reported).is_err());
+        assert!(
+            invalid
+                .validate_request(Resource::Vram, &reported)
+                .unwrap_err()
+                .contains("minimum <= optimal <= maximum")
+        );
         let malformed = Allocation {
             optimal: 2_000_000_000,
             ..reported

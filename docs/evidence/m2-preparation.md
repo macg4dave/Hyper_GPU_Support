@@ -2,6 +2,8 @@
 
 Status: source preparation started; no new live sequence authorized or executed. The current [roadmap](../ROADMAP.md) defines M2 as APP-009 real-VM qualification, including APP-011 allocation qualification. This is distinct from historical milestones with the same name.
 
+The subsequent [source review](m2-source-review.md) fixed allocation-order diagnostics and fresh adapter binding, and recorded APP-014 slider/triple semantics and APP-015 sustained concurrency evidence as larger follow-ups. The user deferred tests; added regressions remain unrun.
+
 ## Source assessment
 
 M1's non-hardware gate passed. The selected-VM setup is [accepted by the user](live-gui-check.md#user-reported-completion); do not repeat setup merely to reconfirm it. APP-012 readable progress and APP-013 bounded 4 MiB transfer changes exist in source but their subsequent runtime checks remain pending.

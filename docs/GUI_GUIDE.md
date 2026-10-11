@@ -8,6 +8,8 @@ Select a supported existing VM, toggle GPU support, and select GPU VRAM from 1 G
 
 The existing Dashboard, System, Settings, About, and dialog design remain the foundation. Preserve stable selection, keyboard navigation, scrolling, themes, focus, and responsive progress.
 
+Windows exposure repainting now has a source backport in the pinned Slint 1.18.1 winit backend. Before each Windows draw, the backend includes the native pending update region in Slint's renderer damage, so returning from partially off-screen or taskbar-covered positions can repaint current content even without another UI property change. This uses native repaint events and adds no periodic refresh. See the [local backend patch](../vendor/i-slint-backend-winit/LOCAL_PATCH.md) for provenance and isolated regressions. Compilation, regression execution and live acceptance remain pending.
+
 APP-002 source now displays the 1 GB-to-card-capacity slider, with exact physical endpoints. [APP-011](BACKLOG.md#app-011--correct-physical-vram-and-provider-mapping) removes reported partition metadata as a VRAM byte ceiling. The selected physical capacity bounds the slider; unknown capacity remains unavailable. Hyper-V decides whether the byte request is accepted, followed by exact readback. Existing requests below 1 GB remain labeled exactly; moving the slider is an explicit edit, not a rewrite on load. Advanced Allocation retains exact VRAM fields for compatibility and correction. Compute/Encode/Decode editors are removed from this GUI; saved requests are preserved and shown in review. Only the toggle disables support. Compilation and isolated boundary/controller checks passed M1; rendering and real hardware acceptance remain pending.
 
 ## Review and Apply
@@ -44,6 +46,10 @@ If preparation becomes invalid or the signed driver payload changes, review expl
 
 Keep saved settings, pending edits, actual observations, and the last initial verification result distinct. Preserve drafts through refresh conflicts and require resolution before effects. Busy/modal states prevent conflicting actions.
 
+APP-016 source labels an enrolled VM as Authorized: permission to manage its recorded VM/GPU pair does not verify guest drivers. Attachment remains a separate host observation. Previously prepared state now explicitly says current guest files and driver parity are unknown, since a checkpoint rollback can undo guest setup. The last successful graphics timestamp remains history, not current health. Reopening and Refresh do not access the guest or automatically repair it. Compilation, regression execution and visual acceptance for this change remain pending.
+
+The rollback recovery fixes are tracked separately in [APP-017 through APP-023](BACKLOG.md#app-017--report-saved-versus-observed-host-configuration-differences). Current Verify checks graphics but does not compare the full guest payload; Reapply / Update may skip installation when host receipts match. GPU-off provides host removal through reviewed Apply where recovery permits it; Forget pairing remains unavailable. These paths must not be presented as a completed rollback repair workflow.
+
 Progress names actual stages and explains delays plainly. Failed configuration publication offers bound save-only retry; uncertain effects require explicit reconciliation. Do not replay GPU work or clear recovery to make a status look successful.
 
 Current-source review additionally blocks new editing/reviews when the selected journal requires recovery, even without a loaded save record. Failed controller state/recovery reads remain visible and disable execution instead of being replaced by a completion dialog. Installed worker availability is checked in background jobs; admission still performs fresh authentication. See the [review record](evidence/m1-source-review.md) for validation limits.
@@ -55,7 +61,7 @@ The [M1 non-hardware gate](evidence/m1-closure.md) passed on 11 October 2026. No
 Live launch can request elevation. Real GUI checks belong to the authorized APP-009 run, not a harmless visual launch. Legacy mock/snapshot tooling was removed from source under APP-001. Removal compiled and passed startup-dispatch tests under M1; real visual acceptance remains pending. It is not a preview or testing path.
 
 
-During refresh failures, the GUI retains editable drafts and shows unavailable status rather than internal historical-mode labels. Apply still requires refreshed observations and protected review. First-install discovery is refreshed explicitly until enrollment enables protected polling. The sidebar footer label and Help button have been removed at the user's request.
+During refresh failures, the GUI retains editable drafts and shows unavailable status rather than internal historical-mode labels. Apply still requires refreshed observations and protected review. First-install discovery is refreshed explicitly until enrollment enables protected polling. The sidebar footer label and Help button have been removed at the user's request. The top-right "VIRTUAL MACHINES" header label is also removed in source; visual validation of this text-only change is pending.
 
 Guest sign-in copy now uses the friendly VM name, explains the administrator account and purpose in plain language, and gives a short optional Remember explanation. It omits the VM ID and repeated technical details. Text-only follow-up; no live prompt rerun was requested.
 

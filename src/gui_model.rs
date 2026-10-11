@@ -69,7 +69,7 @@ impl Inventory {
                     preparation: if journal.pending {
                         "Recovery pending; preparation outcome requires inspection"
                     } else if journal.prepared.is_some() {
-                        "Previously prepared; current driver parity has not been checked"
+                        "Previously prepared; current guest files and driver parity are unknown. A checkpoint rollback can undo guest setup. Use Verify to check current graphics health."
                     } else {
                         "No completed preparation recorded"
                     }
@@ -592,7 +592,7 @@ mod tests {
         assert!(
             recorded
                 .preparation
-                .contains("current driver parity has not been checked")
+                .contains("current guest files and driver parity are unknown")
         );
         assert!(recorded.graphics.contains("123"));
         assert!(recorded.graphics.contains("Last successful"));
@@ -608,6 +608,24 @@ mod tests {
         assert!(pending.preparation.contains("outcome requires inspection"));
         assert_eq!(pending.graphics, recorded.graphics);
     }
+    #[test]
+    fn unchanged_host_receipt_after_guest_rollback_is_only_history() {
+        let mut inventory = inventory();
+        let id = target(1).vm_id;
+        inventory.managed.insert(id.clone(), Some(journal()));
+        inventory.discovery.vms[0].gpus = vec![target(1).gpu_interface];
+        // Guest disk rollback is invisible to these host records. Reading them
+        // must neither certify guest setup nor erase the enrolled authority.
+        let before = serde_json::to_value(&inventory).unwrap();
+        let recorded = inventory.recorded_state(&id);
+        assert!(recorded.preparation.contains("Previously prepared"));
+        assert!(recorded.preparation.contains("checkpoint rollback"));
+        assert!(recorded.preparation.contains("Use Verify"));
+        assert!(recorded.graphics.contains("current guest health unknown"));
+        assert!(!recorded.recovery_required);
+        assert_eq!(before, serde_json::to_value(&inventory).unwrap());
+    }
+
     #[test]
     fn mismatched_records_cannot_supply_a_graphics_pass_for_the_selected_pair() {
         for mismatch in 0..4 {
