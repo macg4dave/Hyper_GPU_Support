@@ -37,6 +37,6 @@ Implementation and validation are recorded separately. No milestone is closed by
 
 ## Current position
 
-The product requirements above are confirmed through the Q&A. APP-001 source removal, APP-002 (R1 controls), and APP-003 (R2 review/confirmation, explicitly requested ahead of R1) are implemented with validation pending. APP-004 (R3 initial setup and final shutdown) is the next implementation task. R2 review reports the current backend lifecycle; initial final-off setup and ordinary-operation behavior still belong to APP-004/APP-006. No build, test, render, application launch, guest operation, or hardware qualification ran for these source changes. M1 remains open.
+The product requirements above are confirmed through the Q&A. APP-001 through APP-004 are implemented with validation pending (R2 was explicitly requested ahead of R1). Initial setup now includes graphics verification and confirmed graceful final shutdown; review describes that sequence. APP-005 (R4 credential explanation) is the next implementation task. Ordinary-operation behavior still belongs to APP-006. No build, test, render, application launch, guest operation, or hardware qualification ran for these source changes. M1 remains open.
 
 Normal later-operation final power behavior still needs a precise policy: automatic required shutdown/restart is agreed, while the explicit final-off decision applies to completed initial setup. Record that policy in APP-006 before changing the lifecycle implementation.

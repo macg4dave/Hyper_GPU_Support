@@ -142,6 +142,10 @@ pub struct SaveRecord {
     pub publication_required: bool,
     /// Initial independently observed state for explicit reconciliation.
     pub initial: VmState,
+    /// Reviewed successful final power, independent of the starting state.
+    /// Older receipts omit this and retain their original-power contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_power: Option<crate::model::Power>,
     /// Original journal for explicitly retiring a proven pre-effect rejection.
     pub initial_journal: Option<crate::workflow::Journal>,
     /// Reviewed compatibility values expected after the operation.
@@ -206,6 +210,15 @@ impl ImportRecord {
     }
 }
 impl SaveRecord {
+    /// Recover the immutable final-power intent without guessing from current state.
+    pub fn final_power(&self) -> Result<crate::model::Power, String> {
+        let power = self.expected_power.as_ref().unwrap_or(&self.initial.power);
+        if !matches!(power, crate::model::Power::Off | crate::model::Power::Running) {
+            return Err("recorded final power is unsupported; retain recovery".into());
+        }
+        Ok(power.clone())
+    }
+
     /// Retire a stopped, unattached interrupted first enable only after independent
     /// host readback proves the starting configuration. Guest files may remain;
     /// no preparation/graphics receipt or desired configuration is published.
@@ -264,6 +277,7 @@ impl SaveRecord {
     /// partial assignment/settings are blocked rather than repaired or replayed.
     pub fn validate_reconciliation(&self, state: &VmState, driver: &str) -> Result<(), String> {
         self.target.validate()?;
+        self.final_power()?;
         if self.schema != 1
             || self.operation_id.is_empty()
             || self.driver_version != driver
@@ -337,6 +351,7 @@ impl SaveRecord {
             );
         }
         if verified.vm_id != self.target.vm_id
+            || effective.power != self.final_power()?
             || effective.vm_id != self.target.vm_id
             || serde_json::to_value(verified).map_err(|e| e.to_string())?
                 != serde_json::to_value(effective).map_err(|e| e.to_string())?
@@ -478,6 +493,7 @@ mod tests {
             intended_source: SOURCE.into(),
             publication_required: true,
             initial: effective.clone(),
+            expected_power: None,
             initial_journal: None,
             expected_settings: effective.settings.clone(),
             phase: SavePhase::Admitted,
@@ -488,6 +504,23 @@ mod tests {
                 .is_err()
         );
         record.phase = SavePhase::Verified(effective.clone());
+        // A running initial VM may promise final-off setup. Publication must not
+        // substitute its original power or accept a running "verified" receipt.
+        record.initial.power = crate::model::Power::Running;
+        record.expected_power = Some(crate::model::Power::Off);
+        let mut running = effective.clone();
+        running.power = crate::model::Power::Running;
+        record.phase = SavePhase::Verified(running.clone());
+        assert!(record.validate_save_only(&running, "driver", &Revision::Missing).is_err());
+        record.phase = SavePhase::Verified(effective.clone());
+        let mut legacy = serde_json::to_value(&record).unwrap();
+        legacy.as_object_mut().unwrap().remove("expected_power");
+        let legacy: SaveRecord = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.final_power().unwrap(), crate::model::Power::Running);
+        record.expected_power = Some(crate::model::Power::Other(4));
+        assert!(record.final_power().is_err());
+        assert!(record.validate_reconciliation(&effective, "driver").is_err());
+        record.expected_power = Some(crate::model::Power::Off);
         assert!(record.validate_reconciliation(&effective, "driver").is_ok());
         let mut partial = effective.clone();
         partial.gpus.clear();
@@ -575,6 +608,7 @@ mod tests {
             intended_source: SOURCE.into(),
             publication_required: true,
             initial: initial.clone(),
+            expected_power: None,
             initial_journal: None,
             expected_settings: initial.settings.for_gpu(),
             phase: SavePhase::EffectsStarted,
@@ -709,6 +743,7 @@ mod tests {
                 .unwrap(),
             publication_required: true,
             initial: effective.clone(),
+            expected_power: None,
             initial_journal: None,
             expected_settings: effective.settings.clone(),
             phase: SavePhase::Verified(effective.clone()),

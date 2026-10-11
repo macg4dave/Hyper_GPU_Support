@@ -682,6 +682,7 @@ fn execute(
                 .ok_or("missing output document")?,
                 publication_required: true,
                 initial: current.observed.clone(),
+                expected_power: Some(current.preview.restore_power.clone()),
                 initial_journal: current.managed.clone(),
                 expected_settings: current
                     .preview
@@ -785,6 +786,11 @@ fn execute(
                 .ok_or("missing receipt intent")?,
                 publication_required: false,
                 initial: approved.observed.clone(),
+                expected_power: Some(workflow::verification_power(
+                    &approved.target,
+                    &approved.observed,
+                    approved.managed.as_ref(),
+                )?),
                 initial_journal: approved.managed.clone(),
                 expected_settings: approved.observed.settings.clone(),
                 phase: SavePhase::Admitted,
@@ -957,6 +963,7 @@ fn execute(
             }
             record
                 .validate_reconciliation(&before, &backend.gpu(&record.target)?.driver_version)?;
+            let final_power = record.final_power()?;
             if let Some(digest) = &record.payload_digest
                 && backend.payload(&record.target)? != *digest
             {
@@ -964,7 +971,7 @@ fn execute(
             }
             let check_graphics = record.target.enabled || !record.publication_required;
             if check_graphics
-                && (before.power == Power::Off || record.initial.power == Power::Off)
+                && (before.power == Power::Off || final_power == Power::Off)
                 && !shutdown_approved
             {
                 return Err("explicit graceful guest shutdown/restoration approval is required for reconciliation".into());
@@ -982,7 +989,7 @@ fn execute(
                 },
                 &checked_target,
                 &before,
-                record.initial.power.clone(),
+                final_power,
                 record.payload_digest.as_deref(),
             )?;
             record.validate_reconciliation(

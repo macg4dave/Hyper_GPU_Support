@@ -113,6 +113,16 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
         return Err("managed state belongs to a different target; reconcile enrollment".into());
     }
     let managed = old.clone();
+    // Attachment alone and standalone graphics checks do not prove preparation.
+    // Existing successful preparation + graphics receipts remain valid history.
+    let initial_setup = target.enabled
+        && !managed.as_ref().is_some_and(|journal| {
+            journal.prepared.is_some() && journal.last_verified.is_some()
+        })
+        // An interrupted older operation retains its own recorded lifecycle.
+        && managed.as_ref().is_none_or(|journal| {
+            !journal.pending || journal.restore_power == Power::Off
+        });
     let mut journal = old.unwrap_or(Journal {
         schema: 1,
         vm_id: target.vm_id.clone(),
@@ -126,7 +136,11 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
         last_verified: None,
     });
     if !journal.pending {
-        journal.restore_power = initial.power.clone();
+        journal.restore_power = if initial_setup {
+            Power::Off
+        } else {
+            initial.power.clone()
+        };
         if initial.gpus.is_empty() && target.enabled {
             // A completed disable releases ownership of compatibility settings.
             // Capture the new baseline before changing them again.
@@ -186,6 +200,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
         assignment,
         allocation_change,
         needs_changes,
+        initial_setup,
     })
 }
 
@@ -204,6 +219,7 @@ struct Decision {
     assignment: bool,
     allocation_change: bool,
     needs_changes: bool,
+    initial_setup: bool,
 }
 
 /// Read-only preparation comparison against the authenticated current host payload.
@@ -282,6 +298,9 @@ pub struct EffectPreview {
 /// Full plan; enabled targets discover/hash/authenticate the payload, so this is not a dashboard poll.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
+    /// No completed preparation/graphics receipts exist; success must leave the VM off.
+    #[serde(default)]
+    pub initial_setup: bool,
     /// Runtime intent, still constrained by protected administrator enrollment.
     pub desired: Target,
     /// Fresh Hyper-V observation, not fresh guest receipt or graphics health.
@@ -375,6 +394,9 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
         });
     let pending = d.journal.pending;
     let mut summary = Vec::new();
+    if d.initial_setup {
+        summary.push("Initial GPU setup includes preparation as needed and checked hardware rendering. Successful completion requires confirmed graceful shutdown; leave the VM off for the user to start in Hyper-V.".into());
+    }
     if pending {
         summary.push("Reconcile the pending operation before completing this request.".into());
     }
@@ -431,6 +453,7 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     }
     summary.push(format!("Final guest power: {:?}. Apply rechecks identity and state; a preview does not reserve them.", d.restore_power));
     Plan {
+        initial_setup: d.initial_setup,
         desired: target.clone(),
         observed: d.initial,
         managed: d.managed,
@@ -940,6 +963,8 @@ mod tests {
         fail_settings: bool,
         fail_verify: bool,
         fail_shutdown: bool,
+        fail_final_shutdown: bool,
+        ignore_final_shutdown: bool,
         fail_start_after_effect: bool,
         driver: &'static str,
         gpu_driver: &'static str,
@@ -988,6 +1013,8 @@ mod tests {
             fail_settings: false,
             fail_verify: false,
             fail_shutdown: false,
+            fail_final_shutdown: false,
+            ignore_final_shutdown: false,
             fail_start_after_effect: false,
             driver: "current",
             gpu_driver: "new",
@@ -1061,7 +1088,7 @@ mod tests {
             );
             assert_eq!(result.prepared, scenario == "fresh");
             assert_eq!(result.verified, target.enabled);
-            assert_eq!(result.effective.power, Power::Running);
+            assert_eq!(result.effective.power, approved.preview.restore_power);
             assert_eq!(result.effective.gpus.len(), usize::from(target.enabled));
         }
     }
@@ -1070,6 +1097,7 @@ mod tests {
         for changed in 0..4 {
             let mut backend = fake();
             apply(&mut backend, &target()).unwrap();
+            backend.state.power = Power::Running;
             let approved = plan(&mut backend, &target()).unwrap();
             let (_, admitted) = admit_approved(&mut backend, &approved).unwrap();
             backend.events.clear();
@@ -1118,7 +1146,7 @@ mod tests {
         backend.events.clear();
         backend.journal_writes = 0;
         let approved = plan_verification(&mut backend, &target()).unwrap();
-        backend.state.power = Power::Off;
+        backend.state.power = Power::Running;
         assert!(verify_approved(&mut backend, &approved).is_err());
         assert!(backend.events.is_empty());
         assert_eq!(backend.journal_writes, 0);
@@ -1129,6 +1157,8 @@ mod tests {
     fn explicit_reconciliation_never_reassigns_reprepares_or_reallocates() {
         let mut backend = fake();
         apply(&mut backend, &target()).unwrap();
+        backend.state.power = Power::Running;
+        backend.journal.as_mut().unwrap().restore_power = Power::Running;
         backend.journal.as_mut().unwrap().pending = true;
         backend.events.clear();
         backend.allocation_writes = 0;
@@ -1220,6 +1250,14 @@ mod tests {
             });
             if p == Power::Off && self.fail_shutdown {
                 return Err("shutdown refused".into());
+            }
+            if p == Power::Off && self.events.contains(&"graphics") {
+                if self.fail_final_shutdown {
+                    return Err("final shutdown refused".into());
+                }
+                if self.ignore_final_shutdown {
+                    return Ok(());
+                }
             }
             self.state.power = p;
             if self.state.power == Power::Running && self.fail_start_after_effect {
@@ -1465,6 +1503,7 @@ mod tests {
     fn running_verification_retry_reuses_preparation_without_restart() {
         let mut f = fake();
         apply(&mut f, &target()).unwrap();
+        f.state.power = Power::Running;
         f.fail_verify = true;
         assert!(apply(&mut f, &target()).is_err());
         f.events.clear();
@@ -1483,6 +1522,7 @@ mod tests {
         let mut f = fake();
         let mut t = target();
         apply(&mut f, &t).unwrap();
+        f.state.power = Power::Running;
         t.vram = Some(Allocation {
             minimum: 10,
             maximum: 90,
@@ -1613,9 +1653,11 @@ mod tests {
         assert_eq!(
             f.events,
             [
-                "shutdown", "start", "prepare", "shutdown", "attach", "start", "graphics"
+                "shutdown", "start", "prepare", "shutdown", "attach", "start", "graphics", "shutdown"
             ]
         );
+        // The user starts the completed setup through Hyper-V before ordinary work.
+        f.state.power = Power::Running;
         f.events.clear();
         assert!(!apply(&mut f, &t).unwrap().prepared);
         assert_eq!(f.events, ["graphics"]);
@@ -1628,6 +1670,168 @@ mod tests {
             Some("current")
         );
         assert!(!f.state.settings.cache_types);
+    }
+
+    #[test]
+    fn initial_setup_from_off_or_running_verifies_and_finishes_off() {
+        for starting_power in [Power::Off, Power::Running] {
+            let mut backend = fake();
+            backend.state.power = starting_power.clone();
+            let approved = plan(&mut backend, &target()).unwrap();
+            assert!(approved.initial_setup);
+            assert_eq!(approved.observed.power, starting_power);
+            assert_eq!(approved.preview.restore_power, Power::Off);
+            assert_eq!(
+                approved.preview.actions.last(),
+                Some(&PreviewAction::Shutdown)
+            );
+            assert_eq!(backend.journal_writes, 0);
+            assert!(backend.events.is_empty());
+            let result = apply_approved(&mut backend, &approved).unwrap();
+            assert!(result.prepared && result.verified);
+            assert_eq!(result.effective.power, Power::Off);
+            assert_eq!(backend.events, trace(&approved.preview));
+            let journal = backend.journal.as_ref().unwrap();
+            assert!(!journal.pending);
+            assert!(journal.prepared.is_some() && journal.last_verified.is_some());
+            assert!(!plan(&mut backend, &target()).unwrap().initial_setup);
+            backend.state.power = Power::Running;
+            let later = plan(&mut backend, &target()).unwrap();
+            assert!(!later.initial_setup);
+            assert_eq!(later.preview.restore_power, Power::Running);
+        }
+    }
+
+    #[test]
+    fn initial_setup_of_second_vm_preserves_first_on_the_same_gpu() {
+        struct Fleet(std::collections::BTreeMap<String, Fake>);
+        impl Fleet {
+            fn selected(&mut self, target: &Target) -> &mut Fake {
+                self.0
+                    .get_mut(&target.vm_id)
+                    .expect("effect targeted a known VM")
+            }
+        }
+        impl Backend for Fleet {
+            fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
+                self.selected(t).inspect(t)
+            }
+            fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
+                self.selected(t).gpu(t)
+            }
+            fn payload(&mut self, t: &Target) -> Result<String, String> {
+                self.selected(t).payload(t)
+            }
+            fn journal(&mut self, t: &Target) -> Result<Option<Journal>, String> {
+                self.selected(t).journal(t)
+            }
+            fn save(&mut self, t: &Target, j: &Journal) -> Result<(), String> {
+                self.selected(t).save(t, j)
+            }
+            fn power(&mut self, t: &Target, p: Power) -> Result<(), String> {
+                self.selected(t).power(t, p)
+            }
+            fn assign(&mut self, t: &Target, enabled: bool) -> Result<(), String> {
+                self.selected(t).assign(t, enabled)
+            }
+            fn settings(&mut self, t: &Target, s: &Settings) -> Result<(), String> {
+                self.selected(t).settings(t, s)
+            }
+            fn allocation(&mut self, t: &Target, r: Resource, a: &Allocation) -> Result<(), String> {
+                self.selected(t).allocation(t, r, a)
+            }
+            fn prepare(&mut self, t: &Target) -> Result<String, String> {
+                self.selected(t).prepare(t)
+            }
+            fn verify(&mut self, t: &Target, g: &Gpu) -> Result<(), String> {
+                self.selected(t).verify(t, g)
+            }
+        }
+        let first = target();
+        let mut second = first.clone();
+        second.vm_id = "22222222-2222-2222-2222-222222222222".into();
+        let mut second_backend = fake();
+        second_backend.state.vm_id = second.vm_id.clone();
+        let mut fleet = Fleet(std::collections::BTreeMap::from([
+            (first.vm_id.clone(), fake()),
+            (second.vm_id.clone(), second_backend),
+        ]));
+        apply(&mut fleet, &first).unwrap();
+        // The first guest is running when setup is requested for the second.
+        fleet.0.get_mut(&first.vm_id).unwrap().state.power = Power::Running;
+        let first_state = serde_json::to_value(&fleet.0[&first.vm_id].state).unwrap();
+        let first_journal = serde_json::to_value(&fleet.0[&first.vm_id].journal).unwrap();
+        let first_events = fleet.0[&first.vm_id].events.clone();
+        let approved = plan(&mut fleet, &second).unwrap();
+        let result = apply_approved(&mut fleet, &approved).unwrap();
+        assert!(result.verified);
+        assert_eq!(result.effective.power, Power::Off);
+        assert_eq!(
+            serde_json::to_value(&fleet.0[&first.vm_id].state).unwrap(),
+            first_state
+        );
+        assert_eq!(
+            serde_json::to_value(&fleet.0[&first.vm_id].journal).unwrap(),
+            first_journal
+        );
+        assert_eq!(fleet.0[&first.vm_id].events, first_events);
+    }
+
+    #[test]
+    fn initial_setup_failures_retain_recovery_and_cannot_be_replayed_by_approval() {
+        for failure in 0..5 {
+            let mut backend = fake();
+            match failure {
+                0 => backend.fail_shutdown = true,
+                1 => backend.fail_prepare = true,
+                2 => backend.fail_verify = true,
+                3 => backend.fail_final_shutdown = true,
+                _ => backend.ignore_final_shutdown = true,
+            }
+            let approved = plan(&mut backend, &target()).unwrap();
+            assert!(apply_approved(&mut backend, &approved).is_err());
+            let journal = backend.journal.as_ref().unwrap();
+            assert!(journal.pending);
+            assert_eq!(journal.restore_power, Power::Off);
+            assert!(journal.last_verified.is_none());
+            if failure < 2 {
+                assert!(!backend.events.contains(&"attach"));
+                assert!(!backend.events.contains(&"graphics"));
+            }
+            let writes = backend.journal_writes;
+            let events = backend.events.clone();
+            let pending = plan(&mut backend, &target()).unwrap();
+            assert!(pending.preview.pending_recovery);
+            assert!(apply_approved(&mut backend, &pending).is_err());
+            assert_eq!(backend.journal_writes, writes);
+            assert_eq!(backend.events, events);
+        }
+    }
+
+    #[test]
+    fn interrupted_final_shutdown_reconciles_to_off_without_repeating_setup() {
+        let mut backend = fake();
+        backend.fail_final_shutdown = true;
+        let approved = plan(&mut backend, &target()).unwrap();
+        assert!(apply_approved(&mut backend, &approved).is_err());
+        assert_eq!(backend.state.power, Power::Running);
+        backend.fail_final_shutdown = false;
+        backend.events.clear();
+        backend.allocation_writes = 0;
+        let observed = backend.state.clone();
+        let result = reconcile_observed(
+            &mut backend,
+            &target(),
+            &observed,
+            Power::Off,
+            Some("current"),
+        )
+        .unwrap();
+        assert!(result.verified);
+        assert_eq!(result.effective.power, Power::Off);
+        assert_eq!(backend.events, ["graphics", "shutdown"]);
+        assert_eq!(backend.allocation_writes, 0);
+        assert!(!backend.journal.as_ref().unwrap().pending);
     }
     #[test]
     fn partial_preparation_is_durable_and_never_attached() {
@@ -1656,6 +1860,7 @@ mod tests {
         let mut f = fake();
         let mut t = target();
         apply(&mut f, &t).unwrap();
+        f.state.power = Power::Running;
         t.enabled = false;
         f.fail_settings = true;
         assert!(apply(&mut f, &t).is_err());
@@ -1672,6 +1877,7 @@ mod tests {
         let mut f = fake();
         let mut t = target();
         apply(&mut f, &t).unwrap();
+        f.state.power = Power::Running;
         f.state.settings.high_mmio += 1024;
         let external = f.state.settings.clone();
         t.enabled = false;
@@ -1718,6 +1924,7 @@ mod tests {
     fn failed_running_reapply_is_pending_and_retry_does_not_restart_or_prepare() {
         let mut f = fake();
         apply(&mut f, &target()).unwrap();
+        f.state.power = Power::Running;
         let previous_verified = f.journal.as_ref().unwrap().last_verified;
         f.events.clear();
         f.fail_verify = true;

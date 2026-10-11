@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**APP-004 — Complete initial setup, verification, and final shutdown (R3).** Ready after APP-002/APP-003 source implementation. Inspect the existing preparation, graphics verification, and power restoration path; bind the initial setup sequence to review and require confirmed graceful final shutdown for success. Validation waits for APP-008; live work requires separate authorization.
+**APP-005 — Explain guest credentials before the local prompt (R4).** Ready after APP-004 source implementation. Name the selected VM and explain its Windows sign-in before prompting; preserve optional vault opt-in and cancellation. Validation waits for APP-008; live work requires separate authorization.
 
 ## Task register
 
@@ -13,8 +13,8 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-001 | M1 | Remove retired mock GUI tooling | None | Done | Pending milestone gate |
 | APP-002 | M1 | Match the simple toggle and VRAM control | APP-001 | Done | Pending milestone gate |
 | APP-003 | M1 | Complete review and confirmation | APP-002 | Done (R2 source; requested ahead of APP-002) | Pending milestone gate |
-| APP-004 | M1 | Complete initial setup, verification, and final shutdown | APP-003 | Ready | Not run |
-| APP-005 | M1 | Explain guest credentials before the local prompt | APP-004 | Blocked | Not run |
+| APP-004 | M1 | Complete initial setup, verification, and final shutdown | APP-003 | Done | Pending milestone gate |
+| APP-005 | M1 | Explain guest credentials before the local prompt | APP-004 | Ready | Not run |
 | APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Blocked | Not run |
 | APP-007 | M1 | Complete saved state, progress, and failure handling | APP-006 | Blocked | Not run |
 | APP-008 | M1 | Prepare and run the milestone's non-hardware gate | APP-007 | Blocked | Not run |
@@ -52,6 +52,8 @@ Implementation (11 October 2026): R2 source work was explicitly requested ahead 
 Reuse package setup, additive enrollment, shared preparation, and the existing guest graphics check. Distinguish first GPU setup from ordinary changes. Review the actual lifecycle sequence, prepare the guest, establish GPU support, check that it works, report pass/fail, and gracefully leave the VM off after completed setup.
 
 Acceptance: setup on a second VM preserves the first; initial verification belongs to setup rather than an extra mandatory user action; success includes confirmed final shutdown. Failure or uncertain outcome remains honest and recoverable. Do not force power-off or blindly repeat interrupted setup.
+
+Implementation (11 October 2026): the shared planner distinguishes initial setup using existing completed preparation/graphics receipts. Initial setup prepares as needed, establishes the selected GPU/resources, checks guest hardware rendering, and requires independently confirmed final-off state before returning success or recording successful verification. Review labels initial setup and includes its ordered final shutdown. Existing package setup and additive enrollment reviews remain separate authority steps; they do not authorize guest effects. Completed historical preparation/graphics receipts remain recognised; later-operation behavior is reserved for APP-006. Protected recovery records now persist the reviewed final power separately from the starting observation; older records retain their original-power contract. Reconciliation uses that intent without replaying setup, and save-only rejects an outcome in the wrong power state. GUI completion names the VM and reports rendering pass plus final shutdown; failures retain pending recovery and cannot report setup success. Added off/running setup, false/refused shutdown, preparation/graphics failure, no-replay, explicit reconciliation, two-VM isolation, receipt compatibility/publication, and review regressions. Static source/reference review and `git diff --check` only; no formatter, build, tests, render, GUI launch, guest access, protected write, or hardware operation ran. APP-008/APP-009 acceptance remains pending; M1 stays open.
 
 ### APP-005 — Explain guest credentials before the local prompt
 

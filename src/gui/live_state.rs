@@ -485,6 +485,9 @@ pub(super) fn review_summary(plan: &Plan) -> String {
             }
         ),
     ];
+    if plan.initial_setup {
+        lines.insert(1, "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes.".into());
+    }
     for (resource, write) in [
         (Resource::Vram, plan.preview.allocation.as_ref()),
         (Resource::Compute, plan.preview.compute.as_ref()),
@@ -899,6 +902,7 @@ mod tests {
             intended_source: String::new(),
             publication_required: true,
             initial: observed.clone(),
+            expected_power: None,
             initial_journal: None,
             expected_settings: observed.settings.clone(),
             phase: SavePhase::Verified(observed),
@@ -1226,6 +1230,7 @@ mod tests {
             .draft(id(&s), true, 0, &values("10", "50", "100"))
             .unwrap();
         Plan {
+            initial_setup: false,
             desired: target.clone(),
             observed: s.view.vm(id(&s)).unwrap().clone(),
             managed: None,
@@ -1388,5 +1393,24 @@ mod tests {
         assert!(!summary.contains("several minutes"));
         assert!(!summary.contains("Save work inside it"));
         assert!(!summary.contains("graphics check may take additional time"));
+    }
+
+    #[test]
+    fn initial_setup_review_includes_graphics_and_successful_final_off() {
+        use hyper_gpu_support::workflow::PreviewAction;
+        let mut plan = review_plan();
+        plan.initial_setup = true;
+        plan.preview.restore_power = Power::Off;
+        plan.preview.actions = vec![
+            PreviewAction::Start,
+            PreviewAction::Verify,
+            PreviewAction::Shutdown,
+        ];
+        let summary = review_summary(&plan);
+        assert!(summary.contains("Initial GPU setup"));
+        assert!(summary.contains("hardware rendering"));
+        assert!(summary.contains("Expected final VM power after successful completion: Stopped."));
+        assert!(summary.contains("3. Gracefully stop the VM."));
+        assert!(summary.contains("Start it through Hyper-V"));
     }
 }

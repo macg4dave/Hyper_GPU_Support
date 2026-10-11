@@ -32,6 +32,8 @@ The [store records](../src/configuration_store.rs) distinguish effect recovery f
 
 A missing reply, timeout, worker exit, or absent terminal audit is not proof that no mutation occurred. Keep holds until independent facts support the appropriate reconciliation. Do not delete records, clear journals, overwrite intent, or blindly replay Apply to unblock the GUI.
 
+GPU recovery receipts retain the independently recomputed plan's expected final power separately from the initial observation. Initial setup requires final-off readback before recording graphics/setup completion or allowing configuration publication. Explicit reconciliation must match the journal's recorded power intent and can restore only that intent; save-only cannot accept a running outcome where the receipt promises off. Receipts predating this field retain their original-power contract. Pending operations continue to block new Apply admission; this change introduces no automatic retry or replay.
+
 Standalone Verify has no configuration-publication authority. Its recovery can inspect graphics and safely restore the approved original power state; it cannot import the target's intent or replay preparation/assignment/allocation.
 
 The interrupted-first-enable baseline retirement path is narrow: fresh independent state must prove the recorded starting configuration under the record's checks. Guest files may remain, and no preparation/graphics success or desired intent is invented. Other partial/changed states stay blocked.

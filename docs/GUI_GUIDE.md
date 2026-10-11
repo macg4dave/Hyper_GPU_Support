@@ -16,7 +16,7 @@ Toggle/VRAM changes remain drafts. Apply opens a review panel naming the selecte
 
 Review must reflect a fresh backend plan. Changed target or inputs invalidate approval. Setup/enrollment authority remains distinct from GPU effects, even when presented as one understandable setup journey.
 
-APP-003 source now provides first Apply → review → second Apply, with Cancel retaining the draft and clearing approval. Review shows ordered backend steps, changed compatibility values, final power, and relevant time warnings. It binds the original committed revision as well as the VM and draft; the protected worker independently rechecks backend state before effects. Source acceptance awaits APP-008 checks and APP-009 real interaction validation. Until APP-004/APP-006 change the lifecycle, review reports the current backend's preparation, graphics checks, and recorded power restoration.
+APP-003 source now provides first Apply → review → second Apply, with Cancel retaining the draft and clearing approval. Review shows ordered backend steps, changed compatibility values, final power, and relevant time warnings. It binds the original committed revision as well as the VM and draft; the protected worker independently rechecks backend state before effects. Initial setup now includes its final shutdown under APP-004; ordinary changes retain the current backend graphics/restoration behavior until APP-006. Source acceptance awaits APP-008 checks and APP-009 real interaction validation.
 
 ## First GPU setup
 
@@ -25,6 +25,8 @@ The application manages required VM power transitions, guest preparation, GPU co
 Before the local credential prompt, show a friendly explanation such as: “Setup needs the Windows sign-in for this VM. Use the account inside the VM, rather than the account for your host computer.” Include the actual VM name. Remembering credentials is optional and requires explicit opt-in.
 
 An interrupted or failed operation must not pretend setup completed or promise a final power state that has not been confirmed.
+
+APP-004 source now identifies initial setup when completed preparation and graphics receipts are absent. Existing completed receipts remain valid historical setup evidence; an attachment or standalone graphics check alone does not establish preparation. Package setup/additive enrollment retain their existing separate reviews, followed by a fresh GPU effect review. Initial setup success requires graphics pass and confirmed final-off readback; its completion message names the VM and tells the user to start it through Hyper-V. A publication failure reports the guest setup result separately and offers save-only retry. Interrupted effects retain recovery with the reviewed final power; reconciliation does not repeat preparation/assignment/allocation. These source changes have not been compiled, rendered, or qualified on real VMs.
 
 ## Later changes
 

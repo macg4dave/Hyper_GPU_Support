@@ -1138,6 +1138,8 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
     let finished_state = state.clone();
     let progress = progress_to_ui(ui.as_weak());
     let vm_name = approved.observed.name.clone();
+    let result_vm_name = vm_name.clone();
+    let initial_setup = approved.initial_setup;
     background_for_vm(
         ui,
         busy,
@@ -1181,17 +1183,34 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                     dialog(
                         ui,
                         "info",
-                        "Operation verified and configuration saved",
-                        "The GPU changes were checked and your settings were saved. Use Refresh to see the latest VM information.",
+                        if initial_setup {
+                            "Initial GPU setup passed"
+                        } else {
+                            "Operation verified and configuration saved"
+                        },
+                        &if initial_setup {
+                            format!("{result_vm_name}: hardware rendering passed, graceful final shutdown was confirmed, and your settings were saved. The VM is off; start it through Hyper-V when ready.")
+                        } else {
+                            "The GPU changes were checked and your settings were saved. Use Refresh to see the latest VM information.".into()
+                        },
                     );
                 } else {
                     dialog(
                         ui,
                         "save",
-                        "Operation verified; configuration not saved",
+                        if initial_setup {
+                            "Initial GPU setup passed; settings not saved"
+                        } else {
+                            "Operation verified; configuration not saved"
+                        },
                         &format!(
-                            "{}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply.",
-                            outcome.save_error.unwrap_or_default()
+                            "{}{}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply.",
+                            if initial_setup {
+                                format!("{result_vm_name}: hardware rendering passed and final shutdown was confirmed. The VM is off.\n")
+                            } else {
+                                String::new()
+                            },
+                            outcome.save_error.unwrap_or_default(),
                         ),
                     );
                 }
@@ -1207,7 +1226,16 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                 });
                 ui.set_stages(model(stages));
                 let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
-                dialog(ui, "error", "Operation did not complete", &error);
+                dialog(
+                    ui,
+                    "error",
+                    if initial_setup {
+                        "Initial GPU setup did not complete"
+                    } else {
+                        "Operation did not complete"
+                    },
+                    &error,
+                );
                 let reason =
                     hyper_gpu_support::reporting::operator_error("Applying changes", &error);
                 ui.set_dialog_body(format!(
@@ -1768,7 +1796,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                             hyper_gpu_support::configuration_store::SavePhase::Admitted | hyper_gpu_support::configuration_store::SavePhase::EffectsStarted => {
                                 let name = state.view.vm(&record.target.vm_id).map_or(record.initial.name.as_str(), |vm| vm.name.as_str());
                                 dialog(&ui, "recovery", "Review interrupted operation", &format!("Virtual machine: {name}\n\nCheck the interrupted GPU operation without repeating it. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."));
-                                ui.set_dialog_details(format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power).into());
+                                ui.set_dialog_details(format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\nReviewed final guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power, record.final_power()?).into());
                             }
                         }
                         return Ok(());

@@ -1,16 +1,16 @@
 # Source baseline
 
-Assessment: 11 October 2026, static source inspection during the product Q&A. APP-001 source removal, APP-002 controls, and APP-003 review/confirmation subsequently completed on the same date, with static reference/diff review only. No build, automated product test, render, GUI launch, guest operation, or hardware qualification ran. This page distinguishes current code from the requested workflow; [backlog](BACKLOG.md) owns fixes.
+Assessment: 11 October 2026, static source inspection during the product Q&A. APP-001 through APP-004 source work subsequently completed on the same date, with static reference/diff review only. No build, automated product test, render, GUI launch, guest operation, or hardware qualification ran. This page distinguishes current code from the requested workflow; [backlog](BACKLOG.md) owns fixes.
 
 ## Source and requested changes
 
 | Area | Current source finding | Required direction |
 |---|---|---|
 | Dispatch and GUI | [Main](../src/main.rs) selects only live GUI startup; [GUI host](../src/gui/mod.rs) retains shared model/dialog helpers after mock/snapshot removal | APP-001/APP-002 source implemented; compilation and UI acceptance pending |
-| Discovery and review | [Live controller](../src/gui/live.rs) and [review state](../src/gui/live_state.rs) bind fresh review to VM/draft/committed revision; first Apply reviews, second confirms, Cancel retains edits; ordered effects and time warnings come from the plan | APP-003 source implemented, validation pending; APP-004/APP-006 lifecycle changes remain |
+| Discovery and review | [Live controller](../src/gui/live.rs) and [review state](../src/gui/live_state.rs) bind fresh review to VM/draft/committed revision; first Apply reviews, second confirms, Cancel retains edits; initial setup is labeled with its ordered final shutdown | APP-003/APP-004 source implemented, validation pending; APP-006 ordinary lifecycle changes remain |
 | VRAM | [Memory control](../src/gui/memory.rs) displays 1 decimal GB to matched physical capacity, preserves exact requests/endpoints, and separately rejects unsupported driver values; native writer passes byte integers without rescaling | APP-002 source implemented; compilation, UI acceptance, and supported-hardware behavior await APP-008/APP-009 |
-| Initial and later effects | [Workflow](../src/workflow.rs) supports preparation, GPU/resource effects, guest verification, and recorded power restoration | Distinguish initial setup from ordinary toggle/VRAM changes under APP-004/APP-006; no repeated initial verification during ordinary changes |
-| Final power | Shared workflow retains original/recorded restore power | Completed initial setup must instead end off; ordinary-operation final power policy remains to be clarified |
+| Initial and later effects | [Workflow](../src/workflow.rs) identifies initial setup from preparation/graphics receipts and includes guest verification before final shutdown | APP-004 source implemented; ordinary changes still repeat graphics checking until APP-006 separates them |
+| Final power | Initial setup requires verified final-off state; [protected receipt](../src/configuration_store.rs) persists reviewed final power for reconciliation/publication independently of the starting observation | APP-004 validation pending; ordinary-operation final power policy remains to be clarified under APP-006 |
 | Credentials | Existing [credential module](../src/credentials.rs) and live controller supply local prompting/storage paths | Audit and add the friendly named-VM explanation before the prompt under APP-005 |
 | State and recovery | [Model](../src/model.rs), [store](../src/configuration_store.rs), [worker](../src/worker.rs), and [enrollment](../src/enrollment.rs) support intent, publication, and protected operation state | Preserve boundaries and audit concrete workflow gaps under APP-007 |
 | Hardware verification | [Guest module](../src/guest.rs) and [D3D11 probe](../src/bin/d3d11-probe.rs) provide hardware checks | Reuse for initial setup; real results require APP-009 authorization |

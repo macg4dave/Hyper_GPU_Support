@@ -171,18 +171,21 @@ pub(crate) fn publish(record: &SaveRecord, client: &str) -> Result<(), String> {
     if !crate::process::is_elevated()? {
         return Err("configuration publication requires the elevated worker".into());
     }
-    if !matches!(
-        record.phase,
-        SavePhase::Verified(_) | SavePhase::Published(_)
-    ) {
-        return Err("only independently verified operations may publish intent".into());
-    }
+    let verified = match &record.phase {
+        SavePhase::Verified(verified) | SavePhase::Published(verified) => verified,
+        SavePhase::Admitted | SavePhase::EffectsStarted => {
+            return Err("only independently verified operations may publish intent".into());
+        }
+    };
     let filename = format!("{}.toml", record.target.vm_id);
     let intended = Configuration::parse_vm_file(&record.intended_source, &filename)?;
     if intended.targets != vec![record.target.clone()] {
         return Err("configuration receipt output mismatch".into());
     }
     let current = revision(&record.target.vm_id)?;
+    // Apply publication and save-only share the same bound final-power checks.
+    // The worker separately obtains fresh VM/driver/payload readback before entry.
+    record.validate_save_only(verified, &record.driver_version, &current)?;
     if current == Revision::of(record.intended_source.as_bytes()) {
         return Ok(());
     }

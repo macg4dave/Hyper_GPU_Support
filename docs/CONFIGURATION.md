@@ -34,6 +34,8 @@ The [example](../config/product.example.toml) and [samples](../config/samples/RE
 
 Normal effect publication binds the target, approved plan, destination revision, driver/payload identity, independently verified state, and canonical source. A verified-but-unsaved operation permits saving that exact bound intent; it does not permit repeating GPU work. See [security/recovery](SECURITY.md).
 
+Protected operation receipts also record `expected_power` independently of `initial.power`. This is operation/recovery evidence, not desired TOML intent. Initial setup binds Off; other operations bind their reviewed final state. Older receipts without this field retain their original-power contract. Save-only must observe the recorded final power as well as the verified identity/allocation state.
+
 Explicit CLI `import` is distinct from effects. It imports an approved bundle into absent per-VM destinations, does not enroll pairs, and does not apply GPU state. A multi-file import has per-file receipts rather than an all-or-nothing transaction. `import-reconcile --operation ID` can resume only the recorded destination set under its conflict checks. The GUI currently reports pending import for CLI resolution.
 
 ## Development configuration
