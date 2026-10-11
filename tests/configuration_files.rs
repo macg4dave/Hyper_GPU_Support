@@ -238,6 +238,6 @@ fn bundle_split_refuses_duplicate_identities_invalid_intent_and_unknown_versions
     invalid.targets[0].gpu_interface = "not-a-provider-interface".into();
     assert!(invalid.vm_documents().is_err());
     let mut future = valid;
-    future.schema = 3;
+    future.schema = 4;
     assert!(future.vm_documents().is_err());
 }

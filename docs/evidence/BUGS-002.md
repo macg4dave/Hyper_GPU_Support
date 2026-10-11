@@ -1,5 +1,38 @@
 # GUI Bug Report – Main Window, GPU Enrollment & Apply Workflow
 
+## Authorized acceptance attempt — 11 October 2026
+
+Live testing is authorized for the configured disposable VM and, by subsequent
+explicit instruction, the second enrolled VM now named `test-001`. Protected
+discovery succeeded. Two explicit reconciliation attempts ended in Failed audits
+and retained its existing `EffectsStarted` recovery record/pending journal. Fresh
+inventory does not match the recorded enabled outcome: VM stopped, no GPU attached,
+original settings. The update wrapper refused installation before effects. Further
+live Apply/enrollment/memory editing/VM-power acceptance is blocked by supported
+recovery; deleting records or replaying Apply is not a resolution.
+
+| Issues | Actual result / remaining acceptance |
+|---|---|
+| BUG-01 / BUG-11 | Navigation stayed enabled with no false draft through two live polling intervals and page navigation. Sample toggle/slider reversal and discard passed; normal/dirty close passed in existing software qualification. Live edits after recovery remain pending. |
+| BUG-02 | Independent review rejected the unqualified physical/provider ratio in committed source. Restored exact native-byte requests; physical memory remains independent inventory. The discovered provider maximum is 1,000,000,000. Physical-card-sized requests remain open until a supported mapping is established. |
+| BUG-03 / BUG-04–08 | Source/software checks passed; narrow Review renders and expanded fixed footer inspected. Installed advanced defaults, actual enrollment wrapping, fresh live plan, credentials and Apply stages remain pending behind recovery/update. |
+| BUG-09 / BUG-10 | Reproduced vague Unknown reconciliation failure. New live source now explains the unmatched interrupted outcome, retains the hold, and exposes the exact safe application component message in Technical Details. Arbitrary adapter messages remain withheld; other Apply/component failure paths remain pending. |
+
+Exact safe application messages use a complete-match allowlist; added untrusted
+text is never copied. This is bounded coverage of known application failures,
+not a general structured adapter-diagnostic solution. Main/technical text and
+Review now consistently describe native decimal-byte VRAM requests, following
+DEC-034. Full provider-range editing and explicit-only default/draft behavior remain.
+
+Initial workspace tests passed 169 tests/four ignored after correcting stale schema
+expectations. Later reporting, GUI/memory and wire-compatibility tests passed; strict
+Clippy and Windows x64/MSVC debug/MCP builds passed. Existing software layout/close
+qualification and sample interactions passed. Host: Windows 26H2 build 26300.9457;
+GPU inventory: RTX 5060, driver 32.0.16.1692. No guest GPU workload, allocation
+enforcement or live power-transition pass is claimed. Evidence and screenshots:
+`local/evidence/bugs-20261011/`; narrow renders: `local/evidence/gui-003-layout/`.
+Owners: GUI-002/GUI-003/GPU-010; CORE-028 owns the partial-state recovery blocker.
+
 ## Source repair status — 10 October 2026
 
 Implementation only; tests, builds, renders, GUI launches, installed updates and

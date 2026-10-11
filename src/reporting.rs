@@ -103,6 +103,7 @@ pub fn operator_error(stage: &str, error: &str) -> String {
         ("no longer present", "The selected VM is no longer present. Refresh and check its identity; keep or discard the draft deliberately."),
         ("inventory is historical", "Inventory is historical. Refresh successfully before further actions."),
         ("pending recovery", "Recovery is pending. Inspect and reconcile the recorded operation; do not replay Apply."),
+        ("recorded outcome is not independently established", "The VM does not match the interrupted operation's approved outcome. An administrator must reconcile the partial state before new changes can be applied."),
         ("unfinished", "An unfinished operation requires manual reconciliation. Inspect its durable record before another operation."),
         ("another gui operation", "Another GUI operation is still running. Wait for its result before continuing."),
     ].into_iter().find_map(|(needle, message)| lower.contains(needle).then_some(message));
@@ -132,9 +133,20 @@ pub fn technical_error(stage: &str, error: &str) -> String {
             }
         }
     }
+    // These complete, application-owned messages contain no interpolated input.
+    // Only exact matches can be retained; a prefix/suffix may contain secrets.
+    let component_message = [
+        "recorded outcome is not independently established; partial state requires administrator reconciliation, never Apply replay",
+        "current payload differs from the recorded operation",
+        "recorded pair is no longer enrolled",
+        "state changed during reconciliation",
+        "operation journal does not prove the reviewed preparation and power intent",
+        "reconciliation independent readback changed",
+    ].into_iter().find(|message| *message == error);
     format!(
-        "Operation: {stage}\nBackend result: {}\nNative error codes: {}\nUntrusted adapter text is omitted to protect credentials.",
+        "Operation: {stage}\nBackend result: {}\nComponent message: {}\nNative error codes: {}\nOther untrusted adapter text is omitted to protect credentials.",
         operator_error(stage, error),
+        component_message.unwrap_or("not available as a safe structured message"),
         if codes.is_empty() {
             "not available".into()
         } else {
@@ -189,6 +201,15 @@ mod tests {
         let details = technical_error("Apply", "password=0x12345678 token=private-content");
         assert!(!details.contains("0x12345678"));
         assert!(!details.contains("private-content"));
+    }
+    #[test]
+    fn reconciliation_failure_retains_exact_safe_reason_but_refuses_added_text() {
+        let error = "recorded outcome is not independently established; partial state requires administrator reconciliation, never Apply replay";
+        assert!(technical_error("Reconciliation", error).contains(error));
+        assert!(operator_error("Reconciliation", error).contains("does not match"));
+        let details = technical_error("Reconciliation", &format!("{error}; private-secret"));
+        assert!(!details.contains(error));
+        assert!(!details.contains("private-secret"));
     }
     #[test]
     fn partial_access_preserves_other_observations() {

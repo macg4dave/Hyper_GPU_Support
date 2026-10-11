@@ -30,6 +30,17 @@ details. Do not restore removed features or require Win32 parity.
 
 ## Implemented and simulated behavior
 
+On 11 October, authorized bug acceptance confirmed live discovery and non-modal
+polling/navigation without false drafts; sample reversal/discard and software
+Review/footer/close checks passed. A retained partial-operation recovery record
+blocked installation/update and further live Apply acceptance. Reconciliation
+readback refused the unmatched outcome and now shows a clear reason and safe exact
+component message. Independent review removed an unqualified physical/provider
+ratio: GPU Memory uses exact native-byte requests under DEC-034; physical memory
+remains independent inventory. The reported provider maximum may be smaller than
+physical card capacity. See [BUGS-001](evidence/BUGS-001.md) and
+[BUGS-002](evidence/BUGS-002.md) for scoped results and remaining acceptance.
+
 BUGS-002 source repairs (10 October, acceptance pending) keep automatic status
 reads non-modal and update existing model rows in place where counts match.
 Provider allocation defaults are labelled suggestions until explicitly edited;

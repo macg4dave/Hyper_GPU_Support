@@ -55,7 +55,7 @@ impl Default for State {
 }
 
 impl State {
-    /// Physical-equivalent preference; raw provider intent remains authoritative.
+    /// Native byte requests; physical capacity never rescales provider intent.
     /// Historical captures cannot grant current physical capacity provenance.
     pub fn memory_slider(
         &self,
@@ -85,15 +85,7 @@ impl State {
             .ok_or("VRAM bounds are unavailable. Use Refresh to retry.")?;
         let current =
             super::memory::request(values.get(..3).ok_or("VRAM fields are unavailable.")?)?;
-        super::memory::MemorySlider::scaled(
-            limits,
-            current.as_ref(),
-            gpu.physical_vram_bytes.ok_or(
-                "Physical GPU memory is unavailable or ambiguous. Use Advanced Allocation.",
-            )?,
-            gpu.total_vram
-                .ok_or("Provider memory scale is unavailable. Use Advanced Allocation.")?,
-        )
+        super::memory::MemorySlider::new(limits, current.as_ref())
     }
 
     /// Compare intent without treating validation, navigation or formatting as edits.

@@ -446,13 +446,13 @@ fn resource_controls(ui: &AppWindow, state: &State) {
                     || "Select an available physical GPU; capability unknown".into(),
                     |gpu| {
                         let mut text = gpu.resource_text(resource);
-                        if resource == Resource::Vram {
-                            if let Some(bytes) = gpu.physical_vram_bytes {
-                                text.push_str(&format!(
-                                    "; physical dedicated memory: {}",
-                                    super::memory::format_gib(bytes)
-                                ));
-                            }
+                        if resource == Resource::Vram
+                            && let Some(bytes) = gpu.physical_vram_bytes
+                        {
+                            text.push_str(&format!(
+                                "; physical dedicated memory: {}",
+                                super::memory::format_gib(bytes)
+                            ));
                         }
                         text
                     },
@@ -493,7 +493,7 @@ fn resource_controls(ui: &AppWindow, state: &State) {
             ui.set_memory_label(slider.label.into());
             ui.set_memory_range_start(slider.range_start.into());
             ui.set_memory_range_end(slider.range_end.into());
-            ui.set_memory_hint("Memory preference based on the selected card's physical capacity. Translated proportionally into the driver's allocation range; this is not a guaranteed memory reservation. Advanced Allocation shows the exact driver values.".into());
+            ui.set_memory_hint("Requested memory within the GPU driver's supported range. The range may be smaller than the card's physical memory; reserved memory and driver enforcement are not established.".into());
         }
         Err(reason) => {
             ui.set_memory_available(false);
@@ -912,32 +912,12 @@ fn review(
                             .map(|gpu| gpu.name.clone())
                     })
                     .unwrap_or_else(|| plan.desired.gpu_interface.clone());
-                let memory_scale = review_state.lock().ok().and_then(|state| {
-                    let gpu = state
-                        .view
-                        .inventory
-                        .as_ref()?
-                        .discovery
-                        .gpus
-                        .iter()
-                        .find(|gpu| gpu.interface == plan.desired.gpu_interface)?;
-                    Some((gpu.physical_vram_bytes?, gpu.total_vram?))
-                });
-                let memory_display = |raw| {
-                    memory_scale
-                        .and_then(|(physical, total)| {
-                            super::memory::equivalent(raw, physical, total)
-                        })
-                        .map_or_else(
-                            || "Unknown equivalent; see raw values below".into(),
-                            super::memory::format_gib,
-                        )
-                };
+                let memory_display = super::memory::format_gb;
                 let memory_summary = if historical {
                     String::new()
                 } else if let Some(write) = &plan.preview.allocation {
                     format!(
-                        "GPU Memory preference (physical equivalent): {} → {}\n",
+                        "GPU Memory request: {} → {}\n",
                         plan.observed
                             .vram
                             .as_ref()
@@ -946,7 +926,7 @@ fn review(
                     )
                 } else if let Some(request) = &plan.desired.vram {
                     format!(
-                        "GPU Memory preference (physical equivalent): {}. No VRAM write is planned.\n",
+                        "GPU Memory request: {}. No VRAM write is planned.\n",
                         memory_display(request.optimal)
                     )
                 } else {
@@ -1319,14 +1299,7 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                 });
                 ui.set_stages(model(stages));
                 let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
-                dialog(
-                    ui,
-                    "error",
-                    "Operation did not complete",
-                    &format!(
-                        "{error}\nYour draft is retained. Inspect recovery and refresh before retrying an uncertain operation."
-                    ),
-                );
+                dialog(ui, "error", "Operation did not complete", &error);
                 let reason =
                     hyper_gpu_support::reporting::operator_error("Applying changes", &error);
                 ui.set_dialog_body(format!(
@@ -1582,14 +1555,13 @@ fn reconcile_live(
                         outcome.save_error.unwrap_or_default()
                     ),
                 ),
-                Err(error) => dialog(
-                    ui,
-                    "error",
-                    "Reconciliation remains blocked",
-                    &format!(
-                        "{error}\nThe durable hold remains. Partial GPU state is not automatically repaired or replayed."
-                    ),
-                ),
+                Err(error) => {
+                    dialog(ui, "error", "Reconciliation remains blocked", &error);
+                    ui.set_dialog_body(format!(
+                        "{}\nThe recovery hold remains. Refresh and have an administrator reconcile the VM state before applying new changes.",
+                        hyper_gpu_support::reporting::operator_error("Reconciliation", &error),
+                    ).into());
+                }
             }
         },
     )

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-11 - GUI bug acceptance and safe request corrections
+
+- Restored exact native VRAM byte requests after independent review rejected an
+  unqualified physical-card/provider ratio; physical capacity stays separate inventory.
+- Added clear partial-state reconciliation guidance and exact safe application
+  messages in failure details. Preserve credential protection and recovery holds.
+- Fixed stale schema-test and strict Clippy failures; software regression, sample
+  interaction and layout checks passed. Live discovery/polling worked, but existing
+  partial-operation recovery blocked protected update and further Apply acceptance.
+
 ## 2026-10-10 - GUI repair build and installed update
 
 - Fixed a Slint duplicate modal-state binding caught by the authorized build.

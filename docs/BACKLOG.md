@@ -12,6 +12,30 @@ If replacement work is blocked by a concrete external prerequisite, record it on
 
 ## Status and selection rules
 
+**Authorized BUGS-001/002 acceptance attempt (11 October):** user authorized live
+testing and subsequently included the second enrolled VM, now `test-001`. Live
+discovery succeeded; navigation remained enabled and no false draft appeared
+through two automatic polling intervals. Explicit reconciliation failed and
+retained that VM's `EffectsStarted` record/pending journal. Fresh inventory differs
+from the approved enabled outcome (stopped, no attached GPU). Native update was
+refused before installation because recovery remains; further Apply, slider,
+enrollment and VM-power acceptance are blocked. Do not delete the record or replay
+Apply to unblock testing. CORE-028 owns supported administrator recovery for this
+partial state; GUI-002/GUI-003/GPU-010 retain acceptance ownership.
+
+The review found an unqualified card/provider memory ratio in the current source.
+Restored DEC-034's exact native-byte requests, keeping physical capacity separate;
+the reported 1 GB provider ceiling is not expanded to a physical-card claim.
+Added safe exact application failure messages and partial-state guidance without
+echoing arbitrary adapter text. Fixed an outdated schema-3 rejection test and
+Clippy failures (boxed completion storage preserves the JSON wire contract).
+The initial suite passed 169 tests with four ignored; subsequent reporting,
+GUI/memory and worker-wire regressions passed, strict Clippy passed, and Windows
+x64 debug/MCP bins built. Existing software layout/close qualification and sample
+toggle/slider reversal, discard and expanded fixed-footer interactions passed.
+These are scoped checks, not live Apply acceptance or M3 closure. See both bug
+reports and `local/evidence/bugs-20261011/` for evidence and remaining limits.
+
 **Authorized BUGS-001 / GPU-010.3 build and installation (10 October):** fixed the Slint duplicate binding in modal availability by deriving its value from dialog/operation state and synchronizing the global from that value. `cargo build --locked --all-features --bins --jobs 2` succeeded for Windows x64/MSVC debug with the configured static CRT. The existing development wrapper then invoked native Rust `install` using the full existing enrollment. All four built/installed/policy SHA-256 hashes match; the original operator and one enrolled pair were preserved. Evidence: `local/gui-update/0852293a78f94462a5a03e3ab3462074/result.json`. No tests, GUI launch or VM/GPU/guest effect exercise was run; behavior acceptance remains pending.
 
 **Requested bug repair — [BUGS-001](evidence/BUGS-001.md) (10 October):** GUI-002/GUI-003 source changes implement concise GPU status, before/after Review summaries with expandable technical output, fixed downtime/Apply footer, reactive modal availability, baseline-based dirty tracking and installed read-only status polling every 15 seconds while dialogs/operations are idle. Navigation does not stage intent; reverted edits clear the draft and invalid edits remain visible with their validation reason. Tests/builds/render/GUI acceptance are deferred; BUG-05's reported interaction still needs reproduction/acceptance. The subsequent user request implemented BUG-06 / GPU-010.3 native byte-to-GB request conversion (DEC-034), pending acceptance. Individual bugs are not marked completed.

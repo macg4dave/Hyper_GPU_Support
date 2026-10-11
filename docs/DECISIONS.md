@@ -579,3 +579,12 @@ narrower. An explicit slider edit expands draft Minimum/Maximum only as needed
 to contain Optimal; other fields remain exact. Omitted allocations show labelled
 provider-default suggestions without creating configuration intent. This does not
 establish physical VRAM capacity or a driver-specific capacity/request ratio.
+
+**11 October acceptance correction:** independent review found proportional
+card/provider scaling in the then-current committed GUI source without supporting
+driver evidence. Restored the native byte contract for editing and Review; physical
+dedicated memory discovery stays read-only inventory. Full provider-range editing
+and explicit-only draft expansion remain. A one-GB provider ceiling cannot be
+expanded using physical memory alone. Software conversion/draft tests pass; actual
+provider/guest acceptance remains blocked by the retained partial-operation recovery
+record described in BUGS-002. No mapping or enforcement qualification is claimed.

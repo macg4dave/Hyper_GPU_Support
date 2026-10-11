@@ -149,3 +149,38 @@ No issue is marked completed solely from source changes.
   `C:\Program Files\HyperGpuSupportProduct\hyper-gpu-support.exe`.
 - Tests, GUI launch, control/layout acceptance and provider/guest behavior were
   not exercised. The per-issue acceptance statuses above remain pending.
+
+## 6. Authorized acceptance attempt — 11 October 2026
+
+The user authorized live testing, then separately included the second enrolled
+VM (now `test-001`) for reconciliation/testing. Current source was built and
+launched with the Slint development MCP feature. Installed discovery succeeded;
+navigation stayed enabled and no false draft appeared across two automatic
+polling intervals. Page navigation created no draft. The existing sample UI
+passed toggle/slider reversal, label updates, discard and expanded Review footer
+checks. Existing software layout/close qualification passed; narrow Review renders
+at 100% and 200% were inspected with consent and confirmation visible.
+
+These are scoped checks for BUG-03/07/08 and related sample interaction; they do
+not accept the live Apply, memory editing or VM power-transition requirements.
+BUG-05/06/09 and the live Review workflow remain pending. The protected installation
+update was refused because `test-001` retains an `EffectsStarted` recovery record
+and pending journal. Fresh inventory shows stopped/no attachment, differing from
+the recorded enabled outcome. Two explicit reconciliation readbacks failed with
+terminal audits; the hold remains. The second check verified the improved partial
+state explanation and safe exact component message. No new Apply was requested.
+
+Independent review rejected the current source's proportional card/provider VRAM
+conversion. Restored DEC-034's exact native-byte requests and kept physical capacity
+as separate inventory. Full provider-range editing still expands draft bounds only
+on explicit selection. The reported 1 GB provider limit is not expanded using an
+unqualified ratio; BUGS-002 BUG-02 remains open.
+
+Validation: initial workspace suite passed 169 tests with four ignored after fixing
+an outdated schema-3 rejection test. Later reporting (6), GUI/memory (40, one ignored),
+worker/wire (2), and opt-in software layout (1) checks passed. Strict Clippy and
+Windows x64/MSVC debug product/MCP builds passed. No guest rendering/allocation or
+power-transition acceptance occurred. Evidence: `local/evidence/bugs-20261011/`,
+`local/evidence/gui-003-layout/`, and blocked update
+`local/gui-update/249de7859bf541f4bd17422d3ae9e92e/result.json`.
+Tracking remains with GUI-002/GUI-003/GPU-010 and CORE-028 recovery; no M3 closure.

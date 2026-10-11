@@ -242,53 +242,6 @@ pub fn physical_memory_for_pci(
         .then_some(identity.dedicated_video_memory)
 }
 
-#[cfg(test)]
-mod memory_tests {
-    use super::*;
-
-    fn adapter() -> AdapterIdentity {
-        AdapterIdentity {
-            description: "Synthetic GPU".into(),
-            vendor_id: 1,
-            device_id: 2,
-            subsystem_id: 3,
-            revision: 4,
-            dedicated_video_memory: 8 << 30,
-            luid: "00000000:00000001".into(),
-            software: false,
-            indirect_display: false,
-            paravirtualized: false,
-        }
-    }
-
-    #[test]
-    fn capacity_requires_unique_complete_physical_identity() {
-        let a = adapter();
-        assert_eq!(
-            physical_memory_for_pci(std::slice::from_ref(&a), 1, 2, 3, 4),
-            Some(8 << 30)
-        );
-        assert_eq!(
-            physical_memory_for_pci(&[a.clone(), a.clone()], 1, 2, 3, 4),
-            None
-        );
-        assert_eq!(
-            physical_memory_for_pci(std::slice::from_ref(&a), 1, 2, 99, 4),
-            None
-        );
-        for field in 0..4 {
-            let mut invalid = a.clone();
-            match field {
-                0 => invalid.software = true,
-                1 => invalid.indirect_display = true,
-                2 => invalid.paravirtualized = true,
-                _ => invalid.dedicated_video_memory = 0,
-            }
-            assert_eq!(physical_memory_for_pci(&[invalid], 1, 2, 3, 4), None);
-        }
-    }
-}
-
 #[allow(unsafe_code)]
 fn query_adapter_type(
     luid: windows::Win32::Foundation::LUID,
@@ -380,4 +333,51 @@ fn query_physical_device_ids(
         return Err(AdapterSelectionError::Native(close_status.0));
     }
     result
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    fn adapter() -> AdapterIdentity {
+        AdapterIdentity {
+            description: "Synthetic GPU".into(),
+            vendor_id: 1,
+            device_id: 2,
+            subsystem_id: 3,
+            revision: 4,
+            dedicated_video_memory: 8 << 30,
+            luid: "00000000:00000001".into(),
+            software: false,
+            indirect_display: false,
+            paravirtualized: false,
+        }
+    }
+
+    #[test]
+    fn capacity_requires_unique_complete_physical_identity() {
+        let a = adapter();
+        assert_eq!(
+            physical_memory_for_pci(std::slice::from_ref(&a), 1, 2, 3, 4),
+            Some(8 << 30)
+        );
+        assert_eq!(
+            physical_memory_for_pci(&[a.clone(), a.clone()], 1, 2, 3, 4),
+            None
+        );
+        assert_eq!(
+            physical_memory_for_pci(std::slice::from_ref(&a), 1, 2, 99, 4),
+            None
+        );
+        for field in 0..4 {
+            let mut invalid = a.clone();
+            match field {
+                0 => invalid.software = true,
+                1 => invalid.indirect_display = true,
+                2 => invalid.paravirtualized = true,
+                _ => invalid.dedicated_video_memory = 0,
+            }
+            assert_eq!(physical_memory_for_pci(&[invalid], 1, 2, 3, 4), None);
+        }
+    }
 }

@@ -104,7 +104,7 @@ enum Message {
     },
     Complete {
         session: String,
-        result: Result<Outcome, String>,
+        result: Box<Result<Outcome, String>>,
     },
 }
 /// Verified GPU outcome and configuration outcome remain explicitly separate.
@@ -365,7 +365,7 @@ fn submit(
                 session: actual,
                 result,
             } if actual == session => {
-                return result.map(|mut outcome| {
+                return (*result).map(|mut outcome| {
                     outcome.save_error = outcome.save_error.map(|error| {
                         crate::reporting::operator_error("Configuration publication", &error)
                     });
@@ -438,7 +438,7 @@ pub fn serve(session: &str, frontend: u32) -> Result<(), String> {
     pipe.send(
         &serde_json::to_vec(&Message::Complete {
             session: session.into(),
-            result,
+            result: Box::new(result),
         })
         .map_err(|e| e.to_string())?,
     )
@@ -1228,6 +1228,12 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn completion_storage_keeps_the_existing_wire_format() {
+        let wire = serde_json::json!({"Complete":{"session":"test-session","result":{"Err":"safe failure"}}});
+        let message: Message = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(serde_json::to_value(message).unwrap(), wire);
+    }
     #[test]
     fn restricted_session_refuses_paths_and_arbitrary_modes() {
         for value in ["", "../escape", "a".repeat(33).as_str(), "123"] {
