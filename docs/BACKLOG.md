@@ -18,8 +18,11 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Done | Passed: non-hardware gate; live pending M2 |
 | APP-007 | M1 | Complete saved state, progress, and failure handling | APP-006 | Done | Passed: non-hardware gate; interaction pending M2 |
 | APP-008 | M1 | Prepare and run the milestone's non-hardware gate | APP-007 | Done | Passed: [evidence](evidence/m1-closure.md) |
-| APP-009 | M2 | Qualify the real GUI and two-VM workflow | APP-008 | Ready | Not run |
+| APP-009 | M2 | Qualify the real GUI and two-VM workflow | APP-008 | In progress | Selected-VM setup accepted by user; remaining qualification pending |
 | APP-010 | M3 | Package and document the qualified product | APP-009 | Blocked | Not run |
+| APP-011 | M2 | Correct physical VRAM and provider mapping | APP-008 | Ready | Not run |
+| APP-012 | M2 | Make transfer progress human readable | APP-008 | In progress (source implemented; visual acceptance pending) | Pending milestone gate and live display check |
+| APP-013 | M3 | Measure and improve guest transfer throughput | APP-008 | In progress (source implemented; measured acceptance pending) | Pending milestone gate and live throughput/memory comparison |
 
 Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records the original five fixes and completed follow-up review. The [M1 closure](evidence/m1-closure.md) supersedes historical unrun/open statements in the implementation notes below for automated validation only; live qualification remains pending.
 
@@ -39,7 +42,7 @@ Keep the existing design. Provide the GPU support toggle and card-dependent VRAM
 
 Acceptance: range follows the selected card, minimum is 1 GB, saved/draft values remain distinct, and unsupported or unknown capacity produces a truthful unavailable state. Displayed units and provider writes agree for supported hardware. No balancing, new allocation policy, or full-capacity warning feature. Assess existing advanced controls against the simple product scope without redesigning the GUI.
 
-Implementation (11 October 2026): slider starts at 1 decimal GB and ends at matched physical capacity, retaining exact non-grid endpoint bytes. Provider admission remains separate: unsupported points are rejected, and ranges with no supported selection or unknown/sub-1 GB capacity are unavailable. Existing requests below 1 GB are labeled exactly with an explanation, not silently rewritten. A single-value 1 GB range uses an explicit selection button. The native writer passes the same byte integers directly to Hyper-V's VRAM properties with fresh limits and readback; no capacity ratio or backend mapping change was introduced. Removed Compute/Encode/Decode editors from the GUI; existing schema-3 requests remain intact and visible in review. Advanced Allocation retains exact VRAM fields for compatibility/correction. Added boundary and controller tests covering saved schemas, other VMs/categories, toggle independence, and rejected/stale edits. Static source/reference review and `git diff --check` only; no formatter, build, tests, render, GUI launch, or live effects ran. Supported-hardware behavior still awaits APP-009 qualification; M1 remains open.
+Implementation (11 October 2026): slider starts at 1 decimal GB and ends at matched physical capacity, retaining exact non-grid endpoint bytes. The current conversion rejects some points by comparing byte requests with raw provider metadata. This is an unresolved mapping defect (APP-011), not evidence of a physical hardware ceiling. Existing requests below 1 GB are labeled exactly with an explanation, not silently rewritten. A single-value 1 GB range uses an explicit selection button. The native writer passes the same byte integers directly to Hyper-V's VRAM properties with fresh limits and readback; no capacity ratio or backend mapping change was introduced. Removed Compute/Encode/Decode editors from the GUI; existing schema-3 requests remain intact and visible in review. Advanced Allocation retains exact VRAM fields for compatibility/correction. Added boundary and controller tests covering saved schemas, other VMs/categories, toggle independence, and rejected/stale edits. Static source/reference review and `git diff --check` only; no formatter, build, tests, render, GUI launch, or live effects ran. Supported-hardware behavior still awaits APP-009 qualification; M1 remains open.
 
 ### APP-003 — Complete review and confirmation
 
@@ -99,8 +102,45 @@ Prepare the exact environment and run sheet before asking for live authorization
 
 Acceptance: initial setup verifies each VM and leaves it off; later toggles and VRAM changes follow review without repeated initial verification; user-facing credential explanations and progress work. Saved settings survive reopen. Two guests produce checked hardware rendering concurrently, and operations on one preserve the other's functioning. No mock preview, automatic retry, host restart, or unrequested post-run investigation. Interrupted results keep M2 open.
 
+Session handoff (11 October 2026): [live findings and changes](evidence/live-gui-check.md) record the real GUI/enrollment passes, the subsequent user-confirmed setup success, source-only follow-ups and remaining tests. The user initially requested an end to the chat while setup continued, then confirmed successful VM setup. Do not repeat accepted setup solely for qualification; remaining scenarios stay separate. APP-011 through APP-013 track the deferred mapping/readability/transfer changes.
+
 ### APP-010 — Package and document the qualified product
 
 Prepare the required fixed package artifacts, hashes, notices, setup instructions, supported environment, limitations, and troubleshooting. Run final automated checks and obtain separate authorization for clean-install/upgrade trials.
 
 Acceptance: package is complete, artifact trust and enrollment/settings preservation are checked, actual trials pass, and support claims match recorded evidence. Publishing or pushing requires a separate request.
+
+
+### APP-011 ? Correct physical VRAM and provider mapping
+
+The live GUI converts raw provider values into GB and backend admission compares physical byte requests directly against those values. The user confirmed that the resulting 1 GB ceiling claim is false. Remove that claim now; mapping implementation is deferred at the user's request. Allocation qualification remains pending.
+
+Establish and implement the correct physical-memory/provider contract in the shared Rust path and GUI. Preserve existing exact saved requests; do not invent a capacity ratio, reservation, or enforcement guarantee. Review source, provider semantics and independent readback before authorizing writes. Keep fresh protected admission and recovery boundaries.
+
+Acceptance: the slider covers 1 GB through detected physical capacity with truthful values; GUI/backend agree on conversions and admission; regression tests cover the observed raw-metadata case, boundaries and invalid inputs; authorized live allocation and independent readback pass. Raw metadata must never be presented as a physical 1 GB ceiling.
+
+Implementation: backlog only. False ceiling wording removed during APP-009; underlying mapping remains unchanged and unqualified.
+
+
+### APP-012 ? Make transfer progress human readable
+
+Live transfer progress currently prints large raw byte counters. The user requested a follow-up note to use readable units such as KB, MB and GB, plus a percentage, while updating the transfer row in place. Keep file counts useful and distinguish copied/acknowledged progress from completed verification. Avoid one log-style line per chunk.
+
+Acceptance: transfer sizes use consistent readable units and sensible precision; percentage follows acknowledged bytes without claiming verification; one row updates in place; real lifecycle changes, failures and final verification remain visible. Cover zero totals, boundary units, large transfers and failure display.
+
+Implementation (11 October 2026): the worker uses a shared public formatter for acknowledged byte/file counters. Display uses decimal KB/MB/GB (and larger units), one decimal place, and an integer percentage that cannot round an incomplete transfer up to 100%. Rounded size boundaries promote to the next unit. Zero totals omit the undefined percentage; inconsistent counters show progress unavailable. Every transfer row says verification pending, including 100% copied. The GUI uses the shared fixed prefix to replace the current running transfer row without rebuilding its model; lifecycle, completion and failure rows remain separate. No protocol fields, effects, stage outcomes or verification logic changed.
+
+Validation: formatter/unit-boundary/large-counter/zero-total/invalid-counter regressions added; existing in-place model/failure regression updated for readable text. Formatting, documentation/task/link checks and diff whitespace only. No build, tests, GUI launch, VM access or transfer rerun; visual and runtime acceptance remain pending. APP-013's separate throughput change is preserved.
+
+
+### APP-013 ? Measure and improve guest transfer throughput
+
+The live initial setup transfers roughly 3.4 GB across 273 signed driver files. The observed live build sent sequential 1 MiB chunks with a PowerShell Direct invocation and acknowledgement for each chunk. The user asked why this stage takes several minutes. The serial round trips add overhead; the precise bottleneck has not been measured.
+
+Measure transport, serialization, guest disk and verification time before choosing an optimization. User change note: change transfer chunks from 1 MiB to 4 MiB (4 MB in the user request). Update the PowerShell sender buffer and Rust acknowledgement bound together. Preserve bounded memory and ordered acknowledgement/deadline checks; measure throughput and memory after implementation. The original request added a note only; the subsequent explicit APP-013 request authorizes the source implementation. Preserve bounded memory, deadlines, ordered acknowledgements, independent authentication and interruption/recovery behavior. Do not introduce whole-file buffering, blind retry or claim a faster UI reduces transfer time.
+
+Acceptance: independently measured transfer improvement on the authorized environment, responsive progress, bounded host/guest memory, and failure/deadline/integrity regressions. Any live comparison requires its own prepared run; no repeated transfer is authorized by this backlog note.
+
+Implementation (11 October 2026): source now uses one Rust-owned 4 MiB limit (4,194,304 bytes), injected into the fixed PowerShell sender and used for acknowledgement admission. The sender trims partial chunks before remoting so small files and final fragments do not serialize a full 4 MiB buffer; the receiver checks the exact positive chunk length. Streaming, serial acknowledgement, file-length/order/total validation, deadlines, independent guest authentication and recovery semantics remain intact. Added isolated regressions for multiple full 4 MiB chunks plus a tail, empty files, oversized/duplicate acknowledgements, idle/incomplete failure, and actual local copy-function execution with a remoting substitute to check hashes, exact tail sizes and stop-on-bad-ack. The local regression has no Hyper-V import, VM session or credential access.
+
+Validation: formatting, documentation/task/link checks and diff whitespace only. No build, unit-test execution, installed-package update, GUI launch, guest access or repeated transfer. Throughput and process memory are not yet measured; no speedup is claimed. Source implementation is complete, but APP-013 acceptance remains pending its non-hardware gate and a separately prepared live comparison. Preserve the user-accepted setup; do not replay it merely to benchmark this change.

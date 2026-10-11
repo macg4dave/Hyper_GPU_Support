@@ -9,7 +9,8 @@ const PREFIX: &str = "HGTRANSFER ";
 const FILE_LIMIT: Duration = Duration::from_secs(300);
 const IDLE_LIMIT: Duration = Duration::from_secs(60);
 const GAP_LIMIT: Duration = Duration::from_secs(240);
-pub(crate) const CHUNK_BYTES: u64 = 1024 * 1024;
+/// Fixed maximum transfer chunk, also injected into the PowerShell sender.
+pub(crate) const CHUNK_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Progress {
@@ -169,6 +170,47 @@ impl StderrMonitor for Monitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn four_mib_chunks_and_partial_tail_preserve_exact_file_accounting() {
+        let now = Instant::now();
+        let chunk = 4 * 1024 * 1024;
+        let total = chunk * 2 + 37;
+        let m = Monitor::new(vec![total, 0], now).unwrap();
+        m.accept("begin 0 0", now).unwrap();
+        for bytes in [chunk, chunk * 2] {
+            m.accept(&format!("bytes 0 {bytes}"), now).unwrap();
+        }
+        assert!(m.accept(&format!("end 0 {}", chunk * 2), now).is_err());
+        m.accept(&format!("bytes 0 {total}"), now).unwrap();
+        m.accept(&format!("end 0 {total}"), now).unwrap();
+        m.accept("begin 1 0", now).unwrap();
+        m.accept("end 1 0", now).unwrap();
+        m.accept(&format!("done 2 {total}"), now).unwrap();
+        m.finish().unwrap();
+        let progress = m.take_progress(now).unwrap().unwrap();
+        assert_eq!(
+            (progress.bytes, progress.total, progress.files),
+            (total, total, 2)
+        );
+    }
+
+    #[test]
+    fn oversized_or_repeated_four_mib_acknowledgements_do_not_advance_progress() {
+        let now = Instant::now();
+        let chunk = 4 * 1024 * 1024;
+        let m = Monitor::new(vec![chunk * 3], now).unwrap();
+        m.accept("begin 0 0", now).unwrap();
+        assert!(m.accept(&format!("bytes 0 {}", chunk + 1), now).is_err());
+        m.accept(&format!("bytes 0 {chunk}"), now).unwrap();
+        assert!(m.accept(&format!("bytes 0 {chunk}"), now).is_err());
+        assert!(
+            m.accept(&format!("bytes 0 {}", chunk * 2 + 1), now)
+                .is_err()
+        );
+        assert!(m.check(now + IDLE_LIMIT).is_err());
+        assert!(m.finish().is_err());
+    }
+
     #[test]
     fn acknowledged_bytes_are_ordered_and_never_imply_verification() {
         let now = Instant::now();

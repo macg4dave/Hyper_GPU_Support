@@ -57,6 +57,16 @@ struct BridgeResult {
     #[serde(default)]
     transport_hresult: Option<i32>,
 }
+
+fn transport_script(module_literal: &str) -> String {
+    include_str!("guest_transport.ps1")
+        .replace("__HYPERV_MODULE__", module_literal)
+        .replace(
+            "__TRANSFER_CHUNK_BYTES__",
+            &crate::guest_transfer::CHUNK_BYTES.to_string(),
+        )
+}
+
 fn bridge(
     t: &Target,
     credential: &Credential,
@@ -116,8 +126,7 @@ fn bridge(
             // module directory lets PowerShell's loader select its installed manifest.
             crate::security::verify_system(&module.join("Hyper-V"))?;
             let module_literal = module.join("Hyper-V").to_string_lossy().replace('\'', "''");
-            let script =
-                include_str!("guest_transport.ps1").replace("__HYPERV_MODULE__", &module_literal);
+            let script = transport_script(&module_literal);
             let mut command = Command::new(
                 windows_paths::windows_powershell_executable().map_err(|e| e.to_string())?,
             );
@@ -521,7 +530,7 @@ mod tests {
             .join("System32/WindowsPowerShell/v1.0/Modules/Hyper-V")
             .to_string_lossy()
             .replace('\'', "''");
-        let script = include_str!("guest_transport.ps1").replace("__HYPERV_MODULE__", &module);
+        let script = transport_script(&module);
         let mut command = Command::new(windows_paths::windows_powershell_executable().unwrap());
         command.args([
             "-NoLogo",
@@ -542,5 +551,81 @@ mod tests {
             result.stderr.trim(),
             "Fixed guest transport failed; reconcile before retry."
         );
+    }
+
+    #[test]
+    fn stream_sender_uses_four_mib_chunks_exact_tails_and_stops_on_bad_ack() {
+        // Execute only the copy function against local temporary files. The
+        // substitute never imports Hyper-V, opens a guest session or uses credentials.
+        let script = transport_script("unused");
+        let definitions = script.split_once("\ntry {").unwrap().0;
+        let fixture = r#"
+function Invoke-Command {
+    param($Session, [object[]]$ArgumentList, [scriptblock]$ScriptBlock)
+    $copying = $ArgumentList.Count -eq 2
+    if ($copying) {
+        if ($ArgumentList[0].Length -ne $ArgumentList[1]) { throw 'Padded chunk' }
+        if ($ArgumentList[0].Length -gt 4194304) { throw 'Oversized chunk' }
+        $script:lengths.Add([int]$ArgumentList[1])
+    }
+    $result = & $ScriptBlock @ArgumentList
+    if ($copying -and $script:badAck) { return ([long]$result + 1) }
+    return $result
+}
+$root = Join-Path ([IO.Path]::GetTempPath()) ('hypergpu-chunks-' + [guid]::NewGuid())
+[void][IO.Directory]::CreateDirectory($root)
+try {
+    foreach ($size in @(0, 37, 4194304, 4194341, 8388645)) {
+        $source = Join-Path $root 'source'
+        $destination = Join-Path $root 'destination'
+        $file = [IO.File]::Open($source, 'Create', 'Write')
+        try {
+            $file.SetLength($size)
+            if ($size -gt 0) {
+                $file.WriteByte(165)
+                $file.Position = $size - 1
+                $file.WriteByte(90)
+            }
+        } finally { $file.Dispose() }
+        $script:lengths = [Collections.Generic.List[int]]::new()
+        $script:badAck = $false
+        Copy-Logged $source $destination $size
+        if ((Get-FileHash $source).Hash -ne (Get-FileHash $destination).Hash) { throw 'Copy mismatch' }
+        if ($script:lengths.Count -ne [Math]::Ceiling($size / 4194304.0)) { throw 'Wrong chunk count' }
+        if ($size -gt 0) {
+            $tail = $size % 4194304
+            if ($tail -eq 0) { $tail = 4194304 }
+            if ($script:lengths[$script:lengths.Count - 1] -ne $tail) { throw 'Wrong tail size' }
+        }
+    }
+    $script:lengths.Clear()
+    $script:badAck = $true
+    $rejected = $false
+    try { Copy-Logged $source $destination $size } catch {
+        if ($_.Exception.Message -ne 'Transfer acknowledgement mismatch') { throw }
+        $rejected = $true
+    }
+    if (!$rejected -or $script:lengths.Count -ne 1) { throw 'Bad acknowledgement did not stop transfer' }
+} finally {
+    if ($global:hyperGpuTransfer) { $global:hyperGpuTransfer.Dispose() }
+    [IO.File]::Delete((Join-Path $root 'source'))
+    [IO.File]::Delete((Join-Path $root 'destination'))
+    [IO.Directory]::Delete($root)
+}
+Write-Output 'Chunk checks passed'
+"#;
+        let mut command = Command::new(windows_paths::windows_powershell_executable().unwrap());
+        command.args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &format!("{definitions}\n{fixture}"),
+        ]);
+        let result =
+            process::bounded_process_with_limit(command, Duration::from_secs(30), 1024 * 1024, &[])
+                .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(result.exit_code, Some(0), "{}", result.stderr);
+        assert_eq!(result.stdout.trim(), "Chunk checks passed");
     }
 }

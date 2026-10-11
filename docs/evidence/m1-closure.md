@@ -23,10 +23,15 @@ Final run: 11 October 2026, 17:23:56 UTC onward, ordinary non-elevated Windows x
 
 All stages and the final gate process exited 0. The closure documentation was checked again after the gate; product source did not change after the passing run.
 
-Raw incremental evidence is in ignored `local/evidence/m1-gate-20261011T172355932Z/`: `report.json` records exact commands, timestamps, revision, working-tree context, environment, source/tooling input SHA-256 hashes, results and exclusions; `stage-0.txt` through `stage-5.txt` retain output. Earlier evidence retains the initial formatting failure and gate stderr-reporting corrections. No earlier failed stage was relabeled as a pass.
+Raw local gate and old test logs were removed on 11 October 2026 at the user's explicit request to clean stale test records. This tracked summary retains the commands and recorded outcomes; the former raw evidence directory is no longer available.
 
 ## Acceptance and exclusions
 
 Executed coverage includes startup dispatch without retired mock modes, slider bounds/exact byte endpoints, review binding/cancellation/stale inputs, setup/ordinary distinction, confirmed final-off lifecycle, credential explanation/cancellation/opt-in closures, saved-state reload/conflicts, other-VM preservation, actual progress records, missing terminal outcomes, publication failure/save-only and interrupted recovery. These are isolated non-hardware tests, as detailed in the source review.
 
 Not run: GUI launch/render/interaction, native credential/vault interaction, installed worker integration, privileged setup/enrollment, protected writes, guest connections, VM/GPU effects, graphics workloads, concurrent sharing, package installation or upgrade. Responsiveness, visual acceptance, actual provider behavior and supported hardware remain unqualified until separately authorized APP-009 work. No live authorization is implied by M1 closure.
+
+
+## Subsequent user acceptance
+
+On 11 October 2026 the user confirmed that the selected VM's setup and VM-side behavior worked well apart from the recorded follow-up issues. M1 remains closed; this adds user acceptance of the scoped live setup to the earlier automated closure. See [live findings](live-gui-check.md) for evidence boundaries and follow-up work. This is user-reported completion, not a new agent readback or validation of the later source-only changes. Explicit allocation mapping and broader M2 qualification remain separate.

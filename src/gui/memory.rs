@@ -88,7 +88,7 @@ impl MemorySlider {
         let endpoint_supported = (limits.minimum..=limits.maximum).contains(&physical_capacity);
         if first_supported > last_supported && !endpoint_supported {
             return Err(
-                "The driver has no supported request in the slider's 1 GB to physical-capacity range. Exact saved values remain available in Advanced Allocation."
+                "The current VRAM mapping cannot validate a selection; this does not establish a physical memory limit. Exact saved values remain available in Advanced Allocation."
                     .into(),
             );
         }
@@ -101,7 +101,7 @@ impl MemorySlider {
                 (bounds.optimal / BYTES_PER_STEP).clamp(lower, upper) as i32
             },
             label: current.map_or_else(
-                || format!("{} (default request)", format_gb(limits.optimal)),
+                || "No explicit request".into(),
                 |v| format_gb(v.optimal),
             ),
             range_start: format_gb(lower * BYTES_PER_STEP),
@@ -125,11 +125,7 @@ impl MemorySlider {
             .ok_or("Memory conversion overflow")?
             .min(self.physical_capacity);
         if optimal < self.limits.minimum || optimal > self.limits.maximum {
-            return Err(format!(
-                "The driver supports VRAM requests from {} to {}. The selected physical-capacity value has no supported provider mapping; the draft was retained.",
-                format_gb(self.limits.minimum),
-                format_gb(self.limits.maximum),
-            ));
+            return Err("The current VRAM mapping cannot validate this selection; the draft was retained. Raw provider metadata does not establish a physical GB ceiling.".into());
         }
         let result = Allocation {
             minimum: self.bounds.minimum.min(optimal),
@@ -179,7 +175,7 @@ mod tests {
     fn unspecified_request_is_not_invented_until_selection() {
         let limits = limits();
         let slider = MemorySlider::new(&limits, None, 8_000_000_000).unwrap();
-        assert_eq!(slider.label, "4 GB (default request)");
+        assert_eq!(slider.label, "No explicit request");
         assert_eq!(
             slider.select(80).unwrap(),
             Allocation {
@@ -195,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn one_gb_provider_limit_is_not_rescaled_to_physical_card_capacity() {
+    fn raw_provider_metadata_does_not_establish_a_physical_gb_ceiling() {
         let limits = Allocation {
             minimum: 0,
             optimal: 1_000_000_000,

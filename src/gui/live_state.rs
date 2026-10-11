@@ -61,6 +61,14 @@ impl Default for State {
 }
 
 impl State {
+    /// First-install discovery is explicit; it has no protected enrollment to poll.
+    pub fn can_poll(&self) -> bool {
+        self.view
+            .inventory
+            .as_ref()
+            .is_some_and(|inventory| !inventory.enrolled.is_empty())
+    }
+
     /// A terminal Apply result is distinct from current saved files and observations.
     /// Retain known applied intent even when subsequent protected reads fail.
     pub fn finish_apply(
@@ -221,9 +229,6 @@ impl State {
         gpu_index: i32,
         values: &[String],
     ) -> Result<super::memory::MemorySlider, String> {
-        if self.view.needs_readback {
-            return Err("Refresh VM and GPU information before using the memory slider.".into());
-        }
         let gpu = self
             .view
             .inventory
@@ -398,18 +403,16 @@ impl State {
     }
 
     fn proposal_eligibility(&self, target: &Target) -> Result<(), String> {
-        if self.enrolled(target) {
-            return self.view.eligibility(target);
-        }
-        if self
-            .view
-            .inventory
-            .as_ref()
-            .is_some_and(|i| i.enrolled.iter().any(|t| t.vm_id == target.vm_id))
+        if !self.enrolled(target)
+            && self
+                .view
+                .inventory
+                .as_ref()
+                .is_some_and(|i| i.enrolled.iter().any(|t| t.vm_id == target.vm_id))
         {
             return Err("This selected GPU is not enrolled. Changing an enrolled GPU requires the separate replacement transition, which is not connected yet.".into());
         }
-        self.view.proposal_eligibility(target)
+        self.view.draft_eligibility(target)
     }
 
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
@@ -814,15 +817,21 @@ mod tests {
     }
 
     #[test]
-    fn stale_inventory_cannot_authorize_gb_mapping() {
+    fn retained_inventory_allows_memory_drafts_but_cannot_authorize_apply() {
         let mut s = state();
+        s.view.inventory.as_mut().unwrap().discovery.gpus[0].vram = Allocation {
+            minimum: 0,
+            optimal: 1_000_000_000,
+            maximum: 8_000_000_000,
+        }
+        .into();
+        s.view.inventory.as_mut().unwrap().discovery.gpus[0].physical_vram_bytes =
+            Some(8_000_000_000);
         s.view.needs_readback = true;
-        assert!(
-            s.memory_slider(0, &vec![String::new(); 12])
-                .err()
-                .unwrap()
-                .contains("Refresh")
-        );
+        assert!(s.memory_slider(0, &vec![String::new(); 12]).is_ok());
+        let target = s.target(id(&s)).unwrap();
+        assert!(s.editor_eligibility(id(&s)).is_ok());
+        assert!(s.view.eligibility(&target).is_err());
     }
 
     #[test]
@@ -951,7 +960,8 @@ mod tests {
             assert_eq!(s.view.vm(&vm_id).unwrap().power, Power::Off);
             assert!(s.view.vm(&vm_id).unwrap().gpus.is_empty());
             s.view.needs_readback = true;
-            assert!(s.memory_values(&vm_id, 0, &original, 10).is_err());
+            assert!(s.memory_values(&vm_id, 0, &original, 10).is_ok());
+            assert!(s.view.eligibility(&enabled).is_err());
         }
     }
 
@@ -1128,6 +1138,20 @@ mod tests {
         s.refresh(inventory());
         s.sync_recovery(None, None, None).unwrap();
         assert!(s.editor_eligibility(id(&s)).is_ok());
+    }
+
+    #[test]
+    fn first_install_inventory_stays_current_until_explicit_refresh() {
+        let mut s = state();
+        assert!(s.can_poll());
+        let mut first_install = inventory();
+        first_install.enrolled.clear();
+        s.refresh(first_install);
+        assert!(!s.can_poll());
+        assert!(!s.view.needs_readback);
+        assert!(s.editor_eligibility(id(&s)).is_ok());
+        s.refresh(inventory());
+        assert!(s.can_poll());
     }
 
     #[test]
@@ -1473,10 +1497,8 @@ mod tests {
             .unwrap();
         s.view.draft = Some(original.clone());
         s.view.needs_readback = true;
-        assert!(
-            s.draft(id(&s), true, 0, &values("10", "50", "100"))
-                .is_err()
-        );
+        assert!(s.draft(id(&s), true, 0, &values("10", "50", "100")).is_ok());
+        assert!(s.view.eligibility(&original).is_err());
         let mut next = inventory();
         next.enrolled.clear();
         s.refresh(next);

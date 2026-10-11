@@ -1,6 +1,48 @@
 //! Bounded public diagnostics. Adapter text is untrusted and may contain secrets.
 use serde::{Deserialize, Serialize};
 
+/// Fixed prefix identifying the updating transfer row, separate from stage outcomes.
+pub const TRANSFER_PROGRESS_PREFIX: &str = "Copying files: ";
+
+/// Present acknowledged transfer counters; reaching 100% never implies verification.
+pub fn transfer_progress(bytes: u64, total: u64, files: usize, count: usize) -> String {
+    if bytes > total || files > count {
+        return format!("{TRANSFER_PROGRESS_PREFIX}progress unavailable; verification pending");
+    }
+    let sizes = if total == 0 {
+        "0 bytes".into()
+    } else {
+        // Integer arithmetic avoids overflow and never rounds an incomplete copy
+        // up to 100%. A zero total has no defined percentage.
+        let percent = u128::from(bytes) * 100 / u128::from(total);
+        format!(
+            "{} of {} ({percent}%)",
+            transfer_size(bytes),
+            transfer_size(total)
+        )
+    };
+    format!("{TRANSFER_PROGRESS_PREFIX}{sizes}; {files} of {count} files; verification pending")
+}
+
+fn transfer_size(bytes: u64) -> String {
+    if bytes < 1000 {
+        return format!("{bytes} {}", if bytes == 1 { "byte" } else { "bytes" });
+    }
+    const UNITS: [&str; 7] = ["bytes", "KB", "MB", "GB", "TB", "PB", "EB"];
+    let bytes = u128::from(bytes);
+    let mut unit = 1;
+    let mut divisor = 1000;
+    loop {
+        let tenths = (bytes * 10 + divisor / 2) / divisor;
+        if tenths >= 10_000 && unit + 1 < UNITS.len() {
+            divisor *= 1000;
+            unit += 1;
+        } else {
+            return format!("{}.{:01} {}", tenths / 10, tenths % 10, UNITS[unit]);
+        }
+    }
+}
+
 /// Application-owned failure context. No adapter message, path or user input is
 /// carried across the authenticated worker boundary.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -349,6 +391,44 @@ pub fn collect_observations<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transfer_sizes_use_readable_decimal_units_and_promote_rounded_boundaries() {
+        for (bytes, expected) in [
+            (0, "0 bytes"),
+            (1, "1 byte"),
+            (999, "999 bytes"),
+            (1000, "1.0 KB"),
+            (1536, "1.5 KB"),
+            (999_949, "999.9 KB"),
+            (999_950, "1.0 MB"),
+            (1_000_000, "1.0 MB"),
+            (3_409_254_468, "3.4 GB"),
+            (u64::MAX, "18.4 EB"),
+        ] {
+            assert_eq!(transfer_size(bytes), expected);
+        }
+    }
+
+    #[test]
+    fn transfer_percent_is_acknowledged_progress_without_verification_or_overflow() {
+        assert_eq!(
+            transfer_progress(500_000, 1_000_000, 1, 3),
+            "Copying files: 500.0 KB of 1.0 MB (50%); 1 of 3 files; verification pending"
+        );
+        assert!(transfer_progress(999_999, 1_000_000, 2, 3).contains("(99%)"));
+        assert!(transfer_progress(u64::MAX - 1, u64::MAX, 0, 1).contains("(99%)"));
+        let complete = transfer_progress(u64::MAX, u64::MAX, 3, 3);
+        assert!(complete.contains("(100%)"));
+        assert!(complete.ends_with("verification pending"));
+        let empty = transfer_progress(0, 0, 0, 0);
+        assert!(!empty.contains('%'));
+        assert!(empty.contains("0 bytes; 0 of 0 files"));
+        for invalid in [transfer_progress(1, 0, 0, 1), transfer_progress(1, 1, 2, 1)] {
+            assert!(invalid.contains("progress unavailable"));
+            assert!(!invalid.contains('%'));
+        }
+    }
     #[test]
     fn typed_component_facts_survive_stage_binding_and_reject_untrusted_fields() {
         let error = ComponentFailure {

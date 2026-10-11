@@ -76,7 +76,7 @@ impl Inventory {
                     .into(),
                     graphics: journal.last_verified.map_or_else(
                         || "No recorded graphics verification; attachment does not prove guest health".into(),
-                        |time| format!("Last successful checked rendering: Unix UTC {time} (historical; current guest health unknown)"),
+                        |time| format!("Last successful checked rendering: Unix UTC {time} (current guest health unknown)"),
                     ),
                     recovery_required: journal.pending,
                 }
@@ -191,8 +191,12 @@ impl View {
     /// Read-only proposal validation grants no execution/enrollment authority.
     pub fn proposal_eligibility(&self, target: &Target) -> Result<(), String> {
         if self.needs_readback {
-            return Err("Inventory is historical; refresh before further actions.".into());
+            return Err("Refresh VM information before applying changes.".into());
         }
+        self.draft_eligibility(target)
+    }
+    /// Editing retained observations grants no execution or enrollment authority.
+    pub fn draft_eligibility(&self, target: &Target) -> Result<(), String> {
         let inventory = self.inventory.as_ref().ok_or("Refresh inventory first.")?;
         if inventory
             .discovery
@@ -591,7 +595,7 @@ mod tests {
                 .contains("current driver parity has not been checked")
         );
         assert!(recorded.graphics.contains("123"));
-        assert!(recorded.graphics.contains("historical"));
+        assert!(recorded.graphics.contains("Last successful"));
         assert!(recorded.graphics.contains("current guest health unknown"));
         assert!(!recorded.recovery_required);
         // A detach does not erase history or turn it into a current check.

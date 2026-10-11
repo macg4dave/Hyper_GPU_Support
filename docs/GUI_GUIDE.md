@@ -8,7 +8,7 @@ Select a supported existing VM, toggle GPU support, and select GPU VRAM from 1 G
 
 The existing Dashboard, System, Settings, About, and dialog design remain the foundation. Preserve stable selection, keyboard navigation, scrolling, themes, focus, and responsive progress.
 
-APP-002 source now displays the 1 GB-to-card-capacity slider, with exact physical endpoints and separate driver-limit rejection. Unknown capacity or a range with no supported selection is unavailable. Existing requests below 1 GB remain labeled exactly; moving the slider is an explicit edit, not a rewrite on load. Advanced Allocation retains exact VRAM fields for compatibility and correction. Compute/Encode/Decode editors are removed from this GUI; saved requests are preserved and shown in review. Only the toggle disables support. Compilation and isolated boundary/controller checks passed M1; rendering and real hardware acceptance remain pending.
+APP-002 source now displays the 1 GB-to-card-capacity slider, with exact physical endpoints. The physical-memory/provider mapping needs correction under [APP-011](BACKLOG.md#app-011--correct-physical-vram-and-provider-mapping); raw provider metadata does not establish a physical GB ceiling. Unknown capacity or a range with no supported selection is unavailable. Existing requests below 1 GB remain labeled exactly; moving the slider is an explicit edit, not a rewrite on load. Advanced Allocation retains exact VRAM fields for compatibility and correction. Compute/Encode/Decode editors are removed from this GUI; saved requests are preserved and shown in review. Only the toggle disables support. Compilation and isolated boundary/controller checks passed M1; rendering and real hardware acceptance remain pending.
 
 ## Review and Apply
 
@@ -51,3 +51,10 @@ Current-source review additionally blocks new editing/reviews when the selected 
 The [M1 non-hardware gate](evidence/m1-closure.md) passed on 11 October 2026. No GUI render, live interaction or native credential dialog was exercised; those remain APP-009 acceptance.
 
 Live launch can request elevation. Real GUI checks belong to the authorized APP-009 run, not a harmless visual launch. Legacy mock/snapshot tooling was removed from source under APP-001. Removal compiled and passed startup-dispatch tests under M1; real visual acceptance remains pending. It is not a preview or testing path.
+
+
+During refresh failures, the GUI retains editable drafts and shows unavailable status rather than internal historical-mode labels. Apply still requires refreshed observations and protected review. First-install discovery is refreshed explicitly until enrollment enables protected polling. The sidebar footer label and Help button have been removed at the user's request.
+
+Guest sign-in copy now uses the friendly VM name, explains the administrator account and purpose in plain language, and gives a short optional Remember explanation. It omits the VM ID and repeated technical details. Text-only follow-up; no live prompt rerun was requested.
+
+APP-012 source now displays acknowledged file-transfer sizes in decimal KB/MB/GB with a percentage and file count, updating a single running row. For example: `Copying files: 1.7 GB of 3.4 GB (50%); 140 of 273 files; verification pending`. Reaching 100% means all bytes were acknowledged; preparation and graphics verification still have their own outcomes. Stage completion and failures remain visible. This follow-up has not yet been built or visually checked.

@@ -173,9 +173,9 @@ fn explain_guest_sign_in(
     use windows::Win32::UI::WindowsAndMessaging::{
         IDCANCEL, IDOK, MB_ICONINFORMATION, MB_OKCANCEL, MessageBoxW,
     };
-    let caption = prompt_wide("Windows sign-in inside your VM");
+    let caption = prompt_wide("Sign in to your virtual machine");
     let message = prompt_wide(&format!(
-        "{}\n\nChoose OK to open the local Windows credential dialog. Cancel stops this request before guest work begins. Remember is optional and starts unchecked; continuing here does not authorize saving credentials.",
+        "{}\n\nChoose OK to enter your details. Cancel returns to the app.",
         guest_prompt_message(vm, name),
     ));
     // SAFETY: live terminated strings, optional dialog owner; no credentials are collected here.
@@ -209,7 +209,7 @@ fn prompt_native(
     name: &str,
     parent: windows::Win32::Foundation::HWND,
 ) -> Result<Credential, String> {
-    let caption = prompt_wide("Hyper GPU Support — VM username and password");
+    let caption = prompt_wide("Hyper GPU Support - Sign in");
     let message = prompt_wide(&guest_prompt_message(vm, name));
     let target = prompt_wide(&format!("HyperGpuSupport/guest/{vm}"));
     let info = CREDUI_INFOW {
@@ -269,10 +269,10 @@ fn retain_if_requested(
     Ok(credential)
 }
 
-fn guest_prompt_message(vm: &str, name: &str) -> String {
+fn guest_prompt_message(_vm: &str, name: &str) -> String {
     let name: String = name.chars().filter(|c| !c.is_control()).take(256).collect();
     format!(
-        "Virtual machine: {name}\nVM ID: {vm}\n\nUse the Windows sign-in for the account inside this VM: its guest administrator username and password, NOT your Windows host credentials. They are used to install GPU driver files or check graphics inside this VM. Selecting Remember saves them in your Windows Credential Manager for this VM only. Leave Remember unchecked to use them for this request only. Credentials are not written to application logs or configuration."
+        "Sign in to {name}\n\nEnter the Windows administrator username and password you use inside this virtual machine. The app needs them to set up GPU support and check that graphics work.\n\nRemember is optional. Leave it unchecked to use your details just this once; selecting it saves them securely on this computer for this VM."
     )
 }
 
@@ -285,15 +285,14 @@ mod prompt_tests {
         let text = super::guest_prompt_message("vm-guid", "test-001");
         for expected in [
             "test-001",
-            "vm-guid",
             "username and password",
-            "guest administrator",
-            "NOT your Windows host",
-            "Leave Remember unchecked",
-            "logs or configuration",
+            "Windows administrator",
+            "Remember is optional. Leave it unchecked",
         ] {
             assert!(text.contains(expected));
         }
+        assert!(!text.contains("vm-guid"));
+        assert!(text.len() < 400);
     }
 
     #[test]
@@ -395,7 +394,8 @@ mod prompt_tests {
     #[test]
     fn vm_display_name_cannot_inject_lines_or_terminate_native_text() {
         let text = guest_prompt_message("bound-id", "guest\0\n\tname");
-        assert!(text.starts_with("Virtual machine: guestname\nVM ID: bound-id\n"));
+        assert!(text.starts_with("Sign in to guestname\n"));
+        assert!(!text.contains("bound-id"));
         assert!(!text.contains('\0'));
     }
 }

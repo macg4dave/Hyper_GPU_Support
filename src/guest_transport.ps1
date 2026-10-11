@@ -29,17 +29,26 @@ function Copy-Logged([string]$source, [string]$destination, [long]$expectedBytes
             param($path)
             $global:hyperGpuTransfer = [IO.File]::Open($path, 'Create', 'Write', 'None')
         }
-        $buffer = [byte[]]::new(1048576)
+        $buffer = [byte[]]::new(__TRANSFER_CHUNK_BYTES__)
         $copied = [long]0
         while (($count = $inputFile.Read($buffer, 0, $buffer.Length)) -gt 0) {
             if ($count -gt ($expectedBytes - $copied)) { throw 'Transfer source grew' }
+            # Send only bytes read; a small file or final fragment must not
+            # serialize the unused portion of the fixed-size buffer.
+            $chunk = $buffer
+            if ($count -lt $buffer.Length) {
+                $chunk = [byte[]]::new($count)
+                [Buffer]::BlockCopy($buffer, 0, $chunk, 0, $count)
+            }
             # A byte-array is one typed remoting argument, never a command/path.
-            $ack = Invoke-Command -Session $session -ArgumentList $buffer, $count -ScriptBlock {
+            $ack = Invoke-Command -Session $session -ArgumentList $chunk, $count -ScriptBlock {
                 param([byte[]]$chunk, [int]$count)
+                if ($count -le 0 -or $count -ne $chunk.Length) { throw 'Invalid transfer chunk length' }
                 $global:hyperGpuTransfer.Write($chunk, 0, $count)
                 $global:hyperGpuTransfer.Flush()
                 $global:hyperGpuTransfer.Position
             }
+            $chunk = $null
             $copied += $count
             if ([long]$ack -ne $copied) { throw 'Transfer acknowledgement mismatch' }
             Write-Transfer 'bytes' $copied

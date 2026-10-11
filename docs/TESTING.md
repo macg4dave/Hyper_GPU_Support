@@ -47,7 +47,7 @@ APP-009 prepares the exact environment, targets, effects, workload interval, evi
 
 ### Available Hyper-V test VMs
 
-The following existing VMs are available for testing: `win_26300.9457` and `win_26200.9457`. Do not roll back either VM or add generic rollback warnings solely because these designated targets are used for testing; do not automatically reset or otherwise restore them. If a test requires a VM to be reset, stop and inform the user.
+The following existing VMs are available for testing: `win_26300.9457  VM1` , `win_26300.9457  VM3`and `win_26200.9457 VM2`. Do not roll back either VM or add generic rollback warnings solely because these designated targets are used for testing; do not automatically reset or otherwise restore them. If a test requires a VM to be reset, stop and inform the user.
 
 All tests can be unsafe to the VM and its contents.
 

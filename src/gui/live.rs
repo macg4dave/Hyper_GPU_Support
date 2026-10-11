@@ -265,9 +265,9 @@ fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool) -> VmRow 
         .into();
     }
     if historical {
-        row.power = format!("{} (historical)", row.power).into();
-        row.status = format!("{} (historical)", row.status).into();
-        row.gpu = format!("{} (historical)", row.gpu).into();
+        row.power = "Status unavailable".into();
+        row.status = "Refresh needed".into();
+        row.gpu = "Status unavailable".into();
     }
     row
 }
@@ -390,7 +390,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         format!(
             "GPU support: {}. Saved setting: {}. Graphics: {}.",
             if state.view.needs_readback {
-                "historical observation"
+                "status unavailable"
             } else if vm.gpus.is_empty() {
                 "not attached"
             } else {
@@ -474,9 +474,7 @@ fn resource_controls(ui: &AppWindow, state: &State) {
     ui.set_resource_available(model(
         Resource::ALL
             .into_iter()
-            .map(|resource| {
-                !state.view.needs_readback && gpu.is_some_and(|gpu| gpu.limits(resource).is_some())
-            })
+            .map(|resource| gpu.is_some_and(|gpu| gpu.limits(resource).is_some()))
             .collect(),
     ));
     ui.set_resource_hints(model(
@@ -534,28 +532,10 @@ fn resource_controls(ui: &AppWindow, state: &State) {
             ui.set_memory_label(slider.label.into());
             ui.set_memory_range_start(slider.range_start.into());
             ui.set_memory_range_end(slider.range_end.into());
-            let provider = state
-                .view
-                .inventory
-                .as_ref()
-                .and_then(|inventory| {
-                    usize::try_from(ui.get_gpu_index())
-                        .ok()
-                        .and_then(|index| inventory.discovery.gpus.get(index))
-                })
-                .and_then(|gpu| gpu.limits(Resource::Vram))
-                .map(|limits| {
-                    format!(
-                        "{} to {}",
-                        super::memory::format_gb(limits.minimum),
-                        super::memory::format_gb(limits.maximum)
-                    )
-                })
-                .unwrap_or_else(|| "unavailable".into());
             let note = slider
                 .range_note
                 .map_or_else(String::new, |note| format!("\n{note}"));
-            ui.set_memory_hint(format!("Choose a request from 1 GB to the card's detected capacity. Supported driver requests: {provider}; unsupported selections are blocked.{note}").into());
+            ui.set_memory_hint(format!("Choose a request from 1 GB to the card's detected capacity. VRAM mapping needs correction before allocation testing.{note}").into());
         }
         Err(reason) => {
             ui.set_memory_available(false);
@@ -661,7 +641,7 @@ fn background_for_vm<T: Send + 'static>(
     }
     if !silent {
         let guest_message = format!(
-            "Virtual machine: {}\n\nWhen asked, enter this VM's guest administrator username and password—not your Windows host account. These credentials are used for GPU driver installation or graphics checks inside this VM. Windows will separately ask for administrator approval. The current steps will appear below.",
+            "Virtual machine: {}\n\nSign in with the Windows administrator account you use inside this virtual machine. The app will set up GPU support and check that graphics work. Progress will appear below.",
             vm_name.unwrap_or("the selected VM")
         );
         dialog(
@@ -730,8 +710,18 @@ fn refresh(
     source: &Source,
     automatic: bool,
 ) -> Result<(), String> {
+    if automatic
+        && !state
+            .lock()
+            .map_err(|_| "Presentation state unavailable")?
+            .can_poll()
+    {
+        // First-install observations remain usable until an explicit refresh.
+        // The installed-only poll must not turn them historical every 15 seconds.
+        return Ok(());
+    }
     if !automatic {
-        ui.set_notice("Reading protected inventory. Existing observations remain historical until refresh succeeds.".into());
+        ui.set_notice("Refreshing VM information...".into());
     }
     let state = state.clone();
     let source = source.clone();
@@ -894,12 +884,11 @@ fn refresh(
                             ));
                         }
                         present(ui, state, false);
-                        ui.set_eligible(false);
                         ui.set_validation(
-                            "Inventory is historical; Refresh before further actions.".into(),
+                            "Your edits are kept. Refresh VM information before Apply.".into(),
                         );
                         ui.set_inventory_details(error.clone().into());
-                        ui.set_notice("VM status could not be refreshed. Displayed observations are historical; use Refresh to retry.".into());
+                        ui.set_notice("Could not refresh VM status. You can keep editing; use Refresh before Apply.".into());
                         ui.set_system_summary(
                             format!("Live discovery unavailable: {error}").into(),
                         );
@@ -926,6 +915,7 @@ fn review(
             state.enrollment_review = None;
             state.approved_plan = None;
             let target = draft_target(ui, &state)?;
+            state.view.proposal_eligibility(&target)?;
             (!state.enrolled(&target)).then_some(target)
         };
         if let Some(target) = target {
@@ -1236,7 +1226,7 @@ fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support:
     move |progress| {
         let _ = weak.upgrade_in_event_loop(move |ui| {
             let stage = match progress.stage.as_str() {
-                "Persist operation recovery" => "Saving recovery information",
+                "Persist operation recovery" => "Saving progress",
                 "Prepare current signed payload" => "Installing the GPU driver files in the VM",
                 "Compatibility settings" => "Updating GPU compatibility settings",
                 "Provider allocation" => "Applying your GPU resource settings",
@@ -1251,8 +1241,8 @@ fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support:
                 hyper_gpu_support::worker::StageStatus::Done => "Complete",
                 hyper_gpu_support::worker::StageStatus::Failed => "Failed",
             };
-            // The information header is stable; each received event belongs only
-            // to the progress pane, including distinct events with identical text.
+            // The information header is stable. Transfer counters replace the
+            // current transfer row; lifecycle and terminal events stay distinct.
             ui.set_stages(append_progress(
                 ui.get_stages(),
                 format!("{stage} · {status}").into(),
@@ -1270,14 +1260,39 @@ fn append_progress(
         .as_any()
         .downcast_ref::<slint::VecModel<slint::SharedString>>()
     {
-        vector.push(row);
+        if let Some(index) = vector.row_count().checked_sub(1)
+            && vector
+                .row_data(index)
+                .is_some_and(|previous| transfer_update(&previous, &row))
+        {
+            vector.set_row_data(index, row);
+        } else {
+            vector.push(row);
+        }
         stages
     } else {
         let mut rows: Vec<_> = stages.iter().collect();
-        rows.push(row);
+        if let Some(previous) = rows.last_mut()
+            && transfer_update(previous, &row)
+        {
+            *previous = row;
+        } else {
+            rows.push(row);
+        }
         model(rows)
     }
 }
+
+#[cfg(any(windows, test))]
+fn transfer_update(previous: &str, current: &str) -> bool {
+    // The worker formats numeric acknowledgements using this fixed prefix.
+    // Never replace a failure, completion, or a different lifecycle stage.
+    [previous, current].iter().all(|row| {
+        row.starts_with(hyper_gpu_support::reporting::TRANSFER_PROGRESS_PREFIX)
+            && row.ends_with("In progress")
+    })
+}
+
 #[cfg(windows)]
 fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Result<(), String> {
     if !ui.get_execution_ready() {
@@ -2046,7 +2061,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "shortcuts" => {
-                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. Driver limits still block unsupported requests. Only the toggle disables support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable.";
+                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. VRAM mapping is awaiting correction and live validation. Only the toggle disables support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable.";
                 dialog(&ui, "info", "Application help", help); Ok(())
             },
             _ => Err("This action is not connected yet. Use the supported CLI; no operation was performed.".into()),
@@ -2119,6 +2134,36 @@ mod tests {
                 "Repeated stage: in progress",
                 "Stage failed",
             ]
+        );
+    }
+
+    #[test]
+    fn transfer_counters_update_in_place_and_preserve_stage_boundaries() {
+        let rows = model::<slint::SharedString>(vec![]);
+        let original = rows.clone();
+        let rows = append_progress(rows, "Preparing files - In progress".into());
+        let rows = append_progress(
+            rows,
+            "Copying files: 1.0 MB of 10.0 MB (10%); 0 of 2 files; verification pending - In progress".into(),
+        );
+        let rows = append_progress(
+            rows,
+            "Copying files: 8.0 MB of 10.0 MB (80%); 1 of 2 files; verification pending - In progress".into(),
+        );
+        assert_eq!(original.row_count(), 2);
+        assert_eq!(
+            original.row_data(1).unwrap(),
+            "Copying files: 8.0 MB of 10.0 MB (80%); 1 of 2 files; verification pending - In progress"
+        );
+        let rows = append_progress(rows, "Copying files: interrupted - Failed".into());
+        let rows = append_progress(
+            rows,
+            "Copying files: 9.0 MB of 10.0 MB (90%); 1 of 2 files; verification pending - In progress".into(),
+        );
+        assert_eq!(rows.row_count(), 4);
+        assert_eq!(
+            rows.row_data(2).unwrap(),
+            "Copying files: interrupted - Failed"
         );
     }
 
@@ -2200,9 +2245,9 @@ mod tests {
         let historical = observed_row(&vm, &inventory, true);
         assert_eq!(historical.id, current.id);
         assert_eq!(historical.name, current.name);
-        assert_eq!(historical.power, "Running (historical)");
-        assert_eq!(historical.status, "Enrolled (historical)");
-        assert!(historical.gpu.ends_with("(historical)"));
+        assert_eq!(historical.power, "Status unavailable");
+        assert_eq!(historical.status, "Refresh needed");
+        assert_eq!(historical.gpu, "Status unavailable");
         inventory.managed.insert(
             vm.vm_id.clone(),
             Some(hyper_gpu_support::workflow::Journal {

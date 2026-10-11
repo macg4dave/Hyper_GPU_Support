@@ -133,7 +133,7 @@ export component VmDetails inherits Rectangle {
                         Hint { text: "Applied operation: " + root.applied; }
                         Hint { text: "Graphics: " + root.verification; }
                         Hint { text: root.inventory-details; }
-                        Hint { text: "GPU Memory ranges from 1 GB to the selected GPU's detected physical capacity. Requests use native bytes: 1 GB = 1,000,000,000 bytes. The driver may support a smaller request range; unsupported selections are blocked. Advanced Allocation retains exact VRAM triples, including older values below 1 GB. Saved Compute/Encode/Decode requests are preserved for compatibility and appear in review; this GUI does not edit them. Physical capacity does not rescale requests or establish reservation or enforcement."; }
+                        Hint { text: "GPU Memory ranges from 1 GB to the selected GPU's detected physical capacity. Requests use native bytes: 1 GB = 1,000,000,000 bytes. VRAM mapping is awaiting correction and live validation; raw provider metadata does not establish a physical GB ceiling. Advanced Allocation retains exact VRAM triples, including older values below 1 GB. Saved Compute/Encode/Decode requests are preserved for compatibility and appear in review; this GUI does not edit them. Physical capacity does not rescale requests or establish reservation or enforcement."; }
                         Hint { text: "Protected enrollment: " + root.status; }
                         Hint { text: "Observed attachment: " + root.observed; }
                         Hint { text: "Host partition count and Secure Boot: not queried. CPU, RAM and disks are outside this editor."; }

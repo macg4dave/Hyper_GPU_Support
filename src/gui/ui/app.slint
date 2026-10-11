@@ -85,8 +85,6 @@ export component AppWindow inherits Window {
                     settings := Button { enabled: !Theme.modal-active; text: "Settings"; primary: root.page == 2; clicked => { root.page = 2; } }
                     about := Button { enabled: !Theme.modal-active; text: "About"; primary: root.page == 3; clicked => { root.page = 3; } }
                     Rectangle { vertical-stretch: 1; }
-                    Hint { text: "Hyper-V virtual machines"; }
-                    Button { enabled: !Theme.modal-active; text: "Help"; clicked => { root.action("shortcuts"); } }
                 }
             }
             Rectangle { width: 1px; background: Theme.line; }
