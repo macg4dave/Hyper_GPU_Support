@@ -83,6 +83,7 @@ pub(super) fn comparison(state: &State, id: &str) -> String {
                     && journal.vm_id == id
                     && journal.gpu_interface == saved.gpu_interface
                     && journal.prepared.is_some()
+                    && !journal.settings_released
             });
         if let Some(journal) = journal {
             let expected = &journal.applied;

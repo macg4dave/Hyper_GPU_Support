@@ -83,6 +83,8 @@ pub enum Operation {
     Plan,
     /// Read-only preview of an explicitly requested complete driver reinstall.
     ReinstallPlan,
+    /// Read-only review of exact inactive pairing/profile removal.
+    RemovalPlan,
     /// Read-only preview of the guest verification lifecycle.
     VerifyPlan,
     /// Apply desired GPU state.
@@ -119,6 +121,10 @@ fn enrollment_revision(value: &Enrollment) -> Result<crate::configuration_store:
         &serde_json::to_vec(value).map_err(|e| e.to_string())?,
     ))
 }
+
+mod profile_removal;
+pub(crate) use profile_removal::forget_pair;
+pub use profile_removal::review_removal;
 
 /// Review additive authority against the current protected policy, without writes.
 pub fn review_pair(target: &Target) -> Result<crate::enrollment::PairReview, String> {
@@ -167,6 +173,13 @@ pub fn pending_pair() -> Result<Option<crate::enrollment::PendingPair>, String> 
     let record: crate::enrollment::PendingPair =
         serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     record.review.target()?;
+    if record
+        .removal
+        .as_ref()
+        .is_some_and(|state| state.approved.pair != record.review)
+    {
+        return Err("Profile removal recovery scope is inconsistent.".into());
+    }
     if record.operation_id.len() != 32
         || !record
             .operation_id
@@ -242,6 +255,7 @@ pub(crate) fn enroll_pair(
                 &pair_pending_path()?,
                 &crate::enrollment::PendingPair {
                     operation_id: session.into(),
+                    removal: None,
                     review: review.clone(),
                     resulting: resulting.clone(),
                 },
@@ -261,6 +275,9 @@ pub(crate) fn reconcile_pair(
     let current = enrollment()?;
     let actual = enrollment_revision(&current)?;
     pending.check_readback(operation_id, expected, &actual, &current.client_sid)?;
+    if pending.removal.is_some() {
+        return profile_removal::resume_removal(pending);
+    }
     if recovery_record()?.is_some() || import_record()?.is_some() {
         return Err("resolve the separate GPU/configuration recovery first".into());
     }
@@ -1201,6 +1218,7 @@ fn execute_operation(
         },
         Operation::Plan => serde_json::to_value(crate::workflow::plan(&mut backend, &target)?),
         Operation::ReinstallPlan => serde_json::to_value(crate::workflow::plan_reinstall(&mut backend, &target)?),
+        Operation::RemovalPlan => serde_json::to_value(profile_removal::plan(&target, &e.client_sid)?),
         Operation::VerifyPlan => serde_json::to_value(crate::workflow::plan_verification(&mut backend, &target)?),
         Operation::Apply | Operation::Verify => return Err("mutation requires the reviewed per-operation worker; update the frontend and installation".into()),
     }

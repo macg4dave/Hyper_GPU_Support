@@ -56,6 +56,9 @@ pub struct Progress {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 enum Command {
+    ForgetPair {
+        approved: crate::enrollment::RemovalReview,
+    },
     EnrollPair {
         approved: crate::enrollment::PairReview,
     },
@@ -108,6 +111,11 @@ impl Command {
             return Err(invalid());
         }
         match self {
+            Self::ForgetPair { .. } => {
+                if outcome.operation.is_some() || outcome.saved || !outcome.finished {
+                    return Err(invalid());
+                }
+            }
             Self::Apply { approved, .. } => {
                 let operation = outcome.operation.as_ref().ok_or_else(invalid)?;
                 let effective = &operation.effective;
@@ -284,6 +292,14 @@ pub fn reconcile_pair(
         None,
         progress,
     )
+}
+
+/// Remove only an explicitly reviewed inactive profile; no guest credential/effects.
+pub fn forget_pair(
+    approved: crate::enrollment::RemovalReview,
+    progress: impl FnMut(Progress),
+) -> Result<Outcome, String> {
+    submit(Command::ForgetPair { approved }, None, progress)
 }
 #[allow(unsafe_code)]
 fn launch(session: &str) -> Result<OwnedProcess, String> {
@@ -558,6 +574,7 @@ fn execute(
         return Err("replayed worker session".into());
     }
     let operation_name = match &request.command {
+        Command::ForgetPair { .. } => "ForgetPair",
         Command::EnrollPair { .. } => "EnrollPair",
         Command::ReconcilePair { .. } => "ReconcilePair",
         Command::Apply { .. } => "ApplyApproved",
@@ -568,6 +585,9 @@ fn execute(
         Command::ImportResume { .. } => "ReconcileImport",
     };
     let binding = match &request.command {
+        Command::ForgetPair { approved } => {
+            serde_json::to_value(approved).map_err(|e| e.to_string())?
+        }
         Command::EnrollPair { approved } => {
             serde_json::to_value(approved).map_err(|e| e.to_string())?
         }
@@ -609,6 +629,27 @@ fn execute(
         &serde_json::json!({"schema":1,"session":session,"operation":operation_name,"binding":binding,"outcome":"Started"}),
     )?;
     let result = (|| match request.command {
+        Command::ForgetPair { approved } => {
+            if request.credential.is_some() {
+                return Err("Pair removal does not accept guest credentials.".into());
+            }
+            notify(Progress {
+                stage: "Remove inactive pairing and profile records".into(),
+                status: StageStatus::Running,
+            })?;
+            runner::forget_pair(&approved, session)?;
+            notify(Progress {
+                stage: "Remove inactive pairing and profile records".into(),
+                status: StageStatus::Done,
+            })?;
+            Ok(Outcome {
+                operation: None,
+                saved: false,
+                finished: true,
+                operation_id: session.into(),
+                save_error: None,
+            })
+        }
         Command::EnrollPair { approved } => {
             if request.credential.is_some() {
                 return Err("enrollment does not accept guest credentials".into());
@@ -751,6 +792,7 @@ fn execute(
             let driver_version = admitted.driver_version().to_owned();
             let mut record = SaveRecord {
                 schema: 1,
+                retirement: None,
                 operation_id: session.into(),
                 target: approved.desired.clone(),
                 expected,
@@ -879,6 +921,7 @@ fn execute(
             }
             let mut record = SaveRecord {
                 schema: 1,
+                retirement: None,
                 operation_id: session.into(),
                 target: approved.target.clone(),
                 expected: configuration_store::protected::revision(&approved.target.vm_id)?,
@@ -973,6 +1016,63 @@ fn execute(
                 data: data.clone(),
             };
             let before = backend.inspect(&record.target)?;
+            let negative = record.negative_completion(
+                &before,
+                &backend.gpu(&record.target)?.driver_version,
+                &configuration_store::protected::revision(&record.target.vm_id)?,
+                backend.journal(&record.target)?.as_ref(),
+            );
+            let retirement = if record.retirement.is_some() {
+                negative?
+            } else {
+                // A noncandidate follows ordinary reconciliation, including WMI recovery.
+                negative.ok().flatten()
+            };
+            if let Some(retirement) = retirement {
+                crate::windows_wmi::require_no_pending_operation()?;
+                // Persist the exact transition before its journal write. A lost reply or
+                // interruption can resume only the bound before/after states.
+                record.retirement = Some(retirement.clone());
+                runner::atomic_json(&runner::recovery_path()?, &record)?;
+                runner::atomic_json(
+                    &audit_directory.join(format!("ended-{}.json", record.operation_id)),
+                    &record,
+                )?;
+                record
+                    .negative_completion(
+                        &backend.inspect(&record.target)?,
+                        &backend.gpu(&record.target)?.driver_version,
+                        &configuration_store::protected::revision(&record.target.vm_id)?,
+                        backend.journal(&record.target)?.as_ref(),
+                    )?
+                    .ok_or("negative completion proof unavailable; retain recovery")?;
+                backend.save(&record.target, &retirement.after)?;
+                record
+                    .negative_completion(
+                        &backend.inspect(&record.target)?,
+                        &backend.gpu(&record.target)?.driver_version,
+                        &configuration_store::protected::revision(&record.target.vm_id)?,
+                        backend.journal(&record.target)?.as_ref(),
+                    )?
+                    .ok_or("negative completion readback unavailable; retain recovery")?;
+                if serde_json::to_value(backend.journal(&record.target)?)
+                    .map_err(|e| e.to_string())?
+                    != serde_json::to_value(Some(&retirement.after)).map_err(|e| e.to_string())?
+                {
+                    return Err(
+                        "negative completion journal publication not established; retain recovery"
+                            .into(),
+                    );
+                }
+                crate::windows_wmi::require_no_pending_operation()?;
+                return Ok(Outcome {
+                    operation: None,
+                    saved: false,
+                    finished: true,
+                    operation_id,
+                    save_error: None,
+                });
+            }
             if matches!(record.phase, SavePhase::EffectsStarted) && shutdown_approved {
                 crate::windows_wmi::require_no_pending_operation()?;
                 let journal = backend.journal(&record.target)?;
@@ -1235,7 +1335,10 @@ fn execute(
     )?;
     // Release hold last, after both publication and terminal audit are durable.
     if result.as_ref().is_ok_and(|o| o.finished) {
-        let path = if operation_name == "EnrollPair" || operation_name == "ReconcilePair" {
+        let path = if matches!(
+            operation_name,
+            "EnrollPair" | "ReconcilePair" | "ForgetPair"
+        ) {
             runner::pair_pending_path()?
         } else if operation_name == "ImportConfiguration" || operation_name == "ReconcileImport" {
             runner::import_path()?
@@ -1442,6 +1545,53 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn forget_terminal_reply_requires_complete_bound_removal_without_gpu_effect_result() {
+        let plan = ordinary_disabled_plan();
+        let approved = crate::enrollment::RemovalReview {
+            pair: crate::enrollment::PairReview {
+                vm_id: plan.desired.vm_id.clone(),
+                gpu_interface: plan.desired.gpu_interface.clone(),
+                expected: Revision::of(b"policy"),
+                operator_sid: "S-1-5-21-1".into(),
+            },
+            configurations: std::collections::BTreeMap::from([(
+                plan.desired.vm_id.clone(),
+                Revision::Missing,
+            )]),
+            journals: std::collections::BTreeMap::from([(
+                plan.desired.vm_id.clone(),
+                Revision::Missing,
+            )]),
+        };
+        let command = Command::ForgetPair { approved };
+        let complete = Outcome {
+            operation: None,
+            saved: false,
+            finished: true,
+            operation_id: "session".into(),
+            save_error: None,
+        };
+        command.validate_outcome(&complete, "session").unwrap();
+        for change in 0..4 {
+            let mut reply = complete.clone();
+            match change {
+                0 => reply.finished = false,
+                1 => reply.saved = true,
+                2 => reply.operation_id = "another-session".into(),
+                _ => {
+                    reply.operation = Some(OperationResult {
+                        effective: plan.observed.clone(),
+                        prepared: false,
+                        verified: false,
+                        settings_preserved: false,
+                    })
+                }
+            }
+            assert!(command.validate_outcome(&reply, "session").is_err());
+        }
+    }
 
     #[test]
     fn failed_progress_delivery_preserves_the_adapter_failure_and_uncertainty() {

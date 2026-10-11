@@ -116,7 +116,7 @@ export component VmDetails inherits Rectangle {
                 }
                 if root.advanced-expanded : VerticalLayout {
                     spacing: 14px;
-                    Hint { text: "Exact VRAM request for compatibility with saved settings. Minimum ≤ Optimal ≤ Maximum, in native bytes. Grey defaults are suggestions. Editing an empty group fills its other defaults. Clear all three fields for no explicit write. Only the GPU support toggle disables support."; }
+                    Hint { text: "Exact VRAM request for compatibility with saved settings. Minimum ≤ Optimal ≤ Maximum, in native bytes. Grey defaults are suggestions. Editing an empty group fills its other defaults. Clear all three fields for no explicit write. Use the GPU support toggle or Remove GPU support to disable support."; }
                     ResourceEditor { title: "VRAM"; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index, value); } }
                 }
                 if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }

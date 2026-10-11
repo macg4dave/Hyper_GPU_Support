@@ -17,6 +17,11 @@ use std::sync::{
 type SharedState = Arc<Mutex<State>>;
 type InventoryRead = (Inventory, Option<String>);
 
+#[cfg(windows)]
+mod profile_removal;
+#[cfg(windows)]
+use profile_removal::{forget_live, review_forget_live};
+
 // Artifact authentication hashes installed files; call only inside background jobs.
 // This availability observation never substitutes for the worker's fresh checks.
 fn protected_worker_available() -> bool {
@@ -679,6 +684,8 @@ fn background_for_vm<T: Send + 'static>(
                 "Preparing your changes may take some time. Checking the selected VM, GPU and installed driver files before showing the changes for approval. Nothing is being applied yet."
             } else if title == "Retry configuration save only" {
                 "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
+            } else if title == "Remove inactive pairing and profile" {
+                "Requesting Windows approval to remove the reviewed inactive pairing, saved settings and managed history. Other profiles, the VM, guest files and shared package artifacts remain. Interrupted work retains profile recovery."
             } else {
                 "Reading the information needed for this action…"
             },
@@ -1714,7 +1721,10 @@ fn reconcile_live(
                     &s.committed.revision(&target.vm_id)?,
                     journal,
                 )
-                .is_ok(),
+                .is_ok()
+                || record
+                    .negative_completion(vm, driver, &s.committed.revision(&target.vm_id)?, journal)
+                    .is_ok_and(|candidate| candidate.is_some()),
         )
     };
     let prompt_name = vm_name.clone();
@@ -1771,14 +1781,12 @@ fn reconcile_live(
                 return;
             }
             match result {
-                Ok(outcome) if publication && outcome.finished && outcome.operation.is_none() => {
-                    dialog(
-                        ui,
-                        "info",
-                        "Interrupted attempt ended",
-                        "Fresh checks established the VM's recorded starting host configuration. The interrupted attempt ended without repeating GPU work or saving its requested changes. Guest files may remain; no preparation or graphics result is trusted. Refresh, then review a new GPU setup attempt.",
-                    )
-                }
+                Ok(outcome) if outcome.finished && outcome.operation.is_none() => dialog(
+                    ui,
+                    "info",
+                    "Interrupted attempt ended",
+                    "Fresh checks established the recorded host state and safely ended the attempt without repeating GPU work or saving requested settings. Any failed or unknown guest check remains recorded; ending recovery does not certify guest setup or rendering. Refresh, then review repair or another supported operation.",
+                ),
                 Ok(outcome) if outcome.finished => dialog(
                     ui,
                     "info",
@@ -1967,13 +1975,17 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     ui.on_action(move |action| {
         let Some(ui) = weak.upgrade() else { return; }; if ui.get_running() { return; }
         if action_busy.load(Ordering::Acquire)
-            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "reconcile-enrollment" | "save-only" | "credentials")
+            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "remove-gpu" | "forget" | "confirm-forget" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "reconcile-enrollment" | "save-only" | "credentials")
         {
             ui.set_notice("VM information is updating. You can keep editing; try this action when the update finishes.".into());
             return;
         }
         let result = match action.as_str() {
             "refresh" => refresh(&ui, &action_state, &action_busy, &action_source, false),
+            #[cfg(windows)]
+            "forget" => review_forget_live(&ui, &action_state, &action_busy),
+            #[cfg(windows)]
+            "confirm-forget" if ui.get_dialog_kind() == "forget-review" => forget_live(&ui, &action_state, &action_busy, &action_source),
             "review" => review(&ui, &action_state, &action_busy, &action_source),
             #[cfg(windows)]
             "confirm-enroll" => enroll_live(&ui, &action_state, &action_busy, &action_source),
@@ -1997,6 +2009,18 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 ui.invoke_edited();
                 review_operation(&ui, &action_state, &action_busy, &action_source, true)
             }
+            "remove-gpu" => {
+                let removal = action_state.lock().map_err(|_| "Presentation state unavailable".to_owned())
+                    .and_then(|state| state.removal_draft(
+                        ui.get_selected_id().as_str(), ui.get_gpu_index(),
+                        &ui.get_values().iter().map(|v| v.to_string()).collect::<Vec<_>>(),
+                    ));
+                removal.and_then(|_| {
+                    ui.set_gpu_enabled(false);
+                    ui.invoke_edited();
+                    review(&ui, &action_state, &action_busy, &action_source)
+                })
+            }
             "close" => {
                 with_state(&ui, &action_state, |state| {
                     state.cancel_review();
@@ -2015,7 +2039,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "more" => {
-                let body = "Repair / Reinstall reviews complete signed driver preparation and graphics verification even when historical receipts match, and leaves the VM off after success. Verify separately checks current guest files and graphics without reinstalling. Both require the protected worker, guest credentials and any reviewed downtime consent. Resolve pending recovery first. Forget pairing is not connected.";
+                let body = "Remove GPU support reviews host GPU removal and final shutdown, even when guest setup is missing. It keeps guest driver files and product authorization and requires no guest credentials or graphics check. Repair / Reinstall reviews complete driver preparation and graphics verification. Verify checks current guest files and graphics without reinstalling. All operations use the protected worker and reviewed power consent. Resolve pending recovery first. Forget pairing separately reviews deleting this inactive VM profile and its authorization, after GPU removal.";
                 dialog(&ui, "more", "VM actions", body); Ok(())
             },
             "credentials" => {
@@ -2040,13 +2064,19 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     if action == "recovery"
                         && let Some(record) = &state.enrollment_recovery {
                         let revision = hyper_gpu_support::runner::pair_revision()?;
-                        let outcome = if revision == record.resulting { "The complete new enrollment policy is present." }
-                            else if revision == record.review.expected { "The original policy is present; the pair was not added." }
-                            else { return Err("Authority does not match either recorded revision. Recovery remains held for administrator inspection.".into()); };
-                        let body = format!("Operation: {}\nVM ID: {}\nGPU: {}\n\n{outcome}\nConfirm requests elevated independent readback and closes the interrupted enrollment record only if authority still matches this review. No enrollment write or GPU operation is replayed.", record.operation_id, record.review.vm_id, record.review.gpu_interface);
+                        let known = revision == record.resulting || revision == record.review.expected;
+                        if !known { return Err("Authority does not match either recorded revision. Recovery remains held for administrator inspection.".into()); }
+                        let outcome = if record.removal.is_some() {
+                            "Profile removal was interrupted. Confirm finishes only remaining reviewed record deletions and authority removal after fresh inactive-VM/revision checks. Completed deletions must remain absent; changed or unrelated records stay blocked. Other VMs, guest files and shared artifacts are retained. No guest checks, credentials or VM/GPU effects run."
+                        } else if revision == record.resulting {
+                            "The complete new enrollment policy is present. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
+                        } else {
+                            "The original policy is present; the pair was not added. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
+                        };
+                        let body = format!("Operation: {}\nVM ID: {}\nGPU: {}\n\n{outcome}", record.operation_id, record.review.vm_id, record.review.gpu_interface);
                         state.enrollment_recovery_revision = Some(revision);
                         ui.set_needs_shutdown(false);
-                        dialog(&ui, "enrollment-recovery", "Review interrupted enrollment", &body);
+                        dialog(&ui, "enrollment-recovery", if record.removal.is_some() { "Review interrupted profile removal" } else { "Review interrupted enrollment" }, &body);
                         return Ok(());
                     }
                     if action == "recovery" && let Some(record) = &state.import_recovery {
@@ -2069,7 +2099,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                                 if !record.requires_graphics() {
                                     dialog(&ui, "recovery", "Review interrupted GPU change", &format!("Virtual machine: {name}\n\nCheck the already-achieved GPU assignment, settings and final-off state without repeating changes or accessing the guest. Partial or changed state retains recovery. No guest boot, credential prompt or graphics check is required."));
                                 } else {
-                                    dialog(&ui, "recovery", "Review interrupted operation", &format!("Virtual machine: {name}\n\nCheck the interrupted GPU operation without repeating it. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."));
+                                    dialog(&ui, "recovery", "Review interrupted operation", &format!("Virtual machine: {name}\n\nCheck the interrupted GPU operation without repeating it. A terminal failed guest check can end recovery after fresh reads confirm its original host lifecycle was restored; its failure remains recorded. A setup/reinstall attempt that never entered preparation can end after fresh reads confirm unchanged starting host state. These exits require no new guest check or credentials and do not certify setup. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."));
                                 }
                                 ui.set_dialog_details(format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\nReviewed final guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power, record.final_power()?).into());
                             }
@@ -2083,7 +2113,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "shortcuts" => {
-                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. VRAM requests use bytes without a metadata-derived 1 GB ceiling; hardware behavior awaits live validation. Only the toggle disables support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement and Forget pairing remain unavailable.";
+                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. VRAM requests use bytes without a metadata-derived 1 GB ceiling; hardware behavior awaits live validation. Use the toggle or More actions > Remove GPU support to disable support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement remains unavailable. Forget pairing requires an inactive profile and separate confirmation.";
                 dialog(&ui, "info", "Application help", help); Ok(())
             },
             _ => Err("This action is not connected yet. Use the supported CLI; no operation was performed.".into()),
@@ -2284,6 +2314,9 @@ mod tests {
                 verification_only: false,
                 last_verified: None,
                 latest_check: None,
+                preparation_started: None,
+                check_restored: false,
+                settings_released: false,
             }),
         );
         assert_eq!(

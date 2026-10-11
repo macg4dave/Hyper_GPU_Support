@@ -542,6 +542,9 @@ mod tests {
             verification_only: false,
             last_verified: Some(123),
             latest_check: None,
+            preparation_started: None,
+            check_restored: false,
+            settings_released: false,
         }
     }
     #[test]
@@ -710,6 +713,9 @@ mod tests {
             verification_only: true,
             last_verified: None,
             latest_check: None,
+            preparation_started: None,
+            check_restored: false,
+            settings_released: false,
         };
         let i = v.inventory.as_mut().unwrap();
         i.discovery.vms[0] = vm;

@@ -17,6 +17,36 @@ pub struct PairReview {
 }
 
 impl PairReview {
+    /// Remove only the exact reviewed pair; preserve other VMs sharing its GPU.
+    #[cfg(any(windows, test))]
+    pub(crate) fn remove(
+        &self,
+        targets: &[Target],
+        current: &Revision,
+        operator: &str,
+    ) -> Result<Vec<Target>, String> {
+        self.target()?;
+        if &self.expected != current
+            || matches!(current, Revision::Missing)
+            || self.operator_sid != operator
+        {
+            return Err(
+                "Pair authority/operator changed; Refresh and review removal again.".into(),
+            );
+        }
+        let matches: Vec<_> = targets
+            .iter()
+            .filter(|t| t.vm_id.eq_ignore_ascii_case(&self.vm_id))
+            .collect();
+        if matches.len() != 1 || matches[0].gpu_interface != self.gpu_interface {
+            return Err("Exact pairing is absent or changed; Refresh before removal.".into());
+        }
+        Ok(targets
+            .iter()
+            .filter(|t| !t.vm_id.eq_ignore_ascii_case(&self.vm_id))
+            .cloned()
+            .collect())
+    }
     /// Enrollment carries identity only, never requested effects or allocation.
     pub fn target(&self) -> Result<Target, String> {
         let target = Target {
@@ -73,12 +103,188 @@ impl PairReview {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PendingPair {
+    /// Complete removal binding; absent for additive enrollment and legacy holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removal: Option<RemovalState>,
     /// Original authenticated worker session and audit identity.
     pub operation_id: String,
     /// Exact reviewed pair and original revision/operator.
     pub review: PairReview,
     /// Complete resulting policy revision, including other pairs/artifact pins.
     pub resulting: Revision,
+}
+
+/// Read-only profile removal review; revisions include every retained product record.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RemovalReview {
+    /// Exact pairing, policy revision and operator.
+    pub pair: PairReview,
+    /// Complete GUID-keyed saved intent revisions, including selected absence.
+    pub configurations: std::collections::BTreeMap<String, Revision>,
+    /// Complete GUID-keyed managed history revisions, including selected absence.
+    pub journals: std::collections::BTreeMap<String, Revision>,
+}
+
+/// Inactive profile admission requires no guest health, but preserves unresolved host ownership.
+pub fn validate_inactive_profile(
+    target: &Target,
+    vm: &crate::model::VmState,
+    journal: Option<&crate::workflow::Journal>,
+    saved: Option<&Target>,
+) -> Result<(), String> {
+    target.validate()?;
+    if vm.vm_id != target.vm_id
+        || vm.generation != 2
+        || vm.power != crate::model::Power::Off
+        || !vm.gpus.is_empty()
+        || saved.is_some_and(|s| {
+            s.vm_id != target.vm_id || s.enabled || s.gpu_interface != target.gpu_interface
+        })
+    {
+        return Err(
+            "Remove GPU support first and leave this exact VM off before Forget pairing.".into(),
+        );
+    }
+    if journal.is_some_and(|j| {
+        j.schema != 1
+            || j.pending
+            || !j.settings_released
+            || j.vm_id != target.vm_id
+            || j.gpu_interface != target.gpu_interface
+    }) {
+        return Err("Complete reviewed GPU removal and recovery before forgetting history.".into());
+    }
+    Ok(())
+}
+
+/// Durable progress; completing a deletion never permits recreating/deleting a changed file.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RemovalState {
+    /// Original immutable review.
+    pub approved: RemovalReview,
+    /// Configuration absence has been independently established.
+    pub configuration_removed: bool,
+    /// Managed history absence has been independently established.
+    pub journal_removed: bool,
+}
+
+/// Independent readback at every removal boundary; no guest facts are inferred.
+#[cfg(any(windows, test))]
+pub(crate) struct RemovalSnapshot {
+    pub policy: Revision,
+    pub configurations: std::collections::BTreeMap<String, Revision>,
+    pub journals: std::collections::BTreeMap<String, Revision>,
+}
+
+#[cfg(any(windows, test))]
+impl RemovalState {
+    pub(crate) fn validate(
+        &self,
+        pending: &PendingPair,
+        observed: &RemovalSnapshot,
+    ) -> Result<(), String> {
+        let id = &self.approved.pair.vm_id;
+        self.approved.pair.target()?;
+        if self.approved.pair != pending.review
+            || (observed.policy != pending.review.expected && observed.policy != pending.resulting)
+            || (observed.policy == pending.resulting
+                && (!self.configuration_removed || !self.journal_removed))
+        {
+            return Err("Removal authority/progress changed; retain recovery.".into());
+        }
+        for (expected, actual, completed) in [
+            (
+                &self.approved.configurations,
+                &observed.configurations,
+                self.configuration_removed,
+            ),
+            (
+                &self.approved.journals,
+                &observed.journals,
+                self.journal_removed,
+            ),
+        ] {
+            if expected.len() > 129
+                || !expected.contains_key(id)
+                || expected.keys().ne(actual.keys())
+            {
+                return Err("Profile record set changed; retain recovery.".into());
+            }
+            for (key, revision) in expected {
+                let current = &actual[key];
+                if key == id {
+                    if (completed && *current != Revision::Missing)
+                        || (!completed && current != revision && *current != Revision::Missing)
+                    {
+                        return Err("Selected profile revision changed; retain recovery.".into());
+                    }
+                } else if current != revision {
+                    return Err(
+                        "Another profile changed; retain recovery without deleting it.".into(),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Existing protected adapters implement this boundary; isolated tests inject failures.
+#[cfg(any(windows, test))]
+pub(crate) trait RemovalBackend {
+    fn snapshot(&mut self) -> Result<RemovalSnapshot, String>;
+    fn hold(&mut self, pending: &PendingPair) -> Result<(), String>;
+    fn remove_configuration(&mut self, expected: &Revision) -> Result<(), String>;
+    fn remove_journal(&mut self, expected: &Revision) -> Result<(), String>;
+    fn revoke(&mut self, review: &PairReview, resulting: &Revision) -> Result<(), String>;
+}
+
+/// Complete only the recorded removal, with a hold before all mutations and readback after each.
+#[cfg(any(windows, test))]
+pub(crate) fn publish_removal(
+    backend: &mut impl RemovalBackend,
+    pending: &mut PendingPair,
+) -> Result<(), String> {
+    let mut state = pending
+        .removal
+        .clone()
+        .ok_or("No bound profile removal exists.")?;
+    state.validate(pending, &backend.snapshot()?)?;
+    backend.hold(pending)?;
+    if !state.configuration_removed {
+        state.validate(pending, &backend.snapshot()?)?;
+        backend.remove_configuration(&state.approved.configurations[&pending.review.vm_id])?;
+        let observed = backend.snapshot()?;
+        state.validate(pending, &observed)?;
+        if observed.configurations[&pending.review.vm_id] != Revision::Missing {
+            return Err("Configuration deletion not established; retain recovery.".into());
+        }
+        state.configuration_removed = true;
+        pending.removal = Some(state.clone());
+        backend.hold(pending)?;
+    }
+    if !state.journal_removed {
+        state.validate(pending, &backend.snapshot()?)?;
+        backend.remove_journal(&state.approved.journals[&pending.review.vm_id])?;
+        let observed = backend.snapshot()?;
+        state.validate(pending, &observed)?;
+        if observed.journals[&pending.review.vm_id] != Revision::Missing {
+            return Err("History deletion not established; retain recovery.".into());
+        }
+        state.journal_removed = true;
+        pending.removal = Some(state.clone());
+        backend.hold(pending)?;
+    }
+    state.validate(pending, &backend.snapshot()?)?;
+    backend.revoke(&pending.review, &pending.resulting)?;
+    let observed = backend.snapshot()?;
+    state.validate(pending, &observed)?;
+    if observed.policy != pending.resulting {
+        return Err("Pair removal readback failed; retain recovery.".into());
+    }
+    Ok(())
 }
 
 impl PendingPair {
@@ -167,6 +373,9 @@ impl PendingSetup {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod removal_tests;
 
 #[cfg(test)]
 mod tests {
@@ -290,6 +499,7 @@ mod tests {
         let review = review();
         let pending = PendingPair {
             operation_id: "operation".into(),
+            removal: None,
             review: review.clone(),
             resulting: Revision::of(b"new"),
         };

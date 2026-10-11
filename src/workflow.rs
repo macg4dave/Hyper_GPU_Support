@@ -31,6 +31,15 @@ pub struct Journal {
     /// Latest admitted guest check, separate from historical successful rendering.
     #[serde(default)]
     pub latest_check: Option<GuestCheck>,
+    /// Fresh admission proof: false until preparation-related effects may start.
+    #[serde(default)]
+    pub preparation_started: Option<bool>,
+    /// A terminal failed Verify independently read back its original host lifecycle.
+    #[serde(default)]
+    pub check_restored: bool,
+    /// A completed removal releases compatibility ownership without deleting history.
+    #[serde(default)]
+    pub settings_released: bool,
 }
 
 /// Durable check facts; no adapter messages or credentials are persisted.
@@ -66,6 +75,7 @@ fn check_guest(
 ) -> Result<(), String> {
     use crate::reporting::{Component, ComponentFailure, FailureCause};
     journal.latest_check = Some(GuestCheck::Interrupted);
+    journal.check_restored = false;
     persist_check(backend, target, journal)?;
     let result = backend.verify(target, gpu);
     journal.latest_check = Some(match &result {
@@ -236,6 +246,9 @@ fn decision_for_operation(
         verification_only: false,
         last_verified: None,
         latest_check: None,
+        preparation_started: None,
+        check_restored: false,
+        settings_released: false,
     });
     if !journal.pending {
         journal.restore_power = Power::Off;
@@ -249,14 +262,9 @@ fn decision_for_operation(
     if !matches!(restore_power, Power::Running | Power::Off) {
         return Err("managed restoration power is unsupported; reconcile managed state".into());
     }
-    let settings_preserved = !target.enabled
-        && initial.settings != journal.applied
-        && initial.settings != journal.original;
-    let disabled_settings = if settings_preserved {
-        initial.settings.clone()
-    } else {
-        journal.original.clone()
-    };
+    let (disabled_settings, preserved) =
+        restore_owned_settings(&initial.settings, managed.as_ref());
+    let settings_preserved = !target.enabled && preserved;
     let desired = initial.settings.for_gpu();
     let digest = if target.enabled {
         Some(backend.payload(target)?)
@@ -275,9 +283,7 @@ fn decision_for_operation(
         || settings_change
         || allocation_change
         || (journal.pending && !journal.verification_only)
-        || (!target.enabled
-            && initial.settings == journal.applied
-            && initial.settings != journal.original);
+        || (!target.enabled && initial.settings != disabled_settings);
     // Any changed enabled path writes the requested allocation after attachment,
     // including refresh when the old adapter already had matching raw values.
     let allocation_change = needs_changes
@@ -323,6 +329,31 @@ struct Decision {
     needs_changes: bool,
     initial_setup: bool,
     setup_required: bool,
+}
+
+// Ownership is per setting. Guest preparation history is not host-setting ownership.
+fn restore_owned_settings(current: &Settings, journal: Option<&Journal>) -> (Settings, bool) {
+    let Some(journal) = journal else {
+        return (current.clone(), true);
+    };
+    if journal.settings_released {
+        return (current.clone(), true);
+    }
+    let mut after = current.clone();
+    if current.low_mmio == journal.applied.low_mmio {
+        after.low_mmio = journal.original.low_mmio;
+    }
+    if current.high_mmio == journal.applied.high_mmio {
+        after.high_mmio = journal.original.high_mmio;
+    }
+    if current.cache_types == journal.applied.cache_types {
+        after.cache_types = journal.original.cache_types;
+    }
+    if current.automatic_checkpoints == journal.applied.automatic_checkpoints {
+        after.automatic_checkpoints = journal.original.automatic_checkpoints;
+    }
+    let preserved = after != journal.original;
+    (after, preserved)
 }
 
 /// Read-only preparation comparison against the authenticated current host payload.
@@ -546,7 +577,10 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
         summary.push(format!("Compatibility settings: low MMIO {} -> {} MiB; high MMIO {} -> {} MiB; cache types {} -> {}; automatic checkpoints {} -> {}.", change.before.low_mmio, change.after.low_mmio, change.before.high_mmio, change.after.high_mmio, change.before.cache_types, change.after.cache_types, change.before.automatic_checkpoints, change.after.automatic_checkpoints));
     }
     if d.settings_preserved {
-        summary.push("Preserve compatibility settings changed by another manager.".into());
+        summary.push("Preserve unowned compatibility settings and values changed by another manager; restore only values still matching the product's last write.".into());
+    }
+    if !target.enabled {
+        summary.push("Remove host GPU support for this exact managed pair, even if guest drivers or the adapter are absent. Keep guest driver files, product authorization and historical records. No guest credentials, preparation, boot or graphics check is required. Publish disabled intent only after independent host and final-off readback.".into());
     }
     if d.allocation_change {
         for resource in Resource::ALL {
@@ -717,6 +751,8 @@ fn execute_decision(
         if setup_required {
             journal.latest_check = Some(GuestCheck::Interrupted);
         }
+        journal.preparation_started = setup_required.then_some(false);
+        journal.check_restored = false;
         if stale {
             // A failed refresh may leave a mixture of the old and new payload.
             // Invalidate the old receipt before effects, including if the host
@@ -738,6 +774,8 @@ fn execute_decision(
                 backend.power(target, Power::Off)?;
             }
             if stale {
+                journal.preparation_started = Some(true);
+                persist_check(backend, target, &journal)?;
                 if assignment {
                     backend.assign(target, false)?;
                 }
@@ -757,6 +795,7 @@ fn execute_decision(
                     .settings(target, &desired)
                     .map_err(|e| format!("apply compatibility settings: {e}"))?;
                 journal.applied = desired.clone();
+                journal.settings_released = false;
                 backend.save(target, &journal)?;
                 if backend.inspect(target)?.gpus.is_empty() {
                     backend
@@ -772,8 +811,12 @@ fn execute_decision(
                 if assignment {
                     backend.assign(target, false)?;
                 }
-                if initial.settings == journal.applied {
-                    backend.settings(target, &journal.original)?;
+                if initial.settings != disabled_settings {
+                    // A shutdown/detach can take time; do not overwrite a newly external value.
+                    if backend.inspect(target)?.settings != initial.settings {
+                        return Err("compatibility settings changed during removal; retain recovery and review the new state".into());
+                    }
+                    backend.settings(target, &disabled_settings)?;
                 }
             }
         }
@@ -803,6 +846,9 @@ fn execute_decision(
             return Err("independent final state verification failed".into());
         }
         journal.pending = false;
+        if !target.enabled {
+            journal.settings_released = true;
+        }
         if verified {
             journal.last_verified = Some(verified_at());
         }
@@ -950,11 +996,16 @@ fn verify_current_payload(
         verification_only: true,
         last_verified: None,
         latest_check: None,
+        preparation_started: None,
+        check_restored: false,
+        settings_released: false,
     });
     journal.restore_power = restore_power;
     journal.pending = true;
     journal.verification_only = true;
     journal.latest_check = Some(GuestCheck::Interrupted);
+    journal.check_restored = false;
+    journal.preparation_started = None;
     persist_check(backend, target, &journal)?;
     let checked = (|| {
         if before.power == Power::Off {
@@ -964,7 +1015,51 @@ fn verify_current_payload(
     })();
     // A start error may follow a real state change. Inspect and restore even then,
     // retaining both failures and the durable intent if recovery cannot complete.
-    let restoration = restore_guest_power(backend, target, &journal.restore_power);
+    let restoration = (|| {
+        let current = backend.inspect(target)?;
+        let mut expected = before.clone();
+        expected.power = current.power.clone();
+        if serde_json::to_value(&current).map_err(|e| e.to_string())?
+            != serde_json::to_value(&expected).map_err(|e| e.to_string())?
+            || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
+                != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+        {
+            return Err("verification facts changed; unsafe power restoration blocked".into());
+        }
+        // A running guest was never reviewed for a new start. Honor an external stop.
+        if journal.restore_power == Power::Running && current.power != Power::Running {
+            return Err("verification cannot authorize restarting the stopped guest".into());
+        }
+        restore_guest_power(backend, target, &journal.restore_power)?;
+        if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
+            != serde_json::to_value(&before).map_err(|e| e.to_string())?
+        {
+            return Err("verification restoration facts changed; retain recovery".into());
+        }
+        Ok(())
+    })();
+    let terminal_guest_failure = checked
+        .as_ref()
+        .err()
+        .and_then(|error| crate::reporting::ComponentFailure::decode(error))
+        .is_some_and(|failure| {
+            matches!(
+                failure.component,
+                crate::reporting::Component::GuestPayload
+                    | crate::reporting::Component::GuestReceipt
+                    | crate::reporting::Component::GuestGraphics
+            )
+        });
+    if terminal_guest_failure
+        && restoration.is_ok()
+        && matches!(
+            journal.latest_check,
+            Some(GuestCheck::Failed | GuestCheck::Unavailable | GuestCheck::PayloadMismatch)
+        )
+    {
+        journal.check_restored = true;
+        persist_check(backend, target, &journal)?;
+    }
     match (checked, restoration) {
         (Err(primary), Err(recovery)) => {
             return Err(format!(
@@ -1059,6 +1154,7 @@ pub(crate) fn reconcile_with_graphics(
     if check_graphics {
         let gpu = backend.gpu(target)?;
         journal.latest_check = Some(GuestCheck::Interrupted);
+        journal.check_restored = false;
         persist_check(backend, target, &journal)?;
         // A failed start can follow a real power change. Keep it inside the
         // checked stage so fresh fact checks and safe restoration still run.
@@ -1118,6 +1214,13 @@ pub(crate) fn reconcile_with_graphics(
     if check_graphics {
         journal.last_verified = Some(verified_at());
     }
+    if !target.enabled {
+        journal.settings_released = true;
+    } else if !journal.verification_only {
+        // Management reconciliation proves the bound host write; Verify cannot acquire ownership.
+        journal.applied = effective.settings.clone();
+        journal.settings_released = false;
+    }
     backend.save(target, &journal)?;
     Ok(OperationResult {
         effective,
@@ -1137,6 +1240,8 @@ mod tests {
         fail_prepare: bool,
         fail_settings: bool,
         fail_verify: bool,
+        stop_on_verify: bool,
+        change_settings_on_detach: bool,
         payload_check_failure: Option<crate::reporting::FailureCause>,
         ignore_shutdown: bool,
         fail_shutdown: bool,
@@ -1192,6 +1297,8 @@ mod tests {
             fail_prepare: false,
             fail_settings: false,
             fail_verify: false,
+            stop_on_verify: false,
+            change_settings_on_detach: false,
             payload_check_failure: None,
             ignore_shutdown: false,
             fail_shutdown: false,
@@ -1447,6 +1554,218 @@ mod tests {
     }
 
     #[test]
+    fn failed_verify_can_end_recovery_without_certifying_setup_then_review_repair() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let mut record = recovery_record(&backend, false);
+        let history = backend.journal.as_ref().unwrap().last_verified;
+        backend.payload_check_failure = Some(crate::reporting::FailureCause::FileMissing);
+        assert!(verify(&mut backend, &target()).is_err());
+        let pending = backend.journal.as_ref().unwrap();
+        assert!(pending.pending && pending.check_restored);
+        let retirement = record
+            .negative_completion(
+                &backend.state,
+                "new",
+                &crate::configuration_store::Revision::Missing,
+                Some(pending),
+            )
+            .unwrap()
+            .unwrap();
+        assert!(retirement.after.prepared.is_none());
+        assert_eq!(
+            retirement.after.latest_check,
+            Some(GuestCheck::PayloadMismatch)
+        );
+        assert_eq!(retirement.after.last_verified, history);
+        record.retirement = Some(retirement.clone());
+        // Interrupted retirement accepts exactly its saved before/after journals.
+        for journal in [&retirement.before, &retirement.after] {
+            assert!(
+                record
+                    .negative_completion(
+                        &backend.state,
+                        "new",
+                        &crate::configuration_store::Revision::Missing,
+                        Some(journal)
+                    )
+                    .unwrap()
+                    .is_some()
+            );
+        }
+        backend.save(&target(), &retirement.after).unwrap();
+        backend.payload_check_failure = None;
+        let reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+        assert!(reviewed.preview.actions.contains(&PreviewAction::Prepare));
+        assert!(apply_approved(&mut backend, &reviewed).unwrap().verified);
+    }
+
+    fn recovery_record(
+        backend: &Fake,
+        publication_required: bool,
+    ) -> crate::configuration_store::SaveRecord {
+        use crate::configuration_store::{Revision, SavePhase, SaveRecord};
+        SaveRecord {
+            schema: 1,
+            retirement: None,
+            operation_id: "0123456789abcdef0123456789abcdef".into(),
+            target: target(),
+            expected: Revision::Missing,
+            driver_version: "new".into(),
+            payload_digest: Some(backend.driver.into()),
+            plan_revision: Revision::of(b"approved"),
+            intended_source: String::new(),
+            publication_required,
+            initial: backend.state.clone(),
+            expected_power: Some(if publication_required {
+                Power::Off
+            } else {
+                backend.state.power.clone()
+            }),
+            graphics_required: Some(true),
+            initial_journal: backend.journal.clone(),
+            expected_settings: backend.state.settings.clone(),
+            phase: SavePhase::EffectsStarted,
+        }
+    }
+
+    #[test]
+    fn refused_reinstall_shutdown_can_end_without_losing_original_history_or_replaying() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.state.power = Power::Running;
+        let mut record = recovery_record(&backend, true);
+        let reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+        backend.events.clear();
+        backend.fail_shutdown = true;
+        assert!(apply_approved(&mut backend, &reviewed).is_err());
+        assert_eq!(backend.events, ["shutdown"]);
+        let retirement = record
+            .negative_completion(
+                &backend.state,
+                "new",
+                &crate::configuration_store::Revision::Missing,
+                backend.journal.as_ref(),
+            )
+            .unwrap()
+            .unwrap();
+        assert!(retirement.after.setup_eligible());
+        assert!(!retirement.after.pending);
+        assert_eq!(
+            serde_json::to_value(&retirement.after).unwrap(),
+            serde_json::to_value(record.initial_journal.as_ref().unwrap()).unwrap()
+        );
+        record.retirement = Some(retirement.clone());
+        let mut changed = retirement.before.clone();
+        changed.preparation_started = Some(true);
+        assert!(
+            record
+                .negative_completion(
+                    &backend.state,
+                    "new",
+                    &crate::configuration_store::Revision::Missing,
+                    Some(&changed)
+                )
+                .is_err()
+        );
+        assert!(
+            record
+                .negative_completion(
+                    &backend.state,
+                    "changed",
+                    &crate::configuration_store::Revision::Missing,
+                    Some(&retirement.before)
+                )
+                .is_err()
+        );
+        backend.save(&target(), &retirement.after).unwrap();
+        assert_eq!(backend.events, ["shutdown"]);
+        assert!(
+            !plan(&mut backend, &target())
+                .unwrap()
+                .preview
+                .credentials_required
+        );
+    }
+
+    #[test]
+    fn negative_completion_rejects_uncertain_or_changed_facts_and_legacy_proofs() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let record = recovery_record(&backend, false);
+        backend.payload_check_failure = Some(crate::reporting::FailureCause::FileChanged);
+        assert!(verify(&mut backend, &target()).is_err());
+        let journal = backend.journal.as_ref().unwrap();
+        for scenario in 0..4 {
+            let mut uncertain = journal.clone();
+            match scenario {
+                0 => uncertain.check_restored = false,
+                1 => uncertain.latest_check = Some(GuestCheck::Interrupted),
+                2 => uncertain.verification_only = false,
+                _ => uncertain.pending = false,
+            }
+            assert!(
+                record
+                    .negative_completion(
+                        &backend.state,
+                        "new",
+                        &crate::configuration_store::Revision::Missing,
+                        Some(&uncertain)
+                    )
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        let mut changed = backend.state.clone();
+        changed.settings.high_mmio += 1;
+        assert!(
+            record
+                .negative_completion(
+                    &changed,
+                    "new",
+                    &crate::configuration_store::Revision::Missing,
+                    Some(journal)
+                )
+                .is_err()
+        );
+        assert!(
+            record
+                .negative_completion(
+                    &backend.state,
+                    "new",
+                    &crate::configuration_store::Revision::of(b"external settings"),
+                    Some(journal)
+                )
+                .is_err()
+        );
+        // Unknown transport failure never establishes a terminal guest observation.
+        backend.payload_check_failure = None;
+        backend.journal.as_mut().unwrap().pending = false;
+        backend.fail_start_after_effect = true;
+        assert!(verify(&mut backend, &target()).is_err());
+        assert!(!backend.journal.as_ref().unwrap().check_restored);
+    }
+
+    #[test]
+    fn failed_verify_does_not_restart_an_externally_stopped_guest() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.state.power = Power::Running;
+        backend.events.clear();
+        backend.stop_on_verify = true;
+        backend.fail_verify = true;
+        assert!(
+            verify(&mut backend, &target())
+                .unwrap_err()
+                .contains("cannot authorize restarting")
+        );
+        assert_eq!(backend.state.power, Power::Off);
+        assert!(!backend.events.contains(&"start"));
+        let journal = backend.journal.as_ref().unwrap();
+        assert!(journal.pending && !journal.check_restored);
+    }
+
+    #[test]
     fn successful_verify_reconciliation_does_not_resurrect_invalidated_preparation() {
         let mut backend = fake();
         apply(&mut backend, &target()).unwrap();
@@ -1697,6 +2016,9 @@ mod tests {
             } else {
                 vec![]
             };
+            if !e && self.change_settings_on_detach {
+                self.state.settings.high_mmio += 1;
+            }
             Ok(())
         }
         fn settings(&mut self, _: &Target, s: &Settings) -> Result<(), String> {
@@ -1735,6 +2057,9 @@ mod tests {
             }
         }
         fn verify(&mut self, _: &Target, _: &Gpu) -> Result<(), String> {
+            if self.stop_on_verify {
+                self.state.power = Power::Off;
+            }
             if let Some(cause) = self.payload_check_failure {
                 self.events.push("payload-check");
                 return Err(crate::reporting::ComponentFailure {
@@ -1760,7 +2085,16 @@ mod tests {
             }
             self.events.push("graphics");
             if self.fail_verify {
-                return Err("graphics failed".into());
+                return Err(format!(
+                    "graphics failed: {}",
+                    crate::reporting::ComponentFailure {
+                        stage: None,
+                        component: crate::reporting::Component::GuestGraphics,
+                        cause: crate::reporting::FailureCause::RenderingFailed,
+                        code: None,
+                    }
+                    .into_error()
+                ));
             }
             Ok(())
         }
@@ -2537,6 +2871,20 @@ mod tests {
             first_journal
         );
         assert_eq!(fleet.0[&first.vm_id].events, first_events);
+        let mut removal = second.clone();
+        removal.enabled = false;
+        let reviewed = plan(&mut fleet, &removal).unwrap();
+        let removed = apply_approved(&mut fleet, &reviewed).unwrap();
+        assert!(removed.effective.gpus.is_empty() && !removed.verified);
+        assert_eq!(
+            serde_json::to_value(&fleet.0[&first.vm_id].state).unwrap(),
+            first_state
+        );
+        assert_eq!(
+            serde_json::to_value(&fleet.0[&first.vm_id].journal).unwrap(),
+            first_journal
+        );
+        assert_eq!(fleet.0[&first.vm_id].events, first_events);
         let second_state = serde_json::to_value(&fleet.0[&second.vm_id].state).unwrap();
         let second_journal = serde_json::to_value(&fleet.0[&second.vm_id].journal).unwrap();
         let second_events = fleet.0[&second.vm_id].events.clone();
@@ -2718,17 +3066,177 @@ mod tests {
         assert!(!f.state.settings.cache_types);
     }
     #[test]
+    fn removal_after_missing_preparation_or_adapter_is_host_only_and_finishes_off() {
+        for power in [Power::Off, Power::Running] {
+            for missing in 0..3 {
+                let mut backend = fake();
+                let mut target = extended_target();
+                apply(&mut backend, &target).unwrap();
+                backend.state.power = power.clone();
+                let initial_settings = backend.state.settings.clone();
+                let original = backend.journal.as_ref().unwrap().original.clone();
+                if missing == 0 {
+                    let journal = backend.journal.as_mut().unwrap();
+                    journal.prepared = None;
+                    journal.last_verified = None;
+                    journal.latest_check = Some(GuestCheck::PayloadMismatch);
+                } else if missing == 1 {
+                    backend.state.gpus.clear();
+                } else {
+                    backend.journal = None;
+                }
+                target.enabled = false;
+                backend.events.clear();
+                backend.payload_reads = 0;
+                backend.fail_payload = true;
+                backend.fail_prepare = true;
+                backend.fail_verify = true;
+                let allocation_writes = backend.allocation_writes;
+                let reviewed = plan(&mut backend, &target).unwrap();
+                assert!(!reviewed.preview.credentials_required && !reviewed.reinstall);
+                assert!(!reviewed.preview.actions.iter().any(|action| matches!(
+                    action,
+                    PreviewAction::Start
+                        | PreviewAction::Prepare
+                        | PreviewAction::Verify
+                        | PreviewAction::Allocation
+                )));
+                let result = apply_approved(&mut backend, &reviewed).unwrap();
+                assert!(!result.prepared && !result.verified);
+                assert_eq!(result.effective.power, Power::Off);
+                assert!(result.effective.gpus.is_empty());
+                assert_eq!(backend.payload_reads, 0);
+                assert_eq!(backend.allocation_writes, allocation_writes);
+                assert_eq!(
+                    result.effective.settings,
+                    if missing == 2 {
+                        initial_settings
+                    } else {
+                        original
+                    }
+                );
+                assert!(!backend.journal.as_ref().unwrap().pending);
+                assert!(
+                    !backend
+                        .events
+                        .iter()
+                        .any(|event| matches!(*event, "start" | "graphics" | "prepare" | "attach"))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn forgotten_history_requires_complete_setup_after_fresh_enrollment() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let mut disabled = target();
+        disabled.enabled = false;
+        let reviewed = plan(&mut backend, &disabled).unwrap();
+        apply_approved(&mut backend, &reviewed).unwrap();
+        // Profile removal deletes the host journal; guest files may still exist.
+        backend.journal = None;
+        backend.events.clear();
+        let fresh = plan(&mut backend, &target()).unwrap();
+        assert!(fresh.initial_setup && fresh.preview.credentials_required);
+        assert!(fresh.preview.actions.contains(&PreviewAction::Prepare));
+        assert!(fresh.preview.actions.contains(&PreviewAction::Verify));
+        assert!(backend.events.is_empty());
+    }
+
+    #[test]
+    fn completed_removal_releases_ownership_without_erasing_history() {
+        let mut backend = fake();
+        let mut disabled = target();
+        apply(&mut backend, &disabled).unwrap();
+        let history = backend.journal.as_ref().unwrap().last_verified;
+        let prepared = backend.journal.as_ref().unwrap().prepared.clone();
+        disabled.enabled = false;
+        let reviewed = plan(&mut backend, &disabled).unwrap();
+        apply_approved(&mut backend, &reviewed).unwrap();
+        assert!(backend.journal.as_ref().unwrap().settings_released);
+        assert_eq!(backend.journal.as_ref().unwrap().last_verified, history);
+        assert_eq!(backend.journal.as_ref().unwrap().prepared, prepared);
+        // Another manager uses values identical to old GPU settings after removal.
+        backend.state.settings = backend.state.settings.for_gpu();
+        let external = backend.state.settings.clone();
+        let reviewed = plan(&mut backend, &disabled).unwrap();
+        assert!(!reviewed.preview.actions.contains(&PreviewAction::Settings));
+        apply_approved(&mut backend, &reviewed).unwrap();
+        assert_eq!(backend.state.settings, external);
+        disabled.enabled = true;
+        let reviewed = plan(&mut backend, &disabled).unwrap();
+        apply_approved(&mut backend, &reviewed).unwrap();
+        assert!(!backend.journal.as_ref().unwrap().settings_released);
+        assert_eq!(backend.journal.as_ref().unwrap().original, external);
+    }
+
+    #[test]
+    fn removal_rejects_unrelated_hardware_recovery_and_stale_review_without_effects() {
+        for scenario in 0..3 {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let mut disabled = target();
+            disabled.enabled = false;
+            let mut approved = plan(&mut backend, &disabled).unwrap();
+            match scenario {
+                0 => backend.state.gpus = vec!["another-gpu".into()],
+                1 => {
+                    backend.journal.as_mut().unwrap().pending = true;
+                    approved = plan(&mut backend, &disabled).unwrap();
+                }
+                _ => backend.state.settings.high_mmio += 1,
+            }
+            backend.events.clear();
+            let writes = backend.journal_writes;
+            assert!(apply_approved(&mut backend, &approved).is_err());
+            assert!(backend.events.is_empty());
+            assert_eq!(backend.journal_writes, writes);
+        }
+    }
+
+    #[test]
+    fn partial_removal_and_settings_changes_during_detach_retain_recovery() {
+        for external_change in [false, true] {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let before = backend.state.settings.clone();
+            let mut disabled = target();
+            disabled.enabled = false;
+            let approved = plan(&mut backend, &disabled).unwrap();
+            backend.events.clear();
+            backend.change_settings_on_detach = external_change;
+            backend.fail_settings = !external_change;
+            assert!(apply_approved(&mut backend, &approved).is_err());
+            assert!(backend.state.gpus.is_empty());
+            let mut expected = before;
+            if external_change {
+                expected.high_mmio += 1;
+            }
+            assert_eq!(backend.state.settings, expected);
+            assert!(backend.journal.as_ref().unwrap().pending);
+            let events = backend.events.clone();
+            let retry = plan(&mut backend, &disabled).unwrap();
+            assert!(apply_approved(&mut backend, &retry).is_err());
+            assert_eq!(backend.events, events);
+        }
+    }
+
+    #[test]
     fn disable_preserves_external_settings_and_completes_power_restoration() {
         let mut f = fake();
         let mut t = target();
         apply(&mut f, &t).unwrap();
         f.state.power = Power::Running;
         f.state.settings.high_mmio += 1024;
-        let external = f.state.settings.clone();
+        let external_high_mmio = f.state.settings.high_mmio;
+        let original = f.journal.as_ref().unwrap().original.clone();
         t.enabled = false;
         assert!(apply(&mut f, &t).unwrap().settings_preserved);
         assert_eq!(f.state.power, Power::Off);
-        assert_eq!(f.state.settings, external);
+        let mut expected = original;
+        expected.high_mmio = external_high_mmio;
+        assert_eq!(f.state.settings, expected);
         assert!(!f.journal.as_ref().unwrap().pending);
     }
     #[test]

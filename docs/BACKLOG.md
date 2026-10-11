@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**Checkpoint rollback follow-up: APP-021 — Make GPU removal usable after rollback.** APP-016 through APP-020 are source implemented; continue one card at a time through APP-022. The current user request is source-only work without testing; APP-019 and APP-020 ran no build or compilation check. APP-023 requires a separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
+**Next source-only action: APP-024 — Add Delete profile under VM More actions.** APP-016 through APP-022 are source implemented; continue one card at a time. APP-024 reuses APP-022's protected transition. The current user request is source-only work without testing; APP-019 through APP-022 and the review fixes ran no build or compilation check. APP-023 remains blocked by the agreed automated gate and separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
 
 **APP-009 / APP-011 — Resolve the allocation contract and complete M2 preparation.** M1 is closed with [gate evidence](evidence/m1-closure.md). The [prepared sequence and source assessment](evidence/m2-preparation.md) record remaining environment facts and proposed effects. Selected-VM setup is already user-accepted; the remaining live sequence has not run. APP-011 source removes the metadata-derived VRAM ceiling; validate these changes at the agreed checkpoint before separately authorized live allocation checks.
 
@@ -32,10 +32,10 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-018 | M2 | Verify current guest payload after rollback | APP-016 | Done (source implemented) | Compilation check passed; tests and live acceptance pending |
 | APP-019 | M2 | Invalidate stale success when verification fails | APP-016 | Done (source implemented) | Pending milestone gate; no compilation or tests run |
 | APP-020 | M2 | Add explicitly reviewed driver reinstall | APP-019 | Done (source implemented; visual acceptance pending) | Pending milestone gate; no compilation or tests run |
-| APP-021 | M2 | Make GPU removal usable after rollback | APP-016 | Ready | Not run |
-| APP-022 | M2 | Remove an inactive pairing and its saved intent | APP-021 | Blocked: APP-021 | Not run |
-| APP-023 | M2 | Qualify checkpoint rollback detection and recovery | APP-017, APP-018, APP-019, APP-020, APP-022 | Blocked: source fixes and live authorization | Not run |
-| APP-024 | M2 | Add Delete profile under VM More actions | APP-022 | Blocked: APP-022 | Not run |
+| APP-021 | M2 | Make GPU removal usable after rollback | APP-016 | Done (source implemented; visual acceptance pending) | Pending milestone gate; no compilation or tests run |
+| APP-022 | M2 | Remove an inactive pairing and its saved intent | APP-021 | Done (source implemented; visual acceptance pending) | Pending milestone gate; no compilation or tests run |
+| APP-023 | M2 | Qualify checkpoint rollback detection and recovery | APP-017, APP-018, APP-019, APP-020, APP-022 | Blocked: automated gate and prepared live authorization | Not run |
+| APP-024 | M2 | Add Delete profile under VM More actions | APP-022 | Ready | Not run |
 | APP-025 | M2 | Keep Technical Details only where they add diagnostic value | APP-008 | Ready | Not run |
 | APP-026 | M2 | Display the slider VRAM maximum as a whole GB | APP-002 | Ready | Not run |
 
@@ -226,17 +226,27 @@ Implementation (12 October 2026): More actions now offers Repair / Reinstall usi
 
 Validation: source review, targeted Rust formatting and diff whitespace checks only. No compilation, builds, tests, UI render/launch, credentials, guest operations, protected writes or VM/GPU effects ran. Real menu/review interaction and behavioral acceptance remain pending the agreed gate.
 
+Review fixes (12 October 2026, APP-019/APP-020): explicit reconciliation now supports ending a terminal failed Verify after independently establishing its restored starting host state, retaining the failed/unknown check and invalid preparation instead of requiring guest success first. Setup/reinstall journals prove whether preparation-related effects could have started; refusal of the initial shutdown can end through independent unchanged-host readback and restoration of prior history. Both exits bind/archive the before/after journals before retirement, permit only matching interrupted transitions, and retain holds on unavailable/changed facts or persistence/readback failure. Verify revalidates host/GPU facts before restoration and never restarts an externally stopped running guest. Added isolated exit/repair, rejection, interrupted-transition and external-stop regressions. These fixes are source-only: formatting and whitespace checked; compilation, test execution, visual and live acceptance remain pending. At that review checkpoint APP-021 remained the next separate task.
+
 ### APP-021 — Make GPU removal usable after rollback
 
 Reuse the GPU-off draft, review and shared disable workflow as a clearly available removal route after missing/invalid guest preparation. Removal must not require working guest GPU drivers or a successful graphics check. Distinguish removing host GPU support from deleting guest drivers or revoking product authority.
 
 Acceptance: detach the exact managed GPU if present, restore only still-owned compatibility settings, publish disabled intent and confirm final-off state. Already absent attachment succeeds through independent readback without inventing guest verification. Cover absent driver receipts, missing adapter, externally changed settings, unrelated GPU refusal, recovery holds, stale review and partial failure. Preserve unrelated devices, guest files, other targets and uncertain-effect evidence. GUI wording and availability are tested separately from live acceptance.
 
+Implementation (12 October 2026): More actions exposes Remove GPU support through the existing disabled draft, review and protected Apply/publication flow. It requires the exact authorized pair, preserves retained resource requests, and explains host removal separately from guest file deletion, authorization or history removal. Missing preparation or an already absent adapter does not require guest access, credentials, driver transfer or graphics verification. Compatibility restoration now compares each field with its recorded product write, preserves externally changed/unowned values, and rechecks settings after shutdown/detach before writing. Confirmed removal/reconciliation marks compatibility ownership released while preserving history; another removal cannot reclaim old settings, and later enable captures its new baseline. Existing fresh admission, recovery holds, exact native adapter binding, disabled publication and final-off readback remain. Added isolated controller/workflow source coverage for missing receipts/adapter, absent ownership, cancellation, preserved requests, settings changes, stale review, unrelated hardware, recovery, partial failure, repeat removal and other-VM preservation.
+
+Validation: source review, targeted Rust formatting and diff whitespace checks only. No compilation, build, tests, GUI render/launch, credentials, guest access, protected writes or VM/GPU effects ran. Behavioral and visual acceptance remain pending; At that checkpoint APP-022 was the next separate source task.
+
 ### APP-022 — Remove an inactive pairing and its saved intent
 
 Connect the currently unavailable Forget pairing workflow after successful GPU removal. Implement an exact-pair, revision-bound protected authority transition through existing enrollment/publication mechanisms. Review separately describes removing product authorization and its saved intent/managed history; it does not imply guest driver uninstall.
 
 Acceptance: refuse active GPU support, pending operation/publication/enrollment recovery or conflicting authority/configuration revisions. Preserve every other pair and document, including another VM sharing the GPU. Independently read back authority and retained/deleted records; interruptions retain reconciliation evidence rather than leaving an unreported partial deletion. Cover missing/already-removed pairing, stale review, denied writes and failure at each publication boundary. Reopening permits a new reviewed enrollment/setup; historical receipts cannot skip that setup. Never delete shared package artifacts or unrelated guest files.
+
+Implementation (12 October 2026): More actions > Forget pairing obtains a read-only protected removal review and a separate confirmation naming the exact inactive VM/GPU and the saved intent/managed history to delete. Existing worker authentication/elevation, operation lock, enrollment policy publication and enrollment-pending hold are reused. Fresh admission binds operator, full authority revision and complete saved/history revision sets; the VM must be off with no GPU adapter, saved intent disabled/absent and compatibility ownership released/absent. Active/unknown/pending/conflicting states are refused. A durable removal record precedes mutations; selected saved intent and its managed journal are removed/read back before exact authority revocation. Every retained record and artifact/operator policy remains bound. Explicit Recovery resumes only remaining approved deletions; completed deletions must remain absent, and unknown/new revisions retain the hold. The terminal audit precedes hold release. Other VMs, guest files, VM/disks/checkpoints, package artifacts and operational audits are retained. Last-pair removal keeps installation/operator/artifact policy; new enrollment is separate, and missing host history requires complete setup. Added isolated transition/failure-boundary, inactive-admission, stale/cancellation and reenrollment/setup regression source. APP-024's Delete profile label/guided active-support flow remains separate.
+
+Validation: source review, targeted Rust formatting and diff whitespace checks only. No compilation, builds, tests, GUI render/launch, credentials, guest access, protected writes or VM/GPU effects ran. Visual and behavioral acceptance remain pending the agreed gate; APP-023 is not qualified.
 
 ### APP-023 — Qualify checkpoint rollback detection and recovery
 

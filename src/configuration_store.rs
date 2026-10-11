@@ -122,6 +122,9 @@ pub enum SavePhase {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SaveRecord {
+    /// Durable, review-bound negative completion; never authorizes publication or replay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retirement: Option<Retirement>,
     /// Versioned recovery format.
     pub schema: u32,
     /// Unique admitted operation identity.
@@ -155,6 +158,29 @@ pub struct SaveRecord {
     pub expected_settings: crate::model::Settings,
     /// Durable operation outcome, separate from a GUI reply or timer.
     pub phase: SavePhase,
+}
+
+/// Before/after journal binding for crash-safe retirement of a rejected operation.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Retirement {
+    /// Fixed reason; no successful setup or graphics result is implied.
+    pub reason: RetirementReason,
+    /// Independently observed unchanged starting host state.
+    pub observed: VmState,
+    /// Journal captured before retiring only this operation's pending flag.
+    pub before: crate::workflow::Journal,
+    /// Exact retained journal to publish; failed check facts remain durable.
+    pub after: crate::workflow::Journal,
+}
+
+/// Supported negative-completion dispositions.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum RetirementReason {
+    /// A failed check completed safe restoration; guest setup remains failed/unknown.
+    FailedVerification,
+    /// Preparation never entered its effect stage and original host state is unchanged.
+    PreparationNotStarted,
 }
 /// One explicit import destination; importing intent grants no effect authority.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -213,6 +239,102 @@ impl ImportRecord {
     }
 }
 impl SaveRecord {
+    /// Prepare or resume an exact negative completion from independent current facts.
+    /// Legacy journals without admission/restoration proof cannot use this path.
+    pub fn negative_completion(
+        &self,
+        state: &VmState,
+        driver: &str,
+        revision: &Revision,
+        journal: Option<&crate::workflow::Journal>,
+    ) -> Result<Option<Retirement>, String> {
+        use crate::workflow::GuestCheck;
+        let equal = |a: &crate::workflow::Journal, b: &crate::workflow::Journal| {
+            serde_json::to_value(a)
+                .map_err(|e| e.to_string())
+                .and_then(|a| Ok(a == serde_json::to_value(b).map_err(|e| e.to_string())?))
+        };
+        self.target.validate()?;
+        if self.initial.vm_id != self.target.vm_id
+            || self.initial.generation != 2
+            || !matches!(
+                self.initial.power,
+                crate::model::Power::Off | crate::model::Power::Running
+            )
+        {
+            return Err("negative completion target binding is invalid; retain recovery".into());
+        }
+        if self.schema != 1 || !matches!(self.phase, SavePhase::EffectsStarted) {
+            return Ok(None);
+        }
+        let Some(journal) = journal else {
+            return Ok(None);
+        };
+        if driver != self.driver_version
+            || revision != &self.expected
+            || serde_json::to_value(state).map_err(|e| e.to_string())?
+                != serde_json::to_value(&self.initial).map_err(|e| e.to_string())?
+            || journal.schema != 1
+            || journal.vm_id != self.target.vm_id
+            || journal.gpu_interface != self.target.gpu_interface
+        {
+            return Err("negative completion facts changed; retain recovery".into());
+        }
+        if let Some(retirement) = &self.retirement {
+            if serde_json::to_value(state).map_err(|e| e.to_string())?
+                != serde_json::to_value(&retirement.observed).map_err(|e| e.to_string())?
+                || (!equal(journal, &retirement.before)? && !equal(journal, &retirement.after)?)
+            {
+                return Err("negative completion journal changed; retain recovery".into());
+            }
+            return Ok(Some(retirement.clone()));
+        }
+        if !journal.pending {
+            return Ok(None);
+        }
+        let mut after = journal.clone();
+        let reason = if !self.publication_required
+            && journal.verification_only
+            && journal.check_restored
+            && journal.restore_power == self.initial.power
+            && matches!(
+                journal.latest_check,
+                Some(GuestCheck::Failed | GuestCheck::Unavailable | GuestCheck::PayloadMismatch)
+            ) {
+            // No successful result is fabricated; preserve the latest negative facts.
+            after.pending = false;
+            RetirementReason::FailedVerification
+        } else if self.publication_required
+            && !journal.verification_only
+            && journal.preparation_started == Some(false)
+            && journal.latest_check == Some(GuestCheck::Interrupted)
+        {
+            let Some(original) = &self.initial_journal else {
+                return Ok(None);
+            };
+            if original.pending
+                || original.schema != 1
+                || original.vm_id != journal.vm_id
+                || original.gpu_interface != journal.gpu_interface
+                || journal.original != original.original
+                || journal.applied != original.applied
+            {
+                return Err(
+                    "original preparation journal is not established; retain recovery".into(),
+                );
+            }
+            after = original.clone();
+            RetirementReason::PreparationNotStarted
+        } else {
+            return Ok(None);
+        };
+        Ok(Some(Retirement {
+            reason,
+            observed: state.clone(),
+            before: journal.clone(),
+            after,
+        }))
+    }
     /// Whether reconciliation must access the guest for a rendering check.
     pub fn requires_graphics(&self) -> bool {
         !self.publication_required || self.graphics_required.unwrap_or(self.target.enabled)
@@ -494,6 +616,7 @@ mod tests {
         };
         let mut record = SaveRecord {
             schema: 1,
+            retirement: None,
             operation_id: "one".into(),
             target,
             expected: Revision::Missing,
@@ -628,6 +751,7 @@ mod tests {
         };
         let record = SaveRecord {
             schema: 1,
+            retirement: None,
             operation_id: "0123456789abcdef0123456789abcdef".into(),
             target: target.clone(),
             expected: Revision::Missing,
@@ -655,6 +779,9 @@ mod tests {
             verification_only: false,
             last_verified: None,
             latest_check: None,
+            preparation_started: None,
+            check_restored: false,
+            settings_released: false,
         };
         let check = |state: &VmState, j: Option<&crate::workflow::Journal>| {
             record.validate_restored_baseline(state, "driver", &Revision::Missing, j)
@@ -760,6 +887,7 @@ mod tests {
         };
         let mut record = SaveRecord {
             schema: 1,
+            retirement: None,
             operation_id: "resource-operation".into(),
             target,
             expected: Revision::Missing,

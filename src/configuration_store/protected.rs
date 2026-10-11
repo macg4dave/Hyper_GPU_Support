@@ -143,6 +143,32 @@ pub(crate) fn revision(id: &str) -> Result<Revision, String> {
     Ok(read_source(&root.join(format!("{id}.toml")))?
         .map_or(Revision::Missing, |source| Revision::of(source.as_bytes())))
 }
+
+/// Delete only the reviewed canonical VM document, under the common worker lock.
+/// Missing is an interrupted/already-absent deletion, never permission for a changed file.
+pub(crate) fn remove(id: &str, expected: &Revision) -> Result<(), String> {
+    let Some(root) = verify_directories()? else {
+        return if *expected == Revision::Missing {
+            Ok(())
+        } else {
+            Err("Configuration store disappeared; retain recovery.".into())
+        };
+    };
+    let current = revision(id)?;
+    if current == Revision::Missing {
+        return Ok(());
+    }
+    if &current != expected {
+        return Err("Saved intent changed before removal; retain recovery.".into());
+    }
+    let path = root.join(format!("{id}.toml"));
+    security::verify(&path)?;
+    fs::remove_file(&path).map_err(|e| e.to_string())?;
+    if revision(id)? != Revision::Missing {
+        return Err("Saved intent removal readback failed.".into());
+    }
+    Ok(())
+}
 /// Admission enforces the same aggregate bound as the directory reader.
 pub(crate) fn check_capacity(ids: &[String]) -> Result<(), String> {
     let store = read();

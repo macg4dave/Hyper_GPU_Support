@@ -10,6 +10,7 @@ pub(super) struct State {
     pub pending_selection: Option<String>,
     pub draft_gpu: Option<String>,
     pub approved_plan: Option<ReviewedPlan>,
+    pub removal_review: Option<hyper_gpu_support::enrollment::RemovalReview>,
     pub verification_plan: Option<hyper_gpu_support::workflow::VerificationPlan>,
     pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
     /// A draft's original committed revision changed; only discard releases it.
@@ -46,6 +47,7 @@ impl Default for State {
             pending_selection: None,
             draft_gpu: None,
             approved_plan: None,
+            removal_review: None,
             verification_plan: None,
             committed: Default::default(),
             committed_conflict: None,
@@ -217,6 +219,7 @@ impl State {
     }
 
     pub fn cancel_review(&mut self) {
+        self.removal_review = None;
         self.approved_plan = None;
         self.enrollment_review = None;
         self.setup_artifacts = None;
@@ -300,6 +303,7 @@ impl State {
         enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
     ) -> Result<(), String> {
         use hyper_gpu_support::configuration_store::SavePhase;
+        self.removal_review = None;
         self.recovery = recovery;
         self.import_recovery = import_recovery;
         self.enrollment_recovery = enrollment_recovery;
@@ -333,6 +337,7 @@ impl State {
     }
 
     pub fn refresh(&mut self, inventory: Inventory) {
+        self.removal_review = None;
         let selected = self.view.selected.clone();
         if let Some(draft) = &self.view.draft
             && self.enrolled(draft)
@@ -536,6 +541,120 @@ impl State {
         self.proposal_eligibility(&target)?;
         Ok(target)
     }
+
+    /// Review host removal using the ordinary disabled draft and exact enrolled pair.
+    pub fn removal_draft(
+        &self,
+        id: &str,
+        gpu_index: i32,
+        values: &[String],
+    ) -> Result<Target, String> {
+        if self.view.selected.as_deref() != Some(id) {
+            return Err("The selected VM changed; review removal again.".into());
+        }
+        let target = self.draft(id, false, gpu_index, values)?;
+        if !self.enrolled(&target) {
+            return Err("GPU removal requires this exact authorized VM/GPU pair; no enrollment or guest work was performed.".into());
+        }
+        Ok(target)
+    }
+
+    /// Profile removal is separate from drafts and requires independently inactive host support.
+    pub fn forget_target(&self) -> Result<Target, String> {
+        let id = self.view.selected.as_deref().ok_or("Select a VM first.")?;
+        if self.view.draft.is_some() || self.view.unsaved || self.view.needs_readback {
+            return Err(
+                "Discard or complete pending edits and Refresh before Forget pairing.".into(),
+            );
+        }
+        if self.recovery.is_some()
+            || self.import_recovery.is_some()
+            || self.enrollment_recovery.is_some()
+            || self.authority_conflict.is_some()
+            || self.committed_conflict.is_some()
+            || !self.committed.errors.is_empty()
+        {
+            return Err(
+                "Resolve recovery or conflicting/unreadable records before Forget pairing.".into(),
+            );
+        }
+        let inventory = self.view.inventory.as_ref().ok_or("Refresh first.")?;
+        let mut target = inventory
+            .enrolled
+            .iter()
+            .find(|t| t.vm_id == id)
+            .cloned()
+            .ok_or("This VM has no authorized pairing; Refresh for current state.")?;
+        let vm = self.view.vm(id).ok_or("VM unavailable; Refresh first.")?;
+        if vm.power != hyper_gpu_support::model::Power::Off
+            || !vm.gpus.is_empty()
+            || self
+                .committed
+                .documents
+                .get(id)
+                .is_some_and(|d| d.target.enabled || d.target.gpu_interface != target.gpu_interface)
+        {
+            return Err(
+                "Use reviewed Remove GPU support first and leave the VM off before Forget pairing."
+                    .into(),
+            );
+        }
+        if inventory.recorded_state(id).recovery_required
+            || inventory
+                .managed
+                .get(id)
+                .is_none_or(|j| j.as_ref().is_some_and(|j| !j.settings_released))
+        {
+            return Err(
+                "Complete GPU removal and Refresh its managed history before Forget pairing."
+                    .into(),
+            );
+        }
+        target.enabled = false;
+        target.clear_allocations();
+        Ok(target)
+    }
+
+    fn check_forget_review(
+        &self,
+        review: &hyper_gpu_support::enrollment::RemovalReview,
+    ) -> Result<(), String> {
+        let target = self.forget_target()?;
+        let mut revisions = self
+            .committed
+            .documents
+            .iter()
+            .map(|(id, d)| (id.clone(), d.revision.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        revisions
+            .entry(target.vm_id.clone())
+            .or_insert(hyper_gpu_support::configuration_store::Revision::Missing);
+        if review.pair.target()? != target || review.configurations != revisions {
+            return Err(
+                "Selection, saved profiles or pairing changed; review Forget pairing again.".into(),
+            );
+        }
+        Ok(())
+    }
+
+    pub fn accept_forget_review(
+        &mut self,
+        review: hyper_gpu_support::enrollment::RemovalReview,
+    ) -> Result<(), String> {
+        self.removal_review = None;
+        self.check_forget_review(&review)?;
+        self.removal_review = Some(review);
+        Ok(())
+    }
+
+    pub fn reviewed_forget(&self) -> Result<hyper_gpu_support::enrollment::RemovalReview, String> {
+        let review = self
+            .removal_review
+            .as_ref()
+            .ok_or("Open a fresh Forget pairing review first.")?;
+        self.check_forget_review(review)?;
+        Ok(review.clone())
+    }
 }
 
 pub(super) fn allocation_values(target: &Target) -> Vec<String> {
@@ -636,6 +755,9 @@ pub(super) fn review_summary(plan: &Plan) -> String {
     ];
     if plan.reinstall {
         lines.insert(1, "Repair / Reinstall: run complete signed driver preparation even with matching history, verify current payload and selected-hardware rendering, then leave the VM off.".into());
+    }
+    if !plan.desired.enabled {
+        lines.insert(1, "Remove GPU support: detach the exact managed GPU if present, restore still-owned compatibility values and leave the VM off. Keep guest driver files, authorization and setup history. No guest credentials or graphics check.".into());
     }
     if plan.initial_setup && !plan.reinstall {
         lines.insert(1, "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes.".into());
@@ -1111,6 +1233,9 @@ mod tests {
                 verification_only: false,
                 last_verified: None,
                 latest_check: None,
+                preparation_started: None,
+                check_restored: false,
+                settings_released: false,
             }),
         );
         let text = s.host_configuration_text(&vm_id);
@@ -1247,6 +1372,7 @@ mod tests {
         let observed = s.view.vm(id(s)).unwrap().clone();
         SaveRecord {
             schema: 1,
+            retirement: None,
             operation_id: "test-operation".into(),
             target: s.target(id(s)).unwrap(),
             expected: Revision::Missing,
@@ -1758,6 +1884,9 @@ mod tests {
                     verification_only,
                     last_verified: None,
                     latest_check: None,
+                    preparation_started: None,
+                    check_restored: false,
+                    settings_released: false,
                 }),
             );
             s.refresh(next.clone());
@@ -1931,6 +2060,142 @@ mod tests {
         let text = memory_review(&plan);
         assert!(text.contains("no explicit request"));
         assert!(!text.contains("bytes:"));
+    }
+
+    #[test]
+    fn forget_pairing_review_is_bound_cancelable_and_keeps_other_profiles() {
+        use hyper_gpu_support::{
+            configuration_store::Revision,
+            enrollment::{PairReview, RemovalReview},
+        };
+        let mut s = state();
+        let vm_id = id(&s).to_owned();
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .managed
+            .insert(vm_id.clone(), None);
+        let target = s.forget_target().unwrap();
+        let review = RemovalReview {
+            pair: PairReview {
+                vm_id: vm_id.clone(),
+                gpu_interface: target.gpu_interface.clone(),
+                expected: Revision::of(b"policy"),
+                operator_sid: "S-1-5-21-1".into(),
+            },
+            configurations: std::collections::BTreeMap::from([(vm_id.clone(), Revision::Missing)]),
+            journals: std::collections::BTreeMap::from([(vm_id.clone(), Revision::Missing)]),
+        };
+        s.accept_forget_review(review.clone()).unwrap();
+        assert_eq!(s.reviewed_forget().unwrap(), review);
+        s.cancel_review();
+        assert!(s.reviewed_forget().is_err());
+        assert!(s.enrolled(&target));
+        assert!(s.committed.documents.is_empty());
+        s.accept_forget_review(review.clone()).unwrap();
+        s.view.selected = Some("another-vm".into());
+        assert!(s.reviewed_forget().is_err());
+        s.view.selected = Some(vm_id.clone());
+        let mut changed = target.clone();
+        changed.enabled = false;
+        s.committed.documents.insert(
+            vm_id.clone(),
+            hyper_gpu_support::configuration_store::SavedDocument {
+                target: changed,
+                source: "new disabled intent".into(),
+                revision: Revision::of(b"new disabled intent"),
+            },
+        );
+        assert!(s.reviewed_forget().is_err());
+        assert!(s.accept_forget_review(review).is_err());
+    }
+
+    #[test]
+    fn forget_pairing_refuses_active_unknown_recovery_or_absent_authority() {
+        for scenario in 0..6 {
+            let mut s = state();
+            let vm_id = id(&s).to_owned();
+            let gpu = s.target(&vm_id).unwrap().gpu_interface;
+            s.view
+                .inventory
+                .as_mut()
+                .unwrap()
+                .managed
+                .insert(vm_id.clone(), None);
+            match scenario {
+                0 => s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus = vec![gpu],
+                1 => s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Running,
+                2 => s.recovery = Some(save_record(&s)),
+                3 => {
+                    s.view.inventory.as_mut().unwrap().managed.remove(&vm_id);
+                }
+                4 => s.view.inventory.as_mut().unwrap().enrolled.clear(),
+                _ => s.view.needs_readback = true,
+            }
+            assert!(s.forget_target().is_err());
+            assert!(s.removal_review.is_none());
+        }
+    }
+
+    #[test]
+    fn removal_is_reviewable_without_preparation_or_attachment_and_preserves_requests() {
+        let mut s = state();
+        let vm_id = id(&s).to_owned();
+        let mut requested = s.target(&vm_id).unwrap();
+        requested.compute = Some(Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 90,
+        });
+        requested.vram = Some(Allocation {
+            minimum: 10,
+            optimal: 50,
+            maximum: 100,
+        });
+        let values = allocation_values(&requested);
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .managed
+            .insert(vm_id.clone(), None);
+        s.view.inventory.as_mut().unwrap().discovery.vms[0]
+            .gpus
+            .clear();
+        let removed = s.removal_draft(&vm_id, 0, &values).unwrap();
+        assert!(!removed.enabled);
+        assert_eq!(removed.compute, requested.compute);
+        assert_eq!(removed.vram, requested.vram);
+        let mut plan = review_plan();
+        plan.desired = removed.clone();
+        plan.preview.credentials_required = false;
+        let revision = s.committed.revision(&vm_id).unwrap();
+        assert!(review_summary(&plan).contains("Remove GPU support"));
+        assert!(review_summary(&plan).contains("Keep guest driver files, authorization"));
+        s.accept_review(plan, &removed, revision).unwrap();
+        assert!(!s.reviewed_plan(&removed).unwrap().plan.desired.enabled);
+        s.cancel_review();
+        assert!(s.reviewed_plan(&removed).is_err());
+        assert!(s.enrolled(&removed));
+    }
+
+    #[test]
+    fn removal_does_not_bypass_recovery_authority_or_selection() {
+        for scenario in 0..3 {
+            let mut s = state();
+            let vm_id = id(&s).to_owned();
+            match scenario {
+                0 => s.view.inventory.as_mut().unwrap().enrolled.clear(),
+                1 => s.recovery = Some(save_record(&s)),
+                _ => s.view.selected = Some("another-vm".into()),
+            }
+            assert!(
+                s.removal_draft(&vm_id, 0, &values("10", "50", "100"))
+                    .is_err()
+            );
+            assert!(s.approved_plan.is_none());
+        }
     }
 
     #[test]
