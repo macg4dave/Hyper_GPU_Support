@@ -30,6 +30,12 @@ pub(super) struct ReviewedPlan {
     pub revision: hyper_gpu_support::configuration_store::Revision,
 }
 
+/// Protected reads gathered off the UI thread after an operation attempt.
+pub(super) struct OperationReadback {
+    pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
+    pub recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
+}
+
 impl Default for State {
     fn default() -> Self {
         Self {
@@ -55,6 +61,81 @@ impl Default for State {
 }
 
 impl State {
+    /// A terminal Apply result is distinct from current saved files and observations.
+    /// Retain known applied intent even when subsequent protected reads fail.
+    pub fn finish_apply(
+        &mut self,
+        target: &Target,
+        operation_id: &str,
+        saved: bool,
+        readback: Result<OperationReadback, String>,
+    ) -> Result<(), String> {
+        self.view.needs_readback = true;
+        self.approved_plan = None;
+        self.view.applied(target)?;
+        if saved {
+            self.view.published(target)?;
+        }
+        self.finish_readback(readback)?;
+        if let Some(record) = &self.recovery {
+            if record.operation_id != operation_id || record.target != *target {
+                return Err("The protected recovery receipt changed after completion. Inspect the loaded operation before any retry.".into());
+            }
+        } else if !saved && self.view.unsaved {
+            return Err("Applied changes were confirmed, but their bound save-only receipt is unavailable. Refresh and inspect recovery; do not repeat Apply.".into());
+        }
+        if saved && (self.committed.revision(&target.vm_id).is_err()
+            || self.committed.documents.get(&target.vm_id).is_none_or(|d| d.target != *target)) {
+            return Err("Publication completed, but current saved intent changed or is unreadable. Refresh before editing; do not repeat GPU work.".into());
+        }
+        Ok(())
+    }
+
+    pub fn finish_readback(
+        &mut self,
+        readback: Result<OperationReadback, String>,
+    ) -> Result<(), String> {
+        self.view.needs_readback = true;
+        self.cancel_review();
+        let readback = readback?;
+        let configuration_error = self.load_committed(readback.committed).err();
+        self.sync_recovery(readback.recovery, self.import_recovery.clone(), self.enrollment_recovery.clone())?;
+        configuration_error.map_or(Ok(()), Err)
+    }
+
+    /// Only the loaded, completed publication receipt can be offered for save-only.
+    pub fn save_only_record(&self) -> Result<hyper_gpu_support::configuration_store::SaveRecord, String> {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        let record = self.recovery.as_ref().ok_or("No bound save-only receipt is loaded; Refresh and inspect recovery.")?;
+        if !record.publication_required || !matches!(record.phase, SavePhase::Verified(_) | SavePhase::Published(_)) {
+            return Err("This operation requires reconciliation, not a configuration save retry.".into());
+        }
+        Ok(record.clone())
+    }
+
+    pub fn applied_text(&self, id: &str) -> String {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        if let Some(record) = self.recovery.as_ref().filter(|r| r.target.vm_id == id) {
+            return match record.phase {
+                SavePhase::Admitted | SavePhase::EffectsStarted => "Operation outcome uncertain; inspect protected recovery.",
+                SavePhase::Verified(_) if record.publication_required => "Applied and checked; configuration publication is pending. Use the bound save-only retry.",
+                SavePhase::Published(_) => "Applied and published; protected recovery finalization is pending.",
+                SavePhase::Verified(_) => "Graphics check completed; protected recovery finalization is pending. No configuration publication is authorized.",
+            }.into();
+        }
+        if self.view.verified_unsaved.as_ref().is_some_and(|t| t.vm_id == id) {
+            "Applied changes were checked; saving is not confirmed. Refresh for the bound receipt.".into()
+        } else {
+            "No unpublished operation is recorded; see current observations and saved intent separately.".into()
+        }
+    }
+
+    /// Current readable publication, separately from an earlier terminal reply.
+    pub fn publication_confirmed(&self, target: &Target) -> bool {
+        !self.view.unsaved
+            && self.committed.revision(&target.vm_id).is_ok()
+            && self.committed.documents.get(&target.vm_id).is_some_and(|d| d.target == *target)
+    }
     pub fn accept_review(
         &mut self,
         plan: Plan,
@@ -496,6 +577,11 @@ pub(super) fn review_summary(plan: &Plan) -> String {
     if plan.initial_setup {
         lines.insert(1, "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes.".into());
     }
+    if !plan.initial_setup && plan.preview.credentials_required {
+        lines.insert(1, "GPU setup/update required: preparation changed or is invalid. Review driver work, hardware rendering and final shutdown before confirming.".into());
+    } else if !plan.preview.credentials_required {
+        lines.insert(1, "Ordinary GPU change: no guest access or graphics check. Leave the VM off after success; start it through Hyper-V when ready.".into());
+    }
     for (resource, write) in [
         (Resource::Vram, plan.preview.allocation.as_ref()),
         (Resource::Compute, plan.preview.compute.as_ref()),
@@ -911,6 +997,7 @@ mod tests {
             publication_required: true,
             initial: observed.clone(),
             expected_power: None,
+            graphics_required: None,
             initial_journal: None,
             expected_settings: observed.settings.clone(),
             phase: SavePhase::Verified(observed),
@@ -994,6 +1081,130 @@ mod tests {
         s.refresh(inventory());
         s.sync_recovery(None, None, None).unwrap();
         assert!(s.editor_eligibility(id(&s)).is_ok());
+    }
+
+    #[test]
+    fn completed_unsaved_apply_keeps_saved_observed_and_applied_state_distinct() {
+        let mut s = state();
+        let original = s.target(id(&s)).unwrap();
+        let store = committed(vec![original.clone()], "saved before operation");
+        s.load_committed(store.clone()).unwrap();
+        let mut applied = original.clone();
+        applied.enabled = false;
+        s.view.draft = Some(applied.clone());
+        let observed = s.view.vm(id(&s)).unwrap().clone();
+        let mut record = save_record(&s);
+        record.target = applied.clone();
+        s.finish_apply(&applied, "test-operation", false, Ok(OperationReadback {
+            committed: store,
+            recovery: Some(record),
+        })).unwrap();
+        assert_eq!(s.target(&original.vm_id).unwrap(), original);
+        assert_eq!(serde_json::to_value(s.view.vm(&applied.vm_id).unwrap()).unwrap(), serde_json::to_value(observed).unwrap());
+        assert_eq!(s.view.verified_unsaved, Some(applied.clone()));
+        assert!(s.view.draft.is_none());
+        assert!(s.view.needs_readback);
+        assert!(s.applied_text(&applied.vm_id).contains("publication is pending"));
+        assert_eq!(s.save_only_record().unwrap().target, applied);
+        assert!(s.editor_eligibility(id(&s)).is_err());
+    }
+
+    #[test]
+    fn completed_apply_read_failure_retains_known_unsaved_intent_without_retry_authority() {
+        let mut s = state();
+        let target = s.target(id(&s)).unwrap();
+        s.view.draft = Some(target.clone());
+        assert!(s.finish_apply(&target, "test-operation", false, Err("protected read failed".into())).is_err());
+        assert_eq!(s.view.verified_unsaved, Some(target));
+        assert!(s.view.unsaved && s.view.needs_readback);
+        assert!(s.approved_plan.is_none());
+        assert!(s.save_only_record().is_err());
+    }
+
+    #[test]
+    fn completed_apply_rejects_a_replaced_operation_receipt() {
+        for changed_target in [false, true] {
+            let mut s = state();
+            let target = s.target(id(&s)).unwrap();
+            let mut record = save_record(&s);
+            if changed_target {
+                record.target.enabled = !target.enabled;
+            } else {
+                record.operation_id = "another-operation".into();
+            }
+            assert!(s.finish_apply(&target, "test-operation", false, Ok(OperationReadback {
+                committed: Default::default(),
+                recovery: Some(record),
+            })).unwrap_err().contains("receipt changed"));
+            assert!(s.view.needs_readback);
+            assert!(s.editor_eligibility(id(&s)).is_err());
+        }
+    }
+
+    #[test]
+    fn save_only_completion_updates_selected_intent_and_preserves_another_vm_draft() {
+        let mut s = state();
+        let mut applied = s.target(id(&s)).unwrap();
+        applied.enabled = false;
+        let mut other = applied.clone();
+        other.vm_id = "12345678-1234-1234-1234-000000000002".into();
+        let mut other_draft = other.clone();
+        other_draft.enabled = true;
+        let store = committed(vec![applied.clone(), other.clone()], "published");
+        s.load_committed(store.clone()).unwrap();
+        s.view.draft = Some(other_draft.clone());
+        s.finish_apply(&applied, "test-operation", true, Ok(OperationReadback {
+            committed: store.clone(), recovery: None,
+        })).unwrap();
+        assert_eq!(s.view.draft, Some(other_draft));
+        assert_eq!(s.target(&applied.vm_id).unwrap(), applied);
+        assert_eq!(s.target(&other.vm_id).unwrap(), other);
+        assert!(!s.view.unsaved);
+        assert!(s.view.verified_unsaved.is_none());
+        let mut reopened = State::default();
+        reopened.load_committed(store).unwrap();
+        reopened.refresh(inventory());
+        assert_eq!(reopened.target(id(&reopened)).unwrap(), s.target(id(&s)).unwrap());
+        assert!(reopened.view.draft.is_none());
+    }
+
+    #[test]
+    fn lost_terminal_reply_uses_durable_phase_without_inventing_completion() {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        let mut s = state();
+        let target = s.target(id(&s)).unwrap();
+        s.view.draft = Some(target.clone());
+        let mut record = save_record(&s);
+        record.phase = SavePhase::EffectsStarted;
+        s.finish_readback(Ok(OperationReadback {
+            committed: Default::default(), recovery: Some(record),
+        })).unwrap();
+        assert!(s.view.needs_readback);
+        assert_eq!(s.view.draft, Some(target));
+        assert!(s.applied_text(id(&s)).contains("uncertain"));
+        assert!(s.save_only_record().is_err());
+        assert!(s.editor_eligibility(id(&s)).is_err());
+    }
+
+    #[test]
+    fn save_retry_is_available_only_for_publication_receipts() {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        let mut s = state();
+        let mut record = save_record(&s);
+        let effective = record.initial.clone();
+        for phase in [SavePhase::Admitted, SavePhase::EffectsStarted] {
+            record.phase = phase;
+            s.sync_recovery(Some(record.clone()), None, None).unwrap();
+            assert!(s.save_only_record().is_err());
+        }
+        record.phase = SavePhase::Published(effective);
+        s.sync_recovery(Some(record.clone()), None, None).unwrap();
+        assert!(s.save_only_record().is_ok());
+        assert!(!s.view.unsaved);
+        assert!(s.applied_text(id(&s)).contains("published"));
+        record.publication_required = false;
+        s.sync_recovery(Some(record), None, None).unwrap();
+        assert!(s.save_only_record().is_err());
     }
 
     #[test]
@@ -1477,5 +1688,35 @@ mod tests {
         assert!(summary.contains("Expected final VM power after successful completion: Stopped."));
         assert!(summary.contains("3. Gracefully stop the VM."));
         assert!(summary.contains("Start it through Hyper-V"));
+    }
+
+    #[test]
+    fn ordinary_review_has_final_shutdown_without_guest_work_or_restart() {
+        use hyper_gpu_support::workflow::PreviewAction;
+        let mut plan = review_plan();
+        plan.preview.credentials_required = false;
+        plan.preview.restore_power = Power::Off;
+        plan.preview.actions = vec![PreviewAction::Shutdown, PreviewAction::Allocation];
+        let summary = review_summary(&plan);
+        assert!(summary.contains("Ordinary GPU change"));
+        assert!(summary.contains("no guest access or graphics check"));
+        assert!(summary.contains("Expected final VM power after successful completion: Stopped."));
+        assert!(!summary.contains("several minutes"));
+        assert!(!summary.contains("graphics check may take additional time"));
+        assert!(!summary.contains("Start the VM."));
+    }
+
+    #[test]
+    fn driver_update_review_explicitly_names_required_setup_and_time() {
+        use hyper_gpu_support::workflow::PreviewAction;
+        let mut plan = review_plan();
+        plan.preview.credentials_required = true;
+        plan.preview.actions = vec![PreviewAction::Prepare, PreviewAction::Verify, PreviewAction::Shutdown];
+        plan.preview.restore_power = Power::Off;
+        let summary = review_summary(&plan);
+        assert!(summary.contains("GPU setup/update required"));
+        assert!(summary.contains("several minutes"));
+        assert!(summary.contains("graphics check may take additional time"));
+        assert!(!summary.contains("Ordinary GPU change"));
     }
 }

@@ -16,10 +16,11 @@ These choices were confirmed in the product Q&A on 11 October 2026. They replace
 | D-010 | Friendly explanation before local credentials | Name the VM and explain guest Windows sign-in versus host credentials; remembering is optional |
 | D-011 | Preserve protected operations and truthful recovery | Simplifying workflow does not remove authorization, fresh plan checks, trust, IPC, locks, readback or durable records |
 | D-012 | Documentation rewrite first | No source change, product build/test, launch, or live operation is authorized by this Q&A |
+| D-013 | Ordinary changes always finish off (APP-006, 11 October 2026) | Gracefully stop a running VM and require final-off readback; leave an already stopped VM off; the user starts it through Hyper-V |
 
 ## Open details
 
-The precise final power policy for ordinary changes is still to be settled in APP-006. The final-off decision applies to completed initial setup. Exact qualification environment and live provider behavior are established through APP-009.
+Exact qualification environment and live provider behavior are established through APP-009.
 
 VRAM display/request is not proof of physical reservation or isolation. Do not introduce extra policy or assume provider semantics.
 

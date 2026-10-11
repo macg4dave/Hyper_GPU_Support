@@ -36,6 +36,8 @@ A missing reply, timeout, worker exit, or absent terminal audit is not proof tha
 
 GPU recovery receipts retain the independently recomputed plan's expected final power separately from the initial observation. Initial setup requires final-off readback before recording graphics/setup completion or allowing configuration publication. Explicit reconciliation must match the journal's recorded power intent and can restore only that intent; save-only cannot accept a running outcome where the receipt promises off. Receipts predating this field retain their original-power contract. Pending operations continue to block new Apply admission; this change introduces no automatic retry or replay.
 
+APP-006 ordinary operations require confirmed final-off state and persist the reviewed graphics requirement separately. Their reconciliation checks achieved host state and final power without guest access, credentials, boot or graphics verification; unresolved power retains recovery. Setup/update retains guest verification. Receipts without the graphics field keep the earlier enabled-operation graphics contract. These source changes remain unvalidated.
+
 Standalone Verify has no configuration-publication authority. Its recovery can inspect graphics and safely restore the approved original power state; it cannot import the target's intent or replay preparation/assignment/allocation.
 
 If reconciliation's temporary start changes power and then reports failure, fresh matching host/GPU/payload facts may still authorize restoring the recorded power intent. Changed facts block restoration; refused shutdown retains both failures and pending recovery. This source fix does not authorize replay, forced power-off, or automatic reconciliation.

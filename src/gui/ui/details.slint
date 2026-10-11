@@ -10,6 +10,8 @@ export component VmDetails inherits Rectangle {
     in property <string> status;
     in property <string> observed;
     in property <string> desired;
+    in property <string> pending;
+    in property <string> applied;
     in property <string> verification;
     in property <string> support-summary;
     in property <string> inventory-details;
@@ -127,6 +129,8 @@ export component VmDetails inherits Rectangle {
                         Hint { text: "VM ID: " + root.identity; }
                         Hint { text: "Observed: " + root.observed; }
                         Hint { text: "Saved configuration: " + root.desired; }
+                        Hint { text: "Pending edits: " + root.pending; }
+                        Hint { text: "Applied operation: " + root.applied; }
                         Hint { text: "Graphics: " + root.verification; }
                         Hint { text: root.inventory-details; }
                         Hint { text: "GPU Memory ranges from 1 GB to the selected GPU's detected physical capacity. Requests use native bytes: 1 GB = 1,000,000,000 bytes. The driver may support a smaller request range; unsupported selections are blocked. Advanced Allocation retains exact VRAM triples, including older values below 1 GB. Saved Compute/Encode/Decode requests are preserved for compatibility and appear in review; this GUI does not edit them. Physical capacity does not rescale requests or establish reservation or enforcement."; }

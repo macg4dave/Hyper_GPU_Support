@@ -35,7 +35,7 @@ use windows::{
 };
 
 /// Concrete execution state, not a percentage or demonstration timer.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StageStatus {
     /// Work is about to enter an adapter.
     Running,
@@ -86,6 +86,69 @@ enum Command {
     ImportResume {
         operation_id: String,
     },
+}
+
+impl Command {
+    /// An authenticated terminal reply must still match the submitted operation.
+    /// Progress completion is never sufficient to establish a terminal outcome.
+    fn validate_outcome(&self, outcome: &Outcome, session: &str) -> Result<(), String> {
+        let expected_id = match self {
+            Self::SaveOnly { operation_id }
+            | Self::Reconcile { operation_id, .. }
+            | Self::ImportResume { operation_id } => operation_id.as_str(),
+            _ => session,
+        };
+        let invalid = || "Worker terminal reply does not match the reviewed operation; outcome uncertain. Refresh and inspect protected recovery.".to_owned();
+        if outcome.operation_id != expected_id
+            || expected_id.is_empty()
+            || ((outcome.saved || outcome.finished) && outcome.save_error.is_some())
+        {
+            return Err(invalid());
+        }
+        match self {
+            Self::Apply { approved, .. } => {
+                let operation = outcome.operation.as_ref().ok_or_else(invalid)?;
+                let effective = &operation.effective;
+                let target = &approved.desired;
+                let expected_gpus = if target.enabled { vec![target.gpu_interface.clone()] } else { vec![] };
+                let expected_settings = approved.preview.settings.as_ref()
+                    .map_or(&approved.observed.settings, |settings| &settings.after);
+                if effective.vm_id != target.vm_id
+                    || effective.generation != 2
+                    || effective.gpus != expected_gpus
+                    || effective.power != approved.preview.restore_power
+                    || effective.settings != *expected_settings
+                    || (target.enabled && !target.allocations_match(effective))
+                    || operation.verified != approved.preview.actions.contains(&workflow::PreviewAction::Verify)
+                    || operation.prepared != approved.preview.actions.contains(&workflow::PreviewAction::Prepare)
+                    || operation.settings_preserved != approved.preview.settings_preserved
+                    || outcome.saved != outcome.finished
+                    || outcome.saved != outcome.save_error.is_none()
+                {
+                    return Err(invalid());
+                }
+            }
+            Self::SaveOnly { .. } => {
+                if outcome.operation.is_some() || !outcome.saved || !outcome.finished {
+                    return Err(invalid());
+                }
+            }
+            Self::Verify { approved, .. } => {
+                let operation = outcome.operation.as_ref().ok_or_else(invalid)?;
+                if operation.effective.vm_id != approved.target.vm_id
+                    || operation.effective.gpus != approved.observed.gpus
+                    || operation.effective.power != workflow::verification_power(
+                        &approved.target, &approved.observed, approved.managed.as_ref(),
+                    )?
+                    || !operation.verified || operation.prepared || outcome.saved || !outcome.finished
+                {
+                    return Err(invalid());
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -365,11 +428,12 @@ fn submit(
                 session: actual,
                 result,
             } if actual == session => {
-                return (*result).map(|mut outcome| {
+                return (*result).and_then(|mut outcome| {
+                    request.command.validate_outcome(&outcome, &session)?;
                     outcome.save_error = outcome.save_error.map(|error| {
                         crate::reporting::operator_error("Configuration publication", &error)
                     });
-                    outcome
+                    Ok(outcome)
                 });
             }
             _ => return Err("worker session identity mismatch; inspect recovery".into()),
@@ -683,6 +747,7 @@ fn execute(
                 publication_required: true,
                 initial: current.observed.clone(),
                 expected_power: Some(current.preview.restore_power.clone()),
+                graphics_required: Some(current.preview.actions.contains(&workflow::PreviewAction::Verify)),
                 initial_journal: current.managed.clone(),
                 expected_settings: current
                     .preview
@@ -726,10 +791,24 @@ fn execute(
             }
             record.phase = SavePhase::Verified(result.effective.clone());
             runner::atomic_json(&runner::recovery_path()?, &record)?;
+            notify(Progress {
+                stage: "Publish checked VM configuration".into(),
+                status: StageStatus::Running,
+            })?;
             let saved = configuration_store::protected::publish(&record, &enrollment.client_sid);
             if saved.is_ok() {
                 record.phase = SavePhase::Published(result.effective.clone());
                 runner::atomic_json(&runner::recovery_path()?, &record)?;
+            }
+            let delivery = notify(Progress {
+                stage: "Publish checked VM configuration".into(),
+                status: if saved.is_ok() { StageStatus::Done } else { StageStatus::Failed },
+            });
+            if let Err(delivery) = delivery {
+                return Err(saved.err().map_or_else(
+                    || format!("Publication completed but progress delivery failed; outcome uncertain: {delivery}"),
+                    |primary| format!("Progress delivery failed: {delivery}; {primary}"),
+                ));
             }
             Ok(Outcome {
                 operation: Some(result),
@@ -791,6 +870,7 @@ fn execute(
                     &approved.observed,
                     approved.managed.as_ref(),
                 )?),
+                graphics_required: Some(true),
                 initial_journal: approved.managed.clone(),
                 expected_settings: approved.observed.settings.clone(),
                 phase: SavePhase::Admitted,
@@ -969,7 +1049,7 @@ fn execute(
             {
                 return Err("current payload differs from the recorded operation".into());
             }
-            let check_graphics = record.target.enabled || !record.publication_required;
+            let check_graphics = record.requires_graphics();
             if check_graphics
                 && (before.power == Power::Off || final_power == Power::Off)
                 && !shutdown_approved
@@ -981,7 +1061,7 @@ fn execute(
                 checked_target.enabled = true;
                 checked_target.clear_allocations();
             }
-            let result = workflow::reconcile_observed(
+            let result = workflow::reconcile_with_graphics(
                 &mut ObservedBackend {
                     backend: &mut backend,
                     notify: &mut notify,
@@ -991,6 +1071,7 @@ fn execute(
                 &before,
                 final_power,
                 record.payload_digest.as_deref(),
+                check_graphics,
             )?;
             record.validate_reconciliation(
                 &backend.inspect(&record.target)?,
@@ -1012,10 +1093,24 @@ fn execute(
                 &backend.gpu(&record.target)?.driver_version,
                 &configuration_store::protected::revision(&record.target.vm_id)?,
             )?;
+            notify(Progress {
+                stage: "Publish checked VM configuration".into(),
+                status: StageStatus::Running,
+            })?;
             let saved = configuration_store::protected::publish(&record, &enrollment.client_sid);
             if saved.is_ok() {
                 record.phase = SavePhase::Published(result.effective.clone());
                 runner::atomic_json(&runner::recovery_path()?, &record)?;
+            }
+            let delivery = notify(Progress {
+                stage: "Publish checked VM configuration".into(),
+                status: if saved.is_ok() { StageStatus::Done } else { StageStatus::Failed },
+            });
+            if let Err(delivery) = delivery {
+                return Err(saved.err().map_or_else(
+                    || format!("Publication completed but progress delivery failed; outcome uncertain: {delivery}"),
+                    |primary| format!("Progress delivery failed: {delivery}; {primary}"),
+                ));
             }
             Ok(Outcome {
                 operation: Some(result),
@@ -1068,7 +1163,14 @@ fn execute(
                 stage: "Save verified configuration only".into(),
                 status: StageStatus::Running,
             })?;
-            configuration_store::protected::publish(&record, &enrollment.client_sid)?;
+            let publication = configuration_store::protected::publish(&record, &enrollment.client_sid);
+            if publication.is_err() {
+                let delivery = notify(Progress {
+                    stage: "Save verified configuration only".into(),
+                    status: StageStatus::Failed,
+                });
+                finish_progress(publication, delivery)?;
+            }
             let verified = match &record.phase {
                 SavePhase::Verified(state) | SavePhase::Published(state) => state.clone(),
                 SavePhase::Admitted | SavePhase::EffectsStarted => {
@@ -1168,6 +1270,15 @@ struct ObservedBackend<'a, B, F> {
     notify: &'a mut F,
     before_effect: Option<&'a mut dyn FnMut() -> Result<(), String>>,
 }
+
+fn finish_progress<T>(result: Result<T, String>, delivery: Result<(), String>) -> Result<T, String> {
+    match (result, delivery) {
+        (Err(primary), Err(delivery)) => Err(format!("Progress delivery failed: {delivery}; {primary}")),
+        (Err(primary), Ok(())) => Err(primary),
+        (Ok(_), Err(delivery)) => Err(format!("Stage completed but progress delivery failed; outcome uncertain: {delivery}")),
+        (Ok(value), Ok(())) => Ok(value),
+    }
+}
 impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B, F> {
     fn effect<T>(
         &mut self,
@@ -1189,15 +1300,15 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B
             status: StageStatus::Running,
         })?;
         let result = crate::diagnostics::run(name, "approved-worker", || action(self.backend));
-        (self.notify)(Progress {
+        let delivery = (self.notify)(Progress {
             stage: name.into(),
             status: if result.is_ok() {
                 StageStatus::Done
             } else {
                 StageStatus::Failed
             },
-        })?;
-        result.map_err(|error| crate::reporting::failure_at_stage(error, name))
+        });
+        finish_progress(result.map_err(|error| crate::reporting::failure_at_stage(error, name)), delivery)
     }
 }
 impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedBackend<'_, B, F> {
@@ -1262,15 +1373,15 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
         })
             },
         );
-        (self.notify)(Progress {
+        let delivery = (self.notify)(Progress {
             stage: "Prepare current signed payload".into(),
             status: if result.is_ok() {
                 StageStatus::Done
             } else {
                 StageStatus::Failed
             },
-        })?;
-        result.map_err(|error| crate::reporting::failure_at_stage(error, "Prepare current signed payload"))
+        });
+        finish_progress(result.map_err(|error| crate::reporting::failure_at_stage(error, "Prepare current signed payload")), delivery)
     }
     fn verify(&mut self, t: &Target, g: &Gpu) -> Result<(), String> {
         self.effect("Check guest health and hardware rendering", |b| {
@@ -1281,6 +1392,86 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn failed_progress_delivery_preserves_the_adapter_failure_and_uncertainty() {
+        let both = finish_progress::<()>(Err("adapter failed".into()), Err("pipe disconnected".into())).unwrap_err();
+        assert!(both.contains("adapter failed") && both.contains("pipe disconnected"));
+        let lost = finish_progress(Ok(()), Err("pipe disconnected".into())).unwrap_err();
+        assert!(lost.contains("outcome uncertain"));
+        assert!(finish_progress(Ok(()), Ok(())).is_ok());
+    }
+
+    fn ordinary_disabled_plan() -> Plan {
+        let settings = Settings { low_mmio: 0, high_mmio: 0, cache_types: false, automatic_checkpoints: true };
+        let target = Target {
+            vm_id: "12345678-1234-1234-1234-000000000001".into(),
+            gpu_interface: "fixture-gpu".into(), enabled: false,
+            vram: None, compute: None, encode: None, decode: None,
+        };
+        Plan {
+            initial_setup: false,
+            desired: target.clone(),
+            observed: VmState {
+                vm_id: target.vm_id, name: "Same friendly name".into(), generation: 2,
+                power: Power::Off, gpus: vec![], settings,
+                vram: None, compute: None, encode: None, decode: None,
+            },
+            managed: None, preparation: None,
+            preview: workflow::EffectPreview {
+                actions: vec![], settings: None, settings_preserved: false,
+                allocation: None, compute: None, encode: None, decode: None,
+                credentials_required: false, guest_downtime: false,
+                restore_power: Power::Off, pending_recovery: false, summary: vec![],
+            },
+            allocation_units: "provider-defined".into(), automatic_guest_restart: false,
+        }
+    }
+
+    #[test]
+    fn terminal_apply_reply_must_match_the_reviewed_pair_lifecycle_and_save_result() {
+        let approved = ordinary_disabled_plan();
+        let outcome = Outcome {
+            operation: Some(OperationResult {
+                effective: approved.observed.clone(), prepared: false, verified: false,
+                settings_preserved: false,
+            }),
+            saved: true, finished: true, operation_id: "session".into(), save_error: None,
+        };
+        let command = Command::Apply { approved, expected: Revision::Missing, shutdown_approved: false };
+        command.validate_outcome(&outcome, "session").unwrap();
+        let mut unsaved = outcome.clone();
+        unsaved.saved = false;
+        unsaved.finished = false;
+        unsaved.save_error = Some("publication refused".into());
+        command.validate_outcome(&unsaved, "session").unwrap();
+        for changed in 0..8 {
+            let mut reply = outcome.clone();
+            match changed {
+                0 => reply.operation_id = "other-operation".into(),
+                1 => reply.operation.as_mut().unwrap().effective.vm_id = "other-vm".into(),
+                2 => reply.operation.as_mut().unwrap().effective.power = Power::Running,
+                3 => reply.operation.as_mut().unwrap().effective.gpus.push("other-gpu".into()),
+                4 => reply.operation.as_mut().unwrap().verified = true,
+                5 => reply.operation.as_mut().unwrap().prepared = true,
+                6 => reply.finished = false,
+                _ => reply.operation = None,
+            }
+            assert!(command.validate_outcome(&reply, "session").unwrap_err().contains("outcome uncertain"));
+        }
+    }
+
+    #[test]
+    fn save_only_terminal_reply_retains_the_original_operation_binding() {
+        let command = Command::SaveOnly { operation_id: "original".into() };
+        let mut outcome = Outcome { operation: None, saved: true, finished: true, operation_id: "original".into(), save_error: None };
+        command.validate_outcome(&outcome, "new-session").unwrap();
+        outcome.operation_id = "new-session".into();
+        assert!(command.validate_outcome(&outcome, "new-session").is_err());
+        outcome.operation_id = "original".into();
+        outcome.finished = false;
+        assert!(command.validate_outcome(&outcome, "new-session").is_err());
+    }
     #[test]
     fn completion_storage_keeps_the_existing_wire_format() {
         let wire = serde_json::json!({"Complete":{"session":"test-session","result":{"Err":"safe failure"}}});

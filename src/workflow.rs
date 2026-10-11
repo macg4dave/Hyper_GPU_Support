@@ -136,11 +136,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
         last_verified: None,
     });
     if !journal.pending {
-        journal.restore_power = if initial_setup {
-            Power::Off
-        } else {
-            initial.power.clone()
-        };
+        journal.restore_power = Power::Off;
         if initial.gpus.is_empty() && target.enabled {
             // A completed disable releases ownership of compatibility settings.
             // Capture the new baseline before changing them again.
@@ -168,6 +164,8 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
     // The prepared digest is published only after a complete verified preparation.
     // A later Hyper-V failure must not turn that receipt back into partial staging.
     let stale = target.enabled && journal.prepared != digest;
+    let setup_required = target.enabled
+        && (stale || journal.prepared.is_none() || journal.last_verified.is_none());
     let assignment = !initial.gpus.is_empty();
     let settings_change = target.enabled && initial.settings != desired;
     let allocation_change = target.enabled && !target.allocations_match(&initial);
@@ -201,6 +199,7 @@ fn decision(backend: &mut impl Backend, target: &Target) -> Result<Decision, Str
         allocation_change,
         needs_changes,
         initial_setup,
+        setup_required,
     })
 }
 
@@ -220,6 +219,7 @@ struct Decision {
     allocation_change: bool,
     needs_changes: bool,
     initial_setup: bool,
+    setup_required: bool,
 }
 
 /// Read-only preparation comparison against the authenticated current host payload.
@@ -360,7 +360,7 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
             }
         }
     }
-    if target.enabled {
+    if d.setup_required {
         if power != Power::Running {
             actions.push(PreviewAction::Start);
             power = Power::Running;
@@ -397,6 +397,11 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     if d.initial_setup {
         summary.push("Initial GPU setup includes preparation as needed and checked hardware rendering. Successful completion requires confirmed graceful shutdown; leave the VM off for the user to start in Hyper-V.".into());
     }
+    if d.setup_required && !d.initial_setup {
+        summary.push("GPU setup/update required: completed preparation/graphics evidence is missing or invalid, or differs from the current signed driver. Review the preparation, graphics check and final shutdown before confirming.".into());
+    } else if !d.setup_required {
+        summary.push("Ordinary GPU change: no guest access, preparation or graphics check. Successful completion leaves the VM off; start it through Hyper-V when ready.".into());
+    }
     if pending {
         summary.push("Reconcile the pending operation before completing this request.".into());
     }
@@ -411,7 +416,7 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
         summary.push(if d.journal.prepared.is_some() {
             "Refresh guest preparation: the recorded payload differs from the current signed driver."
         } else { "Prepare the current signed driver: no matching completed preparation is recorded." }.into());
-    } else if target.enabled {
+    } else if d.setup_required {
         summary
             .push("Reuse the recorded current preparation; verify guest graphics afresh.".into());
     }
@@ -444,7 +449,7 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     {
         summary.push("Omitted categories request no allocation write. A new or recreated attachment uses provider defaults; an attachment retained in place keeps its existing values.".into());
     }
-    if target.enabled {
+    if d.setup_required {
         summary.push("Guest administrator credentials are required (stored vault entry or local prompt). Check PnP health and hardware D3D11 rendering.".into());
     } else {
         summary.push(
@@ -473,7 +478,7 @@ fn plan_from_decision(d: Decision, target: &Target) -> Plan {
             settings,
             settings_preserved: d.settings_preserved,
             allocation: d.allocation_change.then(|| target.vram.clone()).flatten(),
-            credentials_required: target.enabled,
+            credentials_required: d.setup_required,
             guest_downtime: downtime,
             restore_power: d.restore_power,
             pending_recovery: pending,
@@ -584,18 +589,19 @@ fn execute_decision(
         stale,
         assignment,
         needs_changes,
+        setup_required,
         ..
     } = d;
-    // Verification is an operation even on a running no-op target. Persist its
-    // intent before the check so failure cannot leave a completed-looking journal.
-    if needs_changes || target.enabled {
+    // Record power-only ordinary operations too, before graceful shutdown.
+    if needs_changes || setup_required || initial.power != restore_power {
         journal.pending = true;
-        journal.verification_only = !needs_changes;
+        journal.verification_only = setup_required && !needs_changes;
         if stale {
             // A failed refresh may leave a mixture of the old and new payload.
             // Invalidate the old receipt before effects, including if the host
             // later rolls back to that old driver's digest.
             journal.prepared = None;
+            journal.last_verified = None;
         }
         backend.save(target, &journal)?;
     }
@@ -645,7 +651,7 @@ fn execute_decision(
             }
         }
         let mut verified = false;
-        if target.enabled {
+        if setup_required {
             if backend.inspect(target)?.power != Power::Running {
                 backend.power(target, Power::Running)?;
             }
@@ -867,6 +873,18 @@ pub fn reconcile_observed(
     restore: Power,
     payload: Option<&str>,
 ) -> Result<OperationResult, String> {
+    reconcile_with_graphics(backend, target, observed, restore, payload, target.enabled)
+}
+
+/// Reconcile the durable reviewed check requirement without replaying GPU work.
+pub(crate) fn reconcile_with_graphics(
+    backend: &mut impl Backend,
+    target: &Target,
+    observed: &VmState,
+    restore: Power,
+    payload: Option<&str>,
+    check_graphics: bool,
+) -> Result<OperationResult, String> {
     target.validate()?;
     let mut journal = backend
         .journal(target)?
@@ -887,7 +905,7 @@ pub fn reconcile_observed(
     {
         return Err("state changed during reconciliation".into());
     }
-    if target.enabled {
+    if check_graphics {
         let gpu = backend.gpu(target)?;
         // A failed start can follow a real power change. Keep it inside the
         // checked stage so fresh fact checks and safe restoration still run.
@@ -930,9 +948,9 @@ pub fn reconcile_observed(
             (Ok(()), Ok(())) => {}
         }
     } else {
-        // Disabled reconciliation never starts a guest for a graphics check.
+        // Ordinary reconciliation requires the achieved final power; it never boots.
         if backend.inspect(target)?.power != restore {
-            return Err("disabled outcome has unresolved guest power; retain recovery".into());
+            return Err("outcome has unresolved guest power; retain recovery".into());
         }
     }
     let effective = backend.inspect(target)?;
@@ -944,14 +962,14 @@ pub fn reconcile_observed(
         return Err("reconciliation independent readback changed".into());
     }
     journal.pending = false;
-    if target.enabled {
+    if check_graphics {
         journal.last_verified = Some(verified_at());
     }
     backend.save(target, &journal)?;
     Ok(OperationResult {
         effective,
         prepared: false,
-        verified: target.enabled,
+        verified: check_graphics,
         settings_preserved: false,
     })
 }
@@ -966,6 +984,7 @@ mod tests {
         fail_prepare: bool,
         fail_settings: bool,
         fail_verify: bool,
+        ignore_shutdown: bool,
         fail_shutdown: bool,
         fail_final_shutdown: bool,
         ignore_final_shutdown: bool,
@@ -1017,6 +1036,7 @@ mod tests {
             fail_prepare: false,
             fail_settings: false,
             fail_verify: false,
+            ignore_shutdown: false,
             fail_shutdown: false,
             fail_final_shutdown: false,
             ignore_final_shutdown: false,
@@ -1093,7 +1113,7 @@ mod tests {
                 "duplicate execution payload pass: {scenario}"
             );
             assert_eq!(result.prepared, scenario == "fresh");
-            assert_eq!(result.verified, target.enabled);
+            assert_eq!(result.verified, scenario == "fresh");
             assert_eq!(result.effective.power, approved.preview.restore_power);
             assert_eq!(result.effective.gpus.len(), usize::from(target.enabled));
         }
@@ -1257,6 +1277,9 @@ mod tests {
             if p == Power::Off && self.fail_shutdown {
                 return Err("shutdown refused".into());
             }
+            if p == Power::Off && self.ignore_shutdown {
+                return Ok(());
+            }
             if p == Power::Off && self.events.contains(&"graphics") {
                 if self.fail_final_shutdown {
                     return Err("final shutdown refused".into());
@@ -1301,11 +1324,12 @@ mod tests {
                 return Err("provider category write failed".into());
             }
             self.allocation_writes += 1;
+            let readback = (self.corrupt_resource != Some(resource)).then(|| v.clone());
             match resource {
-                Resource::Vram => self.state.vram = Some(v.clone()),
-                Resource::Compute => self.state.compute = Some(v.clone()),
-                Resource::Encode => self.state.encode = Some(v.clone()),
-                Resource::Decode => self.state.decode = Some(v.clone()),
+                Resource::Vram => self.state.vram = readback,
+                Resource::Compute => self.state.compute = readback,
+                Resource::Encode => self.state.encode = readback,
+                Resource::Decode => self.state.decode = readback,
             }
             Ok(())
         }
@@ -1509,21 +1533,161 @@ mod tests {
     }
 
     #[test]
-    fn running_verification_retry_reuses_preparation_without_restart() {
+    fn ordinary_noop_from_running_only_shuts_down_without_guest_access() {
         let mut f = fake();
         apply(&mut f, &target()).unwrap();
         f.state.power = Power::Running;
         f.fail_verify = true;
-        assert!(apply(&mut f, &target()).is_err());
+        f.fail_prepare = true;
         f.events.clear();
         let p = plan(&mut f, &target()).unwrap();
-        assert!(p.preview.pending_recovery);
-        assert!(!p.preparation.unwrap().stale);
-        assert!(p.preview.credentials_required);
+        assert!(!p.preview.credentials_required);
         assert!(!p.automatic_guest_restart);
-        assert!(!p.preview.guest_downtime);
-        assert_eq!(p.preview.actions, [PreviewAction::Verify]);
+        assert!(p.preview.guest_downtime);
+        assert_eq!(p.preview.actions, [PreviewAction::Shutdown]);
+        let result = apply_approved(&mut f, &p).unwrap();
+        assert!(!result.verified && !result.prepared);
+        assert_eq!(f.events, ["shutdown"]);
+        assert_eq!(result.effective.power, Power::Off);
+    }
+
+    #[test]
+    fn ordinary_toggle_and_vram_changes_finish_off_and_preserve_setup_receipts() {
+        for starting_power in [Power::Off, Power::Running] {
+            for change in ["disable", "enable", "vram"] {
+                let mut f = fake();
+                let mut t = target();
+                apply(&mut f, &t).unwrap();
+                if change == "enable" {
+                    t.enabled = false;
+                    apply(&mut f, &t).unwrap();
+                    t.enabled = true;
+                } else if change == "disable" {
+                    t.enabled = false;
+                } else {
+                    t.vram = Some(Allocation { minimum: 10, optimal: 50, maximum: 90 });
+                }
+                let previous = f.journal.as_ref().unwrap().last_verified;
+                f.state.power = starting_power.clone();
+                f.events.clear();
+                f.fail_prepare = true;
+                f.fail_verify = true;
+                let approved = plan(&mut f, &t).unwrap();
+                assert!(!approved.initial_setup);
+                assert!(!approved.preview.credentials_required);
+                assert_eq!(approved.preview.restore_power, Power::Off);
+                assert!(!approved.preview.actions.contains(&PreviewAction::Start));
+                let result = apply_approved(&mut f, &approved).unwrap();
+                assert_eq!(f.events, trace(&approved.preview));
+                assert!(!result.prepared && !result.verified);
+                assert_eq!(result.effective.power, Power::Off);
+                assert_eq!(f.journal.as_ref().unwrap().last_verified, previous);
+                assert!(!f.journal.as_ref().unwrap().pending);
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_preparation_requires_explicit_setup_update_review() {
+        for invalid in 0..3 {
+            let mut f = fake();
+            apply(&mut f, &target()).unwrap();
+            match invalid {
+                0 => f.driver = "updated",
+                1 => f.journal.as_mut().unwrap().prepared = None,
+                _ => f.journal.as_mut().unwrap().last_verified = None,
+            }
+            f.events.clear();
+            let approved = plan(&mut f, &target()).unwrap();
+            assert!(approved.preview.credentials_required);
+            assert!(approved.preview.actions.contains(&PreviewAction::Verify));
+            assert!(approved.preview.summary.iter().any(|text| text.contains("setup")));
+            assert!(f.events.is_empty());
+            let result = apply_approved(&mut f, &approved).unwrap();
+            assert!(result.verified);
+            assert_eq!(result.effective.power, Power::Off);
+            assert_eq!(f.events, trace(&approved.preview));
+        }
+    }
+
+    #[test]
+    fn ordinary_shutdown_or_allocation_failure_retains_recovery_without_guest_work() {
+        for fail_shutdown in [true, false] {
+            let mut f = fake();
+            let mut t = extended_target();
+            apply(&mut f, &t).unwrap();
+            f.state.power = Power::Running;
+            t.compute.as_mut().unwrap().optimal = 60;
+            f.events.clear();
+            f.fail_shutdown = fail_shutdown;
+            if !fail_shutdown {
+                f.fail_allocation = Some(Resource::Compute);
+            }
+            let approved = plan(&mut f, &t).unwrap();
+            assert!(apply_approved(&mut f, &approved).is_err());
+            assert_eq!(f.events, ["shutdown"]);
+            let journal = f.journal.as_ref().unwrap();
+            assert!(journal.pending && !journal.verification_only);
+            assert_eq!(journal.restore_power, Power::Off);
+            let pending = plan(&mut f, &t).unwrap();
+            assert!(apply_approved(&mut f, &pending).is_err());
+        }
+    }
+
+    #[test]
+    fn ordinary_reconciliation_checks_readback_without_boot_or_graphics() {
+        let mut f = fake();
+        apply(&mut f, &target()).unwrap();
+        let previous = f.journal.as_ref().unwrap().last_verified;
+        f.journal.as_mut().unwrap().pending = true;
+        f.events.clear();
+        f.fail_verify = true;
+        let observed = f.state.clone();
+        let result = reconcile_with_graphics(
+            &mut f, &target(), &observed, Power::Off, Some("current"), false,
+        ).unwrap();
+        assert!(!result.verified);
         assert!(f.events.is_empty());
+        assert_eq!(f.journal.as_ref().unwrap().last_verified, previous);
+        f.journal.as_mut().unwrap().pending = true;
+        f.state.power = Power::Running;
+        let observed = f.state.clone();
+        assert!(reconcile_with_graphics(
+            &mut f, &target(), &observed, Power::Off, Some("current"), false,
+        ).is_err());
+        assert!(f.events.is_empty());
+        assert!(f.journal.as_ref().unwrap().pending);
+    }
+
+    #[test]
+    fn ordinary_power_only_apply_requires_independent_final_off_readback() {
+        let mut f = fake();
+        apply(&mut f, &target()).unwrap();
+        f.state.power = Power::Running;
+        f.events.clear();
+        f.ignore_shutdown = true;
+        let approved = plan(&mut f, &target()).unwrap();
+        assert!(apply_approved(&mut f, &approved).unwrap_err().contains("independent final state"));
+        assert_eq!(f.events, ["shutdown"]);
+        assert_eq!(f.state.power, Power::Running);
+        let journal = f.journal.as_ref().unwrap();
+        assert!(journal.pending && !journal.verification_only);
+        assert_eq!(journal.restore_power, Power::Off);
+    }
+
+    #[test]
+    fn ordinary_allocation_readback_mismatch_retains_recovery_without_graphics() {
+        let mut f = fake();
+        apply(&mut f, &target()).unwrap();
+        let mut t = target();
+        t.vram = Some(Allocation { minimum: 10, optimal: 50, maximum: 90 });
+        f.corrupt_resource = Some(Resource::Vram);
+        f.events.clear();
+        let approved = plan(&mut f, &t).unwrap();
+        assert!(apply_approved(&mut f, &approved).unwrap_err().contains("independent final state"));
+        assert!(f.events.is_empty());
+        assert!(f.journal.as_ref().unwrap().pending);
+        assert_eq!(f.state.power, Power::Off);
     }
 
     #[test]
@@ -1540,7 +1704,7 @@ mod tests {
         let p = plan(&mut f, &t).unwrap();
         assert!(p.preview.actions.contains(&PreviewAction::Allocation));
         assert_eq!(p.preview.allocation, t.vram);
-        assert!(p.automatic_guest_restart);
+        assert!(!p.automatic_guest_restart);
         let applied = apply(&mut f, &t).unwrap();
         assert_eq!(applied.effective.vram, t.vram);
         t.enabled = false;
@@ -1669,11 +1833,11 @@ mod tests {
         f.state.power = Power::Running;
         f.events.clear();
         assert!(!apply(&mut f, &t).unwrap().prepared);
-        assert_eq!(f.events, ["graphics"]);
+        assert_eq!(f.events, ["shutdown"]);
         t.enabled = false;
         f.events.clear();
         apply(&mut f, &t).unwrap();
-        assert_eq!(f.events, ["shutdown", "detach", "start"]);
+        assert_eq!(f.events, ["detach"]);
         assert_eq!(
             f.journal.as_ref().unwrap().prepared.as_deref(),
             Some("current")
@@ -1707,7 +1871,7 @@ mod tests {
             backend.state.power = Power::Running;
             let later = plan(&mut backend, &target()).unwrap();
             assert!(!later.initial_setup);
-            assert_eq!(later.preview.restore_power, Power::Running);
+            assert_eq!(later.preview.restore_power, Power::Off);
         }
     }
 
@@ -1784,6 +1948,18 @@ mod tests {
             first_journal
         );
         assert_eq!(fleet.0[&first.vm_id].events, first_events);
+        let second_state = serde_json::to_value(&fleet.0[&second.vm_id].state).unwrap();
+        let second_journal = serde_json::to_value(&fleet.0[&second.vm_id].journal).unwrap();
+        let second_events = fleet.0[&second.vm_id].events.clone();
+        let mut ordinary = first.clone();
+        ordinary.vram = Some(Allocation { minimum: 10, optimal: 50, maximum: 90 });
+        let approved = plan(&mut fleet, &ordinary).unwrap();
+        let result = apply_approved(&mut fleet, &approved).unwrap();
+        assert!(!result.verified && !result.prepared);
+        assert_eq!(result.effective.power, Power::Off);
+        assert_eq!(serde_json::to_value(&fleet.0[&second.vm_id].state).unwrap(), second_state);
+        assert_eq!(serde_json::to_value(&fleet.0[&second.vm_id].journal).unwrap(), second_journal);
+        assert_eq!(fleet.0[&second.vm_id].events, second_events);
     }
 
     #[test]
@@ -1926,7 +2102,7 @@ mod tests {
         assert!(f.journal.is_none());
     }
     #[test]
-    fn interrupted_disable_restores_settings_and_original_running_state_on_retry() {
+    fn interrupted_disable_restores_settings_and_finishes_off_on_retry() {
         let mut f = fake();
         let mut t = target();
         apply(&mut f, &t).unwrap();
@@ -1939,7 +2115,7 @@ mod tests {
         assert!(f.journal.as_ref().unwrap().pending);
         f.fail_settings = false;
         apply(&mut f, &t).unwrap();
-        assert_eq!(f.state.power, Power::Running);
+        assert_eq!(f.state.power, Power::Off);
         assert!(!f.state.settings.cache_types);
     }
     #[test]
@@ -1952,7 +2128,7 @@ mod tests {
         let external = f.state.settings.clone();
         t.enabled = false;
         assert!(apply(&mut f, &t).unwrap().settings_preserved);
-        assert_eq!(f.state.power, Power::Running);
+        assert_eq!(f.state.power, Power::Off);
         assert_eq!(f.state.settings, external);
         assert!(!f.journal.as_ref().unwrap().pending);
     }
@@ -1963,13 +2139,13 @@ mod tests {
         apply(&mut f, &target()).unwrap();
         f.events.clear();
         f.fail_verify = true;
-        assert!(apply(&mut f, &target()).is_err());
+        assert!(verify(&mut f, &target()).is_err());
         assert_eq!(f.state.power, Power::Off);
         assert_eq!(f.journal.as_ref().unwrap().restore_power, Power::Off);
         assert!(f.journal.as_ref().unwrap().pending);
         f.fail_verify = false;
         f.events.clear();
-        apply(&mut f, &target()).unwrap();
+        verify(&mut f, &target()).unwrap();
         assert_eq!(f.events, ["start", "graphics", "shutdown"]);
     }
     #[test]
@@ -1991,7 +2167,7 @@ mod tests {
         assert!(f.events.is_empty());
     }
     #[test]
-    fn failed_running_reapply_is_pending_and_retry_does_not_restart_or_prepare() {
+    fn failed_running_standalone_verify_is_pending_and_retry_does_not_restart_or_prepare() {
         let mut f = fake();
         apply(&mut f, &target()).unwrap();
         f.state.power = Power::Running;
@@ -1999,7 +2175,7 @@ mod tests {
         f.events.clear();
         f.fail_verify = true;
         assert!(
-            apply(&mut f, &target())
+            verify(&mut f, &target())
                 .unwrap_err()
                 .contains("graphics failed")
         );
@@ -2009,7 +2185,7 @@ mod tests {
         assert_eq!(f.events, ["graphics"]);
         f.fail_verify = false;
         f.events.clear();
-        apply(&mut f, &target()).unwrap();
+        verify(&mut f, &target()).unwrap();
         assert_eq!(f.events, ["graphics"]);
         assert!(!f.journal.as_ref().unwrap().pending);
     }
@@ -2083,7 +2259,7 @@ mod tests {
         f.fail_settings = false;
         f.events.clear();
         assert!(!apply(&mut f, &target()).unwrap().prepared);
-        assert_eq!(f.events, ["attach", "start", "graphics"]);
+        assert_eq!(f.events, ["attach", "start", "graphics", "shutdown"]);
         assert!(!f.journal.as_ref().unwrap().pending);
     }
     #[test]

@@ -25,6 +25,8 @@ export component AppWindow inherits Window {
     in-out property <string> status: "Unknown";
     in-out property <string> observed: "Not read";
     in-out property <string> desired: "No saved configuration";
+    in property <string> pending: "No unapplied edits";
+    in property <string> applied: "No unpublished operation recorded";
     in-out property <string> verification: "Not verified";
     in property <string> support-summary;
     in property <string> inventory-details;
@@ -125,6 +127,7 @@ export component AppWindow inherits Window {
                             gpu-options: root.gpu-options;
                             name: root.vm-name; identity: root.selected-id; power: root.power; status: root.status;
                             observed: root.observed; desired: root.desired; verification: root.verification;
+                            pending: root.pending; applied: root.applied;
                             support-summary: root.support-summary;
                             inventory-details: root.inventory-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;

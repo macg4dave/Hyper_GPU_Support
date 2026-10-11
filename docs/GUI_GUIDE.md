@@ -16,7 +16,7 @@ Toggle/VRAM changes remain drafts. Apply opens a review panel naming the selecte
 
 Review must reflect a fresh backend plan. Changed target or inputs invalidate approval. Setup/enrollment authority remains distinct from GPU effects, even when presented as one understandable setup journey.
 
-APP-003 source now provides first Apply → review → second Apply, with Cancel retaining the draft and clearing approval. Review shows ordered backend steps, changed compatibility values, final power, and relevant time warnings. It binds the original committed revision as well as the VM and draft; the protected worker independently rechecks backend state before effects. Initial setup now includes its final shutdown under APP-004; ordinary changes retain the current backend graphics/restoration behavior until APP-006. Source acceptance awaits APP-008 checks and APP-009 real interaction validation.
+APP-003 source now provides first Apply → review → second Apply, with Cancel retaining the draft and clearing approval. Review shows ordered backend steps, changed compatibility values, final power, and relevant time warnings. It binds the original committed revision as well as the VM and draft; the protected worker independently rechecks backend state before effects. Initial setup now includes its final shutdown under APP-004; ordinary changes now skip guest work and finish off under APP-006. Source acceptance awaits APP-008 checks and APP-009 real interaction validation.
 
 ## First GPU setup
 
@@ -34,9 +34,9 @@ The first-time setup card now stages enabled support and opens the existing enro
 
 ## Later changes
 
-Enable/disable and VRAM changes follow review and Apply, without repeating full preparation or initial graphics verification. Retain necessary validation and readback, and show the actual result. Required shutdown/restart is managed by the application and disclosed in review. Exact final power behavior for ordinary changes is still to be settled under APP-006.
+Enable/disable and VRAM changes follow review and Apply, without repeating full preparation or initial graphics verification. Retain necessary validation and readback, and show the actual result. Required shutdown/restart is managed by the application and disclosed in review. Successful ordinary changes always leave the VM off, whether it started running or stopped. The user starts it through Hyper-V.
 
-If preparation becomes invalid, clearly identify the setup/update work needed rather than silently performing it during an ordinary toggle.
+If preparation becomes invalid or the signed driver payload changes, review explicitly identifies required setup/update, its preparation/graphics steps, credentials and time warnings before confirmation. Matching completed preparation/graphics receipts permit ordinary changes without repeating those steps. Ordinary success confirms host readback and final-off state; it does not claim a fresh rendering pass. Interrupted ordinary changes are reconciled from host readback without guest access or temporary boot; partial state retains recovery. APP-006 source is implemented; automated and live acceptance remain pending.
 
 ## State and failures
 

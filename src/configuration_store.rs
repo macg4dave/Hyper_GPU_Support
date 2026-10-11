@@ -146,6 +146,9 @@ pub struct SaveRecord {
     /// Older receipts omit this and retain their original-power contract.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expected_power: Option<crate::model::Power>,
+    /// Reviewed graphics requirement. Older receipts retain their enabled-check contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphics_required: Option<bool>,
     /// Original journal for explicitly retiring a proven pre-effect rejection.
     pub initial_journal: Option<crate::workflow::Journal>,
     /// Reviewed compatibility values expected after the operation.
@@ -210,6 +213,10 @@ impl ImportRecord {
     }
 }
 impl SaveRecord {
+    /// Whether reconciliation must access the guest for a rendering check.
+    pub fn requires_graphics(&self) -> bool {
+        !self.publication_required || self.graphics_required.unwrap_or(self.target.enabled)
+    }
     /// Recover the immutable final-power intent without guessing from current state.
     pub fn final_power(&self) -> Result<crate::model::Power, String> {
         let power = self.expected_power.as_ref().unwrap_or(&self.initial.power);
@@ -494,6 +501,7 @@ mod tests {
             publication_required: true,
             initial: effective.clone(),
             expected_power: None,
+            graphics_required: None,
             initial_journal: None,
             expected_settings: effective.settings.clone(),
             phase: SavePhase::Admitted,
@@ -517,6 +525,15 @@ mod tests {
         legacy.as_object_mut().unwrap().remove("expected_power");
         let legacy: SaveRecord = serde_json::from_value(legacy).unwrap();
         assert_eq!(legacy.final_power().unwrap(), crate::model::Power::Running);
+        assert!(legacy.requires_graphics());
+        record.graphics_required = Some(false);
+        let ordinary: SaveRecord = serde_json::from_value(serde_json::to_value(&record).unwrap()).unwrap();
+        assert!(!ordinary.requires_graphics());
+        record.publication_required = false;
+        assert!(record.requires_graphics());
+        record.publication_required = true;
+        record.graphics_required = Some(true);
+        assert!(record.requires_graphics());
         record.expected_power = Some(crate::model::Power::Other(4));
         assert!(record.final_power().is_err());
         assert!(record.validate_reconciliation(&effective, "driver").is_err());
@@ -609,6 +626,7 @@ mod tests {
             publication_required: true,
             initial: initial.clone(),
             expected_power: None,
+            graphics_required: None,
             initial_journal: None,
             expected_settings: initial.settings.for_gpu(),
             phase: SavePhase::EffectsStarted,
@@ -744,6 +762,7 @@ mod tests {
             publication_required: true,
             initial: effective.clone(),
             expected_power: None,
+            graphics_required: None,
             initial_journal: None,
             expected_settings: effective.settings.clone(),
             phase: SavePhase::Verified(effective.clone()),

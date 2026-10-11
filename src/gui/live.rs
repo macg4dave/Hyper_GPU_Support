@@ -1,7 +1,7 @@
 //! Audited live reads; effects remain behind unfinished worker/save contracts.
 use super::{
     AppWindow, GpuRow, VmRow, dialog,
-    live_state::{State, allocation_values, review_summary, review_text},
+    live_state::{OperationReadback, State, allocation_values, review_summary, review_text},
     model,
 };
 use hyper_gpu_support::{
@@ -108,6 +108,13 @@ impl Source {
     }
     fn credentials(&self, id: &str, name: &str) -> Result<bool, String> {
         credential_dialog(id, name)
+    }
+
+    fn operation_readback(&self) -> Result<OperationReadback, String> {
+        Ok(OperationReadback {
+            committed: self.committed().ok_or("Saved configuration requires Windows")?,
+            recovery: self.recovery()?,
+        })
     }
 }
 
@@ -272,6 +279,15 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
 fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(id) = state.view.selected.as_ref() else {
         ui.set_selected_id("".into());
+        ui.set_vm_name("No VM selected".into());
+        ui.set_power("Unknown".into());
+        ui.set_status("Unknown".into());
+        ui.set_observed("No VM selected".into());
+        ui.set_desired("No VM selected".into());
+        ui.set_applied("No VM selected".into());
+        ui.set_pending("No unapplied edits".into());
+        ui.set_verification("Unknown; no VM selected".into());
+        ui.set_support_summary("Select a VM to read its state.".into());
         ui.set_eligible(false);
         ui.set_recovery(
             state.recovery.is_some()
@@ -291,6 +307,9 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         ui.set_support_summary("VM information is unavailable. Use Refresh to retry.".into());
         ui.set_observed("Selected VM was not returned by the latest inventory read".into());
         ui.set_verification("Unknown; the selected VM is unavailable".into());
+        ui.set_desired(state.saved_desired_text(id).into());
+        ui.set_applied(state.applied_text(id).into());
+        ui.set_pending(if ui.get_dirty() { "Unapplied edits retained for the unavailable VM." } else { "No unapplied edits" }.into());
         ui.set_recovery(
             state.recovery.is_some()
                 || state.import_recovery.is_some()
@@ -348,6 +367,12 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         .into(),
     );
     ui.set_desired(state.saved_desired_text(id).into());
+    ui.set_applied(state.applied_text(id).into());
+    ui.set_pending(if !reset_draft && ui.get_dirty() {
+        "Unapplied edits for this VM; validate and review before effects."
+    } else {
+        "No unapplied edits"
+    }.into());
     ui.set_verification(recorded.graphics.into());
     ui.set_support_summary(
         format!(
@@ -559,7 +584,32 @@ fn background<T: Send + 'static>(
     task: impl FnOnce() -> Result<T, String> + Send + 'static,
     complete: impl FnOnce(&AppWindow, Result<T, String>) + Send + 'static,
 ) -> Result<(), String> {
-    background_for_vm(ui, busy, title, None, task, complete)
+    background_for_vm(ui, busy, title, None, false, task, complete)
+}
+
+fn run_background_task<T>(task: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(task))
+        .unwrap_or_else(|_| Err("The backend task ended without a terminal outcome. Refresh and inspect protected recovery before retrying.".into()))
+}
+
+/// Gather protected files while still busy, without blocking Slint completion.
+#[cfg(windows)]
+fn background_operation<T: Send + 'static>(
+    ui: &AppWindow,
+    busy: &Arc<AtomicBool>,
+    title: &str,
+    vm_name: Option<&str>,
+    guest_access: bool,
+    task: impl FnOnce() -> Result<T, String> + Send + 'static,
+    complete: impl FnOnce(&AppWindow, Result<T, String>, Result<OperationReadback, String>) + Send + 'static,
+) -> Result<(), String> {
+    background_for_vm(ui, busy, title, vm_name, guest_access,
+        move || Ok((run_background_task(task), Source.operation_readback())),
+        move |ui, result| match result {
+            Ok((outcome, readback)) => complete(ui, outcome, readback),
+            Err(error) => complete(ui, Err(error.clone()), Err(error)),
+        },
+    )
 }
 
 fn background_for_vm<T: Send + 'static>(
@@ -567,6 +617,7 @@ fn background_for_vm<T: Send + 'static>(
     busy: &Arc<AtomicBool>,
     title: &str,
     vm_name: Option<&str>,
+    guest_access: bool,
     task: impl FnOnce() -> Result<T, String> + Send + 'static,
     complete: impl FnOnce(&AppWindow, Result<T, String>) + Send + 'static,
 ) -> Result<(), String> {
@@ -586,7 +637,7 @@ fn background_for_vm<T: Send + 'static>(
             ui,
             "progress",
             title,
-            if matches!(
+            if guest_access && matches!(
                 title,
                 "Apply approved changes"
                     | "Verify approved graphics"
@@ -594,6 +645,10 @@ fn background_for_vm<T: Send + 'static>(
                     | "Guest credentials"
             ) {
                 &guest_message
+            } else if title == "Apply approved changes" {
+                "Applying the reviewed GPU changes and checking host readback. The VM will be left off after successful completion. No guest credentials, preparation or graphics check are required."
+            } else if title == "Reconcile observed outcome" {
+                "Checking the already-achieved recorded outcome without repeating GPU work or accessing the guest. Unresolved state retains recovery."
             } else if title == "Building fresh plan" {
                 "Preparing your changes may take some time. Checking the selected VM, GPU and installed driver files before showing the changes for approval. Nothing is being applied yet."
             } else if title == "Retry configuration save only" {
@@ -608,7 +663,7 @@ fn background_for_vm<T: Send + 'static>(
     if let Err(error) = std::thread::Builder::new()
         .name("gui-backend-read".into())
         .spawn(move || {
-            let result = task();
+            let result = run_background_task(task);
             let completion_busy = worker_busy.clone();
             if weak
                 .upgrade_in_event_loop(move |ui| {
@@ -1151,6 +1206,8 @@ fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support:
                 "Provider allocation" => "Applying your GPU resource settings",
                 "Graceful guest shutdown" => "Shutting down the VM safely",
                 "Start guest" => "Starting the VM",
+                "Publish checked VM configuration" => "Saving the checked VM settings",
+                "Save verified configuration only" => "Retrying the bound configuration save",
                 _ => progress.stage.as_str(),
             };
             let status = match progress.status {
@@ -1160,10 +1217,20 @@ fn progress_to_ui(weak: slint::Weak<AppWindow>) -> impl FnMut(hyper_gpu_support:
             };
             // The information header is stable; each received event belongs only
             // to the progress pane, including distinct events with identical text.
-            let mut rows: Vec<_> = ui.get_stages().iter().collect();
-            rows.push(format!("{stage} · {status}").into());
-            ui.set_stages(model(rows));
+            ui.set_stages(append_progress(ui.get_stages(), format!("{stage} · {status}").into()));
         });
+    }
+}
+
+#[cfg(any(windows, test))]
+fn append_progress(stages: slint::ModelRc<slint::SharedString>, row: slint::SharedString) -> slint::ModelRc<slint::SharedString> {
+    if let Some(vector) = stages.as_any().downcast_ref::<slint::VecModel<slint::SharedString>>() {
+        vector.push(row);
+        stages
+    } else {
+        let mut rows: Vec<_> = stages.iter().collect();
+        rows.push(row);
+        model(rows)
     }
 }
 #[cfg(windows)]
@@ -1181,12 +1248,15 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
     let progress = progress_to_ui(ui.as_weak());
     let vm_name = approved.observed.name.clone();
     let result_vm_name = vm_name.clone();
-    let initial_setup = approved.initial_setup;
-    background_for_vm(
+    let setup_required = approved.preview.actions.contains(
+        &hyper_gpu_support::workflow::PreviewAction::Verify,
+    );
+    background_operation(
         ui,
         busy,
         "Apply approved changes",
         Some(&vm_name),
+        setup_required,
         move || {
             let credential = if approved.preview.credentials_required {
                 Some(
@@ -1207,52 +1277,48 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
             let shutdown = approved.preview.guest_downtime;
             hyper_gpu_support::worker::apply(approved, revision, shutdown, credential, progress)
         },
-        move |ui, result| match result {
+        move |ui, result, readback| match result {
             Ok(outcome) => {
+                let mut published = outcome.saved;
                 if !with_state(ui, &finished_state, |state| {
-                    state.view.applied(&selected)?;
-                    if outcome.saved {
-                        state.view.published(&selected)?;
-                    }
-                    state.committed = hyper_gpu_support::configuration_store::read_committed();
-                    state.recovery = hyper_gpu_support::runner::recovery_record()?;
-                    state.approved_plan = None;
-                    ui.set_dirty(false);
-                    present(ui, state, false);
-                    Ok(())
+                    let status = state.finish_apply(&selected, &outcome.operation_id, outcome.saved, readback);
+                    published = state.publication_confirmed(&selected);
+                    ui.set_dirty(state.view.draft.is_some());
+                    present(ui, state, !ui.get_dirty() && published);
+                    status
                 }) {
                     return;
                 }
-                if outcome.saved {
+                if published {
                     dialog(
                         ui,
                         "info",
-                        if initial_setup {
-                            "Initial GPU setup passed"
+                        if setup_required {
+                            "GPU setup/update passed"
                         } else {
-                            "Operation verified and configuration saved"
+                            "GPU change confirmed and configuration saved"
                         },
-                        &if initial_setup {
+                        &if setup_required {
                             format!("{result_vm_name}: hardware rendering passed, graceful final shutdown was confirmed, and your settings were saved. The VM is off; start it through Hyper-V when ready.")
                         } else {
-                            "The GPU changes were checked and your settings were saved. Use Refresh to see the latest VM information.".into()
+                            format!("{result_vm_name}: GPU assignment, requested settings and final-off state were confirmed; your settings were saved. No guest graphics check was run. Start the VM through Hyper-V when ready.")
                         },
                     );
                 } else {
                     dialog(
                         ui,
                         "save",
-                        if initial_setup {
-                            "Initial GPU setup passed; settings not saved"
+                        if setup_required {
+                            "GPU setup/update passed; settings not saved"
                         } else {
-                            "Operation verified; configuration not saved"
+                            "GPU change confirmed; configuration not saved"
                         },
                         &format!(
                             "{}{}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply.",
-                            if initial_setup {
+                            if setup_required {
                                 format!("{result_vm_name}: hardware rendering passed and final shutdown was confirmed. The VM is off.\n")
                             } else {
-                                String::new()
+                                format!("{result_vm_name}: GPU changes and final-off state were confirmed. No guest graphics check was run. The VM is off.\n")
                             },
                             outcome.save_error.unwrap_or_default(),
                         ),
@@ -1271,9 +1337,9 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                 if !with_state(ui, &finished_state, |state| {
                     state.view.needs_readback = true;
                     state.approved_plan = None;
-                    state.recovery = hyper_gpu_support::runner::recovery_record()?;
+                    let status = state.finish_readback(readback);
                     present(ui, state, false);
-                    Ok(())
+                    status
                 }) {
                     return;
                 }
@@ -1282,8 +1348,8 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                 dialog(
                     ui,
                     "error",
-                    if initial_setup {
-                        "Initial GPU setup did not complete"
+                    if setup_required {
+                        "GPU setup/update did not complete"
                     } else {
                         "Operation did not complete"
                     },
@@ -1308,25 +1374,33 @@ fn save_only_live(
     let record = state
         .lock()
         .map_err(|_| "Presentation state unavailable")?
-        .recovery
-        .clone()
-        .ok_or("No protected save-only record is loaded")?;
+        .save_only_record()?;
     let finished_state = state.clone();
     let target = record.target.clone();
     let progress = progress_to_ui(ui.as_weak());
-    background(
+    background_operation(
         ui,
         busy,
         "Retry configuration save only",
+        None,
+        false,
         move || hyper_gpu_support::worker::save_only(record.operation_id, progress),
-        move |ui, result| match result {
+        move |ui, result, readback| {
+            let mut readback = Some(readback);
+            if result.is_err() && !with_state(ui, &finished_state, |state| {
+                let status = state.finish_readback(readback.take().ok_or("Completion readback was already consumed")?);
+                present(ui, state, false);
+                status
+            }) {
+                return;
+            }
+            match result {
             Ok(outcome) if outcome.saved => {
                 if !with_state(ui, &finished_state, |state| {
-                    state.view.published(&target)?;
-                    state.committed = hyper_gpu_support::configuration_store::read_committed();
-                    state.recovery = hyper_gpu_support::runner::recovery_record()?;
-                    present(ui, state, false);
-                    Ok(())
+                    let status = state.finish_apply(&target, &outcome.operation_id, true, readback.take().ok_or("Completion readback was already consumed")?);
+                    ui.set_dirty(state.view.draft.is_some());
+                    present(ui, state, !ui.get_dirty());
+                    status
                 }) {
                     return;
                 }
@@ -1351,6 +1425,7 @@ fn save_only_live(
                     "{error}\nThe protected recovery record remains; no GPU operation was repeated."
                 ),
             ),
+            }
         },
     )
 }
@@ -1425,11 +1500,12 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
     let progress = progress_to_ui(ui.as_weak());
     let finished_state = state.clone();
     let vm_name = approved.observed.name.clone();
-    background_for_vm(
+    background_operation(
         ui,
         busy,
         "Verify approved graphics",
         Some(&vm_name),
+        true,
         move || {
             let credential = hyper_gpu_support::credentials::read(&approved.target.vm_id)?
                 .map_or_else(
@@ -1444,7 +1520,7 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
                 )?;
             hyper_gpu_support::worker::verify(approved, shutdown, credential, progress)
         },
-        move |ui, result| {
+        move |ui, result, readback| {
             if let Err(error) = &result
                 && credential_request_cancelled(ui, error, false)
             {
@@ -1457,9 +1533,9 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
             if !with_state(ui, &finished_state, |state| {
                 state.verification_plan = None;
                 state.view.needs_readback = true;
-                state.recovery = hyper_gpu_support::runner::recovery_record()?;
+                let status = state.finish_readback(readback);
                 present(ui, state, false);
-                Ok(())
+                status
             }) {
                 return;
             }
@@ -1539,13 +1615,14 @@ fn reconcile_live(
         )
     };
     let prompt_name = vm_name.clone();
-    background_for_vm(
+    background_operation(
         ui,
         busy,
         "Reconcile observed outcome",
         Some(&vm_name),
+        record.requires_graphics() && !restored_candidate,
         move || {
-            let graphics = record.target.enabled || !record.publication_required;
+            let graphics = record.requires_graphics();
             let credential = if graphics && !restored_candidate {
                 Some(
                     hyper_gpu_support::credentials::read(&record.target.vm_id)?.map_or_else(
@@ -1569,28 +1646,23 @@ fn reconcile_live(
                 progress,
             )
         },
-        move |ui, result| {
+        move |ui, result, readback| {
             if let Err(error) = &result
                 && credential_request_cancelled(ui, error, true)
             {
                 return;
             }
             if !with_state(ui, &finished_state, |state| {
-                if let Ok(outcome) = &result
-                    && publication
-                    && outcome.operation.is_some()
+                let status = if let Ok(outcome) = &result
+                    && publication && outcome.operation.is_some()
                 {
-                    state.view.applied(&target)?;
-                    if outcome.saved {
-                        state.view.published(&target)?;
-                    }
-                }
-                state.view.needs_readback = true;
-                state.recovery = hyper_gpu_support::runner::recovery_record()?;
-                state.committed = hyper_gpu_support::configuration_store::read_committed();
+                    state.finish_apply(&target, &outcome.operation_id, outcome.saved, readback)
+                } else {
+                    state.finish_readback(readback)
+                };
                 ui.set_dirty(state.view.draft.is_some());
-                present(ui, state, false);
-                Ok(())
+                present(ui, state, !ui.get_dirty());
+                status
             }) {
                 return;
             }
@@ -1707,6 +1779,11 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     &raw_values,
                 );
                 ui.set_dirty(changed);
+                ui.set_pending(if changed {
+                    "Unapplied edits for this VM; validate and review before effects."
+                } else {
+                    "No unapplied edits"
+                }.into());
                 if !changed {
                     state.view.draft = None;
                     state.draft_gpu = None;
@@ -1834,7 +1911,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 let prompt_name = vm_name.clone();
                 let credential_source = action_source.clone();
                 action_state.lock().map_err(|_| "Live presentation state unavailable".to_owned()).and_then(|s| s.target(&selected))
-                    .and_then(|target| background_for_vm(&ui, &action_busy, "Guest credentials", Some(&vm_name), move || credential_source.credentials(&target.vm_id, &prompt_name), |ui, result| match result {
+                    .and_then(|target| background_for_vm(&ui, &action_busy, "Guest credentials", Some(&vm_name), true, move || credential_source.credentials(&target.vm_id, &prompt_name), |ui, result| match result {
                         Ok(true) => dialog(ui, "info", "Stored guest credentials available", "A stored credential was confirmed in this user's Windows Credential Manager for the selected VM. No guest connection or graphics check was performed."),
                         Ok(false) => dialog(ui, "info", "Guest credentials not retained", "No stored credential is available. Apply or Verify will prompt locally when credentials are needed. Select Remember to store them in Windows Credential Manager."),
                         Err(error) => {
@@ -1865,7 +1942,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     }
                     if action == "recovery"
                         && let Some(record) = &state.recovery {
-                        ui.set_needs_shutdown(record.target.enabled || !record.publication_required);
+                        ui.set_needs_shutdown(record.requires_graphics());
                         match record.phase {
                             hyper_gpu_support::configuration_store::SavePhase::Verified(_) | hyper_gpu_support::configuration_store::SavePhase::Published(_) => {
                                 if record.publication_required {
@@ -1876,7 +1953,11 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                             }
                             hyper_gpu_support::configuration_store::SavePhase::Admitted | hyper_gpu_support::configuration_store::SavePhase::EffectsStarted => {
                                 let name = state.view.vm(&record.target.vm_id).map_or(record.initial.name.as_str(), |vm| vm.name.as_str());
-                                dialog(&ui, "recovery", "Review interrupted operation", &format!("Virtual machine: {name}\n\nCheck the interrupted GPU operation without repeating it. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."));
+                                if !record.requires_graphics() {
+                                    dialog(&ui, "recovery", "Review interrupted GPU change", &format!("Virtual machine: {name}\n\nCheck the already-achieved GPU assignment, settings and final-off state without repeating changes or accessing the guest. Partial or changed state retains recovery. No guest boot, credential prompt or graphics check is required."));
+                                } else {
+                                    dialog(&ui, "recovery", "Review interrupted operation", &format!("Virtual machine: {name}\n\nCheck the interrupted GPU operation without repeating it. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."));
+                                }
                                 ui.set_dialog_details(format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\nReviewed final guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power, record.final_power()?).into());
                             }
                         }
@@ -1934,6 +2015,28 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
 mod tests {
     use super::*;
     use hyper_gpu_support::model::Settings;
+
+    #[test]
+    fn background_failure_or_panic_never_becomes_a_completed_operation() {
+        assert_eq!(run_background_task(|| Ok(7)).unwrap(), 7);
+        assert_eq!(run_background_task::<()>(|| Err("read failed".into())).unwrap_err(), "read failed");
+        let error = run_background_task::<()>(|| panic!("fixture panic payload")).unwrap_err();
+        assert!(error.contains("without a terminal outcome"));
+        assert!(!error.contains("fixture panic payload"));
+    }
+
+    #[test]
+    fn progress_retains_each_event_in_order_without_rebuilding_the_existing_model() {
+        let rows = model::<slint::SharedString>(vec![]);
+        let original = rows.clone();
+        let rows = append_progress(rows, "Repeated stage: in progress".into());
+        let rows = append_progress(rows, "Repeated stage: in progress".into());
+        let rows = append_progress(rows, "Stage failed".into());
+        assert_eq!(original.row_count(), 3);
+        assert_eq!(rows.iter().map(|row| row.to_string()).collect::<Vec<_>>(), [
+            "Repeated stage: in progress", "Repeated stage: in progress", "Stage failed",
+        ]);
+    }
 
     #[test]
     fn unknown_health_enrollment_and_unresolved_attachment_are_not_samples() {

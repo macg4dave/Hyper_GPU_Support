@@ -31,7 +31,7 @@ The gate is non-elevated, fails on the first failed stage, reports what ran, and
 
 - VRAM minimum is 1 GB; upper bound follows matched card capacity; units/provider mapping remain truthful; incompatible settings are not silently rewritten.
 - Edits have no effects; review binds the target, proposed settings, and lifecycle; stale review is rejected.
-- Initial setup includes verification and confirmed final-off intent; later toggles/VRAM changes do not repeat preparation or graphics verification.
+- Initial setup includes verification and confirmed final-off intent; later toggles/VRAM changes do not repeat preparation or graphics verification and always finish off. Cover ordinary recovery without guest access, refused/unconfirmed shutdown, and explicit setup/update review for invalid preparation.
 - Credential explanation names the VM and precedes the local prompt; cancelling either panel prevents worker submission and retains edits/recovery; remembering requires opt-in; explanation/vault failures remain explicit.
 - Settings survive reload, drafts remain separate, and conflicts block stale execution.
 - Additive enrollment and selected-VM operations preserve other targets.

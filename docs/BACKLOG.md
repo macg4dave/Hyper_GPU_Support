@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**APP-006 — Separate ordinary changes from initial setup (R5).** Ready after APP-005 source implementation. Clarify the final power policy for ordinary changes before altering their lifecycle; reuse review, fresh validation, readback, and recovery. Validation waits for APP-008; live work requires separate authorization.
+**APP-007 — Complete saved state, progress, and failure handling (R6).** Ready after APP-006 source implementation. Validation waits for APP-008; live work requires separate authorization.
 
 ## Task register
 
@@ -15,13 +15,13 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-003 | M1 | Complete review and confirmation | APP-002 | Done (R2 source; requested ahead of APP-002) | Pending milestone gate |
 | APP-004 | M1 | Complete initial setup, verification, and final shutdown | APP-003 | Done | Pending milestone gate |
 | APP-005 | M1 | Explain guest credentials before the local prompt | APP-004 | Done | Pending milestone gate |
-| APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Ready | Not run |
-| APP-007 | M1 | Complete saved state, progress, and failure handling | APP-006 | Blocked | Not run |
+| APP-006 | M1 | Separate ordinary changes from initial setup | APP-005 | Done | Pending milestone gate |
+| APP-007 | M1 | Complete saved state, progress, and failure handling | APP-006 | Ready | Not run |
 | APP-008 | M1 | Prepare and run the milestone's non-hardware gate | APP-007 | Blocked | Not run |
 | APP-009 | M2 | Qualify the real GUI and two-VM workflow | APP-008 | Blocked | Not run |
 | APP-010 | M3 | Package and document the qualified product | APP-009 | Blocked | Not run |
 
-Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records five in-scope source fixes and unrun regression coverage. APP-006/APP-007 remain unimplemented. Repeat the review after those tasks before running APP-008; larger issues needing separate tasks require user review before implementation.
+Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records five in-scope source fixes and unrun regression coverage. APP-006 is now source implemented; APP-007 remains unimplemented. Repeat the review after those tasks before running APP-008; larger issues needing separate tasks require user review before implementation.
 
 ## Implementation tasks
 
@@ -69,7 +69,9 @@ Implementation (11 October 2026): the shared native credential path now opens a 
 
 Later enable/disable and VRAM updates use the same review and confirmation but do not repeat full preparation or initial rendering verification. Retain fresh authorization, provider validation, attachment/settings readback, and recovery.
 
-Acceptance: ordinary changes avoid unnecessary guest access, preparation, and graphics checks; their real outcomes are reported. Required power transitions are managed by the app and shown in review. Clarify the exact final power policy for ordinary changes before altering it; completed initial setup must end off. Changed drivers or invalid preparation must produce an explicit requirement for setup/update rather than silently hide expensive work in a toggle.
+Acceptance: ordinary changes avoid unnecessary guest access, preparation, and graphics checks; their real outcomes are reported. Required power transitions are managed by the app and shown in review. The user confirmed on 11 October 2026 that ordinary changes always finish off, as does completed initial setup. Changed drivers or invalid preparation must produce an explicit requirement for setup/update rather than silently hide expensive work in a toggle.
+
+Implementation (11 October 2026): the user selected always-off final power for ordinary changes. Completed current preparation/graphics receipts allow enable/disable and VRAM changes without guest credentials, temporary boot, preparation, or graphics verification. Running guests are gracefully stopped; success requires independent attachment/settings/allocation and final-off readback. Missing/invalid receipts or a changed signed payload explicitly require setup/update in review, including its guest work and time warnings. Setup/update still checks hardware rendering and finishes off. Ordinary work preserves historical graphics timestamps. The protected receipt now retains whether graphics were reviewed; ordinary reconciliation requires achieved final power and readback without guest access or boot. Older receipts retain their original graphics requirement. Failures retain recovery and block new Apply admission. Added lifecycle, two-VM isolation, invalid-preparation review, failure/readback, no-guest reconciliation, receipt compatibility and presentation regressions; updated existing lifecycle expectations. Static source/diff review and `git diff --check` only; no formatter, build, test, render, GUI launch, credential prompt, guest access, protected write, or hardware operation ran. APP-008/APP-009 acceptance remains pending; M1 stays open.
 
 ### APP-007 — Complete saved state, progress, and failure handling
 
