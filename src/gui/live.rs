@@ -2,7 +2,7 @@
 use super::{
     AppWindow, GpuRow, VmRow, dialog,
     live_state::{OperationReadback, State, allocation_values, review_summary, review_text},
-    model, wording,
+    model, set_details, wording,
 };
 use hyper_gpu_support::{
     gui_model::Inventory,
@@ -286,6 +286,7 @@ fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
 }
 
 fn present_actions(ui: &AppWindow, state: &State) {
+    ui.set_vm_details(super::diagnostics::selected_vm_details(state).into());
     let values = ui
         .get_values()
         .iter()
@@ -1040,7 +1041,7 @@ fn review_operation(
                         review_summary(&plan)
                     ),
                 );
-                ui.set_dialog_details(review_text(&plan).into());
+                set_details(ui, &review_text(&plan));
             }
             Ok(_) => dialog(
                 ui,
@@ -1137,7 +1138,7 @@ fn review_enrollment(
                     "Review permission before GPU setup",
                     &summary,
                 );
-                ui.set_dialog_details(body.into());
+                set_details(ui, &body);
             }
             Err(error) => dialog(ui, "error", "Permission review unavailable", &error),
         },
@@ -1597,7 +1598,7 @@ fn review_verification(
                     return;
                 }
                 dialog(ui, "verify-review", "Review Verify GPU setup", &body);
-                ui.set_dialog_details(details.into());
+                set_details(ui, &details);
             }
             Err(error) => dialog(ui, "error", "Verify GPU setup unavailable", &error),
         },
@@ -2137,7 +2138,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                         state.enrollment_recovery_revision = Some(revision);
                         ui.set_needs_shutdown(false);
                         dialog(&ui, "enrollment-recovery", if record.removal.is_some() { "Review interrupted profile deletion" } else { "Review interrupted app permission" }, &summary);
-                        ui.set_dialog_details(body.into());
+                        set_details(&ui, &body);
                         return Ok(());
                     }
                     if action == "recovery" && let Some(record) = &state.import_recovery {
@@ -2152,6 +2153,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                             hyper_gpu_support::configuration_store::SavePhase::Verified(_) | hyper_gpu_support::configuration_store::SavePhase::Published(_) => {
                                 if record.publication_required {
                                     dialog(&ui, "save", "Verified operation awaits configuration publication", "GPU effects already passed independent readback. Retry saves only the bound configuration; it will not repeat GPU modification. Changed configuration, driver, payload or effective state blocks this retry.");
+                                    set_details(&ui, &format!("Operation: {}\nVM ID: {}\nGPU: {}\nReviewed configuration revision: {:?}\nDriver: {}\nExpected final power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.expected, record.driver_version, record.final_power()?));
                                 } else {
                                     dialog(&ui, "recovery", "Reconcile interrupted graphics check", "Check the recorded pair and fresh graphics outcome; restore only the originally approved guest power if safe. No GPU assignment, allocation, preparation or configuration publication is performed.");
                                 }
@@ -2163,7 +2165,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                                 } else {
                                     dialog(&ui, "recovery", "Review interrupted operation", &format!("Virtual machine: {name}\n\nCheck the interrupted GPU operation without repeating it. A terminal failed guest check can end recovery after fresh reads confirm its original host lifecycle was restored; its failure remains recorded. A setup/reinstall attempt that never entered preparation can end after fresh reads confirm unchanged starting host state. These exits require no new guest check or credentials and do not certify setup. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."));
                                 }
-                                ui.set_dialog_details(format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\nReviewed final guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power, record.final_power()?).into());
+                                set_details(&ui, &format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\nReviewed final guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power, record.final_power()?));
                             }
                         }
                         return Ok(());
@@ -2171,7 +2173,8 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     let id = ui.get_selected_id(); let inventory = state.view.inventory.as_ref().ok_or("Refresh inventory first.")?;
                     let body = serde_json::to_string_pretty(&serde_json::json!({"observed": state.view.vm(&id), "managed": inventory.managed.get(id.as_str()).and_then(Option::as_ref), "historical": state.view.needs_readback, "enrollment": inventory.enrolled.iter().find(|t| t.vm_id == id.as_str())})).map_err(|e| e.to_string())?;
                     let provenance = "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection.";
-                    dialog(&ui, "info", "Observed state and recovery records", &format!("{provenance}\n\n{body}")); Ok(())
+                    dialog(&ui, "info", "Observed state and recovery records", &format!("{provenance}\n\nTechnical Details contains the host observation, recorded history and authorization from that inventory. Missing or old records do not establish current guest health. Opening these details performs no new checks or changes."));
+                    set_details(&ui, &body); Ok(())
                 }); Ok(())
             }
             "shortcuts" => {

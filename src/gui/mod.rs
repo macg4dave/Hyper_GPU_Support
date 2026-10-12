@@ -1,5 +1,6 @@
 //! Approved Slint presentation over the protected live backend.
 mod actions;
+mod diagnostics;
 mod host_configuration;
 mod live;
 mod live_state;
@@ -20,12 +21,7 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
         .collect();
     ui.set_stages(model(Vec::new()));
     ui.set_dialog_details(if kind == "error" {
-        let mut details = hyper_gpu_support::reporting::technical_error(title, body);
-        if !previous_stages.is_empty() {
-            details.push_str("\n\nLast reported stages:\n");
-            details.push_str(&previous_stages.join("\n"));
-        }
-        details.into()
+        diagnostics::failure_details(title, body, &previous_stages).into()
     } else {
         "".into()
     });
@@ -39,4 +35,11 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
 }
 pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     live::run(AppWindow::new()?, live::Source)
+}
+
+fn set_details(ui: &AppWindow, details: &str) {
+    let details = diagnostics::additional_details(ui.get_dialog_body().as_str(), details);
+    ui.set_dialog_details(if details.is_empty() { "".into() } else {
+        format!("Source: facts captured for this review/record. Fresh protected checks are required before any effects.\n\n{details}").into()
+    });
 }

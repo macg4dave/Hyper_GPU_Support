@@ -36,10 +36,12 @@ export component OperationDialog inherits Rectangle {
     private property <bool> consent: false;
     private property <bool> technical: false;
     private property <bool> follow-progress: true;
-    changed kind => { root.follow-progress = true; }
-    changed body => { root.consent = false; }
+    changed kind => { root.follow-progress = true; root.technical = false; }
+    changed title => { root.technical = false; }
+    changed body => { root.consent = false; root.technical = false; }
+    changed details => { root.technical = false; }
     changed power-consent => { root.consent = false; }
-    init => { detail-button.focus(); }
+    init => { dismiss-button.focus(); }
     callback action(string);
     background: #00000088;
     TouchArea { }
@@ -101,32 +103,30 @@ export component OperationDialog inherits Rectangle {
                     }
                 }
                 if root.running : ProgressIndicator { indeterminate: true; }
-                if root.technical : TechnicalOutput {
+                if root.technical && root.details != "" && root.details != root.body : TechnicalOutput {
                     vertical-stretch: 1;
-                    text: root.details != "" ? root.details : root.body;
+                    text: root.details;
                 }
                 if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox { text: root.power-consent; checked <=> root.consent; }
                 if root.kind == "review" && !root.execution-ready : Hint { text: "Apply is unavailable. Close this review and use Refresh to check setup or recovery."; color: Theme.accent; }
                 HorizontalLayout {
                     spacing: 8px;
-                    if root.kind == "switch" : Button { text: "Stay on VM"; clicked => { root.action("close"); } }
+                    dismiss-button := Button {
+                        text: root.running ? "Operation in progress" : root.kind == "switch" ? "Stay on VM" : root.kind == "exit" || root.kind == "enroll-review" ? "Keep editing" : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? "Cancel" : "Close";
+                        enabled: !root.running;
+                        clicked => { root.action("close"); }
+                    }
                     if root.kind == "switch" : Button { text: "Discard & Switch"; clicked => { root.action("switch"); } }
                     if root.kind == "switch" : Button { text: "Review Changes"; primary: true; clicked => { root.action("review"); } }
-                    if root.kind == "exit" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
                     if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
-                    if root.kind == "enroll-review" : Button { text: "Keep editing"; clicked => { root.action("close"); } }
                     if root.kind == "enroll-review" : Button { text: "Allow GPU management"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-enroll"); } }
                     if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
-                    if root.kind == "review" : Button { text: "Cancel"; clicked => { root.action("close"); } }
-                    if root.kind == "forget-review" : Button { text: "Cancel"; clicked => { root.action("close"); } }
                     if root.kind == "forget-review" : Button { text: "Delete profile"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
                     if root.kind == "review" : Button { text: root.execution-ready ? "Apply" : "Apply unavailable"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
-                    if root.kind == "verify-review" : Button { text: "Cancel"; clicked => { root.action("close"); } }
                     if root.kind == "verify-review" : Button { text: "Verify GPU setup"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
                     if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
                     if root.kind == "recovery" : Button { text: "Check recorded outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
                     if root.kind == "recovery-needed" : Button { text: "Review recovery"; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
-                    close-button := Button { visible: root.kind != "review" && root.kind != "verify-review" && root.kind != "forget-review" && root.kind != "enroll-review" && root.kind != "switch" && root.kind != "exit"; text: root.running ? "Operation in progress" : "Close"; enabled: !root.running; clicked => { root.action("close"); } }
                 }
                 if root.kind == "more" : HorizontalLayout {
                     if root.action-recovery : Button { text: "Review recovery"; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
@@ -135,7 +135,7 @@ export component OperationDialog inherits Rectangle {
                     Button { text: "Refresh"; enabled: !root.running && !root.updating; clicked => { root.action("refresh"); } }
                     Rectangle { horizontal-stretch: 1; }
                 }
-                HorizontalLayout {
+                if root.details != "" && root.details != root.body : HorizontalLayout {
                     detail-button := TechnicalDetailsButton { expanded <=> root.technical; }
                     Rectangle { horizontal-stretch: 1; }
                 }

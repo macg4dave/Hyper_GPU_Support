@@ -1,6 +1,7 @@
 import { Button, Switch, ComboBox, ScrollView, Slider } from "std-widgets.slint";
 import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
 import { ResourceEditor, AllocationDisclosure } from "resources.slint";
+import { TechnicalOutput } from "technical-output.slint";
 
 export component VmDetails inherits Rectangle {
     in property <string> name;
@@ -15,6 +16,7 @@ export component VmDetails inherits Rectangle {
     in property <string> verification;
     in property <string> support-summary;
     in property <string> inventory-details;
+    in property <string> technical-details;
     in property <bool> dirty;
     in property <bool> eligible;
     in property <bool> recovery;
@@ -36,6 +38,8 @@ export component VmDetails inherits Rectangle {
     in property <bool> presenting;
     in property <string> validation;
     private property <bool> technical: false;
+    changed identity => { root.technical = false; }
+    changed technical-details => { if root.technical-details == "" { root.technical = false; } }
     private property <bool> advanced-expanded: false;
     changed memory-position => { memory-slider.value = root.memory-position; }
     callback edited();
@@ -122,25 +126,11 @@ export component VmDetails inherits Rectangle {
                     ResourceEditor { title: "VRAM"; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index, value); } }
                 }
                 if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }
-                HorizontalLayout {
+                if root.technical-details != "" : HorizontalLayout {
                     TechnicalDetailsButton { enabled: !Theme.modal-active; expanded <=> root.technical; }
                     Rectangle { horizontal-stretch: 1; }
                 }
-                if root.technical : Surface {
-                    VerticalLayout { padding: 16px; spacing: 7px;
-                        Hint { text: "VM ID: " + root.identity; }
-                        Hint { text: "Observed: " + root.observed; }
-                        Hint { text: "Saved configuration: " + root.desired; }
-                        Hint { text: "Pending edits: " + root.pending; }
-                        Hint { text: "Applied operation: " + root.applied; }
-                        Hint { text: "Graphics: " + root.verification; }
-                        Hint { text: root.inventory-details; }
-                        Hint { text: "GPU Memory ranges from 1 GB to the selected GPU's detected physical capacity. Requests use native bytes: 1 GB = 1,000,000,000 bytes. VRAM mapping is awaiting correction and live validation; raw provider metadata does not establish a physical GB ceiling. Advanced Allocation retains exact VRAM triples, including older values below 1 GB. Saved Compute/Encode/Decode requests are preserved for compatibility and appear in review; this GUI does not edit them. Physical capacity does not rescale requests or establish reservation or enforcement."; }
-                        Hint { text: "Protected enrollment: " + root.status; }
-                        Hint { text: "Observed attachment: " + root.observed; }
-                        Hint { text: "Host partition count and Secure Boot: not queried. CPU, RAM and disks are outside this editor."; }
-                    }
-                }
+                if root.technical && root.technical-details != "" : TechnicalOutput { text: root.technical-details; }
             }
         }
         HorizontalLayout { spacing: 8px;

@@ -36,6 +36,7 @@ export component AppWindow inherits Window {
     in-out property <string> verification: "Not verified";
     in property <string> support-summary;
     in property <string> inventory-details;
+    in property <string> vm-details;
     in-out property <bool> eligible: false;
     in-out property <bool> dirty: false;
     in-out property <bool> recovery: false;
@@ -134,6 +135,7 @@ export component AppWindow inherits Window {
                             pending: root.pending; applied: root.applied;
                             support-summary: root.support-summary;
                             inventory-details: root.inventory-details;
+                            technical-details: root.vm-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
                             gpu-selection-fixed: root.gpu-selection-fixed;
                             presenting: root.presenting; resource-defaults: root.resource-defaults;
