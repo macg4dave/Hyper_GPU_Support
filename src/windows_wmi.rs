@@ -236,16 +236,30 @@ impl Object {
             .map_err(|e| format!("write property {name}: {}", win(e)))
     }
     pub(crate) fn set_number(&self, name: &str, n: u64) -> Result<()> {
-        // Preserve the provider's uint64 BSTR / uint16,32 VT_I4 representation.
-        let original = self.value(name)?;
-        // SAFETY: initialized variant, only reading its discriminant.
-        let tag = unsafe { original.0.Anonymous.Anonymous.vt };
-        let v = if tag == VT_BSTR {
-            VARIANT::from(BSTR::from(n.to_string()))
-        } else if tag == VT_I4 {
-            VARIANT::from(u32::try_from(n).map_err(|_| format!("{name}: uint32 overflow"))? as i32)
-        } else {
-            return Err(format!("{name}: unknown numeric storage type"));
+        use windows::Win32::System::Wmi::{CIM_UINT16, CIM_UINT32, CIM_UINT64};
+        let mut original = OwnedVariant(VARIANT::default());
+        let mut kind = 0;
+        // SAFETY: live object and initialized outputs; Get supplies the declared
+        // CIM type even when the current property is null (provider defaults).
+        unsafe {
+            self.0.Get(
+                PCWSTR(wide(name).as_ptr()),
+                0,
+                &mut original.0,
+                Some(&mut kind),
+                None,
+            )
+        }
+        .map_err(win)?;
+        let v = match kind {
+            k if k == CIM_UINT64.0 => VARIANT::from(BSTR::from(n.to_string())),
+            k if k == CIM_UINT32.0 => VARIANT::from(
+                u32::try_from(n).map_err(|_| format!("{name}: uint32 overflow"))? as i32,
+            ),
+            k if k == CIM_UINT16.0 => VARIANT::from(i32::from(
+                u16::try_from(n).map_err(|_| format!("{name}: uint16 overflow"))?,
+            )),
+            _ => return Err(format!("{name}: unsupported unsigned CIM type")),
         };
         self.set(name, v)
     }
@@ -633,7 +647,8 @@ mod tests {
         assert!(object.boolean("Small").is_err());
         assert_eq!(object.optional_number("Empty").unwrap(), None);
         assert!(object.optional_number("Text").is_err());
-        assert!(object.set_number("Empty", 31).is_err());
+        object.set_number("Empty", 31).unwrap();
+        assert!(object.set_number("Empty", 65536).is_err());
         object.set("Empty", VARIANT::from(31i32)).unwrap();
         assert_eq!(object.number("Empty").unwrap(), 31);
         assert_eq!(object.optional_number("Empty").unwrap(), Some(31));

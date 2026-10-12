@@ -25,7 +25,12 @@ pub(super) fn completion_failure(summary: &str, details: &str, primary: &str) ->
 
 /// Callers supply application-owned or reporting-redacted diagnostic content.
 pub(super) fn additional_details(summary: &str, details: &str) -> String {
-    if normalized(details).is_empty() || normalized(details) == normalized(summary) {
+    let summary = normalized(summary);
+    // A subset of the summary is still repetition, including reordered rows.
+    if details.lines().all(|line| {
+        let line = normalized(line);
+        line.is_empty() || summary.contains(&line)
+    }) {
         String::new()
     } else {
         details.trim().to_owned()
@@ -73,6 +78,32 @@ pub(super) fn selected_vm_details(state: &State) -> String {
     };
     let saved = state.committed.revision(id);
     let inventory = state.view.inventory.as_ref();
+    let pair =
+        inventory.and_then(|inventory| inventory.enrolled.iter().find(|target| target.vm_id == id));
+    let gpu_interface = state
+        .draft_gpu
+        .as_deref()
+        .or_else(|| pair.map(|pair| pair.gpu_interface.as_str()));
+    let gpu = inventory.and_then(|inventory| {
+        inventory
+            .discovery
+            .gpus
+            .iter()
+            .find(|gpu| Some(gpu.interface.as_str()) == gpu_interface)
+    });
+    let issues = inventory.map(|inventory| {
+        inventory
+            .discovery
+            .issues
+            .iter()
+            .filter(|issue| {
+                issue
+                    .target
+                    .as_deref()
+                    .is_none_or(|target| target == id || Some(target) == gpu_interface)
+            })
+            .collect::<Vec<_>>()
+    });
     let facts = serde_json::json!({
         "vm_id": id,
         "observed_host_state": state.view.vm(id),
@@ -80,7 +111,10 @@ pub(super) fn selected_vm_details(state: &State) -> String {
         "saved_intent_read_error": saved.as_ref().err(),
         "pending_edits": if state.view.draft.is_some() { "Unapplied draft; see editor for current raw values" } else { "No draft recorded" },
         "saved_intent": if saved.is_ok() { state.committed.documents.get(id).map(|document| &document.target) } else { None },
-        "authorized_pair": inventory.and_then(|inventory| inventory.enrolled.iter().find(|target| target.vm_id == id)),
+        "authorized_pair": pair,
+        "selected_gpu_interface": gpu_interface,
+        "observed_gpu": gpu,
+        "inventory_diagnostics": issues,
         "recorded_managed_history": inventory.and_then(|inventory| inventory.managed.get(id)).and_then(Option::as_ref),
         "recorded_history_status": inventory.map(|inventory| inventory.recorded_state(id)),
     });
@@ -101,6 +135,73 @@ pub(super) fn selected_vm_details(state: &State) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn inventory_details_scope_failures_and_preserve_stale_gpu_facts_without_adapter_text() {
+        use hyper_gpu_support::{
+            gui_model::Inventory,
+            model::{Discovery, Gpu},
+            reporting::Diagnostic,
+        };
+        let mut state = State::default();
+        state.view.selected = Some("selected-vm".into());
+        state.draft_gpu = Some("selected-gpu".into());
+        let gpu: Gpu = serde_json::from_value(serde_json::json!({
+            "interface": "selected-gpu", "name": "Test card", "vendor": 4318,
+            "device": 1, "driver_version": "test-version", "preparation_supported": true,
+            "physical_vram_bytes": 8278507520u64, "total_vram": 1000000000u64
+        }))
+        .expect("isolated GPU fixture");
+        state.view.inventory = Some(Inventory {
+            discovery: Discovery {
+                vms: vec![],
+                gpus: vec![gpu],
+                issues: vec![
+                    Diagnostic::observation(
+                        "GPU inventory",
+                        None,
+                        "password=private-secret Access denied",
+                    ),
+                    Diagnostic::observation(
+                        "VM readback",
+                        Some("selected-vm".into()),
+                        "unavailable",
+                    ),
+                    Diagnostic::observation(
+                        "Physical capacity",
+                        Some("selected-gpu".into()),
+                        "unavailable",
+                    ),
+                    Diagnostic::observation("Unrelated VM", Some("other-vm".into()), "unavailable"),
+                ],
+            },
+            managed: Default::default(),
+            enrolled: vec![],
+        });
+        state.view.needs_readback = true;
+        let details = selected_vm_details(&state);
+        assert!(details.contains("prior reads, not current health"));
+        for fact in [
+            "8278507520",
+            "1000000000",
+            "test-version",
+            "GPU inventory",
+            "VM readback",
+            "Physical capacity",
+            "Denied",
+        ] {
+            assert!(details.contains(fact), "missing collected fact: {fact}");
+        }
+        assert!(!details.contains("private-secret"));
+        assert!(!details.contains("other-vm"));
+        state.view.selected = Some("other-vm".into());
+        state.draft_gpu = None;
+        let details = selected_vm_details(&state);
+        assert!(!details.contains("selected-gpu"));
+        assert!(!details.contains("test-version"));
+        assert!(!details.contains("VM readback"));
+        assert!(details.contains("Unrelated VM"));
+    }
+
     #[test]
     fn selection_changes_clear_old_identity_and_redact_unreadable_saved_intent() {
         let first = "11111111-1111-1111-1111-111111111111";
@@ -151,6 +252,16 @@ mod tests {
     fn empty_and_duplicate_details_do_not_create_a_second_summary() {
         assert!(additional_details("Refresh first", "").is_empty());
         assert!(additional_details("Refresh first", " \nRefresh   first\n").is_empty());
+        assert!(
+            additional_details(
+                "Refresh first\nNo changes performed",
+                "No changes performed\nRefresh first"
+            )
+            .is_empty()
+        );
+        assert!(
+            additional_details("Refresh first\nNo changes performed", "Refresh first").is_empty()
+        );
         assert_eq!(
             additional_details("Refresh first", "VM ID: recorded-id"),
             "VM ID: recorded-id"

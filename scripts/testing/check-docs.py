@@ -22,7 +22,10 @@ def anchors(text):
 
 def main():
     tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0")
-    files = {ROOT / name for name in tracked if name.endswith(".md")}
+    deleted = set(subprocess.check_output(["git", "ls-files", "--deleted", "-z"], cwd=ROOT).decode().split("\0"))
+    # Validate the working tree, including deliberate unstaged deletions. Links
+    # from remaining documents to removed files must still fail below.
+    files = {ROOT / name for name in tracked if name.endswith(".md") and name not in deleted}
     files.update((ROOT / "docs").rglob("*.md"))
     errors = []
     for path in sorted(files):

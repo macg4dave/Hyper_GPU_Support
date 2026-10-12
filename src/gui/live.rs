@@ -1230,6 +1230,108 @@ fn reconcile_live(
         },
     )
 }
+
+#[cfg(windows)]
+fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
+    let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
+    state.reset_review = None;
+    let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
+    let inventory = state
+        .view
+        .inventory
+        .as_ref()
+        .ok_or("Refresh inventory first")?;
+    let observed = state
+        .view
+        .vm(&record.target.vm_id)
+        .ok_or("Recovery VM missing; Refresh")?;
+    let approved = if let Some(review) = &record.reset {
+        review.clone()
+    } else {
+        hyper_gpu_support::workflow::ResetReview {
+            observed: observed.clone(),
+            gpu: inventory
+                .discovery
+                .gpus
+                .iter()
+                .find(|g| g.interface == record.target.gpu_interface)
+                .ok_or("Recovery GPU missing; Refresh")?
+                .clone(),
+            journal: inventory
+                .managed
+                .get(&record.target.vm_id)
+                .and_then(Option::as_ref)
+                .ok_or("Recovery journal missing; Refresh")?
+                .clone(),
+        }
+    };
+    approved.validate(record, &state.committed.revision(&record.target.vm_id)?)?;
+    let revision = hyper_gpu_support::configuration_store::Revision::of(
+        &serde_json::to_vec(record).map_err(|e| e.to_string())?,
+    );
+    let body = format!(
+        "Virtual machine: {}\n\nRemove the partial {} attachment and its allocations. Restore the compatibility settings recorded before the interrupted change. The VM stays off; no guest connection or driver installation is performed.\n\nKeep the saved settings, guest files and archived failure evidence. Invalidate old setup eligibility so a later setup performs fresh checks. After removal, Refresh, then use Delete profile to remove app authorization before re-enrolling.\n\nStarting compatibility settings to restore: low MMIO {} MB, high MMIO {} MB, cache types {}, automatic checkpoints {}. This does not complete the interrupted allocation or save its requested settings.",
+        observed.name,
+        approved.gpu.name,
+        record.initial.settings.low_mmio,
+        record.initial.settings.high_mmio,
+        record.initial.settings.cache_types,
+        record.initial.settings.automatic_checkpoints
+    );
+    state.reset_review = Some((revision, approved));
+    ui.set_needs_shutdown(false);
+    dialog(ui, "reset-review", "Review partial GPU removal", &body);
+    Ok(())
+}
+
+#[cfg(windows)]
+fn reset_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Result<(), String> {
+    let (operation, revision, approved) = {
+        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
+        let (revision, approved) = state
+            .reset_review
+            .clone()
+            .ok_or("Review partial removal first")?;
+        if revision
+            != hyper_gpu_support::configuration_store::Revision::of(
+                &serde_json::to_vec(record).map_err(|e| e.to_string())?,
+            )
+        {
+            return Err("Recovery changed; review partial removal again".into());
+        }
+        (record.operation_id.clone(), revision, approved)
+    };
+    let name = approved.observed.name.clone();
+    let progress = progress_to_ui(ui.as_weak());
+    let finished = state.clone();
+    background_operation(
+        ui,
+        busy,
+        "Remove partial GPU setup",
+        Some(&name),
+        false,
+        move || hyper_gpu_support::worker::reset_partial(operation, revision, approved, progress),
+        move |ui, result, readback| {
+            if !with_completion_state(ui, &finished, &result, |state| {
+                let status = state.finish_readback(readback);
+                present(ui, state, !ui.get_dirty());
+                status
+            }) {
+                return;
+            }
+            match result {
+                Ok(_) => dialog(
+                    ui,
+                    "info",
+                    "Partial GPU setup removed",
+                    "The partial attachment was removed and the recorded starting compatibility settings were confirmed. The VM remains off. Old setup eligibility is invalid; guest files and failure evidence are retained. Refresh, then use More actions > Delete profile before re-enrolling and setting up GPU support again.",
+                ),
+                Err(error) => dialog(ui, "error", "Partial GPU removal did not complete", &error),
+            }
+        },
+    )
+}
 #[cfg(not(windows))]
 fn review_verification(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
     Err("Verify GPU setup requires Windows".into())
@@ -1460,6 +1562,10 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             "verify" => review_verification(&ui, &action_state, &action_busy),
             "confirm-verify" => verify_live(&ui, &action_state, &action_busy),
             "reconcile" => reconcile_live(&ui, &action_state, &action_busy),
+            #[cfg(windows)]
+            "review-reset" => review_reset(&ui, &action_state),
+            #[cfg(windows)]
+            "confirm-reset" if ui.get_dialog_kind() == "reset-review" => reset_live(&ui, &action_state, &action_busy),
             "reapply" => {
                 // Preserve allocation edits while deliberately previewing enabled support.
                 ui.set_gpu_enabled(true);
@@ -1575,8 +1681,8 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                         }
                         return Ok(());
                     }
-                    let id = ui.get_selected_id(); let inventory = state.view.inventory.as_ref().ok_or("Refresh inventory first.")?;
-                    let body = serde_json::to_string_pretty(&serde_json::json!({"observed": state.view.vm(&id), "managed": inventory.managed.get(id.as_str()).and_then(Option::as_ref), "historical": state.view.needs_readback, "enrollment": inventory.enrolled.iter().find(|t| t.vm_id == id.as_str())})).map_err(|e| e.to_string())?;
+                    state.view.inventory.as_ref().ok_or("Refresh inventory first.")?;
+                    let body = super::diagnostics::selected_vm_details(state);
                     let provenance = "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection.";
                     dialog(&ui, "info", "Observed state and recovery records", &format!("{provenance}\n\nTechnical Details contains the host observation, recorded history and authorization from that inventory. Missing or old records do not establish current guest health. Opening these details performs no new checks or changes."));
                     set_details(&ui, &body); Ok(())

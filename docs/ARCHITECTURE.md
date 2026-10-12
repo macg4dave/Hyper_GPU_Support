@@ -42,7 +42,7 @@ Enabled Apply writes compatibility settings only when admitted initial settings 
 
 Operation modules depend on the shared contracts/helpers; Verify and reconciliation do not depend on each other's execution. Admission-token fields remain private to their operation modules; planning internals and shared primitives are visible only within the workflow family. The worker still owns authority, authentication, locks, protected receipts, publication and audit. Backend adapters and transport remain outside this family.
 
-Focused tests live inline with their owning module. [Shared doubles/fixtures](../src/workflow/test_support.rs) and [cross-operation scenarios](../src/workflow/tests.rs) are compiled only under `#[cfg(test)]`. The [refactor record](WORKFLOW_REFACTOR_PLAN.md#implementation-record) accounts for all 74 existing tests and separates static source checks from pending automated validation.
+Focused tests live inline with their owning module. [Shared doubles/fixtures](../src/workflow/test_support.rs) and [cross-operation scenarios](../src/workflow/tests.rs) are compiled only under `#[cfg(test)]`. Current automated checkpoints and their exclusions are recorded in [backlog clearance evidence](evidence/backlog-clearance.md).
 
 ## State separation
 

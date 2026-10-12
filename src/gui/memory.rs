@@ -110,7 +110,7 @@ impl MemorySlider {
             range_end: rounded_capacity(physical_capacity),
             range_note: {
                 let mut notes = Vec::new();
-                if physical_capacity % BYTES_PER_GB != 0 {
+                if !physical_capacity.is_multiple_of(BYTES_PER_GB) {
                     notes.push("The maximum endpoint label is rounded to the nearest whole GB. Review and Technical Details retain the exact byte values.");
                 }
                 if bounds.optimal < BYTES_PER_GB {

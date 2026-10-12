@@ -11,6 +11,10 @@ pub(super) struct State {
     pub draft_gpu: Option<String>,
     pub approved_plan: Option<ReviewedPlan>,
     pub removal_review: Option<hyper_gpu_support::enrollment::RemovalReview>,
+    pub reset_review: Option<(
+        hyper_gpu_support::configuration_store::Revision,
+        hyper_gpu_support::workflow::ResetReview,
+    )>,
     pub verification_plan: Option<hyper_gpu_support::workflow::VerificationPlan>,
     pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
     /// A draft's original committed revision changed; only discard releases it.
@@ -48,6 +52,7 @@ impl Default for State {
             draft_gpu: None,
             approved_plan: None,
             removal_review: None,
+            reset_review: None,
             verification_plan: None,
             committed: Default::default(),
             committed_conflict: None,
@@ -219,6 +224,7 @@ impl State {
     }
 
     pub fn cancel_review(&mut self) {
+        self.reset_review = None;
         self.removal_review = None;
         self.approved_plan = None;
         self.enrollment_review = None;
@@ -1693,6 +1699,7 @@ mod tests {
         SaveRecord {
             schema: 1,
             retirement: None,
+            reset: None,
             operation_id: "test-operation".into(),
             target: s.target(id(s)).unwrap(),
             expected: Revision::Missing,

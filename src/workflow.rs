@@ -7,6 +7,7 @@ mod guest_check;
 mod journal;
 mod planning;
 mod reconciliation;
+mod reset;
 mod verification;
 
 pub use apply::{apply, apply_approved};
@@ -15,6 +16,8 @@ pub use planning::{
     EffectPreview, Plan, PreparationPreview, PreviewAction, SettingsPreview, plan, plan_reinstall,
 };
 pub use reconciliation::reconcile_observed;
+pub use reset::ResetReview;
+pub(crate) use reset::reset_partial;
 pub use verification::{
     VerificationPlan, plan_verification, verification_power, verify, verify_approved,
 };

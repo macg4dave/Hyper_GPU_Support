@@ -154,6 +154,7 @@ pub(super) fn recovery_record(
     SaveRecord {
         schema: 1,
         retirement: None,
+        reset: None,
         operation_id: "0123456789abcdef0123456789abcdef".into(),
         target: target(),
         expected: Revision::Missing,

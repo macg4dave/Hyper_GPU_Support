@@ -56,6 +56,11 @@ pub struct Progress {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 enum Command {
+    ResetPartial {
+        operation_id: String,
+        record_revision: Revision,
+        approved: workflow::ResetReview,
+    },
     ForgetPair {
         approved: crate::enrollment::RemovalReview,
     },
@@ -97,6 +102,7 @@ impl Command {
     fn validate_outcome(&self, outcome: &Outcome, session: &str) -> Result<(), String> {
         let expected_id = match self {
             Self::SaveOnly { operation_id }
+            | Self::ResetPartial { operation_id, .. }
             | Self::Reconcile { operation_id, .. }
             | Self::ImportResume { operation_id } => operation_id.as_str(),
             _ => session,
@@ -111,6 +117,11 @@ impl Command {
             return Err(invalid());
         }
         match self {
+            Self::ResetPartial { .. } => {
+                if outcome.operation.is_some() || outcome.saved || !outcome.finished {
+                    return Err(invalid());
+                }
+            }
             Self::ForgetPair { .. } => {
                 if outcome.operation.is_some() || outcome.saved || !outcome.finished {
                     return Err(invalid());
@@ -405,6 +416,24 @@ pub fn reconcile(
         progress,
     )
 }
+/// Remove a reviewed partial attachment and restore its recorded starting host
+/// settings, keeping guest files and archived failure evidence.
+pub fn reset_partial(
+    operation_id: String,
+    record_revision: Revision,
+    approved: workflow::ResetReview,
+    progress: impl FnMut(Progress),
+) -> Result<Outcome, String> {
+    submit(
+        Command::ResetPartial {
+            operation_id,
+            record_revision,
+            approved,
+        },
+        None,
+        progress,
+    )
+}
 /// Explicitly import a bundle into approved absent canonical destinations. Source
 /// is transferred as bounded data, never interpreted as a worker filesystem path.
 pub fn import(
@@ -574,6 +603,7 @@ fn execute(
         return Err("replayed worker session".into());
     }
     let operation_name = match &request.command {
+        Command::ResetPartial { .. } => "ResetPartial",
         Command::ForgetPair { .. } => "ForgetPair",
         Command::EnrollPair { .. } => "EnrollPair",
         Command::ReconcilePair { .. } => "ReconcilePair",
@@ -585,6 +615,13 @@ fn execute(
         Command::ImportResume { .. } => "ReconcileImport",
     };
     let binding = match &request.command {
+        Command::ResetPartial {
+            operation_id,
+            record_revision,
+            approved,
+        } => {
+            serde_json::json!({"original_operation_id":operation_id,"record_revision":record_revision,"review":approved})
+        }
         Command::ForgetPair { approved } => {
             serde_json::to_value(approved).map_err(|e| e.to_string())?
         }
@@ -629,6 +666,83 @@ fn execute(
         &serde_json::json!({"schema":1,"session":session,"operation":operation_name,"binding":binding,"outcome":"Started"}),
     )?;
     let result = (|| match request.command {
+        Command::ResetPartial {
+            operation_id,
+            record_revision,
+            approved,
+        } => {
+            if request.credential.is_some() {
+                return Err("Partial GPU removal does not accept credentials".into());
+            }
+            let mut record =
+                runner::recovery_record()?.ok_or("No interrupted operation to remove")?;
+            if record.operation_id != operation_id
+                || Revision::of(&serde_json::to_vec(&record).map_err(|e| e.to_string())?)
+                    != record_revision
+                || !enrollment.targets.iter().any(|t| {
+                    t.vm_id == record.target.vm_id && t.gpu_interface == record.target.gpu_interface
+                })
+                || runner::pending_pair()?.is_some()
+                || runner::import_record()?.is_some()
+            {
+                return Err("Partial GPU removal review changed; Refresh and review again".into());
+            }
+            crate::windows_wmi::reconcile_pending_operation()?;
+            let revision = configuration_store::protected::revision(&record.target.vm_id)?;
+            approved.validate(&record, &revision)?;
+            if let Some(existing) = &record.reset {
+                if serde_json::to_value(existing).map_err(|e| e.to_string())?
+                    != serde_json::to_value(&approved).map_err(|e| e.to_string())?
+                {
+                    return Err("Partial GPU removal is bound to its original review".into());
+                }
+            }
+            record.reset = Some(approved);
+            runner::atomic_json(&runner::recovery_path()?, &record)?;
+            runner::atomic_json(
+                &audit_directory.join(format!("partial-removal-{}.json", operation_id)),
+                &record,
+            )?;
+            let bound = serde_json::to_value(&record).map_err(|e| e.to_string())?;
+            let mut check_binding = || {
+                if serde_json::to_value(runner::recovery_record()?).map_err(|e| e.to_string())?
+                    != serde_json::json!(bound)
+                    || configuration_store::protected::revision(&record.target.vm_id)? != revision
+                {
+                    return Err("Partial GPU removal receipt changed; retain recovery".into());
+                }
+                crate::windows_wmi::require_no_pending_operation()
+            };
+            check_binding()?;
+            let mut backend = NativeBackend {
+                credential: None,
+                manifest: None,
+                data: data.clone(),
+            };
+            workflow::reset_partial(
+                &mut ObservedBackend {
+                    backend: &mut backend,
+                    notify: &mut notify,
+                    before_effect: Some(&mut check_binding),
+                },
+                &record,
+                &revision,
+            )?;
+            if configuration_store::protected::revision(&record.target.vm_id)? != revision
+                || serde_json::to_value(runner::recovery_record()?).map_err(|e| e.to_string())?
+                    != serde_json::json!(bound)
+            {
+                return Err("Partial GPU removal final receipt changed; retain recovery".into());
+            }
+            crate::windows_wmi::require_no_pending_operation()?;
+            Ok(Outcome {
+                operation: None,
+                saved: false,
+                finished: true,
+                operation_id,
+                save_error: None,
+            })
+        }
         Command::ForgetPair { approved } => {
             if request.credential.is_some() {
                 return Err("Pair removal does not accept guest credentials.".into());
@@ -793,6 +907,7 @@ fn execute(
             let mut record = SaveRecord {
                 schema: 1,
                 retirement: None,
+                reset: None,
                 operation_id: session.into(),
                 target: approved.desired.clone(),
                 expected,
@@ -917,6 +1032,7 @@ fn execute(
             let mut record = SaveRecord {
                 schema: 1,
                 retirement: None,
+                reset: None,
                 operation_id: session.into(),
                 target: approved.target.clone(),
                 expected: configuration_store::protected::revision(&approved.target.vm_id)?,

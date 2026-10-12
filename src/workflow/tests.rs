@@ -26,7 +26,12 @@ fn changed_check_journals_block_power_restoration_and_completion() {
                 let observed = backend.state.clone();
                 let result = if reconciliation {
                     reconcile_with_graphics(
-                        &mut backend, &target(), &observed, Power::Off, Some("current"), true,
+                        &mut backend,
+                        &target(),
+                        &observed,
+                        Power::Off,
+                        Some("current"),
+                        true,
                     )
                 } else {
                     verify(&mut backend, &target())
@@ -39,12 +44,22 @@ fn changed_check_journals_block_power_restoration_and_completion() {
                 let journal = backend.journal.as_ref().unwrap();
                 assert_eq!(journal.original.high_mmio, original + 1);
                 assert!(journal.pending && !journal.check_restored);
-                assert_eq!(backend.events, match stage {
-                    "start" => vec!["start"],
-                    "verify" => vec!["start", "graphics"],
-                    _ => vec!["start", "graphics", "shutdown"],
-                });
-                assert_eq!(backend.state.power, if stage == "shutdown" { Power::Off } else { Power::Running });
+                assert_eq!(
+                    backend.events,
+                    match stage {
+                        "start" => vec!["start"],
+                        "verify" => vec!["start", "graphics"],
+                        _ => vec!["start", "graphics", "shutdown"],
+                    }
+                );
+                assert_eq!(
+                    backend.state.power,
+                    if stage == "shutdown" {
+                        Power::Off
+                    } else {
+                        Power::Running
+                    }
+                );
             }
         }
     }
@@ -52,13 +67,21 @@ fn changed_check_journals_block_power_restoration_and_completion() {
 
 #[test]
 fn check_completion_requires_independent_journal_readback() {
-    for operation in ["verify", "graphics-reconciliation", "ordinary-reconciliation"] {
+    for operation in [
+        "verify",
+        "graphics-reconciliation",
+        "ordinary-reconciliation",
+    ] {
         for unavailable in [false, true] {
             let mut backend = fake();
             apply(&mut backend, &target()).unwrap();
             backend.journal_writes = 0;
             backend.events.clear();
-            let final_write = if operation == "ordinary-reconciliation" { 1 } else { 4 };
+            let final_write = if operation == "ordinary-reconciliation" {
+                1
+            } else {
+                4
+            };
             if unavailable {
                 backend.fail_read_after_save_at = Some(final_write);
             } else {
@@ -70,7 +93,11 @@ fn check_completion_requires_independent_journal_readback() {
             } else {
                 backend.journal.as_mut().unwrap().pending = true;
                 reconcile_with_graphics(
-                    &mut backend, &target(), &observed, Power::Off, Some("current"),
+                    &mut backend,
+                    &target(),
+                    &observed,
+                    Power::Off,
+                    Some("current"),
                     operation == "graphics-reconciliation",
                 )
             };

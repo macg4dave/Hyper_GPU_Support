@@ -27,9 +27,9 @@ Legacy mock/snapshot GUI tooling is retired and removed from source through APP-
 
 ## P0: workflow modularization
 
-**P0 — Break up `src/workflow.rs` while preserving behavior.** Source extraction is complete; automated validation remains pending. The standalone [AI implementation plan](WORKFLOW_REFACTOR_PLAN.md) specifies module ownership, function mapping, dependency boundaries, extraction order, compatibility requirements and validation. Keep the existing backend, worker/security/recovery architecture and public workflow API.
+**P0 — Break up `src/workflow.rs` while preserving behavior.** Source extraction is complete; the [architecture](ARCHITECTURE.md) records module ownership and boundaries, and [backlog clearance evidence](evidence/backlog-clearance.md) records subsequent automated validation. Keep the existing backend, worker/security/recovery architecture and public workflow API.
 
-Status (12 October 2026): **Implementation Done; validation Pending milestone gate.** At the user's subsequent request, the workflow was extracted into six private production modules with an 82-line shared root and explicit compatible re-exports. All 74 existing tests and the APP-017 through APP-022 fixes were preserved. Targeted formatting, item/test comparison, documentation and diff checks passed; compilation, regression execution and the remaining automated gate stages have not run. Existing visual/live acceptance remains pending. P0 completion does not close or replace any milestone gate; the next separate source action remains in the backlog.
+Status (12 October 2026): **Implementation Done; automated validation Passed in the recorded clearance checkpoints.** The workflow was extracted into six private production modules with an 82-line shared root and compatible re-exports. All 74 original tests and the APP-017 through APP-022 fixes were preserved; subsequent regressions add coverage. Existing visual/live acceptance remains pending. P0 completion does not close or replace any milestone gate; the next separate source action remains in the backlog.
 
 ## Milestones
 

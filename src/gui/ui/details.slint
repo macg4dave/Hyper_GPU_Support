@@ -74,11 +74,15 @@ export component VmDetails inherits Rectangle {
             VerticalLayout { spacing: 5px; Heading { text: root.name; } Hint { text: root.power + " · " + root.status; } }
             if root.dirty : Label { text: "● Draft changed"; color: Theme.accent; font-size: 12px; }
         }
-        ScrollView {
+        details-scroll := ScrollView {
+            min-height: 0px;
             horizontal-scrollbar-policy: always-off;
+            content-width: self.visible-width;
             VerticalLayout {
                 spacing: 14px;
                 alignment: start;
+                width: details-scroll.visible-width;
+                padding-bottom: 18px;
                 Surface {
                     VerticalLayout {
                         padding: 16px; spacing: 10px;
@@ -142,7 +146,7 @@ export component VmDetails inherits Rectangle {
                     TechnicalDetailsButton { enabled: !Theme.modal-active; expanded <=> root.technical; }
                     Rectangle { horizontal-stretch: 1; }
                 }
-                if root.technical && root.technical-details != "" : TechnicalOutput { text: root.technical-details; }
+                if root.technical && root.technical-details != "" : TechnicalOutput { enabled: !Theme.modal-active; text: root.technical-details; }
             }
         }
         HorizontalLayout { spacing: 8px;

@@ -5,6 +5,7 @@ import { Theme } from "theme.slint";
 // neutral with Slint's read-only TextInput and the standard scroll container.
 export component TechnicalOutput inherits Rectangle {
     in property <string> text;
+    in property <bool> enabled: true;
     min-height: 0px;
     preferred-height: 160px;
     max-height: 220px;
@@ -19,6 +20,7 @@ export component TechnicalOutput inherits Rectangle {
             content-width: self.visible-width;
             content-height: max(self.visible-height, output.preferred-height);
             output := TextInput {
+                enabled: root.enabled;
                 accessible-label: "Technical details, read only";
                 text: root.text;
                 read-only: true;

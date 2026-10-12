@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**Backlog clearance (12 October 2026): APP-034 source and automated checks complete; APP-027 is next.** The user authorized continuing through the backlog, including builds/tests and live testing. [Clearance evidence](evidence/backlog-clearance.md) records each checkpoint; live cards close only from their actual scenario evidence.
+**Backlog clearance (12 October 2026): APP-034 and APP-027 are complete; APP-025 source and focused interaction checks are complete. APP-032 is next.** The user authorized backlog work, including automated and live read/write testing. [Clearance evidence](evidence/backlog-clearance.md) records each checkpoint and current check failures; live cards close only from their actual scenario evidence. Existing VM1 recovery still blocks allocation qualification.
 
 **Full source review (12 October 2026): APP-033 source and automated checks complete.** The user authorized review of current code, small/medium fixes and tasks for larger defects. [Review findings](evidence/full-source-review.md) record the fixes and limits. APP-028 is now source implemented. Next safety work when requested: APP-034 (Apply drift checks) and existing APP-027 (failed verification-only Apply retirement). No live effects or new automated gate ran.
 
@@ -12,7 +12,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 Workflow source-review follow-up (12 October 2026): APP-027 (High) remains queued; APP-028 (Medium) was subsequently source implemented in APP-033. The user authorized only APP-029's compatibility-write improvement; its source and regression coverage are complete, with compilation/test execution pending.
 
-**P0 workflow modularization: Implementation Done; validation Pending milestone gate (12 October 2026).** The user requested the [standalone plan](WORKFLOW_REFACTOR_PLAN.md) be implemented. Six private production modules now sit behind the existing workflow entry point; all 74 workflow tests and the current review fixes were preserved. Targeted formatting, structural comparison, documentation and diff checks passed. Compilation/test execution and the remaining automated gate stages have not run. No milestone closed and no live operations ran. This completed refactor does not authorize another backlog task.
+**P0 workflow modularization: Implementation Done; automated validation Passed in the recorded clearance checkpoints (12 October 2026).** Six private production modules sit behind the existing workflow entry point; all 74 original workflow tests and the review fixes were preserved. [Architecture](ARCHITECTURE.md) records the module boundaries; [clearance evidence](evidence/backlog-clearance.md) records subsequent compilation, regression and gate outcomes. Visual/live acceptance remains separate; no milestone closed from extraction alone.
 
 **Completed UI source action: APP-024 — Add Delete profile under VM More actions, source implemented.** APP-016 through APP-022 are source implemented; APP-017 through APP-022 were reviewed and corrected as one related workstream on 12 October 2026. APP-024 now reuses APP-022's protected transition for app-record-only deletion; its separate source implementation is recorded below. The combined review ran static checks only; current compilation and regression execution remain pending under the milestone policy. APP-023 remains blocked by the agreed automated gate and separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
 
@@ -46,7 +46,7 @@ Workflow source-review follow-up (12 October 2026): APP-027 (High) remains queue
 | APP-022 | M2 | Remove an inactive pairing and its saved intent | APP-021 | Done (source implemented; visual acceptance pending) | Pending milestone gate; no compilation or tests run |
 | APP-023 | M2 | Qualify checkpoint rollback detection and recovery | APP-017, APP-018, APP-019, APP-020, APP-022 | Blocked: automated gate and prepared live authorization | Not run |
 | APP-024 | M2 | Add Delete profile under VM More actions | APP-022 | Done (source implemented; app records only) | Pending milestone gate and real interaction; regressions unrun |
-| APP-025 | M2 | Keep Technical Details only where they add diagnostic value | APP-008 | Ready | Not run |
+| APP-025 | M2 | Keep Technical Details only where they add diagnostic value | APP-008 | Done (source implemented) | Passed: full automated gate (295 tests) and scoped live diagnostics; full layout/keyboard acceptance remains APP-032 |
 | APP-026 | M2 | Display the slider VRAM maximum as a whole GB | APP-002 | Done (source implemented) | 90 frontend tests passed; live endpoint label rendered; selectable endpoint blocked by recovery |
 | APP-027 | M2 | Retire a failed verification-only Apply without blocking repair | APP-019, APP-020 | Done | Passed: [automated checkpoint](evidence/backlog-clearance.md); live acceptance remains M2 |
 | APP-028 | M2 | Preserve the guest failure when restoration-proof persistence fails | APP-018, APP-019 | Done | Passed: automated checkpoint |
@@ -328,7 +328,9 @@ Acceptance:
 - Clear obsolete details when the dialog, operation or selected VM changes. Retain readable, scrollable/copyable output and keyboard access using existing components.
 - Add focused presentation/controller coverage for useful details, absent/duplicate-only content, operation/selection changes, failure context, stale observations and secret redaction. Record real visual/interaction validation separately at the agreed milestone.
 
-Status: task added only; no buttons, diagnostic collection or product behavior are changed by this request. Build, automated tests and live UI checks are not run.
+Implementation (12 October 2026): audited VM-panel, failure, review, recovery and inspection inputs. Existing explicit-detail visibility and dialog/selection resets remain; no dialog-body fallback is used. Duplicate-only summary subsets/reordered rows now hide the button. VM diagnostics include collected global/selected-VM/selected-GPU inventory failures and exact selected GPU/driver/capacity facts; unrelated targets are excluded. The inspection dialog reuses this reporting with explicit freshness/history/unknown-state wording. Error details retain typed/redacted context and reported stages; informational dialogs without extra facts have no technical panel. Opening details performs no new checks or effects.
+
+Validation: six focused diagnostics regressions and the full automated gate (295 tests, strict Clippy, formatting, documentation, product builds and API docs) passed after the user requested fixing check failures as encountered. Current-source MCP build passed and live inspection confirmed exact GPU capacity, collected diagnostics, read-only output, selection collapse and absent duplicate details in More actions. [Clearance evidence](evidence/backlog-clearance.md#app-025-diagnostics-checkpoint) records initial failures and fixes. The partly clipped VM-panel details button and full keyboard/copy/theme/layout acceptance remain APP-032/APP-009. No VM/GPU, guest, credential or protected-write effects ran; no milestone closed.
 
 ### APP-026 — Display the slider VRAM maximum as a whole GB
 

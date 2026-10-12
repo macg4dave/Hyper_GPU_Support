@@ -122,6 +122,9 @@ pub enum SavePhase {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SaveRecord {
+    /// Separately approved partial-removal facts, persisted before recovery effects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reset: Option<crate::workflow::ResetReview>,
     /// Durable, review-bound negative completion; never authorizes publication or replay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retirement: Option<Retirement>,
@@ -643,6 +646,7 @@ mod tests {
         let mut record = SaveRecord {
             schema: 1,
             retirement: None,
+            reset: None,
             operation_id: "one".into(),
             target,
             expected: Revision::Missing,
@@ -778,6 +782,7 @@ mod tests {
         let record = SaveRecord {
             schema: 1,
             retirement: None,
+            reset: None,
             operation_id: "0123456789abcdef0123456789abcdef".into(),
             target: target.clone(),
             expected: Revision::Missing,
@@ -914,6 +919,7 @@ mod tests {
         let mut record = SaveRecord {
             schema: 1,
             retirement: None,
+            reset: None,
             operation_id: "resource-operation".into(),
             target,
             expected: Revision::Missing,
