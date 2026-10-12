@@ -2,7 +2,7 @@
 use super::{
     AppWindow, GpuRow, VmRow, dialog,
     live_state::{OperationReadback, State, allocation_values, review_summary, review_text},
-    model,
+    model, wording,
 };
 use hyper_gpu_support::{
     gui_model::Inventory,
@@ -215,11 +215,7 @@ fn credential_request_cancelled(ui: &AppWindow, error: &str, recovery: bool) -> 
             ui,
             "info",
             "Guest credential request cancelled",
-            if recovery {
-                "No reconciliation was started. The existing recovery record and hold remain. Your pending edits are retained."
-            } else {
-                "No guest operation was started. Your pending edits are retained. Review the action again when you are ready to continue."
-            },
+            wording::credential_cancellation(recovery),
         );
         return true;
     }
@@ -679,27 +675,16 @@ fn background_for_vm<T: Send + 'static>(
         ui.set_running(true);
     }
     if !silent {
-        let guest_message = format!(
-            "Virtual machine: {}\n\nSign in with the Windows administrator account you use inside this virtual machine. The app will set up GPU support and check that graphics work. Progress will appear below.",
-            vm_name.unwrap_or("the selected VM")
-        );
+        let guest_message = wording::guest_progress(title, vm_name.unwrap_or("the selected VM"));
         dialog(
             ui,
             "progress",
             title,
-            if guest_access
-                && matches!(
-                    title,
-                    "Apply approved changes"
-                        | "Verify approved graphics"
-                        | "Reconcile observed outcome"
-                        | "Guest credentials"
-                )
-            {
+            if guest_access {
                 &guest_message
             } else if title == "Apply approved changes" {
                 "Applying the reviewed GPU changes and checking host readback. The VM will be left off after successful completion. No guest credentials, preparation or graphics check are required."
-            } else if title == "Reconcile observed outcome" {
+            } else if title == "Check recorded outcome" {
                 "Checking the already-achieved recorded outcome without repeating GPU work or accessing the guest. Unresolved state retains recovery."
             } else if title == "Building fresh plan" {
                 "Preparing your changes may take some time. Checking the selected VM, GPU and installed driver files before showing the changes for approval. Nothing is being applied yet."
@@ -1041,6 +1026,7 @@ fn review_operation(
                     return;
                 }
                 ui.set_needs_shutdown(plan.preview.guest_downtime);
+                ui.set_power_consent(wording::apply_consent(&plan).into());
                 dialog(
                     ui,
                     "review",
@@ -1050,7 +1036,7 @@ fn review_operation(
                         "Review changes before Apply"
                     },
                     &format!(
-                        "Physical GPU: {gpu_name}\n{memory_summary}\n{}\n\nThese changes are still pending. Apply confirms this review; Cancel returns to editing. Windows will request approval before changes. Configuration is saved only after verification.",
+                        "{}\nPhysical GPU: {gpu_name}\n{memory_summary}\n\nThese changes are still pending. Apply confirms this review; Cancel keeps your edits. Windows will request approval before changes. Settings are saved only after the required outcome checks pass.",
                         review_summary(&plan)
                     ),
                 );
@@ -1085,7 +1071,7 @@ fn review_enrollment(
     background(
         ui,
         busy,
-        "Review VM/GPU enrollment",
+        "Review permission before GPU setup",
         move || {
             let pending = hyper_gpu_support::runner::pending_setup()?;
             if pending.is_none() && hyper_gpu_support::runner::installed()? {
@@ -1112,7 +1098,7 @@ fn review_enrollment(
             Ok((approved, artifacts, worker_available)) => {
                 let setup = artifacts.is_some();
                 let mut summary = format!(
-                    "Allow this application to manage the selected GPU for this virtual machine:\n\nVirtual machine: {}\nGPU: {}\n\nThis saves permission only. GPU support and the VM's power state will not change. Your draft stays available; you will review GPU changes separately afterward. Permissions for other VMs are preserved.",
+                    "Virtual machine: {}\nPhysical GPU: {}\n\nStep 1: allow this app to manage this VM's selected GPU. This saves permission only; GPU support and VM power will not change.\n\nStep 2: after this permission is confirmed and refreshed, use Apply to review the actual GPU setup and power changes, then confirm that separate review. Your edits are kept. Other VMs' permissions are preserved.",
                     ui.get_vm_name(),
                     ui.get_gpu_options()
                         .row_data(usize::try_from(ui.get_gpu_index()).unwrap_or(usize::MAX))
@@ -1145,10 +1131,15 @@ fn review_enrollment(
                 }
                 ui.set_execution_ready(worker_available);
                 ui.set_needs_shutdown(false);
-                dialog(ui, "enroll-review", "Review VM/GPU enrollment", &summary);
+                dialog(
+                    ui,
+                    "enroll-review",
+                    "Review permission before GPU setup",
+                    &summary,
+                );
                 ui.set_dialog_details(body.into());
             }
-            Err(error) => dialog(ui, "error", "Enrollment unavailable", &error),
+            Err(error) => dialog(ui, "error", "Permission review unavailable", &error),
         },
     )
 }
@@ -1191,7 +1182,7 @@ fn enroll_live(
         move |ui, result| match result {
             Ok(()) => {
                 if let Err(error) = refresh(ui, &finished_state, &refresh_busy, &source, false) {
-                    dialog(ui, "error", "Authority refresh unavailable", &error);
+                    dialog(ui, "error", "Permission status unavailable", &error);
                 }
             }
             Err(error) => {
@@ -1207,9 +1198,9 @@ fn enroll_live(
                 dialog(
                     ui,
                     "error",
-                    "Enrollment did not finish",
+                    "App permission was not confirmed",
                     &format!(
-                        "{error}\nDraft retained. Refresh authority and inspect any enrollment recovery hold before retrying."
+                        "{error}\nYour edits are kept. Use Refresh and Review recovery before retrying this permission step. GPU setup has not been confirmed."
                     ),
                 );
             }
@@ -1250,7 +1241,7 @@ fn reconcile_enrollment_live(
         move |ui, result| match result {
             Ok(_) => {
                 if let Err(error) = refresh(ui, &finished_state, &refresh_busy, &source, false) {
-                    dialog(ui, "error", "Authority refresh unavailable", &error);
+                    dialog(ui, "error", "Permission status unavailable", &error);
                 }
             }
             Err(error) => {
@@ -1581,7 +1572,7 @@ fn review_verification(
     background(
         ui,
         busy,
-        "Reviewing graphics verification",
+        "Reviewing Verify GPU setup",
         move || {
             let value = hyper_gpu_support::runner::submit(hyper_gpu_support::runner::request(
                 hyper_gpu_support::runner::Operation::VerifyPlan,
@@ -1596,28 +1587,19 @@ fn review_verification(
             Ok((plan, worker_available)) => {
                 ui.set_execution_ready(worker_available);
                 ui.set_needs_shutdown(plan.observed.power == hyper_gpu_support::model::Power::Off);
-                let body = format!(
-                    "VM: {}\nVM ID: {}\nGPU: {}\nDriver: {}\nPayload digest: {}\n\nCompare current guest driver files and the preparation receipt with the authenticated host manifest, then check device health and hardware rendering using this VM's guest administrator credentials. {}\nVerify refreshes its protected guest helper executables, manifest metadata and optional diagnostic files. It does not reinstall driver payloads, rewrite the preparation receipt, or change GPU assignment, resources or saved settings. The worker independently rechecks the reviewed state before effects.",
-                    plan.observed.name,
-                    plan.target.vm_id,
-                    plan.target.gpu_interface,
-                    plan.gpu.driver_version,
-                    plan.payload_digest,
-                    if plan.observed.power == hyper_gpu_support::model::Power::Off {
-                        "Temporarily start the stopped guest, then gracefully restore it to stopped."
-                    } else {
-                        "The guest remains running."
-                    }
-                );
+                ui.set_power_consent(wording::verify_consent(&plan).into());
+                let body = wording::verify_review(&plan);
+                let details = wording::verify_details(&plan);
                 if !with_state(ui, &review_state, |state| {
                     state.verification_plan = Some(plan);
                     Ok(())
                 }) {
                     return;
                 }
-                dialog(ui, "verify-review", "Review graphics verification", &body);
+                dialog(ui, "verify-review", "Review Verify GPU setup", &body);
+                ui.set_dialog_details(details.into());
             }
-            Err(error) => dialog(ui, "error", "Graphics verification blocked", &error),
+            Err(error) => dialog(ui, "error", "Verify GPU setup unavailable", &error),
         },
     )
 }
@@ -1633,10 +1615,11 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
     let progress = progress_to_ui(ui.as_weak());
     let finished_state = state.clone();
     let vm_name = approved.observed.name.clone();
+    let result_vm_name = vm_name.clone();
     background_operation(
         ui,
         busy,
-        "Verify approved graphics",
+        "Verify GPU setup",
         Some(&vm_name),
         true,
         move || {
@@ -1676,20 +1659,26 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
                 Ok(outcome) if outcome.finished => dialog(
                     ui,
                     "info",
-                    "Guest verification passed",
-                    "Current guest driver files and preparation receipt matched the authenticated host manifest; device health and hardware rendering passed. Disclosed guest power was restored. Refresh to read the new protected verification record.",
+                    "Verify GPU setup passed",
+                    &format!(
+                        "{result_vm_name}: current guest driver files and setup record matched the approved driver package; device health and hardware rendering passed. The reviewed final power state was confirmed. Refresh to read the latest check result; it is a record of this check, not a guarantee of future health."
+                    ),
                 ),
                 Ok(_) => dialog(
                     ui,
                     "error",
-                    "Graphics outcome unresolved",
-                    "Inspect the retained recovery record and Refresh.",
+                    "Verify GPU setup outcome unknown",
+                    &format!(
+                        "{result_vm_name}: no completed check outcome was established. Use Refresh and Review recovery before another operation."
+                    ),
                 ),
                 Err(error) => dialog(
                     ui,
                     "error",
-                    "Graphics verification did not complete",
-                    &format!("{error}\nRefresh and inspect recovery before another operation."),
+                    "Verify GPU setup did not complete",
+                    &format!(
+                        "{result_vm_name}: {error}\nThe check did not complete. Use Refresh and Review recovery before another operation; prior successful checks do not establish current health."
+                    ),
                 ),
             }
         },
@@ -1754,7 +1743,7 @@ fn reconcile_live(
     background_operation(
         ui,
         busy,
-        "Reconcile observed outcome",
+        "Check recorded outcome",
         Some(&vm_name),
         record.requires_graphics() && !restored_candidate,
         move || {
@@ -1813,7 +1802,7 @@ fn reconcile_live(
                 Ok(outcome) if outcome.finished => dialog(
                     ui,
                     "info",
-                    "Recorded outcome reconciled",
+                    "Recorded outcome confirmed",
                     "Fresh checks established the reviewed outcome and any required configuration publication. No GPU assignment, allocation or preparation was repeated. Refresh before another operation.",
                 ),
                 Ok(outcome) => dialog(
@@ -1826,9 +1815,9 @@ fn reconcile_live(
                     ),
                 ),
                 Err(error) => {
-                    dialog(ui, "error", "Reconciliation remains blocked", &error);
+                    dialog(ui, "error", "Recovery remains blocked", &error);
                     ui.set_dialog_body(format!(
-                        "{}\nThe recovery hold remains. Refresh and have an administrator reconcile the VM state before applying new changes.",
+                        "{}\nRecovery remains blocked. Use Refresh and Review recovery; an administrator may need to check the VM state before new changes.",
                         hyper_gpu_support::reporting::operator_error("Reconciliation", &error),
                     ).into());
                 }
@@ -1838,11 +1827,11 @@ fn reconcile_live(
 }
 #[cfg(not(windows))]
 fn review_verification(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
-    Err("Graphics verification requires Windows".into())
+    Err("Verify GPU setup requires Windows".into())
 }
 #[cfg(not(windows))]
 fn verify_live(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
-    Err("Graphics verification requires Windows".into())
+    Err("Verify GPU setup requires Windows".into())
 }
 #[cfg(not(windows))]
 fn reconcile_live(_: &AppWindow, _: &SharedState, _: &Arc<AtomicBool>) -> Result<(), String> {
@@ -2143,9 +2132,12 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                             "The original policy is present; the pair was not added. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
                         };
                         let body = format!("Operation: {}\nVM ID: {}\nGPU: {}\n\n{outcome}", record.operation_id, record.review.vm_id, record.review.gpu_interface);
+                        let name = state.view.vm(&record.review.vm_id).map_or("VM name unavailable; see Technical Details", |vm| vm.name.as_str());
+                        let summary = format!("Virtual machine: {name}\n\n{outcome}\n\nReviewing this record makes no changes. Confirmation is required for the recovery action shown.");
                         state.enrollment_recovery_revision = Some(revision);
                         ui.set_needs_shutdown(false);
-                        dialog(&ui, "enrollment-recovery", if record.removal.is_some() { "Review interrupted profile removal" } else { "Review interrupted enrollment" }, &body);
+                        dialog(&ui, "enrollment-recovery", if record.removal.is_some() { "Review interrupted profile deletion" } else { "Review interrupted app permission" }, &summary);
+                        ui.set_dialog_details(body.into());
                         return Ok(());
                     }
                     if action == "recovery" && let Some(record) = &state.import_recovery {
@@ -2155,6 +2147,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     if action == "recovery"
                         && let Some(record) = &state.recovery {
                         ui.set_needs_shutdown(record.requires_graphics());
+                        ui.set_power_consent(wording::recovery_consent(&record.final_power()?).into());
                         match record.phase {
                             hyper_gpu_support::configuration_store::SavePhase::Verified(_) | hyper_gpu_support::configuration_store::SavePhase::Published(_) => {
                                 if record.publication_required {

@@ -63,6 +63,7 @@ export component AppWindow inherits Window {
     in-out property <[string]> stages;
     in-out property <bool> running: false;
     in-out property <bool> needs-shutdown: false;
+    in-out property <string> power-consent;
     private property <bool> modal-active: root.dialog-kind != "" || root.running;
     changed modal-active => { Theme.modal-active = root.modal-active; }
     private property <length> split: 310px;
@@ -155,7 +156,7 @@ export component AppWindow inherits Window {
             }
         }
         Rectangle { height: 30px; background: Theme.surface;
-            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.recovery ? "Recovery requires your attention" : root.execution-ready ? "Ready to review changes" : "Setup or refresh required"; } Hint { text: root.running ? ("Please wait…") : "Ready"; horizontal-alignment: right; } }
+            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.recovery || root.action-recovery ? "Review recovery before new changes" : root.updating ? "Updating VM information" : root.selected-id == "" ? "Select a VM" : !root.execution-ready || !root.eligible || root.validation != "" ? "Check the selected VM's status; setup or Refresh may be required" : root.dirty ? "Pending edits; review required before changes" : "No pending edits"; } Hint { text: root.running ? "Operation in progress" : "No operation running"; horizontal-alignment: right; } }
         }
     }
     if root.dialog-kind != "" : OperationDialog {
@@ -165,7 +166,7 @@ export component AppWindow inherits Window {
         action-recovery: root.action-recovery; dirty: root.dirty;
         kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body;
         details: root.dialog-details; stages: root.stages; running: root.running;
-        needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); }
+        needs-shutdown: root.needs-shutdown; power-consent: root.power-consent; action(a) => { root.action(a); }
     }
 }
 

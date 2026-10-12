@@ -4,7 +4,7 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**UI usability work (12 October 2026): APP-030 source implemented; validation pending milestone gate and real interaction.** The [source audit](BASELINE.md#ui-interaction-audit---12-october-2026) records the initial gaps and subsequent source status. APP-024 is now source implemented with app-record-only deletion; next UI action when requested: APP-031 (action/review language), APP-025 (useful diagnostics), APP-032 (dialog interaction), then APP-026 (VRAM label). Existing recovery prerequisites and milestone gates remain in force. The user authorized APP-030 and APP-024 source implementation; no further card or live GUI check is authorized.
+**UI usability work (12 October 2026): APP-030 source implemented; validation pending milestone gate and real interaction.** The [source audit](BASELINE.md#ui-interaction-audit---12-october-2026) records the initial gaps and subsequent source status. APP-024 is now source implemented with app-record-only deletion; APP-031 source now aligns operation wording; next UI action when requested: APP-025 (useful diagnostics), APP-032 (dialog interaction), then APP-026 (VRAM label). Existing recovery prerequisites and milestone gates remain in force. The user authorized APP-030, APP-024 and APP-031 source implementation; no further card or live GUI check is authorized.
 
 Workflow source-review follow-up (12 October 2026): APP-027 (High) and APP-028 (Medium) are queued for separate implementation. The user authorized only APP-029's compatibility-write improvement; its source and regression coverage are complete, with compilation/test execution pending.
 
@@ -48,7 +48,7 @@ Workflow source-review follow-up (12 October 2026): APP-027 (High) and APP-028 (
 | APP-028 | M2 | Preserve the guest failure when restoration-proof persistence fails | APP-018, APP-019 | Ready (Medium review finding) | Not run |
 | APP-029 | M2 | Skip unchanged compatibility writes during enabled Apply | APP-006 | Done (source implemented) | Pending milestone gate; regressions unrun |
 | APP-030 | M2 | Explain selected-VM action availability before activation | APP-016, APP-021, APP-022 | Done (source implemented) | Pending milestone gate and real interaction; regressions unrun |
-| APP-031 | M2 | Make action labels and review language match actual effects | APP-018, APP-020, APP-021 | Ready (Medium usability finding) | Not run |
+| APP-031 | M2 | Make action labels and review language match actual effects | APP-018, APP-020, APP-021 | Done (source implemented) | Pending milestone gate and real interaction; regressions unrun |
 | APP-032 | M2 | Make dialogs usable with keyboard and constrained layouts | APP-003 | Ready (Medium interaction risk) | Not run |
 
 Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records the original five fixes and completed follow-up review. The [M1 closure](evidence/m1-closure.md) supersedes historical unrun/open statements in the implementation notes below for automated validation only; live qualification remains pending.
@@ -399,7 +399,15 @@ Acceptance:
 - Move implementation identifiers/details to existing diagnostic output where useful under APP-025. Keep truthful VRAM limitations; do not claim reserved memory, current guest health from history, or qualified hardware behaviour.
 - Cover operation-specific labels, power consent, missing/stale facts and failure/next-step presentation with focused regressions. Check readability and actual dialogs separately under APP-009.
 
-Implementation: Ready. Validation: Not run. Source audit finding only; no wording or product behaviour changed.
+Implementation: Done (source implemented at the user's request on 12 October 2026). More actions, review, confirmation, progress and result now consistently say Verify GPU setup, covering current driver files/setup record and device health/rendering. The [wording presenter](../src/gui/wording.rs) derives lifecycle/consent from reviewed power facts; Apply describes its final state rather than initial-power restoration, Verify describes an off VM's temporary start/graceful shutdown or a running VM remaining running, and recovery uses the bound expected final state without promising an unconfirmed outcome. A changed consent label clears checkbox approval. Backend consent requirements and effects are unchanged.
+
+Apply reviews lead with the VM, retain exact changes/steps and distinguish verification-only work from required driver preparation. Initial permission explains the two separate setup reviews. Verify IDs, driver/digest and helper details move into distinct Technical Details while normal copy retains the checks, power, guest credentials/time and unknown/history limits. Check recorded outcome replaces the recovery confirmation/progress wording; record identifiers remain in details. The footer distinguishes pending edits, blocked/setup/refresh/recovery conditions and whether an operation is running rather than displaying generic Ready.
+
+Guest progress describes the actual requested operation; saved credential management never claims setup or a guest connection. The local prompt refers to approved guest steps instead of assuming every prompt starts setup. Cancellation preserves edits/holds and does not imply setup or verification completion. Verify result/failure names the VM and retains next steps/uncertainty. Delete profile remains app-record-only with no GPU or power effects. APP-025 still owns broader technical-button visibility/deduplication.
+
+Regression source: six new isolated presentation tests cover Apply final-power consent, Verify off/running/unknown power and historical-health limits, technical identity separation, verification-only Apply without preparation, operation-specific guest progress, credential cancellation and recovery unknown-power wording. The existing local-prompt regression now asserts reviewed-purpose wording without an assumed setup claim.
+
+Validation: targeted Rust formatting/check, documentation/link/task consistency and diff whitespace only. Compilation, regression execution, Slint compilation/rendering and real interaction remain pending the agreed checkpoint. No GUI launch, credentials, guest access, protected writes or VM/GPU effects ran; no milestone closed.
 
 ### APP-032 - Make dialogs usable with keyboard and constrained layouts
 

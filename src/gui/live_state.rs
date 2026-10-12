@@ -813,8 +813,14 @@ pub(super) fn review_summary(plan: &Plan) -> String {
     if plan.initial_setup && !plan.reinstall {
         lines.insert(1, "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes.".into());
     }
-    if !plan.initial_setup && plan.preview.credentials_required && !plan.reinstall {
+    if !plan.initial_setup
+        && plan.preview.credentials_required
+        && !plan.reinstall
+        && plan.preview.actions.contains(&PreviewAction::Prepare)
+    {
         lines.insert(1, "GPU setup/update required: preparation changed or is invalid. Review driver work, hardware rendering and final shutdown before confirming.".into());
+    } else if !plan.initial_setup && plan.preview.credentials_required && !plan.reinstall {
+        lines.insert(1, "Verify GPU setup required: check current guest driver files, setup record and hardware rendering without reinstalling drivers. Apply follows the final power state shown below.".into());
     } else if !plan.preview.credentials_required {
         lines.insert(1, "Ordinary GPU change: no guest access or graphics check. Leave the VM off after success; start it through Hyper-V when ready.".into());
     }
@@ -881,7 +887,7 @@ pub(super) fn review_summary(plan: &Plan) -> String {
                     PreviewAction::Settings => "Update or restore GPU compatibility settings.",
                     PreviewAction::Attach => "Attach the selected physical GPU.",
                     PreviewAction::Allocation => "Set the GPU resources shown above.",
-                    PreviewAction::Verify => "Check guest graphics health and hardware rendering.",
+                    PreviewAction::Verify => "Verify GPU setup: check driver files, setup record, device health and hardware rendering.",
                 };
                 format!("{}. {step}", index + 1)
             }),
@@ -2902,5 +2908,69 @@ mod tests {
         assert!(summary.contains("several minutes"));
         assert!(summary.contains("graphics check may take additional time"));
         assert!(!summary.contains("Ordinary GPU change"));
+    }
+
+    #[test]
+    fn verify_review_distinguishes_current_checks_from_history_and_technical_identity() {
+        use hyper_gpu_support::workflow::VerificationPlan;
+        let s = state();
+        let mut plan = VerificationPlan {
+            target: s.target(id(&s)).unwrap(),
+            observed: s.view.vm(id(&s)).unwrap().clone(),
+            gpu: s.view.inventory.as_ref().unwrap().discovery.gpus[0].clone(),
+            managed: None,
+            payload_digest: "authenticated-fixture-digest".into(),
+        };
+        let summary = super::super::wording::verify_review(&plan);
+        assert!(summary.starts_with("Virtual machine: Renamable VM"));
+        assert!(summary.contains("current guest driver files and setup record"));
+        assert!(summary.contains("past successful check alone does not establish current health"));
+        assert!(summary.contains("Expected final power after successful completion: Off"));
+        assert!(!summary.contains(&plan.payload_digest));
+        assert!(!summary.contains(&plan.target.vm_id));
+        let details = super::super::wording::verify_details(&plan);
+        assert!(details.contains(&plan.target.vm_id));
+        assert!(details.contains(&plan.payload_digest));
+        assert!(super::super::wording::verify_consent(&plan).contains("temporarily starting"));
+        plan.observed.power = Power::Running;
+        assert!(super::super::wording::verify_review(&plan).contains("remain Running"));
+        assert!(!super::super::wording::verify_consent(&plan).contains("shutting it down"));
+        plan.observed.power = Power::Other(4);
+        assert!(super::super::wording::verify_review(&plan).contains("Unknown"));
+        assert!(super::super::wording::verify_consent(&plan).contains("review again"));
+    }
+
+    #[test]
+    fn apply_consent_uses_reviewed_final_power_instead_of_initial_power_restoration() {
+        let mut plan = review_plan();
+        plan.observed.power = Power::Running;
+        plan.preview.restore_power = Power::Off;
+        let consent = super::super::wording::apply_consent(&plan);
+        assert!(consent.contains("successful completion: Off"));
+        assert!(!consent.contains("restor"));
+        plan.observed.power = Power::Off;
+        plan.initial_setup = true;
+        assert!(super::super::wording::apply_consent(&plan).contains("reviewed starts/shutdowns"));
+        plan.preview.restore_power = Power::Other(4);
+        assert!(super::super::wording::apply_consent(&plan).contains("Unknown"));
+    }
+
+    #[test]
+    fn verification_only_apply_review_does_not_claim_driver_preparation_is_required() {
+        use hyper_gpu_support::workflow::PreviewAction;
+        let mut plan = review_plan();
+        plan.preview.credentials_required = true;
+        plan.preview.actions = vec![
+            PreviewAction::Start,
+            PreviewAction::Verify,
+            PreviewAction::Shutdown,
+        ];
+        plan.preview.restore_power = Power::Off;
+        let summary = review_summary(&plan);
+        assert!(summary.contains("Verify GPU setup required"));
+        assert!(summary.contains("without reinstalling drivers"));
+        assert!(!summary.contains("GPU setup/update required"));
+        assert!(!summary.contains("Driver preparation and file transfer"));
+        assert!(summary.contains("Expected final VM power after successful completion: Stopped"));
     }
 }

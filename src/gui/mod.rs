@@ -4,6 +4,7 @@ mod host_configuration;
 mod live;
 mod live_state;
 mod memory;
+mod wording;
 use slint::{Model, ModelRc, VecModel};
 use std::rc::Rc;
 slint::include_modules!();

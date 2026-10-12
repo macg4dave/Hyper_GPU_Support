@@ -45,6 +45,8 @@ M2 source preparation is recorded in the [qualification sequence](evidence/m2-pr
 
 ## Current position
 
+APP-031 source is implemented on 12 October: Verify GPU setup names the actual checks, consent follows reviewed final power, initial permission explains the separate setup reviews and credential/progress/status language avoids false setup or readiness claims. Backend effects/approval contracts are unchanged. Targeted formatting/docs/diff checks only; compilation, regressions and actual dialogs remain pending under APP-009.
+
 APP-024 is source implemented on 12 October: Delete profile removes only app records using APP-022's protected transition. The user's clarification excludes staged GPU removal and power changes; active/unknown support blocks deletion under existing admission. Compilation, regressions and real menu/confirmation acceptance are pending; no gate closed.
 
 The 12 October [UI interaction audit](BASELINE.md#ui-interaction-audit---12-october-2026) adds APP-030 through APP-032 under existing R2/R6 and M2 usability scope: action availability, accurate action/review language and dialog keyboard/layout behaviour. APP-030 is subsequently source implemented at the user's request: per-action reasons, reachable next steps/recovery review and a fixed enrolled GPU selector. Targeted formatting/docs/diff checks only; compilation, regressions and real interaction remain pending. APP-024 through APP-026 retain ownership of profile deletion, useful diagnostics and VRAM labels. [Journey acceptance](TESTING.md#ui-journey-acceptance) remains part of APP-009 and requires prepared live authorization. No design replacement, backend rewrite or milestone closure is implied.

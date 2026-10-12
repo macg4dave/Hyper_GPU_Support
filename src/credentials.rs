@@ -272,7 +272,7 @@ fn retain_if_requested(
 fn guest_prompt_message(_vm: &str, name: &str) -> String {
     let name: String = name.chars().filter(|c| !c.is_control()).take(256).collect();
     format!(
-        "Sign in to {name}\n\nEnter the Windows administrator username and password you use inside this virtual machine. The app needs them to set up GPU support and check that graphics work.\n\nRemember is optional. Leave it unchecked to use your details just this once; selecting it saves them securely on this computer for this VM."
+        "Sign in to {name}\n\nEnter the Windows administrator username and password you use inside this virtual machine. The app uses them for the guest steps you approve in review.\n\nRemember is optional. Leave it unchecked to use your details just this once; selecting it saves them securely on this computer for this VM."
     )
 }
 
@@ -287,11 +287,13 @@ mod prompt_tests {
             "test-001",
             "username and password",
             "Windows administrator",
+            "guest steps you approve in review",
             "Remember is optional. Leave it unchecked",
         ] {
             assert!(text.contains(expected));
         }
         assert!(!text.contains("vm-guid"));
+        assert!(!text.contains("set up GPU support"));
         assert!(text.len() < 400);
     }
 
