@@ -1,10 +1,12 @@
 //! Bounded, ordered acknowledgements from the fixed guest transfer bridge.
-use crate::process::StderrMonitor;
+use crate::{process::StderrMonitor, workflow::PreparationProgress};
+use std::collections::VecDeque;
 use std::{
     sync::Mutex,
     time::{Duration, Instant},
 };
 
+const PHASE_PREFIX: &str = "HGPREPARATION ";
 const PREFIX: &str = "HGTRANSFER ";
 const FILE_LIMIT: Duration = Duration::from_secs(300);
 const IDLE_LIMIT: Duration = Duration::from_secs(60);
@@ -30,16 +32,28 @@ struct State {
     done: bool,
     pending: Option<Progress>,
     reported: Instant,
+    phase_index: usize,
+    phases: VecDeque<PreparationProgress>,
 }
 
 pub(crate) struct Monitor {
     sizes: Vec<u64>,
     total: u64,
+    verification: bool,
     state: Mutex<State>,
 }
 
 impl Monitor {
+    #[cfg(test)]
     pub fn new(sizes: Vec<u64>, now: Instant) -> Result<Self, String> {
+        Self::for_operation(sizes, now, false)
+    }
+
+    pub fn for_operation(
+        sizes: Vec<u64>,
+        now: Instant,
+        verification: bool,
+    ) -> Result<Self, String> {
         let total = sizes
             .iter()
             .try_fold(0_u64, |sum, bytes| sum.checked_add(*bytes))
@@ -47,6 +61,7 @@ impl Monitor {
         Ok(Self {
             sizes,
             total,
+            verification,
             state: Mutex::new(State {
                 index: 0,
                 bytes: 0,
@@ -56,6 +71,8 @@ impl Monitor {
                 done: false,
                 pending: None,
                 reported: now,
+                phase_index: 0,
+                phases: VecDeque::new(),
             }),
         })
     }
@@ -110,6 +127,50 @@ impl Monitor {
         Ok(())
     }
 
+    fn accept_phase(&self, code: &str) -> Result<(), String> {
+        let sequence: &[(&str, PreparationProgress)] = if self.verification {
+            &[
+                ("checking-guest", PreparationProgress::CheckingGuestFiles),
+                ("graphics", PreparationProgress::CheckingGraphics),
+            ]
+        } else {
+            &[
+                ("checking-copied", PreparationProgress::CheckingCopiedFiles),
+                ("installing", PreparationProgress::InstallingFiles),
+                (
+                    "checking-installed",
+                    PreparationProgress::CheckingInstalledFiles,
+                ),
+            ]
+        };
+        let mut state = self.state.lock().map_err(|_| "transfer monitor poisoned")?;
+        let Some((expected, event)) = sequence.get(state.phase_index) else {
+            return Err("unexpected guest phase event".into());
+        };
+        if !state.done || code != *expected {
+            return Err("out-of-order guest phase event".into());
+        }
+        state.phase_index += 1;
+        state.phases.push_back(*event);
+        Ok(())
+    }
+
+    /// Small ordered phase queue, independent of coalesced transfer counters.
+    pub fn take_phases(&self) -> Result<Vec<PreparationProgress>, String> {
+        let mut state = self.state.lock().map_err(|_| "transfer monitor poisoned")?;
+        Ok(state.phases.drain(..).collect())
+    }
+
+    /// A successful worker reply must include every required phase boundary.
+    pub fn require_worker_phases(&self) -> Result<(), String> {
+        let state = self.state.lock().map_err(|_| "transfer monitor poisoned")?;
+        let expected = if self.verification { 2 } else { 3 };
+        if !state.done || state.phase_index != expected {
+            return Err("guest worker ended without complete phase evidence".into());
+        }
+        Ok(())
+    }
+
     fn check_state(s: &State, now: Instant) -> Result<(), String> {
         if s.done {
             return Ok(());
@@ -144,6 +205,12 @@ impl Monitor {
 
 impl StderrMonitor for Monitor {
     fn line(&self, line: &[u8]) -> Result<bool, String> {
+        if let Some(code) = line.strip_prefix(PHASE_PREFIX.as_bytes()) {
+            self.accept_phase(
+                std::str::from_utf8(code).map_err(|_| "invalid guest phase encoding")?,
+            )?;
+            return Ok(true);
+        }
         if !line.starts_with(PREFIX.as_bytes()) {
             return Ok(false);
         }
@@ -172,6 +239,47 @@ impl StderrMonitor for Monitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn worker_phases_are_ordered_mode_bound_and_never_inferred_from_copy_counters() {
+        let now = Instant::now();
+        let monitor = Monitor::new(vec![], now).unwrap();
+        assert!(monitor.accept_phase("checking-copied").is_err());
+        monitor.accept("done 0 0", now).unwrap();
+        assert!(monitor.take_phases().unwrap().is_empty());
+        assert!(monitor.require_worker_phases().is_err());
+        for invalid in ["installing", "graphics", "unknown", "checking-copied extra"] {
+            assert!(monitor.accept_phase(invalid).is_err());
+        }
+        monitor.accept_phase("checking-copied").unwrap();
+        assert!(monitor.accept_phase("checking-copied").is_err());
+        monitor.accept_phase("installing").unwrap();
+        assert!(monitor.require_worker_phases().is_err());
+        monitor.accept_phase("checking-installed").unwrap();
+        monitor.require_worker_phases().unwrap();
+        assert_eq!(
+            monitor.take_phases().unwrap(),
+            vec![
+                PreparationProgress::CheckingCopiedFiles,
+                PreparationProgress::InstallingFiles,
+                PreparationProgress::CheckingInstalledFiles
+            ]
+        );
+        assert!(monitor.take_phases().unwrap().is_empty());
+        assert!(monitor.accept_phase("checking-installed").is_err());
+        let verify = Monitor::for_operation(vec![], now, true).unwrap();
+        verify.accept("done 0 0", now).unwrap();
+        assert!(verify.accept_phase("checking-copied").is_err());
+        verify.accept_phase("checking-guest").unwrap();
+        verify.accept_phase("graphics").unwrap();
+        assert_eq!(
+            verify.take_phases().unwrap(),
+            vec![
+                PreparationProgress::CheckingGuestFiles,
+                PreparationProgress::CheckingGraphics
+            ]
+        );
+    }
+
     #[test]
     fn four_mib_chunks_and_partial_tail_preserve_exact_file_accounting() {
         let now = Instant::now();

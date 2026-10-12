@@ -46,8 +46,8 @@ pub(super) fn progress_to_ui(
                 ui.set_current_stage(row.clone());
                 ui.set_transfer_fraction(transfer_fraction(&progress.stage).unwrap_or(-1.0));
                 let mut steps = ui.get_progress_steps();
-                if progress.stage == "Checking and installing copied driver files" {
-                    steps = update_steps(steps, "Copying files ? Complete".into());
+                if progress.stage == "File copying complete; waiting for guest checks" {
+                    steps = update_steps(steps, "Copying files · Complete".into());
                 }
                 ui.set_progress_steps(update_steps(steps, row));
             }
@@ -150,10 +150,7 @@ mod tests {
             transfer_fraction("Copying files: progress unavailable; verification pending"),
             None
         );
-        assert_eq!(
-            transfer_fraction("Checking and installing copied driver files"),
-            None
-        );
+        assert_eq!(transfer_fraction("Checking copied driver files"), None);
         assert_eq!(transfer_fraction("Copying files: (101%)"), None);
         let steps = update_steps(model(vec![]), "Starting the VM · In progress".into());
         let steps = update_steps(steps, "Starting the VM · Complete".into());

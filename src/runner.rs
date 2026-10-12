@@ -1400,6 +1400,27 @@ impl Backend for NativeBackend {
                 .ok_or("guest credentials required")?,
         )
     }
+    fn verify_with_progress(
+        &mut self,
+        t: &Target,
+        g: &Gpu,
+        progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
+    ) -> Result<(), String> {
+        if self.manifest.is_none() {
+            self.payload(t)?;
+        }
+        crate::guest::verify_with_progress(
+            t,
+            g,
+            self.manifest
+                .as_ref()
+                .ok_or("current manifest unavailable for verification")?,
+            self.credential
+                .as_ref()
+                .ok_or("guest credentials required")?,
+            progress,
+        )
+    }
     fn prepare_with_progress(
         &mut self,
         t: &Target,

@@ -1549,6 +1549,64 @@ struct ObservedBackend<'a, B, F> {
     before_effect: Option<&'a mut dyn FnMut() -> Result<(), String>>,
 }
 
+/// Phase boundaries come from the fixed worker, never elapsed time or byte percentage.
+fn guest_progress(
+    event: workflow::PreparationProgress,
+    current: &mut Option<&'static str>,
+    notify: &mut impl FnMut(Progress) -> Result<(), String>,
+) -> Result<(), String> {
+    use workflow::PreparationProgress;
+    let stage = match event {
+        PreparationProgress::Copying {
+            bytes,
+            total,
+            files,
+            count,
+        } => {
+            return notify(Progress {
+                stage: crate::reporting::transfer_progress(bytes, total, files, count),
+                status: StageStatus::Running,
+            });
+        }
+        PreparationProgress::CopyComplete => "File copying complete; waiting for guest checks",
+        PreparationProgress::CheckingCopiedFiles => "Checking copied driver files",
+        PreparationProgress::InstallingFiles => "Installing GPU driver files",
+        PreparationProgress::CheckingInstalledFiles => "Checking installed driver files",
+        PreparationProgress::CheckingGuestFiles => "Checking current guest files and setup record",
+        PreparationProgress::CheckingGraphics => "Checking device health and hardware rendering",
+    };
+    if let Some(previous) = *current {
+        notify(Progress {
+            stage: previous.into(),
+            status: StageStatus::Done,
+        })?;
+    }
+    notify(Progress {
+        stage: stage.into(),
+        status: StageStatus::Running,
+    })?;
+    *current = Some(stage);
+    Ok(())
+}
+
+fn finish_guest_progress(
+    current: Option<&str>,
+    succeeded: bool,
+    notify: &mut impl FnMut(Progress) -> Result<(), String>,
+) -> Result<(), String> {
+    if let Some(stage) = current {
+        notify(Progress {
+            stage: stage.into(),
+            status: if succeeded {
+                StageStatus::Done
+            } else {
+                StageStatus::Failed
+            },
+        })?;
+    }
+    Ok(())
+}
+
 fn finish_progress<T>(
     result: Result<T, String>,
     delivery: Result<(), String>,
@@ -1649,25 +1707,14 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
             stage: "Prepare current signed payload".into(),
             status: StageStatus::Running,
         })?;
+        let mut phase = None;
         let result =
             crate::diagnostics::run("Prepare current signed payload", "approved-worker", || {
                 self.backend.prepare_with_progress(t, &mut |event| {
-                    (self.notify)(Progress {
-                        stage: match event {
-                            workflow::PreparationProgress::Copying {
-                                bytes,
-                                total,
-                                files,
-                                count,
-                            } => crate::reporting::transfer_progress(bytes, total, files, count),
-                            workflow::PreparationProgress::CheckingAndInstalling => {
-                                "Checking and installing copied driver files".into()
-                            }
-                        },
-                        status: StageStatus::Running,
-                    })
+                    guest_progress(event, &mut phase, self.notify)
                 })
             });
+        let phase_delivery = finish_guest_progress(phase, result.is_ok(), self.notify);
         let delivery = (self.notify)(Progress {
             stage: "Prepare current signed payload".into(),
             status: if result.is_ok() {
@@ -1680,18 +1727,82 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
             result.map_err(|error| {
                 crate::reporting::failure_at_stage(error, "Prepare current signed payload")
             }),
-            delivery,
+            phase_delivery.and(delivery),
         )
     }
     fn verify(&mut self, t: &Target, g: &Gpu) -> Result<(), String> {
-        self.effect("Check guest health and hardware rendering", |b| {
-            b.verify(t, g)
-        })
+        if let Some(before) = &mut self.before_effect {
+            before()?;
+        }
+        let stage = "Check guest health and hardware rendering";
+        (self.notify)(Progress {
+            stage: stage.into(),
+            status: StageStatus::Running,
+        })?;
+        let mut phase = None;
+        let result = crate::diagnostics::run(stage, "approved-worker", || {
+            self.backend.verify_with_progress(t, g, &mut |event| {
+                guest_progress(event, &mut phase, self.notify)
+            })
+        });
+        let phase_delivery = finish_guest_progress(phase, result.is_ok(), self.notify);
+        let delivery = (self.notify)(Progress {
+            stage: stage.into(),
+            status: if result.is_ok() {
+                StageStatus::Done
+            } else {
+                StageStatus::Failed
+            },
+        });
+        finish_progress(
+            result.map_err(|error| crate::reporting::failure_at_stage(error, stage)),
+            phase_delivery.and(delivery),
+        )
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn guest_phase_failures_retain_the_actual_stage_and_delivery_failure_prevents_next_stage_notification()
+     {
+        let mut events = Vec::new();
+        let mut phase = None;
+        let mut notify = |event: Progress| {
+            events.push(event);
+            Ok(())
+        };
+        guest_progress(
+            workflow::PreparationProgress::CheckingCopiedFiles,
+            &mut phase,
+            &mut notify,
+        )
+        .unwrap();
+        guest_progress(
+            workflow::PreparationProgress::InstallingFiles,
+            &mut phase,
+            &mut notify,
+        )
+        .unwrap();
+        finish_guest_progress(phase, false, &mut notify).unwrap();
+        assert_eq!(events.len(), 4);
+        assert_eq!(events[1].status, StageStatus::Done);
+        assert_eq!(events[3].stage, "Installing GPU driver files");
+        assert_eq!(events[3].status, StageStatus::Failed);
+        let mut delivered = 0;
+        let result = guest_progress(
+            workflow::PreparationProgress::CheckingInstalledFiles,
+            &mut phase,
+            &mut |_| {
+                delivered += 1;
+                Err("pipe disconnected".into())
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(delivered, 1);
+        assert_eq!(phase, Some("Installing GPU driver files"));
+    }
 
     #[test]
     fn admission_progress_is_visible_before_work_and_delivery_failure_prevents_work() {

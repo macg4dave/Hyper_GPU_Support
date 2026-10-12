@@ -117,7 +117,11 @@ fn bridge(
                         .flat_map(|m| m.files.iter().map(|f| f.bytes)),
                 )
                 .collect();
-            let monitor = Arc::new(crate::guest_transfer::Monitor::new(sizes, Instant::now())?);
+            let monitor = Arc::new(crate::guest_transfer::Monitor::for_operation(
+                sizes,
+                Instant::now(),
+                mode == "verify",
+            )?);
             let request = BridgeRequest {
                 vm_id: &t.vm_id,
                 username: &credential.username,
@@ -188,8 +192,11 @@ fn bridge(
                             count: p.count,
                         })?;
                         if p.done {
-                            progress(crate::workflow::PreparationProgress::CheckingAndInstalling)?;
+                            progress(crate::workflow::PreparationProgress::CopyComplete)?;
                         }
+                    }
+                    for phase in monitor.take_phases()? {
+                        progress(phase)?;
                     }
                     Ok(())
                 },
@@ -240,6 +247,16 @@ fn bridge(
                 }
                 .into_error());
             }
+            if reply.worker_exit != Some(0) {
+                return Err(crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestTransport,
+                    cause: crate::reporting::FailureCause::InvalidReply,
+                    code: None,
+                }
+                .into_error());
+            }
+            monitor.require_worker_phases()?;
             Ok(reply.output)
         },
     )
@@ -281,14 +298,18 @@ pub fn verify(
     manifest: &Manifest,
     credential: &Credential,
 ) -> Result<(), String> {
-    let text = bridge(
-        t,
-        credential,
-        "verify",
-        Some(manifest),
-        Some(gpu),
-        &mut |_| Ok(()),
-    )?;
+    verify_with_progress(t, gpu, manifest, credential, &mut |_| Ok(()))
+}
+
+/// Explicit verification with real file-check and graphics phase events.
+pub fn verify_with_progress(
+    t: &Target,
+    gpu: &Gpu,
+    manifest: &Manifest,
+    credential: &Credential,
+    progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
+) -> Result<(), String> {
+    let text = bridge(t, credential, "verify", Some(manifest), Some(gpu), progress)?;
     let checked: VerificationReport = serde_json::from_str(text.trim()).map_err(|_| {
         crate::reporting::ComponentFailure {
             stage: None,
@@ -339,6 +360,18 @@ pub fn verify(
 }
 /// Fixed guest worker entry point. Sources/destinations derive only from a protected transport bundle.
 pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<String, String> {
+    worker_with_progress(mode, bundle, vendor, device, &mut |_| Ok(()))
+}
+
+/// Fixed worker entry with bounded, non-secret phase events emitted before work.
+/// Failed delivery refuses entry into the next phase; effects already begun remain uncertain.
+pub fn worker_with_progress(
+    mode: &str,
+    bundle: &Path,
+    vendor: u32,
+    device: u32,
+    progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
+) -> Result<String, String> {
     let _deadline = process::WorkerDeadline::start(Duration::from_secs(3500));
     if !process::is_elevated()? {
         return Err("guest worker requires administrator rights".into());
@@ -389,6 +422,7 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
         }
         let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
         let _lock = preparation_lock(root)?;
+        progress(crate::workflow::PreparationProgress::CheckingGuestFiles)?;
         let payload = crate::diagnostics::run(
             "guest-current-payload",
             "current destination hashes and preparation receipt",
@@ -409,6 +443,7 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
                 )
             },
         )?;
+        progress(crate::workflow::PreparationProgress::CheckingGraphics)?;
         crate::diagnostics::run("guest-pnp-health", "selected GPU", health).map_err(|_| {
             crate::reporting::ComponentFailure {
                 stage: None,
@@ -479,6 +514,7 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
     }
     let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
     let _lock = preparation_lock(root)?;
+    progress(crate::workflow::PreparationProgress::CheckingCopiedFiles)?;
     let mut destinations = std::collections::BTreeSet::new();
     for (index, file) in manifest.files.iter().enumerate() {
         payload::validate_relative(&file.destination)?;
@@ -493,6 +529,7 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
             return Err("transferred preparation source changed".into());
         }
     }
+    progress(crate::workflow::PreparationProgress::InstallingFiles)?;
     for (index, file) in manifest.files.iter().enumerate() {
         let target = windows.join(&file.destination);
         ensure_directory(target.parent().ok_or("destination parent missing")?)?;
@@ -539,6 +576,17 @@ pub fn worker(mode: &str, bundle: &Path, vendor: u32, device: u32) -> Result<Str
         replace_file(&partial, &target)?;
         if payload::hash_file(&target)? != file.sha256 {
             return Err("published guest file verification failed".into());
+        }
+    }
+    progress(crate::workflow::PreparationProgress::CheckingInstalledFiles)?;
+    for file in &manifest.files {
+        let target = windows.join(&file.destination);
+        payload::no_reparse(&target)?;
+        crate::security::verify_system(&target)?;
+        if fs::metadata(&target).map_err(|e| e.to_string())?.len() != file.bytes
+            || payload::hash_file(&target)? != file.sha256
+        {
+            return Err("installed driver file verification failed".into());
         }
     }
     let receipt = Receipt {

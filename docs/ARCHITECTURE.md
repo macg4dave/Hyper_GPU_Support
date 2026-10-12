@@ -25,6 +25,11 @@ The default application is `hyper-gpu-support.exe`. Setup currently expects that
 
 The first live-controller extraction separates presentation, protected source reads/planning, and progress into private child modules. `live.rs` still owns background scheduling, refresh completion, operation flows and callback registration; `live_state.rs` retains draft/review/conflict and completion-state decisions. The source adapter reuses the existing runner/worker contracts, and only event-loop callbacks update Slint models. Existing row/progress tests moved with their helpers. This structural pass is source implemented; compilation, test execution and runtime acceptance remain pending the agreed validation checkpoint.
 
+The GUI keeps a VM-bound [result notice](../src/gui/result_notice.rs) during a completion status retry. It contains presentation text only; no reviewed effect authority is retained. Refresh invalidates effect reviews before restoring a result's continuation. Closing or starting a new review drops the notice.
+
+The fixed guest executable streams bounded `HGPREPARATION` phase labels at actual copied-file check, installation, installed-file check, current guest-file/receipt check and graphics boundaries. The authenticated transport relays those fixed events separately from the final JSON reply. The host [transfer monitor](../src/guest_transfer.rs) validates operation-specific ordering, bounds the phase queue and requires all expected phase boundaries for a successful worker reply. Coalesced byte acknowledgements remain independent. Phase delivery cannot certify success; worker exit, receipt/file readback, graphics and workflow lifecycle/publication checks remain authoritative.
+
+
 ## Workflow module family
 
 [Workflow root](../src/workflow.rs) retains the shared `Backend` trait and `OperationResult`, with explicit re-exports preserving public and crate-visible caller paths. Its private children own the operation stages:

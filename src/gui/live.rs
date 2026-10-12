@@ -2,7 +2,9 @@
 use super::{
     AppWindow, GpuRow, dialog,
     live_state::{OperationReadback, State, review_summary, review_text},
-    model, set_details, wording,
+    model,
+    result_notice::ResultNotice,
+    set_details, wording,
 };
 use hyper_gpu_support::model::{Resource, Target};
 use slint::{ComponentHandle, Model};
@@ -217,22 +219,46 @@ fn refresh(
     source: &Source,
     automatic: bool,
 ) -> Result<(), String> {
-    refresh_with_result(ui, state, busy, source, automatic, None)
+    let notice = if !automatic
+        && matches!(
+            ui.get_dialog_kind().as_str(),
+            "status-error" | "recovery-blocked"
+        ) {
+        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        if let Some(notice) = &state.result_notice {
+            if !notice.matches_selection(ui.get_selected_id().as_str()) {
+                return Err(
+                    "The result belongs to another VM. Close it before refreshing the selected VM."
+                        .into(),
+                );
+            }
+            Some(notice.clone())
+        } else {
+            Some(capture_result(ui))
+        }
+    } else {
+        None
+    };
+    refresh_with_result(ui, state, busy, source, automatic, notice)
 }
 
 // Keep the result visible while independently updating inventory. Continuation
 // buttons open new reviews; this never submits a subsequent effect.
-type ResultNotice = (String, String, String, String);
+fn capture_result(ui: &AppWindow) -> ResultNotice {
+    ResultNotice {
+        vm_id: ui.get_selected_id().to_string(),
+        kind: ui.get_dialog_kind().to_string(),
+        title: ui.get_dialog_title().to_string(),
+        body: ui.get_dialog_body().to_string(),
+        details: ui.get_dialog_details().to_string(),
+    }
+}
 
 fn refresh_after_result(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) {
-    let notice = (
-        ui.get_dialog_kind().to_string(),
-        ui.get_dialog_title().to_string(),
-        ui.get_dialog_body().to_string(),
-        ui.get_dialog_details().to_string(),
-    );
+    let notice = capture_result(ui);
     if !with_state(ui, state, |state| {
         state.view.needs_readback = true;
+        state.result_notice = Some(notice.clone());
         present(ui, state, false);
         Ok(())
     }) {
@@ -242,13 +268,13 @@ fn refresh_after_result(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBo
         dialog(
             ui,
             "status-error",
-            &notice.1,
+            &notice.title,
             &format!(
                 "{}\n\nVM status update could not start: {error}\nRetry the status update before another review.",
-                notice.2
+                notice.body
             ),
         );
-        ui.set_dialog_details(notice.3.into());
+        ui.set_dialog_details(notice.details.into());
     }
 }
 
@@ -413,9 +439,12 @@ fn refresh_with_result(
                             notice = "Some VM or GPU information could not be read. See Technical Details.".into();
                         }
                         ui.set_notice(notice.into());
-                        if let Some((kind, title, body, details)) = &result_notice {
-                            dialog(ui, kind, title, body);
-                            ui.set_dialog_details(details.clone().into());
+                        if let Some(notice) = &result_notice {
+                            if notice.matches_selection(ui.get_selected_id().as_str()) {
+                                dialog(ui, &notice.kind, &notice.title, &notice.body);
+                                ui.set_dialog_details(notice.details.clone().into());
+                            }
+                            state.result_notice = None;
                         }
                         Ok(())
                     }
@@ -449,16 +478,15 @@ fn refresh_with_result(
                         ui.set_system_summary(
                             format!("Live discovery unavailable: {error}").into(),
                         );
-                        if let Some((_, title, body, details)) = &result_notice {
+                        if let Some(notice) = &result_notice {
+                            state.result_notice = Some(notice.clone());
                             dialog(
                                 ui,
                                 "status-error",
-                                title,
-                                &format!(
-                                    "{body}\n\nCurrent VM status is unavailable: {error}\nRetry the status update before another review."
-                                ),
+                                &notice.title,
+                                &notice.unavailable_body(&error),
                             );
-                            ui.set_dialog_details(details.clone().into());
+                            ui.set_dialog_details(notice.details.clone().into());
                             Ok(())
                         } else if automatic {
                             Ok(())

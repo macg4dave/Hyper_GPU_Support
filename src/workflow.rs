@@ -43,7 +43,7 @@ pub struct OperationResult {
     /// Settings changed by another manager were preserved during disable.
     pub settings_preserved: bool,
 }
-/// Preparation events from the supervised guest transport; none certifies success.
+/// Guest phase and transfer events from supervised transport; none certifies success.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PreparationProgress {
     /// Bytes and files acknowledged by the guest, before independent verification.
@@ -57,8 +57,18 @@ pub enum PreparationProgress {
         /// Reviewed payload file count.
         count: usize,
     },
-    /// Transfer metadata/ACLs completed; guest integrity checks and installation begin.
-    CheckingAndInstalling,
+    /// Transfer metadata and ACL publication completed; worker launch is pending.
+    CopyComplete,
+    /// The guest worker is independently hashing copied source files.
+    CheckingCopiedFiles,
+    /// The guest worker is installing validated driver files.
+    InstallingFiles,
+    /// The guest worker is independently checking installed destination files.
+    CheckingInstalledFiles,
+    /// Explicit verification is checking current payload files and the setup receipt.
+    CheckingGuestFiles,
+    /// Explicit verification is checking device health and hardware rendering.
+    CheckingGraphics,
 }
 
 /// The concrete management boundary, also used for meaningful workflow tests.
@@ -100,4 +110,14 @@ pub trait Backend {
     }
     /// Compare current guest payload/receipt, then require device health and hardware rendering.
     fn verify(&mut self, target: &Target, gpu: &Gpu) -> Result<(), String>;
+    /// Verify with real guest-file and graphics phase events where supported.
+    fn verify_with_progress(
+        &mut self,
+        target: &Target,
+        gpu: &Gpu,
+        progress: &mut dyn FnMut(PreparationProgress) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let _ = progress;
+        self.verify(target, gpu)
+    }
 }

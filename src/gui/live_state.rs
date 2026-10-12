@@ -7,6 +7,7 @@ use hyper_gpu_support::{
 
 pub(super) struct State {
     pub view: View,
+    pub result_notice: Option<super::result_notice::ResultNotice>,
     pub pending_selection: Option<String>,
     pub draft_gpu: Option<String>,
     pub approved_plan: Option<ReviewedPlan>,
@@ -48,6 +49,7 @@ impl Default for State {
                 schema: 2,
                 targets: vec![],
             }),
+            result_notice: None,
             pending_selection: None,
             draft_gpu: None,
             approved_plan: None,
@@ -224,6 +226,7 @@ impl State {
     }
 
     pub fn cancel_review(&mut self) {
+        self.result_notice = None;
         self.reset_review = None;
         self.removal_review = None;
         self.approved_plan = None;

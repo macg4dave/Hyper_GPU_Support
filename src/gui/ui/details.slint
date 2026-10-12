@@ -13,7 +13,8 @@ export component VmDetails inherits Rectangle {
     }
     callback restore-action-focus(string);
     restore-action-focus(action) => {
-        if action == "review" && review.enabled { review.focus(); }
+        if action == "verify" && root.verify-unavailable == "" && !root.recovery && verify-button.enabled { verify-button.focus(); }
+        else if action == "review" && review.enabled { review.focus(); }
         else { more-button.focus(); }
     }
     in property <string> name;
@@ -31,6 +32,9 @@ export component VmDetails inherits Rectangle {
     in property <string> technical-details;
     in property <bool> dirty;
     in property <bool> eligible;
+    in property <bool> execution-ready;
+    in property <bool> updating;
+    in property <string> verify-unavailable;
     in property <bool> recovery;
     in property <bool> gpu-selection-fixed;
     in-out property <bool> gpu-enabled;
@@ -91,6 +95,12 @@ export component VmDetails inherits Rectangle {
                         padding: 16px; spacing: 10px;
                         Label { text: "GPU support"; font-weight: 600; }
                         Hint { text: root.support-summary; }
+                        if root.verify-unavailable == "" && !root.recovery : verify-button := Button {
+                            text: "Verify GPU setup";
+                            primary: !root.dirty;
+                            enabled: !Theme.modal-active && root.execution-ready && !root.updating;
+                            clicked => { root.action("verify"); }
+                        }
                         if root.recovery : Button { text: "Review recovery"; primary: true; enabled: !Theme.modal-active; clicked => { root.action("recovery"); } }
                         Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: "Enable GPU support in this draft"; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
                         Hint { text: "Physical GPU"; }

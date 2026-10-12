@@ -284,9 +284,25 @@ try {
                 $handles += [IO.File]::Open($path, 'Open', 'Read', 'Read')
                 if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $a.hash) { throw 'Worker integrity failure' }
             }
-            $result = & (Join-Path $root 'hyper-gpu-guest.exe') $mode $bundle ([string]$vendor) ([string]$device) 2>$null
-            @{ output = ($result -join "`n"); worker_exit = $LASTEXITCODE }
+            $reply = [Collections.Generic.List[string]]::new()
+            & (Join-Path $root 'hyper-gpu-guest.exe') $mode $bundle ([string]$vendor) ([string]$device) 2>$null | ForEach-Object {
+                $line = [string]$_
+                if ($line.StartsWith('HGPREPARATION ', [StringComparison]::Ordinal)) {
+                    $phase = $line.Substring(14)
+                    if ($phase -cnotin @('checking-copied','installing','checking-installed','checking-guest','graphics')) { throw 'Invalid guest phase' }
+                    # Remoting streams this fixed event immediately; no paths or error text.
+                    @{ phase = $phase }
+                } else {
+                    if ($reply.Count -ge 8 -or $line.Length -gt 1048576) { throw 'Guest reply exceeds bound' }
+                    $reply.Add($line)
+                }
+            }
+            @{ output = ($reply -join "`n"); worker_exit = $LASTEXITCODE }
         } finally { foreach ($handle in $handles) { $handle.Dispose() }; if ($ownedMarker) { [IO.File]::Delete($marker) } }
+    } | ForEach-Object {
+        if ($_.phase) {
+            [Console]::Error.WriteLine('HGPREPARATION ' + [string]$_.phase)
+        } else { $_ }
     }
     Write-Stage 'guest-integrity-and-worker' 'done' $r.mode $timer.ElapsedMilliseconds
     @{ output = [string]$output.output; worker_exit = $output.worker_exit } | ConvertTo-Json -Compress
