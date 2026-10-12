@@ -52,6 +52,8 @@ APP-022 Forget pairing is an exact-pair authority transition through the same au
 
 If reconciliation's temporary start changes power and then reports failure, fresh matching host/GPU/payload facts may still authorize restoring the recorded power intent. Changed facts block restoration; refused shutdown retains both failures and pending recovery. This source fix does not authorize replay, forced power-off, or automatic reconciliation.
 
+The combined APP-017 through APP-022 source review applies the same restored-negative-check proof to verification-only reconciliation: fresh complete host/GPU readback and durable outcome persistence precede eligibility for explicit negative retirement. Passed checks also cannot authorize restarting an externally stopped guest. Verify consumes in-process manifest admission in the same locked backend, rechecking VM/GPU/journal facts before writes and independently authenticating the final host payload before success; it cannot acquire compatibility ownership. Re-enable retains an owned original baseline and captures a new baseline only after ownership release. Historical successful rendering time remains separate from eligibility during both ordinary updates and reinstall. GUI inactive-profile admission uses the protected validator's contract. Automated and live validation remain pending.
+
 The interrupted-first-enable baseline retirement path is narrow: fresh independent state must prove the recorded starting configuration under the record's checks. Guest files may remain, and no preparation/graphics success or desired intent is invented. Other partial/changed states stay blocked.
 
 ## Distinct recovery domains

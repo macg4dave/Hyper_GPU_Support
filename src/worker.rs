@@ -913,12 +913,7 @@ fn execute(
                 manifest: None,
                 data: data.clone(),
             };
-            let current = workflow::plan_verification(&mut backend, &approved.target)?;
-            if serde_json::to_value(&current).map_err(|e| e.to_string())?
-                != serde_json::to_value(&approved).map_err(|e| e.to_string())?
-            {
-                return Err("verification scope changed; Refresh and review".into());
-            }
+            let admitted = workflow::admit_verification(&mut backend, &approved)?;
             let mut record = SaveRecord {
                 schema: 1,
                 retirement: None,
@@ -958,18 +953,19 @@ fn execute(
                 }
                 Ok(())
             };
-            let result = workflow::verify_approved(
+            let result = workflow::verify_admitted(
                 &mut ObservedBackend {
                     backend: &mut backend,
                     notify: &mut notify,
                     before_effect: Some(&mut mark_effects),
                 },
-                &approved,
+                admitted,
             )?;
             if serde_json::to_value(backend.inspect(&record.target)?).map_err(|e| e.to_string())?
                 != serde_json::to_value(&record.initial).map_err(|e| e.to_string())?
                 || serde_json::to_value(backend.gpu(&record.target)?).map_err(|e| e.to_string())?
                     != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
+                || backend.payload(&record.target)? != approved.payload_digest
             {
                 return Err(
                     "verification final facts changed; manual reconciliation required".into(),

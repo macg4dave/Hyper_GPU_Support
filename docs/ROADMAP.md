@@ -25,6 +25,12 @@ VM creation, general VM controls, guest system RAM, new advanced Compute/Encode/
 
 Legacy mock/snapshot GUI tooling is retired and removed from source through APP-001; validation is pending. Do not use it for previews or maintain its scenarios.
 
+## P0: workflow modularization
+
+**P0 — Break up `src/workflow.rs` while preserving behavior.** This is the next planned source priority, ahead of further feature work. The standalone [AI implementation plan](WORKFLOW_REFACTOR_PLAN.md) specifies module ownership, function mapping, dependency boundaries, extraction order, compatibility requirements and validation. Keep the existing backend, worker/security/recovery architecture and public workflow API.
+
+Status (12 October 2026): **Plan written; implementation not started; refactor validation not run.** The user requested the plan and roadmap priority only. Source implementation requires a subsequent request. Existing APP-017 through APP-022 fixes remain part of the starting tree, with their automated/visual/live validation still pending. P0 ordering does not close or replace any milestone gate. The backlog is unchanged by this planning request.
+
 ## Milestones
 
 | Milestone | Completion gate |
@@ -44,5 +50,7 @@ M2 source preparation is recorded in the [qualification sequence](evidence/m2-pr
 Final power policy confirmed on 11 October 2026: ordinary changes always leave the VM off after successful completion, regardless of its starting power. Initial setup and required setup/update also finish off. No automatic final restart is required; the user starts the VM through Hyper-V.
 
 The 12 October source review identified and fixed recovery exits for terminal failed Verify and refused initial reinstall shutdown, plus unsafe restart during Verify restoration. Explicit reconciliation retains negative-check evidence and requires fresh matching host/journal facts before ending those attempts. Compilation, automated regressions, real interaction and live acceptance for these fixes remain pending; no milestone gate is closed.
+
+The combined APP-017 through APP-022 review on 12 October also corrected reconciliation's restored-failure handoff to repair, interrupted Verify's final-power comparison, admission drift/external-stop handling, settings ownership/baseline retention and historical check preservation. Verify admission and inactive-profile validation reuse shared contracts. [Backlog findings](BACKLOG.md#combined-workstream-review--app-017-through-app-022-12-october-2026) record the fixes and pending automated/visual/live checks; the earlier APP-018 compilation does not validate this changed source.
 
 The checkpoint rollback report adds an R6/M2 follow-up: host authority and historical setup receipts must not certify current guest configuration. Explicit verification must report differences/unknown state, with separately reviewed reinstall, GPU removal and inactive-pairing removal paths. [Source investigation](BASELINE.md#checkpoint-rollback-investigation) and APP-016 through APP-023 track the incremental fixes. APP-016 presentation, APP-017 host comparison, APP-018 explicit guest-payload comparison, APP-019 durable latest-check/stale-success handling, APP-020 explicitly reviewed reinstall, APP-021 reviewed host GPU removal and APP-022 inactive pairing/profile removal source are implemented; the requested Delete profile control remains APP-024. APP-018's all-target compilation check passed; APP-019 through APP-022 have not been compiled or tested; visual acceptance is also pending. Tests and live acceptance remain pending. The earlier M1 gate does not establish rollback acceptance; live rollback qualification requires its own prepared authorization.

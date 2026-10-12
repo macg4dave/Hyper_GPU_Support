@@ -586,25 +586,7 @@ impl State {
             .cloned()
             .ok_or("This VM has no authorized pairing; Refresh for current state.")?;
         let vm = self.view.vm(id).ok_or("VM unavailable; Refresh first.")?;
-        if vm.power != hyper_gpu_support::model::Power::Off
-            || !vm.gpus.is_empty()
-            || self
-                .committed
-                .documents
-                .get(id)
-                .is_some_and(|d| d.target.enabled || d.target.gpu_interface != target.gpu_interface)
-        {
-            return Err(
-                "Use reviewed Remove GPU support first and leave the VM off before Forget pairing."
-                    .into(),
-            );
-        }
-        if inventory.recorded_state(id).recovery_required
-            || inventory
-                .managed
-                .get(id)
-                .is_none_or(|j| j.as_ref().is_some_and(|j| !j.settings_released))
-        {
+        if inventory.recorded_state(id).recovery_required || !inventory.managed.contains_key(id) {
             return Err(
                 "Complete GPU removal and Refresh its managed history before Forget pairing."
                     .into(),
@@ -612,6 +594,12 @@ impl State {
         }
         target.enabled = false;
         target.clear_allocations();
+        hyper_gpu_support::enrollment::validate_inactive_profile(
+            &target,
+            vm,
+            inventory.managed.get(id).and_then(Option::as_ref),
+            self.committed.documents.get(id).map(|d| &d.target),
+        )?;
         Ok(target)
     }
 
@@ -1257,6 +1245,21 @@ mod tests {
         ] {
             assert!(text.contains(name), "{text}");
         }
+        // A confirmed guest rollback mismatch invalidates payload eligibility,
+        // not the independently recorded host settings baseline.
+        let journal = s
+            .view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .managed
+            .get_mut(&vm_id)
+            .unwrap()
+            .as_mut()
+            .unwrap();
+        journal.prepared = None;
+        journal.latest_check = Some(hyper_gpu_support::workflow::GuestCheck::PayloadMismatch);
+        assert!(s.host_configuration_text(&vm_id).contains("Low MMIO"));
         s.view
             .inventory
             .as_mut()

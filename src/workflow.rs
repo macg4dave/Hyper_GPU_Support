@@ -252,7 +252,7 @@ fn decision_for_operation(
     });
     if !journal.pending {
         journal.restore_power = Power::Off;
-        if initial.gpus.is_empty() && target.enabled {
+        if target.enabled && journal.settings_released {
             // A completed disable releases ownership of compatibility settings.
             // Capture the new baseline before changing them again.
             journal.original = initial.settings.clone();
@@ -729,7 +729,6 @@ fn execute_decision(
     d: Decision,
 ) -> Result<OperationResult, String> {
     let Decision {
-        reinstall,
         initial,
         gpu,
         mut journal,
@@ -758,9 +757,8 @@ fn execute_decision(
             // Invalidate the old receipt before effects, including if the host
             // later rolls back to that old driver's digest.
             journal.prepared = None;
-            if !reinstall {
-                journal.last_verified = None;
-            }
+            // Historical rendering is not eligibility; latest_check records this
+            // incomplete operation for both ordinary updates and explicit repair.
         }
         if setup_required {
             persist_check(backend, target, &journal)?;
@@ -931,9 +929,17 @@ pub fn plan_verification(
     backend: &mut impl Backend,
     target: &Target,
 ) -> Result<VerificationPlan, String> {
+    verification_plan(backend, target, false)
+}
+
+fn verification_plan(
+    backend: &mut impl Backend,
+    target: &Target,
+    resume: bool,
+) -> Result<VerificationPlan, String> {
     let observed = backend.inspect(target)?;
     let managed = backend.journal(target)?;
-    if managed.as_ref().is_some_and(|j| j.pending) {
+    if !resume && managed.as_ref().is_some_and(|j| j.pending) {
         return Err("unfinished operation requires manual reconciliation".into());
     }
     verification_power(target, &observed, managed.as_ref())?;
@@ -955,27 +961,49 @@ pub fn verify_approved(
     backend: &mut impl Backend,
     approved: &VerificationPlan,
 ) -> Result<OperationResult, String> {
+    let admitted = admit_verification(backend, approved)?;
+    verify_admitted(backend, admitted)
+}
+
+/// In-process verification admission, retained only in the locked backend that
+/// authenticated its payload. Frontends cannot construct or deserialize it.
+pub(crate) struct AdmittedVerification {
+    plan: VerificationPlan,
+}
+
+/// Authenticate the reviewed manifest once before recording the operation hold.
+pub(crate) fn admit_verification(
+    backend: &mut impl Backend,
+    approved: &VerificationPlan,
+) -> Result<AdmittedVerification, String> {
     let current = plan_verification(backend, &approved.target)?;
     if serde_json::to_value(&current).map_err(|e| e.to_string())?
         != serde_json::to_value(approved).map_err(|e| e.to_string())?
     {
         return Err("verification observations changed; Refresh and review".into());
     }
-    verify_current_payload(backend, &approved.target)
+    Ok(AdmittedVerification { plan: current })
+}
+
+/// Consume admission in the same backend; mutable host facts are checked again
+/// before writes, without repeating manifest discovery and authentication.
+pub(crate) fn verify_admitted(
+    backend: &mut impl Backend,
+    admitted: AdmittedVerification,
+) -> Result<OperationResult, String> {
+    verify_current_payload(backend, &admitted.plan)
 }
 /// Check current payload and graphics, restoring the validated recovery power intent.
 pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
-    let before = backend.inspect(target)?;
-    let managed = backend.journal(target)?;
-    verification_power(target, &before, managed.as_ref())?;
-    backend.payload(target)?;
-    verify_current_payload(backend, target)
+    let current = verification_plan(backend, target, true)?;
+    verify_current_payload(backend, &current)
 }
 
 fn verify_current_payload(
     backend: &mut impl Backend,
-    target: &Target,
+    approved: &VerificationPlan,
 ) -> Result<OperationResult, String> {
+    let target = &approved.target;
     target.validate()?;
     let before = backend.inspect(target)?;
     let old = backend.journal(target)?;
@@ -983,6 +1011,15 @@ fn verify_current_payload(
     let gpu = backend.gpu(target)?;
     if gpu.interface != target.gpu_interface {
         return Err("selected GPU identity changed".into());
+    }
+    if serde_json::to_value(&before).map_err(|e| e.to_string())?
+        != serde_json::to_value(&approved.observed).map_err(|e| e.to_string())?
+        || serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+            != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
+        || serde_json::to_value(&old).map_err(|e| e.to_string())?
+            != serde_json::to_value(&approved.managed).map_err(|e| e.to_string())?
+    {
+        return Err("verification observations changed; Refresh and review".into());
     }
     let mut journal = old.unwrap_or(Journal {
         schema: 1,
@@ -998,7 +1035,8 @@ fn verify_current_payload(
         latest_check: None,
         preparation_started: None,
         check_restored: false,
-        settings_released: false,
+        // A read-only guest check cannot acquire compatibility-setting ownership.
+        settings_released: true,
     });
     journal.restore_power = restore_power;
     journal.pending = true;
@@ -1019,8 +1057,9 @@ fn verify_current_payload(
         let current = backend.inspect(target)?;
         let mut expected = before.clone();
         expected.power = current.power.clone();
-        if serde_json::to_value(&current).map_err(|e| e.to_string())?
-            != serde_json::to_value(&expected).map_err(|e| e.to_string())?
+        if !matches!(current.power, Power::Off | Power::Running)
+            || serde_json::to_value(&current).map_err(|e| e.to_string())?
+                != serde_json::to_value(&expected).map_err(|e| e.to_string())?
             || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
                 != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
         {
@@ -1031,35 +1070,17 @@ fn verify_current_payload(
             return Err("verification cannot authorize restarting the stopped guest".into());
         }
         restore_guest_power(backend, target, &journal.restore_power)?;
+        expected.power = journal.restore_power.clone();
         if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
-            != serde_json::to_value(&before).map_err(|e| e.to_string())?
+            != serde_json::to_value(&expected).map_err(|e| e.to_string())?
+            || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
+                != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
         {
             return Err("verification restoration facts changed; retain recovery".into());
         }
         Ok(())
     })();
-    let terminal_guest_failure = checked
-        .as_ref()
-        .err()
-        .and_then(|error| crate::reporting::ComponentFailure::decode(error))
-        .is_some_and(|failure| {
-            matches!(
-                failure.component,
-                crate::reporting::Component::GuestPayload
-                    | crate::reporting::Component::GuestReceipt
-                    | crate::reporting::Component::GuestGraphics
-            )
-        });
-    if terminal_guest_failure
-        && restoration.is_ok()
-        && matches!(
-            journal.latest_check,
-            Some(GuestCheck::Failed | GuestCheck::Unavailable | GuestCheck::PayloadMismatch)
-        )
-    {
-        journal.check_restored = true;
-        persist_check(backend, target, &journal)?;
-    }
+    record_restored_check_failure(backend, target, &mut journal, &checked, &restoration)?;
     match (checked, restoration) {
         (Err(primary), Err(recovery)) => {
             return Err(format!(
@@ -1085,6 +1106,40 @@ fn verify_current_payload(
         verified: true,
         settings_preserved: false,
     })
+}
+
+// Both initial Verify and explicit recovery must preserve the same durable
+// negative outcome. This proof permits reviewed retirement, never clears a hold.
+fn record_restored_check_failure(
+    backend: &mut impl Backend,
+    target: &Target,
+    journal: &mut Journal,
+    checked: &Result<(), String>,
+    restoration: &Result<(), String>,
+) -> Result<(), String> {
+    let terminal_guest_failure = checked
+        .as_ref()
+        .err()
+        .and_then(|error| crate::reporting::ComponentFailure::decode(error))
+        .is_some_and(|failure| {
+            matches!(
+                failure.component,
+                crate::reporting::Component::GuestPayload
+                    | crate::reporting::Component::GuestReceipt
+                    | crate::reporting::Component::GuestGraphics
+            )
+        });
+    if terminal_guest_failure
+        && restoration.is_ok()
+        && matches!(
+            journal.latest_check,
+            Some(GuestCheck::Failed | GuestCheck::Unavailable | GuestCheck::PayloadMismatch)
+        )
+    {
+        journal.check_restored = true;
+        persist_check(backend, target, journal)?;
+    }
+    Ok(())
 }
 fn restore_guest_power(
     backend: &mut impl Backend,
@@ -1179,13 +1234,28 @@ pub(crate) fn reconcile_with_graphics(
                     "reconciliation facts changed; unsafe power restoration blocked".into(),
                 );
             }
-            if checked.is_err() && restore == Power::Running && current.power != Power::Running {
-                return Err(
-                    "failed verification cannot authorize restarting the stopped guest".into(),
-                );
+            if restore == Power::Running && current.power != Power::Running {
+                return Err("verification cannot authorize restarting the stopped guest".into());
             }
             restore_guest_power(backend, target, &restore)
         })();
+        // Record restoration only after independent full host readback, including
+        // any final power transition; a partial restoration cannot enable repair.
+        let restoration = restoration.and_then(|()| {
+            let mut expected = observed.clone();
+            expected.power = restore.clone();
+            if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
+                != serde_json::to_value(&expected).map_err(|e| e.to_string())?
+                || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
+                    != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+            {
+                return Err("reconciliation restoration facts changed; retain recovery".into());
+            }
+            Ok(())
+        });
+        if journal.verification_only {
+            record_restored_check_failure(backend, target, &mut journal, &checked, &restoration)?;
+        }
         match (checked, restoration) {
             (Err(primary), Err(restoration)) => {
                 return Err(format!(
@@ -1483,6 +1553,171 @@ mod tests {
         assert_eq!(backend.payload_reads, 1);
         assert_eq!(backend.events, ["start", "graphics", "shutdown"]);
         assert!(!backend.events.contains(&"prepare"));
+    }
+
+    #[test]
+    fn verification_rechecks_admitted_host_gpu_and_journal_before_writes() {
+        for changed in 0..3 {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let approved = plan_verification(&mut backend, &target()).unwrap();
+            backend.events.clear();
+            backend.journal_writes = 0;
+            match changed {
+                0 => backend.state.power = Power::Running,
+                1 => backend.gpu_driver = "changed-driver",
+                _ => backend.journal.as_mut().unwrap().prepared = None,
+            }
+            assert!(
+                verify_current_payload(&mut backend, &approved)
+                    .unwrap_err()
+                    .contains("observations changed")
+            );
+            assert_eq!(backend.journal_writes, 0);
+            assert!(backend.events.is_empty());
+        }
+    }
+
+    #[test]
+    fn admitted_verification_authenticates_payload_once_before_execution() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let approved = plan_verification(&mut backend, &target()).unwrap();
+        backend.payload_reads = 0;
+        let admitted = admit_verification(&mut backend, &approved).unwrap();
+        assert_eq!(backend.payload_reads, 1);
+        verify_admitted(&mut backend, admitted).unwrap();
+        assert_eq!(backend.payload_reads, 1);
+    }
+
+    #[test]
+    fn failed_ordinary_payload_update_retains_history_without_certifying_preparation() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let history = backend.journal.as_ref().unwrap().last_verified;
+        backend.driver = "updated-payload";
+        backend.fail_prepare = true;
+        let approved = plan(&mut backend, &target()).unwrap();
+        assert!(!approved.reinstall);
+        assert!(apply_approved(&mut backend, &approved).is_err());
+        let journal = backend.journal.as_ref().unwrap();
+        assert!(journal.pending && journal.prepared.is_none());
+        assert_eq!(journal.latest_check, Some(GuestCheck::Interrupted));
+        assert_eq!(journal.last_verified, history);
+        assert!(!journal.setup_eligible());
+    }
+
+    #[test]
+    fn verify_without_management_history_never_acquires_settings_ownership() {
+        let mut backend = fake();
+        backend.state.gpus = vec![target().gpu_interface];
+        backend.state.power = Power::Off;
+        verify(&mut backend, &target()).unwrap();
+        assert!(backend.journal.as_ref().unwrap().settings_released);
+        assert!(backend.journal.as_ref().unwrap().prepared.is_none());
+        let original = backend.state.settings.clone();
+        let disabled = Target {
+            enabled: false,
+            ..target()
+        };
+        apply(&mut backend, &disabled).unwrap();
+        assert_eq!(backend.state.settings, original);
+        crate::enrollment::validate_inactive_profile(
+            &disabled,
+            &backend.state,
+            backend.journal.as_ref(),
+            Some(&disabled),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn restored_reconciliation_failure_permits_reviewed_repair_then_removal_and_forget() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let record = recovery_record(&backend, false);
+        backend.payload_check_failure = Some(crate::reporting::FailureCause::FileMissing);
+        backend.fail_shutdown = true;
+        assert!(verify(&mut backend, &target()).is_err());
+        assert!(!backend.journal.as_ref().unwrap().check_restored);
+        assert_eq!(backend.state.power, Power::Running);
+        backend.fail_shutdown = false;
+        backend.events.clear();
+        let observed = backend.state.clone();
+        assert!(
+            reconcile_with_graphics(
+                &mut backend,
+                &target(),
+                &observed,
+                Power::Off,
+                Some("current"),
+                true
+            )
+            .is_err()
+        );
+        let journal = backend.journal.as_ref().unwrap();
+        assert!(journal.pending && journal.check_restored);
+        assert_eq!(journal.latest_check, Some(GuestCheck::PayloadMismatch));
+        assert!(journal.prepared.is_none());
+        assert_eq!(backend.events, ["payload-check", "shutdown"]);
+        let retirement = record
+            .negative_completion(
+                &backend.state,
+                "new",
+                &crate::configuration_store::Revision::Missing,
+                Some(journal),
+            )
+            .unwrap()
+            .unwrap();
+        backend.journal = Some(retirement.after);
+        backend.payload_check_failure = None;
+        let repair = plan_reinstall(&mut backend, &target()).unwrap();
+        let result = apply_approved(&mut backend, &repair).unwrap();
+        assert!(result.prepared && result.verified);
+        let disabled = Target {
+            enabled: false,
+            ..target()
+        };
+        let removal = plan(&mut backend, &disabled).unwrap();
+        assert!(!removal.preview.credentials_required);
+        apply_approved(&mut backend, &removal).unwrap();
+        crate::enrollment::validate_inactive_profile(
+            &disabled,
+            &backend.state,
+            backend.journal.as_ref(),
+            Some(&disabled),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn successful_reconciliation_check_cannot_restart_an_externally_stopped_guest() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.state.power = Power::Running;
+        let journal = backend.journal.as_mut().unwrap();
+        journal.pending = true;
+        journal.verification_only = true;
+        journal.restore_power = Power::Running;
+        backend.stop_on_verify = true;
+        backend.events.clear();
+        let observed = backend.state.clone();
+        assert!(
+            reconcile_with_graphics(
+                &mut backend,
+                &target(),
+                &observed,
+                Power::Running,
+                Some("current"),
+                true
+            )
+            .unwrap_err()
+            .contains("restarting")
+        );
+        assert_eq!(backend.state.power, Power::Off);
+        assert_eq!(backend.events, ["graphics"]);
+        assert!(backend.journal.as_ref().unwrap().pending);
+        assert!(!backend.journal.as_ref().unwrap().check_restored);
     }
 
     #[test]
@@ -3142,6 +3377,43 @@ mod tests {
         assert!(fresh.preview.actions.contains(&PreviewAction::Prepare));
         assert!(fresh.preview.actions.contains(&PreviewAction::Verify));
         assert!(backend.events.is_empty());
+    }
+
+    #[test]
+    fn reenabling_an_externally_detached_adapter_retains_original_settings_for_removal() {
+        let mut backend = fake();
+        let original = backend.state.settings.clone();
+        apply(&mut backend, &target()).unwrap();
+        backend.state.gpus.clear();
+        let reviewed = plan(&mut backend, &target()).unwrap();
+        assert!(!reviewed.preview.credentials_required);
+        apply_approved(&mut backend, &reviewed).unwrap();
+        assert_eq!(backend.journal.as_ref().unwrap().original, original);
+        let disabled = Target {
+            enabled: false,
+            ..target()
+        };
+        apply(&mut backend, &disabled).unwrap();
+        assert_eq!(backend.state.settings, original);
+        assert!(backend.journal.as_ref().unwrap().settings_released);
+    }
+
+    #[test]
+    fn reenabling_released_ownership_captures_current_baseline_even_with_external_attachment() {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let disabled = Target {
+            enabled: false,
+            ..target()
+        };
+        apply(&mut backend, &disabled).unwrap();
+        backend.state.settings.high_mmio = 1024;
+        let baseline = backend.state.settings.clone();
+        backend.state.gpus = vec![target().gpu_interface];
+        apply(&mut backend, &target()).unwrap();
+        assert_eq!(backend.journal.as_ref().unwrap().original, baseline);
+        apply(&mut backend, &disabled).unwrap();
+        assert_eq!(backend.state.settings, baseline);
     }
 
     #[test]
