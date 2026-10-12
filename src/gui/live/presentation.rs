@@ -249,18 +249,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
             } else {
                 "not saved"
             },
-            if recorded.recovery_required {
-                "recovery required"
-            } else if inventory
-                .managed
-                .get(id)
-                .and_then(|j| j.as_ref())
-                .is_some_and(|j| j.last_verified.is_some())
-            {
-                "previously verified; current health unknown"
-            } else {
-                "not verified"
-            },
+            inventory.recorded_graphics_summary(id),
             state.host_configuration_text(id),
         )
         .into(),

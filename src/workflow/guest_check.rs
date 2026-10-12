@@ -60,11 +60,11 @@ pub(super) fn record_restored_check_failure(
     checked: &Result<(), String>,
     restoration: &Result<(), String>,
 ) -> Result<(), String> {
-    let terminal_guest_failure = checked
-        .as_ref()
-        .err()
-        .and_then(|error| crate::reporting::ComponentFailure::decode(error))
-        .is_some_and(|failure| {
+    let Some(primary) = checked.as_ref().err() else {
+        return Ok(());
+    };
+    let terminal_guest_failure =
+        crate::reporting::ComponentFailure::decode(primary).is_some_and(|failure| {
             matches!(
                 failure.component,
                 crate::reporting::Component::GuestPayload
@@ -80,7 +80,16 @@ pub(super) fn record_restored_check_failure(
         )
     {
         journal.check_restored = true;
-        persist_check(backend, target, journal)?;
+        if let Err(persistence) = persist_check(backend, target, journal) {
+            // An unconfirmed proof must not hide the failure that led to it or
+            // authorize retirement in this invocation. Keep the typed primary
+            // envelope last so existing secret-free reporting can still decode it.
+            journal.check_restored = false;
+            return Err(format!(
+                "restoration-proof persistence failed: {persistence}; original guest failure: {}",
+                primary
+            ));
+        }
     }
     Ok(())
 }

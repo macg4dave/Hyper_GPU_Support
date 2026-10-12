@@ -25,6 +25,7 @@ pub(super) struct Fake {
     pub(super) journal_writes: usize,
     pub(super) fail_save_at: Option<usize>,
     pub(super) fail_read_after_save_at: Option<usize>,
+    pub(super) mismatch_read_after_save_at: Option<usize>,
     pub(super) fail_payload: bool,
     pub(super) allocation_writes: usize,
     pub(super) resource_capability: crate::model::ResourceCapability,
@@ -85,6 +86,7 @@ pub(super) fn fake() -> Fake {
         journal_writes: 0,
         fail_save_at: None,
         fail_read_after_save_at: None,
+        mismatch_read_after_save_at: None,
         fail_payload: false,
         allocation_writes: 0,
         resource_capability: crate::model::ResourceCapability::Supported(Allocation {
@@ -163,7 +165,13 @@ impl Backend for Fake {
         if self.fail_read_after_save_at == Some(self.journal_writes) {
             return Err("journal readback unavailable".into());
         }
-        Ok(self.journal.clone())
+        let mut journal = self.journal.clone();
+        if self.mismatch_read_after_save_at == Some(self.journal_writes)
+            && let Some(journal) = &mut journal
+        {
+            journal.check_restored = !journal.check_restored;
+        }
+        Ok(journal)
     }
     fn save(&mut self, _: &Target, j: &Journal) -> Result<(), String> {
         self.journal_writes += 1;

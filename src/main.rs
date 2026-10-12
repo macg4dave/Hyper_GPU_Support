@@ -109,7 +109,7 @@ fn execute(args: &[String]) -> Result<(), String> {
                 if record.operation_id != operation_id {
                     return Err("reconciliation operation identity mismatch".into());
                 }
-                let credential = if record.target.enabled || !record.publication_required {
+                let credential = if record.requires_graphics() {
                     Some(
                         credentials::read(&record.target.vm_id)?
                             .map_or_else(|| prompt(&record.target.vm_id), Ok)?,

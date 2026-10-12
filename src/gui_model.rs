@@ -31,6 +31,25 @@ pub struct RecordedState {
 }
 
 impl Inventory {
+    /// Compact recorded outcome, with newer adverse checks ahead of old success.
+    /// This never certifies current health or uses an unread/mismatched journal.
+    pub fn recorded_graphics_summary(&self, id: &str) -> &'static str {
+        if self.recorded_state(id).recovery_required {
+            return "recovery required; current health unknown";
+        }
+        let Some(journal) = self.managed.get(id).and_then(Option::as_ref) else {
+            return "unknown; no matching check record";
+        };
+        match journal.latest_check {
+            Some(GuestCheck::Interrupted) => "latest check incomplete; current health unknown",
+            Some(GuestCheck::PayloadMismatch) => "latest check found a driver-file mismatch",
+            Some(GuestCheck::Failed) => "latest check failed; current health unknown",
+            Some(GuestCheck::Unavailable) => "latest check unavailable; current health unknown",
+            _ if journal.last_verified.is_some() => "previously verified; current health unknown",
+            _ => "not verified",
+        }
+    }
+
     /// Present durable state only when its schema and identities match enrollment.
     /// Missing map entries mean no record was read; an explicit `None` means absent.
     pub fn recorded_state(&self, id: &str) -> RecordedState {
@@ -547,6 +566,48 @@ mod tests {
             settings_released: false,
         }
     }
+    #[test]
+    fn compact_graphics_summary_never_hides_a_newer_adverse_check() {
+        let mut inventory = inventory();
+        let id = target(1).vm_id;
+        for (outcome, text) in [
+            (GuestCheck::Interrupted, "incomplete"),
+            (GuestCheck::Failed, "failed"),
+            (GuestCheck::Unavailable, "unavailable"),
+            (GuestCheck::PayloadMismatch, "mismatch"),
+        ] {
+            let mut record = journal();
+            record.latest_check = Some(outcome);
+            inventory.managed.insert(id.clone(), Some(record));
+            let summary = inventory.recorded_graphics_summary(&id);
+            assert!(summary.contains(text));
+            assert!(!summary.contains("previously verified"));
+        }
+        inventory.managed.insert(id.clone(), Some(journal()));
+        assert!(
+            inventory
+                .recorded_graphics_summary(&id)
+                .contains("previously verified")
+        );
+        inventory
+            .managed
+            .get_mut(&id)
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .gpu_interface = "other".into();
+        assert!(
+            inventory
+                .recorded_graphics_summary(&id)
+                .contains("recovery required")
+        );
+        assert!(
+            inventory
+                .recorded_graphics_summary(&target(2).vm_id)
+                .contains("unknown")
+        );
+    }
+
     #[test]
     fn latest_adverse_check_is_visible_after_reopening_with_historical_success() {
         let mut inventory = inventory();

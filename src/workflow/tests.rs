@@ -7,6 +7,104 @@ use crate::workflow::{
 };
 
 #[test]
+fn restored_failure_retains_primary_when_proof_save_or_readback_fails() {
+    use crate::reporting::{ComponentFailure, FailureCause};
+    for reconciliation in [false, true] {
+        for payload_failure in [false, true] {
+            for persistence in ["save", "read", "mismatch"] {
+                let mut backend = fake();
+                apply(&mut backend, &target()).unwrap();
+                backend.events.clear();
+                let history = backend.journal.as_ref().unwrap().last_verified;
+                if payload_failure {
+                    backend.payload_check_failure = Some(FailureCause::FileMissing);
+                } else {
+                    backend.fail_verify = true;
+                }
+                // Admission, check-start, and negative result precede the proof.
+                let proof_write = backend.journal_writes + 4;
+                match persistence {
+                    "save" => backend.fail_save_at = Some(proof_write),
+                    "read" => backend.fail_read_after_save_at = Some(proof_write),
+                    _ => backend.mismatch_read_after_save_at = Some(proof_write),
+                }
+                let error = if reconciliation {
+                    let journal = backend.journal.as_mut().unwrap();
+                    journal.pending = true;
+                    journal.verification_only = true;
+                    let observed = backend.state.clone();
+                    reconcile_with_graphics(
+                        &mut backend,
+                        &target(),
+                        &observed,
+                        Power::Off,
+                        Some("current"),
+                        true,
+                    )
+                    .unwrap_err()
+                } else {
+                    verify(&mut backend, &target()).unwrap_err()
+                };
+                assert!(
+                    error.contains("restoration-proof persistence failed"),
+                    "{error}"
+                );
+                let public = crate::reporting::operator_error("Verify", &error);
+                assert!(public.contains("restoration proof"));
+                assert!(public.contains(if payload_failure {
+                    "driver files are missing"
+                } else {
+                    "GuestGraphics"
+                }));
+                let details = crate::reporting::technical_error("Verify", &error);
+                assert!(details.contains("Restoration-proof persistence failed"));
+                assert!(
+                    error.contains(match persistence {
+                        "save" => "publication denied",
+                        "read" => "readback unavailable",
+                        _ => "readback mismatch",
+                    }),
+                    "{error}"
+                );
+                let primary =
+                    ComponentFailure::decode(&error).expect("typed primary remains reportable");
+                assert!(matches!(
+                    primary.cause,
+                    FailureCause::FileMissing | FailureCause::RenderingFailed
+                ));
+                assert_eq!(backend.state.power, Power::Off);
+                assert_eq!(
+                    backend.events,
+                    [
+                        "start",
+                        if payload_failure {
+                            "payload-check"
+                        } else {
+                            "graphics"
+                        },
+                        "shutdown"
+                    ]
+                );
+                let journal = backend.journal.as_ref().unwrap();
+                assert!(journal.pending);
+                assert_eq!(journal.last_verified, history);
+                assert_eq!(
+                    journal.latest_check,
+                    Some(if payload_failure {
+                        GuestCheck::PayloadMismatch
+                    } else {
+                        GuestCheck::Failed
+                    })
+                );
+                if persistence == "save" {
+                    assert!(!journal.check_restored);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn verify_without_management_history_never_acquires_settings_ownership() {
     let mut backend = fake();
     backend.state.gpus = vec![target().gpu_interface];

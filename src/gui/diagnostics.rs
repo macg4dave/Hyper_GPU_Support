@@ -6,6 +6,23 @@ fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Preserve two independently redacted failures when completion reads also fail.
+#[cfg(any(windows, test))]
+pub(super) fn completion_failure(summary: &str, details: &str, primary: &str) -> (String, String) {
+    let original = hyper_gpu_support::reporting::operator_error("Original operation", primary);
+    let primary_details = failure_details("Original operation", primary, &[]);
+    (
+        format!(
+            "{summary}\n\n{original}\nCompletion records could not be confirmed. Use Refresh and inspect recovery before another operation."
+        ),
+        [details, primary_details.as_str()]
+            .into_iter()
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+    )
+}
+
 /// Callers supply application-owned or reporting-redacted diagnostic content.
 pub(super) fn additional_details(summary: &str, details: &str) -> String {
     if normalized(details).is_empty() || normalized(details) == normalized(summary) {
@@ -84,6 +101,27 @@ pub(super) fn selected_vm_details(state: &State) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn completion_read_failure_keeps_the_original_typed_failure_without_adapter_secrets() {
+        use hyper_gpu_support::reporting::{Component, ComponentFailure, FailureCause};
+        let primary = ComponentFailure {
+            stage: None,
+            component: Component::GuestPayload,
+            cause: FailureCause::FileMissing,
+            code: None,
+        }
+        .into_error();
+        let (body, details) =
+            completion_failure("Completion read unavailable", "Readback facts", &primary);
+        assert!(body.contains("Completion read unavailable"));
+        assert!(body.contains("driver files are missing"));
+        assert!(body.contains("inspect recovery"));
+        assert!(details.contains("Readback facts") && details.contains("GuestPayload"));
+        let (body, details) =
+            completion_failure("Read unavailable", "", "unlabelled-private-value");
+        assert!(!body.contains("unlabelled-private-value"));
+        assert!(!details.contains("unlabelled-private-value"));
+    }
     #[test]
     fn empty_and_duplicate_details_do_not_create_a_second_summary() {
         assert!(additional_details("Refresh first", "").is_empty());

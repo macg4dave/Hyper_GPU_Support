@@ -93,7 +93,11 @@ APP-022 source removes an explicitly reviewed inactive pairing, saved intent and
 
 The [combined APP-017 through APP-022 review](BACKLOG.md#combined-workstream-review--app-017-through-app-022-12-october-2026) on 12 October 2026 corrected source integration gaps across these paths: retained host comparison after guest mismatch, reviewed Verify admission, interrupted-power restoration, failed reconciliation's handoff to repair, ownership acquisition/retention, and consistent historical rendering retention. Worker Verify reuses consumed in-process admission and its authenticated manifest; GUI Forget pairing shares protected inactive-profile validation. Static formatting/documentation/diff checks passed; compilation, automated execution and live acceptance of the changed source remain pending.
 
-APP-029 source skips unchanged compatibility writes during enabled Apply while preserving ownership journaling and final readback. Three isolated regressions were added; the workflow now contains 77 tests. Formatting/documentation/diff checks only; compilation and regression execution remain pending. Workflow review findings APP-027 (failed verification-only Apply retirement) and APP-028 (lost primary failure on restoration-proof persistence error) are queued and unimplemented.
+APP-029 source skips unchanged compatibility writes during enabled Apply while preserving ownership journaling and final readback. Three isolated regressions were added; the workflow now contains 77 tests. Formatting/documentation/diff checks only; compilation and regression execution remain pending. APP-027 (failed verification-only Apply retirement) remains unimplemented; APP-028 was subsequently source implemented in APP-033.
+
+## Full source review - 12 October 2026
+
+[APP-033 findings](evidence/full-source-review.md) cover current GUI/workflow/guest/protected-operation paths. Bounded source fixes address diagnostic visibility across library/binary crates, APP-028 combined failures, GUI completion-read failures, compact negative-check presentation and unnecessary CLI recovery credentials. Formatting and documentation/diff checks only; no compilation, test execution, render, credentials or live effects ran. The earlier M1 gate does not validate this revision. Existing APP-027 and new APP-034 retain the larger recovery/Apply safety gaps.
 
 ## Updating this page
 

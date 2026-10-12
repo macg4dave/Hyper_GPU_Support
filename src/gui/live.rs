@@ -65,6 +65,27 @@ fn with_state(
     }
     true
 }
+
+/// A failed completion read must not replace the operation's original failure.
+#[cfg(windows)]
+fn with_completion_state<T>(
+    ui: &AppWindow,
+    state: &SharedState,
+    outcome: &Result<T, String>,
+    operation: impl FnOnce(&mut State) -> Result<(), String>,
+) -> bool {
+    let completed = with_state(ui, state, operation);
+    if !completed && let Err(primary) = outcome {
+        let (body, details) = super::diagnostics::completion_failure(
+            ui.get_dialog_body().as_str(),
+            ui.get_dialog_details().as_str(),
+            primary,
+        );
+        ui.set_dialog_body(body.into());
+        ui.set_dialog_details(details.into());
+    }
+    completed
+}
 // overwriting newer session state. Only the event loop touches Slint models.
 fn background<T: Send + 'static>(
     ui: &AppWindow,
@@ -823,13 +844,18 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                     return;
                 }
                 let stages: Vec<_> = ui.get_stages().iter().collect();
-                if !with_state(ui, &finished_state, |state| {
-                    state.view.needs_readback = true;
-                    state.approved_plan = None;
-                    let status = state.finish_readback(readback);
-                    present(ui, state, false);
-                    status
-                }) {
+                if !with_completion_state(
+                    ui,
+                    &finished_state,
+                    &Err::<(), _>(error.clone()),
+                    |state| {
+                        state.view.needs_readback = true;
+                        state.approved_plan = None;
+                        let status = state.finish_readback(readback);
+                        present(ui, state, false);
+                        status
+                    },
+                ) {
                     return;
                 }
                 ui.set_stages(model(stages));
@@ -877,7 +903,7 @@ fn save_only_live(
         move |ui, result, readback| {
             let mut readback = Some(readback);
             if result.is_err()
-                && !with_state(ui, &finished_state, |state| {
+                && !with_completion_state(ui, &finished_state, &result, |state| {
                     let status = state.finish_readback(
                         readback
                             .take()
@@ -1025,7 +1051,7 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
                 });
                 return;
             }
-            if !with_state(ui, &finished_state, |state| {
+            if !with_completion_state(ui, &finished_state, &result, |state| {
                 state.verification_plan = None;
                 state.view.needs_readback = true;
                 let status = state.finish_readback(readback);
@@ -1156,7 +1182,7 @@ fn reconcile_live(
             {
                 return;
             }
-            if !with_state(ui, &finished_state, |state| {
+            if !with_completion_state(ui, &finished_state, &result, |state| {
                 let status = if let Ok(outcome) = &result
                     && publication
                     && outcome.operation.is_some()

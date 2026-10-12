@@ -4,9 +4,11 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
+**Full source review (12 October 2026): APP-033 complete in source; automated validation pending.** The user authorized review of current code, small/medium fixes and tasks for larger defects. [Review findings](evidence/full-source-review.md) record the fixes and limits. APP-028 is now source implemented. Next safety work when requested: APP-034 (Apply drift checks) and existing APP-027 (failed verification-only Apply retirement). No live effects or new automated gate ran.
+
 **UI usability work (12 October 2026): APP-030 source implemented; validation pending milestone gate and real interaction.** The [source audit](BASELINE.md#ui-interaction-audit---12-october-2026) records the initial gaps and subsequent source status. APP-024 is now source implemented with app-record-only deletion; APP-031 source now aligns operation wording; next UI action when requested: APP-025 (useful diagnostics), APP-032 (dialog interaction), then APP-026 (VRAM label). Existing recovery prerequisites and milestone gates remain in force. The user authorized APP-030, APP-024 and APP-031 source implementation; no further card or live GUI check is authorized.
 
-Workflow source-review follow-up (12 October 2026): APP-027 (High) and APP-028 (Medium) are queued for separate implementation. The user authorized only APP-029's compatibility-write improvement; its source and regression coverage are complete, with compilation/test execution pending.
+Workflow source-review follow-up (12 October 2026): APP-027 (High) remains queued; APP-028 (Medium) was subsequently source implemented in APP-033. The user authorized only APP-029's compatibility-write improvement; its source and regression coverage are complete, with compilation/test execution pending.
 
 **P0 workflow modularization: Implementation Done; validation Pending milestone gate (12 October 2026).** The user requested the [standalone plan](WORKFLOW_REFACTOR_PLAN.md) be implemented. Six private production modules now sit behind the existing workflow entry point; all 74 workflow tests and the current review fixes were preserved. Targeted formatting, structural comparison, documentation and diff checks passed. Compilation/test execution and the remaining automated gate stages have not run. No milestone closed and no live operations ran. This completed refactor does not authorize another backlog task.
 
@@ -45,11 +47,13 @@ Workflow source-review follow-up (12 October 2026): APP-027 (High) and APP-028 (
 | APP-025 | M2 | Keep Technical Details only where they add diagnostic value | APP-008 | Ready | Not run |
 | APP-026 | M2 | Display the slider VRAM maximum as a whole GB | APP-002 | Ready | Not run |
 | APP-027 | M2 | Retire a failed verification-only Apply without blocking repair | APP-019, APP-020 | Ready (High review finding) | Not run |
-| APP-028 | M2 | Preserve the guest failure when restoration-proof persistence fails | APP-018, APP-019 | Ready (Medium review finding) | Not run |
+| APP-028 | M2 | Preserve the guest failure when restoration-proof persistence fails | APP-018, APP-019 | Done (source implemented in APP-033) | Pending milestone gate; regressions unrun |
 | APP-029 | M2 | Skip unchanged compatibility writes during enabled Apply | APP-006 | Done (source implemented) | Pending milestone gate; regressions unrun |
 | APP-030 | M2 | Explain selected-VM action availability before activation | APP-016, APP-021, APP-022 | Done (source implemented) | Pending milestone gate and real interaction; regressions unrun |
 | APP-031 | M2 | Make action labels and review language match actual effects | APP-018, APP-020, APP-021 | Done (source implemented) | Pending milestone gate and real interaction; regressions unrun |
 | APP-032 | M2 | Make dialogs usable with keyboard and constrained layouts | APP-003 | Ready (Medium interaction risk) | Not run |
+| APP-033 | M2 | Review current source and fix bounded logic gaps | APP-008 | Done (source review and fixes) | Static checks only; automated gate pending |
+| APP-034 | M2 | Recheck admitted Apply facts before delayed writes and power restoration | APP-006, APP-019 | Ready (High review finding) | Not run |
 
 Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records the original five fixes and completed follow-up review. The [M1 closure](evidence/m1-closure.md) supersedes historical unrun/open statements in the implementation notes below for automated validation only; live qualification remains pending.
 
@@ -350,13 +354,15 @@ Implementation: Ready. Validation: Not run. Builds/tests and live effects requir
 
 ### APP-028 — Preserve the guest failure when restoration-proof persistence fails
 
-Priority: Medium. Source-review finding (12 October 2026); added at the user's request, not implemented.
+Priority: Medium. Source-review finding (12 October 2026); source implemented during the user-authorized APP-033 review.
 
 `record_restored_check_failure` can fail while saving or independently reading back the restored-negative proof. Verify and verification-only reconciliation propagate that failure before combining their operation outcomes, hiding the original payload/graphics failure behind the persistence error.
 
 Acceptance: retain both the original guest failure and restoration-proof save/readback failure with actionable, secret-free context. Preserve pending recovery and negative evidence; failed proof persistence must not certify restoration or grant negative retirement. Add isolated Verify/reconciliation regressions with a terminal payload or graphics failure followed by successful restoration and denied save or mismatching/unavailable readback. Preserve the existing primary/restoration error combinations and reporting boundaries.
 
-Implementation: Ready. Validation: Not run. This card authorizes no implementation or runtime checks.
+Implementation: Done (source implemented, 12 October 2026). Both Verify and verification-only reconciliation retain the primary typed guest failure when restoration-proof save/readback fails. In-memory unconfirmed proof is reset; pending recovery and negative evidence remain. Shared public/technical reporting presents both contexts without raw adapter output. One isolated regression exercises twelve combinations of Verify/reconciliation, payload/graphics failure and denied save/unavailable or mismatching readback.
+
+Validation: targeted formatting and documentation/diff checks only; compilation and regression execution pending the agreed automated gate. No live effects ran.
 
 ### APP-029 — Skip unchanged compatibility writes during enabled Apply
 
@@ -364,7 +370,7 @@ User request (12 October 2026): implement the workflow review's easy win. Write 
 
 Implementation: Done (source implemented). Enabled Apply now guards the settings backend call with the same comparison used by its preview. Test-only write counting and three focused regressions cover VRAM-only updates and same-digest reinstall with matching settings, re-enable after ownership release with a matching external baseline, and a required write failure retaining recovery without attachment or graphics. No authority, lifecycle, payload, allocation or publication policy changed.
 
-Validation: targeted Rust formatting/check, documentation checks and diff whitespace checks only. Compilation, automated regressions, lint/build/API documentation and live acceptance remain pending the agreed checkpoint. No GUI launch, credentials, guest access, protected writes or VM/GPU effects ran. APP-027 and APP-028 remain unimplemented.
+Validation: targeted Rust formatting/check, documentation checks and diff whitespace checks only. Compilation, automated regressions, lint/build/API documentation and live acceptance remain pending the agreed checkpoint. No GUI launch, credentials, guest access, protected writes or VM/GPU effects ran. APP-027 remains unimplemented; APP-028 was subsequently source implemented in APP-033.
 
 ### APP-030 - Explain selected-VM action availability before activation
 
@@ -422,3 +428,25 @@ Acceptance:
 - Add focused controller coverage for cancellation, confirmation guards and operation changes; retain existing component keyboard behaviour where adequate. Real keyboard/focus/layout evidence belongs to the separately authorized APP-009 sequence, not a retired mock viewer.
 
 Implementation: Ready. Validation: Not run. No current keyboard/layout failure was reproduced and no UI source changed.
+
+### APP-033 - Review current source and fix bounded logic gaps
+
+User request (12 October 2026): review accumulated changes for gaps and logic errors, fix small/medium findings, and create tasks for larger findings. Review spans GUI state/presentation, workflow planning/apply/verification/reconciliation, guest parity/transfer, protected worker completion, configuration publication, enrollment/removal and IPC/trust boundaries. [Findings and scope](evidence/full-source-review.md) record current evidence and exclusions.
+
+Implementation: Done (source review and bounded fixes). Fix the binary/library diagnostic visibility mismatch; complete APP-028; preserve the original operation failure when GUI completion reads also fail; prefer newer adverse guest check facts over historical success in the compact VM summary; and request CLI reconciliation credentials from the durable graphics requirement. Existing receipt, enrollment, consent, publication and no-replay boundaries remain. Added regressions are isolated; existing graphics-requirement coverage is reused for the CLI change.
+
+Validation: targeted Rust formatting/check, local documentation consistency and diff whitespace only. Compilation, tests, lint/build/API docs, rendering and real interaction are pending the agreed checkpoint. No GUI launch, credentials, protected writes, guest access or VM/GPU effects ran. Larger findings remain APP-027 and APP-034; no milestone closed.
+
+### APP-034 - Recheck admitted Apply facts before delayed writes and power restoration
+
+Priority: High. Confirmed source gap in `workflow/apply.rs`, found during APP-033. Admission checks initial VM/GPU/journal facts, but driver preparation and shutdown may take time. Enabled Apply compares its compatibility-write decision with the old initial settings, then writes the full desired settings without checking for an external change. Removal already refuses such a change. Final readback detects some drift only after overwriting it. Also, failed verification-only Apply uses `restore_guest_power` directly without the full host/GPU checks used by standalone Verify and reconciliation. Changed assignments/settings can therefore still be followed by a shutdown based on the earlier admission.
+
+Acceptance:
+
+- Reuse the existing admitted decision, protected worker/lock and backend interfaces; introduce no alternate effect path or new authority.
+- Define and independently check stage-specific expected host/GPU/journal facts after slow steps and before delayed compatibility/resource/assignment writes and guest power changes. Account for effects this operation itself performed; reject external drift or unavailable facts before overwriting or changing power. Preserve the original compatibility baseline and setting ownership.
+- Give verification-only Apply the same changed-fact and external-stop refusal as Verify/reconciliation. Restore only the reviewed supported final power when independently justified; retain primary and restoration failures and pending recovery on uncertainty.
+- Keep previews accurate and ordinary operations guest-free. Never replay preparation, attachment or allocation to obtain proof or release recovery.
+- Add isolated regression/failure coverage for external settings, GPU/driver, assignment/resource and power changes during preparation/checks, unavailable inspections, successful expected transitions, refused restoration, and interrupted proof persistence. Inspect native adapter safeguards and effect order together; source-only changes are not live acceptance.
+
+Implementation: Ready. Validation: Not run. This review creates the task; the broader change requires a separate requested implementation and the existing automated/live gates.

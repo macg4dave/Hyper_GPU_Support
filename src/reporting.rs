@@ -142,7 +142,9 @@ impl ComponentFailure {
         )
     }
 
-    pub(crate) fn decode(error: &str) -> Option<Self> {
+    /// Decode bounded typed diagnostic facts for shared frontend presentation.
+    /// A parsed diagnostic is not authentication or authorization evidence.
+    pub fn decode(error: &str) -> Option<Self> {
         if error.len() > 8192 {
             return None;
         }
@@ -276,6 +278,12 @@ impl Diagnostic {
 }
 /// Present arbitrary failure text safely at the frontend boundary.
 pub fn operator_error(stage: &str, error: &str) -> String {
+    if let Some((_, primary)) = restored_failure_parts(error) {
+        return format!(
+            "{} The restoration proof could not be saved or independently confirmed; recovery remains required.",
+            operator_error(stage, primary)
+        );
+    }
     if let Some(failure) = ComponentFailure::decode(error) {
         let description = match (failure.component, failure.cause) {
             (Component::GuestPayload, FailureCause::FileMissing) => Some(
@@ -348,6 +356,13 @@ pub fn operator_error(stage: &str, error: &str) -> String {
 /// Preserve native error codes and classified context without echoing untrusted
 /// adapter text, which can contain credential material even without key labels.
 pub fn technical_error(stage: &str, error: &str) -> String {
+    if let Some((persistence, primary)) = restored_failure_parts(error) {
+        return format!(
+            "{}\n\nRestoration-proof persistence failed; recovery remains required.\n{}",
+            technical_error(stage, primary),
+            technical_error("Restoration proof", persistence)
+        );
+    }
     if let Some(failure) = ComponentFailure::decode(error) {
         return format!(
             "Operation: {stage}\n{}\n{}",
@@ -392,6 +407,19 @@ pub fn technical_error(stage: &str, error: &str) -> String {
             codes.join(", ")
         },
     )
+}
+
+// A bounded application-owned combination retains its terminal typed primary.
+// Both parts are independently redacted; no free-form adapter output is echoed.
+fn restored_failure_parts(error: &str) -> Option<(&str, &str)> {
+    if error.len() > 8192 {
+        return None;
+    }
+    let parts = error
+        .strip_prefix("restoration-proof persistence failed: ")?
+        .split_once("; original guest failure: ")?;
+    ComponentFailure::decode(parts.1)?;
+    Some(parts)
 }
 
 /// Remove adapter error text from structured CLI results without altering facts.
