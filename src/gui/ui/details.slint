@@ -18,6 +18,7 @@ export component VmDetails inherits Rectangle {
     in property <bool> dirty;
     in property <bool> eligible;
     in property <bool> recovery;
+    in property <bool> gpu-selection-fixed;
     in-out property <bool> gpu-enabled;
     in-out property <int> gpu-index;
     in property <bool> memory-available;
@@ -69,7 +70,8 @@ export component VmDetails inherits Rectangle {
                         Hint { text: root.support-summary; }
                         Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: "Enable GPU support in this draft"; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
                         Hint { text: "Physical GPU"; }
-                        ComboBox { enabled: !Theme.modal-active && (root.eligible && !root.recovery); model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
+                        ComboBox { enabled: !Theme.modal-active && root.eligible && !root.recovery && !root.gpu-selection-fixed; model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
+                        if root.gpu-selection-fixed : Hint { text: "This VM is authorized for its recorded GPU. Changing that GPU is unavailable; Refresh if the recorded GPU is missing. Your saved memory requests are kept."; }
                         HorizontalLayout {
                             Label { text: "GPU Memory request"; font-weight: 600; }
                             Label { text: root.memory-label; font-weight: 600; horizontal-alignment: right; }

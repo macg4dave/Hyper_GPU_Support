@@ -2,8 +2,29 @@ import { Button, CheckBox, ProgressIndicator, ScrollView } from "std-widgets.sli
 import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
 import { TechnicalOutput } from "technical-output.slint";
 
+component ActionChoice inherits Rectangle {
+    min-width: 0px;
+    in property <string> label;
+    in property <string> reason;
+    in property <bool> ready;
+    in property <bool> updating;
+    callback activate();
+    VerticalLayout {
+        spacing: 4px;
+        Button { text: root.label; enabled: root.reason == "" && root.ready && !root.updating; clicked => { root.activate(); } }
+        Hint { min-width: 0px; text: root.updating ? "VM information is updating. Wait for the update to finish." : root.reason != "" ? root.reason : !root.ready ? "Use Refresh to check application setup and worker availability." : "Opens a fresh review. Changes require separate confirmation."; }
+    }
+}
+
 export component OperationDialog inherits Rectangle {
     in property <bool> execution-ready: false;
+    in property <bool> updating: false;
+    in property <string> verify-unavailable;
+    in property <string> repair-unavailable;
+    in property <string> remove-unavailable;
+    in property <string> forget-unavailable;
+    in property <bool> action-recovery;
+    in property <bool> dirty;
     in property <string> kind;
     in property <string> title;
     in property <string> body;
@@ -41,6 +62,13 @@ export component OperationDialog inherits Rectangle {
                     VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
                         width: body-scroll.visible-width;
                         Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
+                        if root.kind == "more" : VerticalLayout {
+                            spacing: 12px;
+                            ActionChoice { label: "Verify Graphics"; reason: root.verify-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
+                            ActionChoice { label: "Repair / Reinstall"; reason: root.repair-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
+                            ActionChoice { label: "Remove GPU support"; reason: root.remove-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
+                            ActionChoice { label: "Forget pairing"; reason: root.forget-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
+                        }
                     }
                 }
                 if root.stages.length > 0 : Rectangle {
@@ -95,13 +123,13 @@ export component OperationDialog inherits Rectangle {
                     if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
                     if root.kind == "recovery" : Button { text: "Reconcile observed outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
                     if root.kind == "recovery-needed" : Button { text: "Review recovery"; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
-                    if root.kind == "more" : Button { text: "Verify Graphics"; enabled: root.execution-ready; clicked => { root.action("verify"); } }
-                    if root.kind == "more" : Button { text: "Repair / Reinstall"; enabled: root.execution-ready; clicked => { root.action("repair"); } }
-                    if root.kind == "more" : Button { text: "Remove GPU support"; enabled: root.execution-ready; clicked => { root.action("remove-gpu"); } }
                     close-button := Button { visible: root.kind != "review" && root.kind != "forget-review" && root.kind != "enroll-review" && root.kind != "switch" && root.kind != "exit"; text: root.running ? "Operation in progress" : "Close"; enabled: !root.running; clicked => { root.action("close"); } }
                 }
                 if root.kind == "more" : HorizontalLayout {
-                    Button { text: "Forget pairing"; enabled: root.execution-ready; clicked => { root.action("forget"); } }
+                    if root.action-recovery : Button { text: "Review recovery"; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
+                    if root.dirty && !root.action-recovery : Button { text: "Review changes"; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
+                    if root.dirty : Button { text: "Discard draft"; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
+                    Button { text: "Refresh"; enabled: !root.running && !root.updating; clicked => { root.action("refresh"); } }
                     Rectangle { horizontal-stretch: 1; }
                 }
                 HorizontalLayout {

@@ -14,6 +14,13 @@ export component AppWindow inherits Window {
     in-out property <int> page: 0;
     in-out property <int> theme-index: 0;
     in-out property <bool> execution-ready: false;
+    in-out property <bool> updating: false;
+    in property <string> verify-unavailable: "Select a VM first.";
+    in property <string> repair-unavailable: "Select a VM first.";
+    in property <string> remove-unavailable: "Select a VM first.";
+    in property <string> forget-unavailable: "Select a VM first.";
+    in property <bool> action-recovery: false;
+    in property <bool> gpu-selection-fixed: false;
     in property <[string]> gpu-options;
     in property <string> system-summary;
     in property <[GpuRow]> gpu-information;
@@ -127,6 +134,7 @@ export component AppWindow inherits Window {
                             support-summary: root.support-summary;
                             inventory-details: root.inventory-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
+                            gpu-selection-fixed: root.gpu-selection-fixed;
                             presenting: root.presenting; resource-defaults: root.resource-defaults;
                             gpu-enabled <=> root.gpu-enabled; gpu-index <=> root.gpu-index; values <=> root.values;
                             resource-available: root.resource-available; resource-hints: root.resource-hints;
@@ -150,6 +158,14 @@ export component AppWindow inherits Window {
             HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.recovery ? "Recovery requires your attention" : root.execution-ready ? "Ready to review changes" : "Setup or refresh required"; } Hint { text: root.running ? ("Please wait…") : "Ready"; horizontal-alignment: right; } }
         }
     }
-    if root.dialog-kind != "" : OperationDialog { execution-ready: root.execution-ready; kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body; details: root.dialog-details; stages: root.stages; running: root.running; needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); } }
+    if root.dialog-kind != "" : OperationDialog {
+        execution-ready: root.execution-ready; updating: root.updating;
+        verify-unavailable: root.verify-unavailable; repair-unavailable: root.repair-unavailable;
+        remove-unavailable: root.remove-unavailable; forget-unavailable: root.forget-unavailable;
+        action-recovery: root.action-recovery; dirty: root.dirty;
+        kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body;
+        details: root.dialog-details; stages: root.stages; running: root.running;
+        needs-shutdown: root.needs-shutdown; action(a) => { root.action(a); }
+    }
 }
 

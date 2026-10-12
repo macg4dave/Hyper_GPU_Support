@@ -4,11 +4,13 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
+**UI usability work (12 October 2026): APP-030 source implemented; validation pending milestone gate and real interaction.** The [source audit](BASELINE.md#ui-interaction-audit---12-october-2026) records the initial gaps and subsequent source status. Next UI action when requested: APP-024 (Delete profile), followed by APP-031 (action/review language), APP-025 (useful diagnostics), APP-032 (dialog interaction), then APP-026 (VRAM label). Existing recovery prerequisites and milestone gates remain in force. The user authorized APP-030 implementation only; no additional card or live GUI check is authorized.
+
 Workflow source-review follow-up (12 October 2026): APP-027 (High) and APP-028 (Medium) are queued for separate implementation. The user authorized only APP-029's compatibility-write improvement; its source and regression coverage are complete, with compilation/test execution pending.
 
 **P0 workflow modularization: Implementation Done; validation Pending milestone gate (12 October 2026).** The user requested the [standalone plan](WORKFLOW_REFACTOR_PLAN.md) be implemented. Six private production modules now sit behind the existing workflow entry point; all 74 workflow tests and the current review fixes were preserved. Targeted formatting, structural comparison, documentation and diff checks passed. Compilation/test execution and the remaining automated gate stages have not run. No milestone closed and no live operations ran. This completed refactor does not authorize another backlog task.
 
-**Next source action: APP-024 — Add Delete profile under VM More actions, when requested.** APP-016 through APP-022 are source implemented; APP-017 through APP-022 were reviewed and corrected as one related workstream on 12 October 2026. APP-024 reuses APP-022's protected transition and was not included in that review's implementation scope. The combined review ran static checks only; current compilation and regression execution remain pending under the milestone policy. APP-023 remains blocked by the agreed automated gate and separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
+**Previously queued UI action: APP-024 — Add Delete profile under VM More actions, when requested.** APP-016 through APP-022 are source implemented; APP-017 through APP-022 were reviewed and corrected as one related workstream on 12 October 2026. APP-024 reuses APP-022's protected transition and was not included in that review's implementation scope. The combined review ran static checks only; current compilation and regression execution remain pending under the milestone policy. APP-023 remains blocked by the agreed automated gate and separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
 
 **APP-009 / APP-011 — Resolve the allocation contract and complete M2 preparation.** M1 is closed with [gate evidence](evidence/m1-closure.md). The [prepared sequence and source assessment](evidence/m2-preparation.md) record remaining environment facts and proposed effects. Selected-VM setup is already user-accepted; the remaining live sequence has not run. APP-011 source removes the metadata-derived VRAM ceiling; validate these changes at the agreed checkpoint before separately authorized live allocation checks.
 
@@ -45,6 +47,9 @@ Workflow source-review follow-up (12 October 2026): APP-027 (High) and APP-028 (
 | APP-027 | M2 | Retire a failed verification-only Apply without blocking repair | APP-019, APP-020 | Ready (High review finding) | Not run |
 | APP-028 | M2 | Preserve the guest failure when restoration-proof persistence fails | APP-018, APP-019 | Ready (Medium review finding) | Not run |
 | APP-029 | M2 | Skip unchanged compatibility writes during enabled Apply | APP-006 | Done (source implemented) | Pending milestone gate; regressions unrun |
+| APP-030 | M2 | Explain selected-VM action availability before activation | APP-016, APP-021, APP-022 | Done (source implemented) | Pending milestone gate and real interaction; regressions unrun |
+| APP-031 | M2 | Make action labels and review language match actual effects | APP-018, APP-020, APP-021 | Ready (Medium usability finding) | Not run |
+| APP-032 | M2 | Make dialogs usable with keyboard and constrained layouts | APP-003 | Ready (Medium interaction risk) | Not run |
 
 Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records the original five fixes and completed follow-up review. The [M1 closure](evidence/m1-closure.md) supersedes historical unrun/open statements in the implementation notes below for automated validation only; live qualification remains pending.
 
@@ -354,3 +359,52 @@ User request (12 October 2026): implement the workflow review's easy win. Write 
 Implementation: Done (source implemented). Enabled Apply now guards the settings backend call with the same comparison used by its preview. Test-only write counting and three focused regressions cover VRAM-only updates and same-digest reinstall with matching settings, re-enable after ownership release with a matching external baseline, and a required write failure retaining recovery without attachment or graphics. No authority, lifecycle, payload, allocation or publication policy changed.
 
 Validation: targeted Rust formatting/check, documentation checks and diff whitespace checks only. Compilation, automated regressions, lint/build/API documentation and live acceptance remain pending the agreed checkpoint. No GUI launch, credentials, guest access, protected writes or VM/GPU effects ran. APP-027 and APP-028 remain unimplemented.
+
+### APP-030 - Explain selected-VM action availability before activation
+
+Priority: High. The [UI audit](BASELINE.md#ui-interaction-audit---12-october-2026) found More actions uses broad worker readiness while the existing controllers enforce different draft, pairing, attachment, power and recovery prerequisites. An enrolled GPU replacement is also selectable although that workflow is unavailable. Reuse existing eligibility and review contracts; presentation never grants effect authority.
+
+Acceptance:
+
+- For the selected VM, explain whether Verify, Repair / Reinstall, Remove GPU support and profile removal are available. An unavailable action has a visible specific reason and a reachable next step, including review/apply/discard of pending edits, Refresh or Review recovery as applicable. Do not hide the only route to inspect recovery behind a disabled operation.
+- Cover no selection, unconfigured/unsupported VM, active versus inactive support, running/off power, missing attachment, unavailable observations, unreadable/conflicting records, pending edits and recovery. Avoid presenting a stale observation as permission; a fresh protected review remains required.
+- Explain the enrolled GPU restriction before an unsupported replacement can become an apparently actionable draft. Preserve saved resource requests and stable GPU identity; do not implement replacement, auto-discard edits or silently choose another GPU.
+- Refresh, VM selection and operation completion update reasons together with availability. Preserve drafts and unrelated VM profiles. Selection/revision changes still invalidate confirmation.
+- Add focused controller/presentation regressions for these reasons, permitted recovery navigation and changed selection/observation. Actual mouse/keyboard interaction is checked under APP-009 at the agreed checkpoint.
+
+Implementation: Done (source implemented at the user's request on 12 October 2026). The read-only [action presenter](../src/gui/actions.rs) reuses editor/draft/removal/profile eligibility and shared Verify power/assignment checks. More actions shows individual unavailable reasons alongside scrollable action choices, Refresh, draft review/discard and a separate Review recovery route. Busy/readiness state disables operation requests with an explanation; action callbacks recheck availability before changing drafts. Reasons refresh on selection, edits, observation and operation completion. Unknown managed history requests Refresh without inventing a hold. Inactive profile cleanup remains available without the physical GPU where the existing profile contract permits it.
+
+The GPU selector is locked for an authorized VM, with a visible explanation. Identity-based lookup follows enumeration changes; a missing enrolled device stays unavailable instead of choosing another GPU. The edit callback rejects an attempted replacement without rewriting resource requests. Unconfigured setup retains GPU selection. Fresh protected reviews, revision bindings, effects and recovery authority are unchanged. APP-024 still owns the Delete profile label and guided deletion journey.
+
+Regression source: nine new isolated state tests cover active/inactive and running/off paths, missing attachment/device, invalid draft preservation and unrelated profiles, selection/transitional/unsupported states, failed refresh and unreadable intent, unavailable history, host-wide recovery, unconfigured setup, GPU reordering/replacement rejection, unsupported preparation and per-VM incomplete observations. The existing pending-journal regression additionally checks availability reasons and recovery navigation without a save record.
+
+Validation: targeted Rust formatting/check, documentation/link/task consistency and diff whitespace only. Compilation, regression execution and Slint compilation/render/keyboard/mouse acceptance remain pending the agreed checkpoint. No GUI launch, credentials, guest access, protected write or VM/GPU effect ran. No milestone is closed.
+
+### APP-031 - Make action labels and review language match actual effects
+
+Priority: Medium. Verify now checks current guest payload and receipt as well as graphics, but its controls still label it as a graphics check. Shared shutdown consent refers to restoration even when Apply ends off. Other normal dialogs lead with internal authority/worker terminology rather than the user's task.
+
+Acceptance:
+
+- Use consistent, plain action names across More actions, reviews, progress and completion. Verify explains both current driver-file checks and hardware rendering; Repair / Reinstall explains driver preparation; removal explains what remains. Preserve the distinct reviews and APP-024's deletion scope.
+- Each review leads with the VM name, requested changes, actual required power transitions, expected final power and relevant credentials/time warning. Shutdown consent describes the particular plan: ordinary Apply/setup ends off; Verify restores the reviewed initial state where supported. Never promise restoration or success before independent confirmation.
+- Explain first setup's authorization review followed by the GPU-effect review as understandable steps. Cancellation retains drafts and grants no effects; credential cancellation is described without implying setup has begun or completed.
+- Normal status/failure copy tells the user what happened and what to do next, distinguishing current observation, saved intent, pending edits and historical verification. Avoid a generic Ready status implying an unavailable action can run. Retain uncertainty and necessary warnings without burying them in diagnostics.
+- Move implementation identifiers/details to existing diagnostic output where useful under APP-025. Keep truthful VRAM limitations; do not claim reserved memory, current guest health from history, or qualified hardware behaviour.
+- Cover operation-specific labels, power consent, missing/stale facts and failure/next-step presentation with focused regressions. Check readability and actual dialogs separately under APP-009.
+
+Implementation: Ready. Validation: Not run. Source audit finding only; no wording or product behaviour changed.
+
+### APP-032 - Make dialogs usable with keyboard and constrained layouts
+
+Priority: Medium. Source review identifies default focus on Technical Details and dense horizontal action rows; keyboard trapping/return, Escape behaviour and actual clipping remain untested interaction risks. Retain the existing design/components, and reproduce runtime failures before describing them as confirmed defects.
+
+Acceptance:
+
+- Initial focus reaches an appropriate safe action/content rather than always opening on Technical Details. Tab and Shift+Tab reach the complete dialog controls without activating the obscured underlying page; closing returns focus to the initiating control or a safe remaining control if it disappeared.
+- Keyboard and pointer paths offer equivalent Stay, Cancel, Close, Review and explicit confirmation choices. Escape uses safe cancellation/close for idle reviews, retaining drafts and clearing approval; it never confirms effects or dismisses a running operation as though it stopped. Enter cannot bypass consent, disabled actions or explicit destructive confirmation.
+- Check More actions, switch/exit, Apply, Verify, credentials handoff, profile removal, error, save-only and recovery dialogs. Buttons and consent remain readable/reachable at the supported minimum window size and recorded Windows scaling, with long VM names/messages and both themes.
+- Keep review/diagnostic/progress text scrollable. User scrolling to earlier progress is retained until they return to the end; diagnostics and consent do not carry obsolete content/approval into a changed operation or VM. Coordinate hidden diagnostic-button focus with APP-025.
+- Add focused controller coverage for cancellation, confirmation guards and operation changes; retain existing component keyboard behaviour where adequate. Real keyboard/focus/layout evidence belongs to the separately authorized APP-009 sequence, not a retired mock viewer.
+
+Implementation: Ready. Validation: Not run. No current keyboard/layout failure was reproduced and no UI source changed.

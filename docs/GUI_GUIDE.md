@@ -12,6 +12,14 @@ Windows exposure repainting now has a source backport in the pinned Slint 1.18.1
 
 APP-002 source now displays the 1 GB-to-card-capacity slider, with exact physical endpoints. [APP-011](BACKLOG.md#app-011--correct-physical-vram-and-provider-mapping) removes reported partition metadata as a VRAM byte ceiling. The selected physical capacity bounds the slider; unknown capacity remains unavailable. Hyper-V decides whether the byte request is accepted, followed by exact readback. Existing requests below 1 GB remain labeled exactly; moving the slider is an explicit edit, not a rewrite on load. Advanced Allocation retains exact VRAM fields for compatibility and correction. Compute/Encode/Decode editors are removed from this GUI; saved requests are preserved and shown in review. Use the toggle or More actions > Remove GPU support to disable support. Compilation and isolated boundary/controller checks passed M1; rendering and real hardware acceptance remain pending.
 
+## Selected-VM action availability
+
+APP-030 source now shows Verify, Repair / Reinstall, Remove GPU support and Forget pairing as separate scrollable choices in More actions. Each unavailable choice explains its prerequisite; available choices open a fresh review rather than applying effects. Refresh, draft review/discard and Review recovery provide next steps. Recovery navigation remains available even when new operations or the protected worker are unavailable; inspection still cannot clear a hold or confirm effects. Background updates temporarily disable action requests with an explanation.
+
+The read-only [presenter](../src/gui/actions.rs) reuses existing draft/removal/profile eligibility and shared Verify assignment/power checks. Missing/stale/incomplete observations, pending edits, authority, power, conflicts and managed recovery determine reasons; fresh protected review/admission remains authoritative. Inactive profile removal does not require a discovered physical GPU when the existing contract permits cleanup. APP-024 separately supplies the requested Delete profile presentation.
+
+An authorized VM's GPU selector is fixed to its recorded pairing, with an explanation that replacement is unavailable. The fixed identity follows GPU enumeration changes; a missing device remains unavailable, with saved requests retained. Unconfigured VMs can still select a GPU for reviewed setup. Source formatting/documentation checks only; Slint compilation, regression execution, rendering and actual interaction are pending.
+
 ## Review and Apply
 
 Toggle/VRAM changes remain drafts. Apply opens a review panel naming the selected VM, showing what will change and relevant time warnings, and explaining every required start, shutdown, or restart. Show the expected final power state. A second Apply confirms; cancellation returns to editing.

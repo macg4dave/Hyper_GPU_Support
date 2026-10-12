@@ -285,7 +285,23 @@ fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool) -> VmRow 
 fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_presenting(true);
     present_inner(ui, state, reset_draft);
+    present_actions(ui, state);
     ui.set_presenting(false);
+}
+
+fn present_actions(ui: &AppWindow, state: &State) {
+    let values = ui
+        .get_values()
+        .iter()
+        .map(|value| value.to_string())
+        .collect::<Vec<_>>();
+    let actions = state.selected_actions(ui.get_gpu_index(), &values);
+    ui.set_verify_unavailable(actions.verify.into());
+    ui.set_repair_unavailable(actions.repair.into());
+    ui.set_remove_unavailable(actions.remove.into());
+    ui.set_forget_unavailable(actions.forget.into());
+    ui.set_action_recovery(actions.recovery);
+    ui.set_gpu_selection_fixed(state.fixed_gpu_index().is_some());
 }
 
 fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
@@ -576,7 +592,11 @@ fn with_state(
     let result = state
         .lock()
         .map_err(|_| "Live presentation state is unavailable; restart the application.".to_owned())
-        .and_then(|mut state| operation(&mut state));
+        .and_then(|mut state| {
+            let result = operation(&mut state);
+            present_actions(ui, &state);
+            result
+        });
     if let Err(error) = result {
         ui.set_execution_ready(false);
         ui.set_eligible(false);
@@ -653,6 +673,7 @@ fn background_for_vm<T: Send + 'static>(
     if busy.swap(true, Ordering::AcqRel) {
         return Err("Another GUI operation is still running.".into());
     }
+    ui.set_updating(true);
     let silent = title == "Updating VM status";
     if !silent {
         ui.set_running(true);
@@ -701,6 +722,7 @@ fn background_for_vm<T: Send + 'static>(
             if weak
                 .upgrade_in_event_loop(move |ui| {
                     completion_busy.store(false, Ordering::Release);
+                    ui.set_updating(false);
                     if !silent {
                         ui.set_running(false);
                         ui.set_dialog_kind("".into());
@@ -714,6 +736,7 @@ fn background_for_vm<T: Send + 'static>(
         })
     {
         busy.store(false, Ordering::Release);
+        ui.set_updating(false);
         if !silent {
             ui.set_running(false);
             ui.set_dialog_kind("".into());
@@ -1864,6 +1887,13 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 return;
             }
             with_state(&ui, &edit_state, |state| {
+                if let Some(index) = state.fixed_gpu_index()
+                    && ui.get_gpu_index() != index
+                {
+                    ui.set_gpu_index(index);
+                    ui.set_notice("The recorded GPU pairing is fixed. GPU replacement is unavailable; your edits are kept.".into());
+                    return Ok(());
+                }
                 state.approved_plan = None;
                 state.enrollment_review = None;
                 state.setup_artifacts = None;
@@ -1980,7 +2010,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             ui.set_notice("VM information is updating. You can keep editing; try this action when the update finishes.".into());
             return;
         }
-        if matches!(action.as_str(), "more" | "verify" | "repair" | "remove-gpu" | "forget") {
+        if matches!(action.as_str(), "verify" | "repair" | "remove-gpu" | "forget") {
             let message = action_state.lock()
                 .map_err(|_| "Live presentation state unavailable".to_owned())
                 .map(|state| state.action_recovery_message());
@@ -1994,6 +2024,28 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     return;
                 }
                 Ok(None) => {}
+            }
+            if !ui.get_execution_ready() {
+                dialog(&ui, "info", "Action unavailable", "Use Refresh to check application setup and worker availability. Your edits are kept.");
+                return;
+            }
+            let availability = action_state.lock()
+                .map_err(|_| "Live presentation state unavailable".to_owned())
+                .map(|state| {
+                    let values = ui.get_values().iter().map(|value| value.to_string()).collect::<Vec<_>>();
+                    state.selected_actions(ui.get_gpu_index(), &values)
+                        .reason(action.as_str()).unwrap_or_default().to_owned()
+                });
+            match availability {
+                Ok(reason) if !reason.is_empty() => {
+                    dialog(&ui, "info", "Action unavailable", &reason);
+                    return;
+                }
+                Err(error) => {
+                    dialog(&ui, "error", "Cannot read action availability", &error);
+                    return;
+                }
+                _ => {}
             }
         }
         let result = match action.as_str() {
@@ -2055,8 +2107,9 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "more" => {
-                let body = "Remove GPU support reviews host GPU removal and final shutdown, even when guest setup is missing. It keeps guest driver files and product authorization and requires no guest credentials or graphics check. Repair / Reinstall reviews complete driver preparation and graphics verification. Verify checks current guest files and graphics without reinstalling. All operations use the protected worker and reviewed power consent. Resolve pending recovery first. Forget pairing separately reviews deleting this inactive VM profile and its authorization, after GPU removal.";
-                dialog(&ui, "more", "VM actions", body); Ok(())
+                if !with_state(&ui, &action_state, |_| Ok(())) { return; }
+                let body = format!("Virtual machine: {}\n\nChoose an action to open its review. Unavailable actions explain what to do first. Your edits are kept until you explicitly discard or apply them.", ui.get_vm_name());
+                dialog(&ui, "more", "VM actions", &body); Ok(())
             },
             "credentials" => {
                 let selected = ui.get_selected_id().to_string();

@@ -12,6 +12,8 @@ Retired mock/snapshot GUI tooling is not used or maintained. Meaningful isolated
 
 ## Planned automated gate
 
+The source-based [UI audit](BASELINE.md#ui-interaction-audit---12-october-2026) adds journey acceptance below; it does not require per-card builds or authorize a GUI launch. Focused regression coverage added during separately requested fixes runs at the agreed milestone/checkpoint.
+
 APP-008 provides the narrow non-elevated [gate](../scripts/testing/check.ps1) against current source, using a local [documentation checker](../scripts/testing/check-docs.py). Run `powershell -NoProfile -File scripts/testing/check.ps1` at M1 completion. The gate stops at its first failed stage and records commands, revision, environment, timestamps, results and exclusions under ignored `local/evidence/m1-gate-*`.
 
 The [APP-001 through APP-008 follow-up source review](evidence/m1-source-review.md) is complete after APP-006/APP-007 implementation. The gate passed on 11 October 2026; [closure evidence](evidence/m1-closure.md) records the executed commands, 192 passing tests and exclusions. Source fixes and added regressions alone do not constitute a passing gate.
@@ -77,6 +79,28 @@ Select exact host/guest builds, GPU/driver, two existing Generation 2 Windows 11
 All Windows redraw bugs are closed by explicit user acceptance on 11 October 2026. The live check switched the partly off-screen/taskbar-covered window from Dashboard to About through Slint MCP, then the user restored it without another UI action and confirmed the latest content redrew correctly. The [local backend patch](../vendor/i-slint-backend-winit/LOCAL_PATCH.md) records that check, acceptance and two passing in-memory regressions with their separate test command; root-package tests do not execute dependency unit tests. Cover/uncover, minimize/restore, resize and fractional-DPI monitor transitions remain useful future regression scenarios, not open acceptance blockers. No VM/GPU effects are authorized by these window checks.
 
 Do not force power-off, induce hangs, restart the host, or automatically retry. Stop on uncertain outcomes and retain evidence. Live fault injection requires specific authorization. APP-010 adds separately authorized package installation and upgrade trials.
+
+## UI journey acceptance
+
+APP-009 owns these interaction checks after the separately requested UI fixes and agreed automated gate. The [source audit](BASELINE.md#ui-interaction-audit---12-october-2026) is not interaction evidence. Prepare an exact artifact/revision, target VM(s), starting state, permitted actions/effects and evidence location before requesting live authorization; a GUI launch may elevate and is not implied by this checklist. Do not repeat the already accepted setup just to collect screenshots. Use a separately approved eligible target if a new setup run is needed.
+
+For each exercised case, record starting state, user action, actual result, expected result, pass/fail and supporting screenshot or non-secret event evidence. Record unexercised cases as Not run, with the reason. Source and installed-artifact behaviour must not be conflated.
+
+| Journey / case | Observable acceptance |
+|---|---|
+| Selection and drafts | Edit VM A, try switching to B: Stay keeps A/edits; Review names A; Discard & Switch changes to B without applying. Duplicate names remain distinguishable. Other profiles stay unchanged |
+| Refresh and conflicts | Pending edits survive Refresh/failure; changed saved intent has an actionable conflict explanation. Missing VM/GPU or reordered GPUs do not redirect a draft/approval to another target |
+| First setup | Follow authorization then effect review without ambiguous completion claims. Local credential cancellation performs no new guest work, retains the draft, and leaves existing recovery intact. Remember is opt-in |
+| Ordinary change | Toggle/VRAM edit is pending until second Apply; Cancel retains it. Review names actual changes, transitions and final Off. Completion distinguishes host outcome, save result and historical guest verification |
+| Action availability | APP-030 reasons match pending edits, active/inactive profile, power, authority, stale inventory and recovery; an available next step is reachable without first attempting a prohibited operation |
+| Verify and repair | Verify explains driver-file/receipt and rendering checks plus actual lifecycle. Repair is a separate reviewed reinstall. Cancel and changed target/revision invalidate approval; negative or unknown results stay visible |
+| Removal and deletion | Removal and APP-024 profile deletion explain their distinct scopes; active support follows reviewed removal first. Cancel preserves records; deleted profile does not delete the Hyper-V VM or other profiles |
+| Progress and failure | Long-running progress remains readable; scrolling up is retained; 100% transfer is not verification success. Failure names the outcome and next step; details add diagnostic value instead of repeating the summary |
+| Recovery and save-only | Review recovery opens the bound review without clearing holds. Save-only never repeats GPU/guest effects. Denied/unavailable reconciliation preserves evidence and clearly says what remains blocked |
+| Keyboard and layout | Tab/Shift+Tab, Enter, Escape, safe focus return, consent and disabled controls work through idle/running dialogs. Long names/content, supported minimum window, recorded scaling and both themes keep actions reachable |
+| Close and reopen | Closing with a dirty draft offers safe choices; closing during work does not imply cancellation. Saved settings survive reopen; fresh/unknown observations and historical verification remain distinct |
+
+APP-027/APP-028 recovery cases and APP-011 allocation behaviour retain their own prerequisites and evidence. No fault injection, credential prompt, guest access, protected write or VM/GPU effect is authorized by inclusion here. Close usability acceptance only for the actual cases exercised; do not mark all journeys passed from one successful setup.
 
 ## Evidence and claims
 
