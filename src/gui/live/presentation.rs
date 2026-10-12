@@ -41,7 +41,10 @@ fn vm_row(vm: &VmState, discovery: &Discovery) -> VmRow {
                     .gpus
                     .iter()
                     .find(|gpu| gpu.interface.eq_ignore_ascii_case(interface))
-                    .map_or_else(|| interface.clone(), |gpu| gpu.name.clone())
+                    .map_or_else(
+                        || "Attached GPU (identity unavailable)".to_owned(),
+                        |gpu| gpu.name.clone(),
+                    )
             })
             .collect::<Vec<_>>()
             .join(", ")
@@ -86,6 +89,17 @@ pub(super) fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool
 
 pub(super) fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_presenting(true);
+    if let Some(inventory) = &state.view.inventory {
+        ui.set_vms(update_model(
+            ui.get_vms(),
+            inventory
+                .discovery
+                .vms
+                .iter()
+                .map(|vm| observed_row(vm, inventory, state.view.needs_readback))
+                .collect(),
+        ));
+    }
     present_inner(ui, state, reset_draft);
     present_actions(ui, state);
     ui.set_presenting(false);
@@ -104,7 +118,34 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
     ui.set_remove_unavailable(actions.remove.into());
     ui.set_forget_unavailable(actions.forget.into());
     ui.set_action_recovery(actions.recovery);
+    #[cfg(windows)]
+    ui.set_reset_unavailable(
+        super::partial_removal_candidate(state)
+            .err()
+            .unwrap_or_default()
+            .into(),
+    );
+    #[cfg(not(windows))]
+    ui.set_reset_unavailable("Partial GPU removal requires Windows.".into());
     ui.set_gpu_selection_fixed(state.fixed_gpu_index().is_some());
+}
+
+pub(super) fn pending_summary(enabled: bool, values: &[String]) -> String {
+    let request = values
+        .get(..3)
+        .ok_or_else(|| "VRAM fields unavailable".to_owned())
+        .and_then(memory::request);
+    match request {
+        Ok(request) => format!(
+            "Pending: {} GPU support. VRAM request: {}. Review before applying.",
+            if enabled { "enable" } else { "disable" },
+            request.map_or_else(
+                || "provider default".to_owned(),
+                |v| memory::format_gb(v.optimal)
+            )
+        ),
+        Err(_) => "Pending edits retained. Correct the VRAM fields before reviewing.".into(),
+    }
 }
 
 fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
@@ -208,52 +249,30 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_applied(state.applied_text(id).into());
     ui.set_pending(
         if !reset_draft && ui.get_dirty() {
-            "Unapplied edits for this VM; validate and review before effects."
+            pending_summary(
+                ui.get_gpu_enabled(),
+                &ui.get_values()
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>(),
+            )
         } else {
-            "No unapplied edits"
+            "No unapplied edits".to_owned()
         }
         .into(),
     );
     ui.set_verification(recorded.graphics.into());
-    ui.set_support_summary(
-        format!(
-            "Management: {}. GPU support: {}. Saved setting: {}. Graphics: {}. {}",
-            if state.view.needs_readback {
-                "status unavailable"
-            } else if inventory.enrolled.iter().any(|target| target.vm_id == *id) {
-                "authorized; guest drivers are not verified by authorization"
-            } else {
-                "not authorized"
-            },
-            if state.view.needs_readback {
-                "status unavailable"
-            } else if vm.gpus.is_empty() {
-                "not attached"
-            } else {
-                "attached"
-            },
-            if state.committed.revision(id).is_err() {
-                "unavailable"
-            } else if let Some(target) = state
-                .view
-                .configuration
-                .targets
-                .iter()
-                .find(|t| &t.vm_id == id)
-            {
-                if target.enabled {
-                    "enabled"
-                } else {
-                    "disabled"
-                }
-            } else {
-                "not saved"
-            },
-            inventory.recorded_graphics_summary(id),
-            state.host_configuration_text(id),
-        )
-        .into(),
-    );
+    ui.set_support_summary(if state.view.needs_readback {
+        "VM status unavailable - retry the status update. Saved settings and check history are in Technical Details.".to_owned()
+    } else if recorded.recovery_required || state.recovery.is_some() || state.enrollment_recovery.is_some() {
+        "Setup interrupted - review recovery before changing GPU support.".to_owned()
+    } else if state.committed.revision(id).is_err() {
+        "Saved settings unavailable - Refresh before reviewing changes.".to_owned()
+    } else if vm.gpus.is_empty() {
+        "No GPU attached. Enable support in the draft, then review Apply.".to_owned()
+    } else {
+        "GPU attached. Use Verify GPU setup to check current guest files and rendering. Earlier results remain history.".to_owned()
+    }.into());
     let eligibility = state.editor_eligibility(id);
     ui.set_eligible(eligibility.is_ok());
     if reset_draft {
@@ -352,6 +371,17 @@ pub(super) fn resource_controls(ui: &AppWindow, state: &State) {
     match state.memory_slider(ui.get_gpu_index(), &values) {
         Ok(slider) => {
             ui.set_memory_available(true);
+            ui.set_memory_input(
+                memory::request(&values[..3])
+                    .ok()
+                    .flatten()
+                    .map_or_else(String::new, |a| {
+                        memory::format_gb(a.optimal)
+                            .trim_end_matches(" GB")
+                            .to_owned()
+                    })
+                    .into(),
+            );
             ui.set_memory_minimum(slider.minimum);
             ui.set_memory_maximum(slider.maximum);
             ui.set_memory_position(slider.position);
@@ -365,6 +395,7 @@ pub(super) fn resource_controls(ui: &AppWindow, state: &State) {
         }
         Err(reason) => {
             ui.set_memory_available(false);
+            ui.set_memory_input("".into());
             ui.set_memory_minimum(1);
             ui.set_memory_maximum(2);
             ui.set_memory_position(1);
@@ -395,6 +426,24 @@ mod tests {
     use hyper_gpu_support::model::Settings;
 
     #[test]
+    fn pending_summary_uses_exact_draft_memory_and_does_not_guess_invalid_edits() {
+        let values = vec![
+            "0".to_owned(),
+            "6000000001".to_owned(),
+            "8278507520".to_owned(),
+        ];
+        assert!(
+            pending_summary(true, &values)
+                .contains("enable GPU support. VRAM request: 6.000000001 GB")
+        );
+        assert!(pending_summary(false, &values).contains("disable GPU support"));
+        assert!(
+            pending_summary(true, &["invalid".into(), "".into(), "".into()])
+                .contains("Correct the VRAM fields")
+        );
+    }
+
+    #[test]
     fn unknown_health_enrollment_and_unresolved_attachment_are_not_samples() {
         let vm = VmState {
             compute: None,
@@ -423,7 +472,7 @@ mod tests {
         );
         assert_eq!(row.id, vm.vm_id);
         assert_eq!(row.name, vm.name);
-        assert_eq!(row.gpu, "selected-interface");
+        assert_eq!(row.gpu, "Attached GPU (identity unavailable)");
         assert_eq!(row.status, "Unsupported");
         assert_eq!(row.power, "Unknown");
         assert_eq!(row.os, "unknown");

@@ -279,6 +279,26 @@ impl State {
         Ok(edited)
     }
 
+    /// Commit a numeric GB edit through the same allocation and eligibility rules.
+    pub fn memory_text_values(
+        &self,
+        id: &str,
+        gpu_index: i32,
+        values: &[String],
+        text: &str,
+    ) -> Result<Vec<String>, String> {
+        self.editor_eligibility(id)?;
+        if values.len() != 12 {
+            return Err("Expected four complete allocation triples".into());
+        }
+        let allocation = self.memory_slider(gpu_index, values)?.select_gb(text)?;
+        let mut edited = values.to_vec();
+        edited[0] = allocation.minimum.to_string();
+        edited[1] = allocation.optimal.to_string();
+        edited[2] = allocation.maximum.to_string();
+        Ok(edited)
+    }
+
     /// Compare intent without treating validation, navigation or formatting as edits.
     pub fn draft_changed(
         &self,
@@ -1318,6 +1338,29 @@ mod tests {
         // replaced with guessed defaults from the slider.
         raw[1] = "invalid".into();
         assert!(s.memory_slider(0, &raw).is_err());
+        assert_eq!(raw[1], "invalid");
+    }
+
+    #[test]
+    fn numeric_memory_edit_preserves_other_fields_and_refuses_invalid_raw_triples() {
+        let mut s = state();
+        let gpu = &mut s.view.inventory.as_mut().unwrap().discovery.gpus[0];
+        gpu.vram = Some(Allocation {
+            minimum: 0,
+            optimal: 1_000_000_000,
+            maximum: 1_000_000_000,
+        });
+        gpu.physical_vram_bytes = Some(8_278_507_520);
+        let mut raw = values("0", "4000000000", "8000000000");
+        raw[3..].fill("123".into());
+        let edited = s
+            .memory_text_values(id(&s), 0, &raw, "6.000000001")
+            .unwrap();
+        assert_eq!(&edited[..3], &["0", "6000000001", "8278507520"]);
+        assert_eq!(&edited[3..], &raw[3..]);
+        assert!(s.memory_text_values(id(&s), 0, &raw, "9").is_err());
+        raw[1] = "invalid".into();
+        assert!(s.memory_text_values(id(&s), 0, &raw, "6").is_err());
         assert_eq!(raw[1], "invalid");
     }
 

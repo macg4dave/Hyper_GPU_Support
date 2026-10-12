@@ -23,6 +23,7 @@ export component OperationDialog inherits Rectangle {
     in property <string> repair-unavailable;
     in property <string> remove-unavailable;
     in property <string> forget-unavailable;
+    in property <string> reset-unavailable;
     in property <bool> action-recovery;
     in property <bool> dirty;
     in property <string> kind;
@@ -30,6 +31,8 @@ export component OperationDialog inherits Rectangle {
     in property <string> body;
     in property <string> details;
     in property <[string]> stages;
+    in property <string> current-stage;
+    in property <float> transfer-fraction: -1;
     in property <bool> running;
     in property <bool> needs-shutdown;
     in property <string> power-consent;
@@ -39,7 +42,7 @@ export component OperationDialog inherits Rectangle {
     changed kind => { root.follow-progress = true; root.technical = false; root.consent = false; root.focus-safe(); }
     changed title => { root.technical = false; }
     changed body => { root.consent = false; root.technical = false; }
-    changed details => { root.technical = false; }
+    changed details => { if !root.running { root.technical = false; } }
     changed power-consent => { root.consent = false; }
     changed running => { root.focus-safe(); }
     function focus-safe() {
@@ -53,7 +56,7 @@ export component OperationDialog inherits Rectangle {
     dialog-focus := FocusScope {
         capture-key-pressed(event) => {
             if event.text == Key.Escape {
-                if !root.running { root.action("close"); }
+                if !root.running && !root.updating { root.action("close"); }
                 accept
             } else { reject }
         }
@@ -66,8 +69,8 @@ export component OperationDialog inherits Rectangle {
                 clip: true;
                 VerticalLayout {
                     padding: 20px; spacing: 12px;
-                    Label { text: "Hyper GPU Support"; font-size: 11px; font-weight: 600; color: Theme.muted; }
-                    Heading { text: root.title; wrap: word-wrap; overflow: clip; min-width: 0px; }
+                    Label { text: "Hyper GPU Support"; font-size: 11px; font-weight: 600; color: Theme.muted; vertical-stretch: 0; }
+                    Heading { text: root.title; wrap: word-wrap; overflow: clip; min-width: 0px; vertical-stretch: 0; }
                     body-scroll := ScrollView {
                         min-height: 0px;
                         preferred-height: root.stages.length > 0 ? 90px : 240px;
@@ -91,8 +94,9 @@ export component OperationDialog inherits Rectangle {
                             }
                         }
                     }
+                    if root.running && root.current-stage != "" : Hint { text: root.current-stage; vertical-stretch: 0; }
                     if root.stages.length > 0 : Rectangle {
-                        min-height: 0px; preferred-height: 180px; max-height: 240px;
+                        min-height: 0px; preferred-height: 180px;
                         vertical-stretch: 1;
                         clip: true;
                         progress-scroll := ScrollView {
@@ -118,7 +122,12 @@ export component OperationDialog inherits Rectangle {
                             }
                         }
                     }
-                    if root.running : ProgressIndicator { indeterminate: true; }
+                    if root.running : ProgressIndicator {
+                        indeterminate: root.transfer-fraction < 0;
+                        progress: max(0, root.transfer-fraction);
+                        height: 6px;
+                        vertical-stretch: 0;
+                    }
                     if root.technical && root.details != "" && root.details != root.body : TechnicalOutput {
                         vertical-stretch: 1;
                         text: root.details;
@@ -132,9 +141,10 @@ export component OperationDialog inherits Rectangle {
                     if root.kind == "review" && !root.execution-ready : Hint { text: "Apply is unavailable. Close this review and use Refresh to check setup or recovery."; color: Theme.accent; }
                     FlexboxLayout {
                         spacing: 8px;
+                        vertical-stretch: 0;
                         dismiss-button := Button {
                             text: root.running ? "Operation in progress" : root.kind == "switch" ? "Stay on VM" : root.kind == "exit" || root.kind == "enroll-review" ? "Keep editing" : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? "Cancel" : "Close";
-                            enabled: !root.running;
+                            enabled: !root.running && !root.updating;
                             clicked => { root.action("close"); }
                         }
                         if root.kind == "switch" : Button { text: "Discard & Switch"; clicked => { root.action("switch"); } }
@@ -147,18 +157,51 @@ export component OperationDialog inherits Rectangle {
                         if root.kind == "verify-review" : Button { text: "Verify GPU setup"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
                         if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
                         if root.kind == "recovery" : Button { text: "Check recorded outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
-                        if root.kind == "recovery" : Button { text: "Remove partial GPU setup…"; enabled: root.execution-ready && !root.updating; clicked => { root.action("review-reset"); } }
+                        if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { text: "Remove partial GPU setup…"; enabled: root.execution-ready && !root.updating && root.reset-unavailable == ""; clicked => { root.action("review-reset"); } }
                         if root.kind == "reset-review" : Button { text: "Remove partial GPU setup"; primary: true; enabled: root.execution-ready && !root.updating; clicked => { root.action("confirm-reset"); } }
                         if root.kind == "recovery-needed" : Button { text: "Review recovery"; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
                     }
+                    if root.kind == "recovery" || root.kind == "recovery-blocked" : Hint {
+                        text: root.updating ? "Checking whether partial removal is safe..." : root.reset-unavailable != "" ? root.reset-unavailable : "Partial removal can be reviewed. Nothing changes until you confirm that review.";
+                        vertical-stretch: 0;
+                    }
+                    if root.kind == "status-error" || root.kind == "recovery-blocked" : Button {
+                        text: "Retry status update"; enabled: !root.updating;
+                        clicked => { root.action("refresh"); }
+                    }
+                    if root.kind == "permission-saved" || root.kind == "profile-deleted" : Button {
+                        text: root.kind == "permission-saved" ? "Continue to setup review" : "Review new GPU setup";
+                        enabled: root.execution-ready && !root.updating && (root.dirty || root.kind == "profile-deleted") && !root.action-recovery;
+                        clicked => { root.action(root.kind == "profile-deleted" ? "reapply" : "review"); }
+                    }
+                    if root.kind == "reset-complete" || root.kind == "recovery-ended" : Button {
+                        text: "Review Repair / Reinstall";
+                        enabled: root.execution-ready && !root.updating && root.repair-unavailable == "";
+                        clicked => { root.action("repair"); }
+                    }
+                    if root.kind == "error" && root.action-recovery : Button {
+                        text: "Review recovery"; enabled: !root.updating;
+                        clicked => { root.action("recovery"); }
+                    }
+                    if root.kind == "reset-complete" : Hint {
+                        text: root.updating ? "Updating VM status..." : root.forget-unavailable != "" && !root.dirty ? root.forget-unavailable : "Fresh enrollment requires a separate profile deletion review. Repair / Reinstall can reuse the existing permission.";
+                        vertical-stretch: 0;
+                    }
+                    if root.kind == "reset-complete" : Button {
+                        text: root.dirty ? "Discard draft and review Delete profile" : "Review Delete profile";
+                        enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-unavailable == "");
+                        clicked => { root.action(root.dirty ? "discard-review-forget" : "forget"); }
+                    }
                     if root.kind == "more" : FlexboxLayout {
                         spacing: 8px;
+                        vertical-stretch: 0;
                         if root.action-recovery : Button { text: "Review recovery"; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
                         if root.dirty && !root.action-recovery : Button { text: "Review changes"; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
                         if root.dirty : Button { text: "Discard draft"; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
                         Button { text: "Refresh"; enabled: !root.running && !root.updating; clicked => { root.action("refresh"); } }
                     }
                     if root.details != "" && root.details != root.body : HorizontalLayout {
+                        vertical-stretch: 0;
                         detail-button := TechnicalDetailsButton { expanded <=> root.technical; }
                         Rectangle { horizontal-stretch: 1; }
                     }

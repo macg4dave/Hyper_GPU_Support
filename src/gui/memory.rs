@@ -132,6 +132,40 @@ impl MemorySlider {
             .checked_mul(BYTES_PER_STEP)
             .ok_or("Memory conversion overflow")?
             .min(self.physical_capacity);
+        self.select_bytes(optimal)
+    }
+
+    /// Parse decimal GB without floating-point rounding or silently clamping input.
+    pub fn select_gb(&self, text: &str) -> Result<Allocation, String> {
+        let text = text.trim();
+        let (whole, fraction) = text.split_once('.').unwrap_or((text, ""));
+        if whole.is_empty()
+            || !whole.bytes().all(|b| b.is_ascii_digit())
+            || fraction.len() > 9
+            || !fraction.bytes().all(|b| b.is_ascii_digit())
+        {
+            return Err("Enter a decimal GB value with at most nine decimal places. The previous request is kept.".into());
+        }
+        let whole = whole
+            .parse::<u64>()
+            .map_err(|_| "Memory value is too large")?;
+        let fraction = format!("{fraction:0<9}")
+            .parse::<u64>()
+            .map_err(|_| "Invalid decimal memory value")?;
+        let bytes = whole
+            .checked_mul(BYTES_PER_GB)
+            .and_then(|b| b.checked_add(fraction))
+            .ok_or("Memory value is too large")?;
+        if bytes < BYTES_PER_GB || bytes > self.physical_capacity {
+            return Err(format!(
+                "Enter a request from 1 GB to {}. The previous request is kept.",
+                format_gb(self.physical_capacity)
+            ));
+        }
+        self.select_bytes(bytes)
+    }
+
+    fn select_bytes(&self, optimal: u64) -> Result<Allocation, String> {
         let result = Allocation {
             minimum: self.bounds.minimum.min(optimal),
             optimal,
@@ -152,6 +186,30 @@ mod tests {
             minimum: 1,
             optimal: 4_000_000_000,
             maximum: 8_000_000_000,
+        }
+    }
+
+    #[test]
+    fn numeric_memory_input_is_byte_exact_and_rejects_invalid_values_without_clamping() {
+        let slider = MemorySlider::new(&limits(), None, 8_278_507_520).unwrap();
+        let selected = slider.select_gb("6.000000001").unwrap();
+        assert_eq!(selected.optimal, 6_000_000_001);
+        assert_eq!(selected.maximum, 8_278_507_520);
+        assert_eq!(
+            slider.select_gb("8.278507520").unwrap().optimal,
+            8_278_507_520
+        );
+        for input in [
+            "",
+            "0.9",
+            "8.278507521",
+            "6.0000000001",
+            "NaN",
+            "1e9",
+            "-1",
+            "18446744074",
+        ] {
+            assert!(slider.select_gb(input).is_err(), "{input}");
         }
     }
 

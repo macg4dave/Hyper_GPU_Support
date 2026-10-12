@@ -45,6 +45,8 @@ M2 source preparation is recorded in the [qualification sequence](evidence/m2-pr
 
 ## Current position
 
+The [12 October GUI report follow-up](evidence/gui-workflow-ux-report-20261012.md#source-follow-up---12-october-2026) implements completion inventory refresh, explicit recovery/profile/permission review continuation, task-focused determinate transfer progress and exact numeric GB input within the existing R1/R2/R6 design. Source formatting/diff inspection only; builds, tests and installed visual/live checks were deferred at the user's request. No M2 or other acceptance gate closes.
+
 APP-031 source is implemented on 12 October: Verify GPU setup names the actual checks, consent follows reviewed final power, initial permission explains the separate setup reviews and credential/progress/status language avoids false setup or readiness claims. Backend effects/approval contracts are unchanged. Targeted formatting/docs/diff checks only; compilation, regressions and actual dialogs remain pending under APP-009.
 
 APP-024 is source implemented on 12 October: Delete profile removes only app records using APP-022's protected transition. The user's clarification excludes staged GPU removal and power changes; active/unknown support blocks deletion under existing admission. Compilation, regressions and real menu/confirmation acceptance are pending; no gate closed.

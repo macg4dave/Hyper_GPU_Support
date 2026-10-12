@@ -4,6 +4,10 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
+**GUI-only VM1 workflow (12 October 2026): in progress.** Repair `win_26300.9457 VM1`, re-enroll it, request 6 GB VRAM and verify through the application GUI. APP-035 and APP-036 address the first reproduced recovery and allocation defects. Builds and isolated tests do not close this workflow. Desktop control is returned to the user between UI testing and source fixes.
+
+The [GUI workflow and usability report](evidence/gui-workflow-ux-report-20261012.md) records successful GUI partial removal, inactive profile deletion and re-enrollment, the reviewed 6 GB request, observed progress problems and proposed usability improvements. Driver copying reached 100%; final setup verification and persistence remain unconfirmed. The subsequent source follow-up below implements completion refresh, guided review continuation, progress presentation and exact numeric GB input. No builds, tests, installation or GUI checks ran for that follow-up; earlier evidence does not validate it. No task or milestone is closed by the report.
+
 **Backlog clearance (12 October 2026): APP-034 and APP-027 are complete; APP-025 source and focused interaction checks are complete. APP-032 is next.** The user authorized backlog work, including automated and live read/write testing. [Clearance evidence](evidence/backlog-clearance.md) records each checkpoint and current check failures; live cards close only from their actual scenario evidence. Existing VM1 recovery still blocks allocation qualification.
 
 **Full source review (12 October 2026): APP-033 source and automated checks complete.** The user authorized review of current code, small/medium fixes and tasks for larger defects. [Review findings](evidence/full-source-review.md) record the fixes and limits. APP-028 is now source implemented. Next safety work when requested: APP-034 (Apply drift checks) and existing APP-027 (failed verification-only Apply retirement). No live effects or new automated gate ran.
@@ -56,10 +60,37 @@ Workflow source-review follow-up (12 October 2026): APP-027 (High) remains queue
 | APP-032 | M2 | Make dialogs usable with keyboard and constrained layouts | APP-003 | Ready (Medium interaction risk) | Not run |
 | APP-033 | M2 | Review current source and fix bounded logic gaps | APP-008 | Done | Passed: automated checkpoint; live acceptance remains M2 |
 | APP-034 | M2 | Recheck admitted Apply facts before delayed writes and power restoration | APP-006, APP-019 | Done | Passed: [automated checkpoint](evidence/backlog-clearance.md); live acceptance remains M2 |
+| APP-035 | M2 | Recover partial stopped GPU enable through the GUI | APP-034 | In progress | Three isolated regressions passed; installed GUI acceptance pending |
+| APP-036 | M2 | Write unsigned allocations when Hyper-V returns null defaults | APP-011 | In progress | Regression added; build and live 6 GB readback pending |
 
 Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records the original five fixes and completed follow-up review. The [M1 closure](evidence/m1-closure.md) supersedes historical unrun/open statements in the implementation notes below for automated validation only; live qualification remains pending.
 
+## GUI workflow report source follow-up - 12 October 2026
+
+Implementation: source complete for the requested usability corrections in the [report](evidence/gui-workflow-ux-report-20261012.md#source-follow-up---12-october-2026). Existing APP-035/036 and progress-layout/admission-feedback edits were preserved. This is one report follow-up across existing APP-012, APP-014, APP-016/017, APP-022/024, APP-030/031/032 and APP-035 ownership, not milestone closure.
+
+- Operation results automatically refresh host inventory and protected records. Cards and details say Updating VM status during the read. Unavailable reads retain the operation result/failure and expose a status-update retry; cached cards no longer keep an Authorized appearance after profile deletion.
+- Recovery failure keeps partial-removal review reachable with a readiness reason. Successful removal offers the separately confirmed profile deletion review, explicitly discarding a draft only when the user selects that named action. Profile deletion and permission success offer the next fresh review. No effects or record deletion chain automatically.
+- Progress shows one current stage, a coalesced checklist and expandable ordered event history. Copying uses its acknowledged percentage; the bridge's actual transfer-complete boundary reports checking/installing copied driver files, followed by the existing guest-file/graphics check. Internal recovery-save events remain in details. Existing normal-size heading/button/indicator fixes remain.
+- Selected-VM summaries are concise; exact identities, host comparisons, saved intent and dated check history remain in Technical Details. Numeric decimal GB input shares slider eligibility/allocation rules, uses exact integer-byte parsing and retains physical capacity as maximum; invalid/out-of-range input preserves the previous request.
+
+Regression source added for numeric byte precision, invalid/range/overflow inputs, preservation of other allocation fields, progress percentage/stage boundaries, checklist coalescing and transport completion distinct from 100% copied bytes. Validation: source inspection, scoped Rust formatting and `git diff --check` only. The user explicitly deferred builds/tests, installed GUI acceptance and live VM work. The missing-installation cause and the interrupted VM1 setup's final verification, power/readback and reopen/persistence outcome remain unestablished.
+
 ## Implementation tasks
+
+### APP-035 — Recover partial stopped GPU enable through the GUI
+
+Observed through the GUI on 12 October: VM1 is stopped with an RTX 5060 attached, saved support disabled and pending recovery. Check recorded outcome refuses the partial allocation and tells users to obtain administrator reconciliation, while the hold blocks every repair/removal action. This is a product workflow dead end.
+
+Source adds a separately reviewed Remove partial GPU setup action. Admission binds the recovery receipt, saved revision, exact stopped VM/GPU, full host/GPU observations and pending journal. Only the recorded initially stopped, unattached enable with no guest-check requirement qualifies. The existing protected worker and operation lock remove the exact partial attachment, restore the recorded starting compatibility settings and independently read back the host and journal. A durable review permits only expected interrupted transitions; changed/unavailable facts retain the hold. Old setup eligibility is invalidated, guest files and archived failure evidence retained. No failed Apply, allocation, preparation or power operation is replayed. A later Delete profile and enrollment remain separately reviewed GUI actions.
+
+Validation: three isolated workflow regressions passed for successful removal with no guest/allocation work, stale facts and interrupted settings/journal publication with bounded resume. Real removal, profile deletion, re-enrollment, 6 GB setup and final verification remain pending. An attempted test of the older installed GUI failed inventory with an unhelpful Unknown error; that attempt does not validate current source. Build/install the current package before continuing GUI acceptance.
+
+### APP-036 — Write unsigned allocations when Hyper-V returns null defaults
+
+Source investigation of the failed VM1 allocation found that the native numeric writer selected storage from the current VARIANT value. A null provider default has no numeric storage tag, so the write fails after adapter attachment and leaves recovery. Select the declared CIM unsigned type instead: uint64 decimal BSTR, checked uint32 or checked uint16. Refuse unrelated types and overflow. Preserve the existing fresh capability admission and byte-exact readback.
+
+Validation: in-memory CIM regression now covers a null uint64 property receiving 6,000,000,000, null uint16 writes, overflow and nonnumeric type rejection. These tests and the package build/install are pending; actual GUI 6 GB write/readback and guest verification are required for workflow completion.
 
 ### APP-001 — Remove retired mock GUI tooling
 

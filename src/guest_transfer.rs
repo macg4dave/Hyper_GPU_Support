@@ -18,6 +18,7 @@ pub(crate) struct Progress {
     pub total: u64,
     pub files: usize,
     pub count: usize,
+    pub done: bool,
 }
 
 struct State {
@@ -104,6 +105,7 @@ impl Monitor {
             total: self.total,
             files: s.index,
             count: self.sizes.len(),
+            done: s.done,
         });
         Ok(())
     }
@@ -225,10 +227,17 @@ mod tests {
         assert!(m.finish().is_err());
         m.accept("begin 1 0", now).unwrap();
         m.accept("end 1 0", now).unwrap();
-        m.accept("done 2 7", now).unwrap();
+        let copying = m
+            .take_progress(now + Duration::from_millis(250))
+            .unwrap()
+            .unwrap();
+        assert!(!copying.done); // 100% copying is not the post-copy worker boundary.
+        m.accept("done 2 7", now + Duration::from_millis(250))
+            .unwrap();
         m.finish().unwrap();
         let p = m.take_progress(now).unwrap().unwrap();
         assert_eq!((p.bytes, p.total, p.files, p.count), (7, 7, 2, 2));
+        assert!(p.done);
         assert!(m.accept("done 2 7", now).is_err());
     }
     #[test]

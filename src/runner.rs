@@ -1403,7 +1403,7 @@ impl Backend for NativeBackend {
     fn prepare_with_progress(
         &mut self,
         t: &Target,
-        progress: &mut dyn FnMut(u64, u64, usize, usize) -> Result<(), String>,
+        progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
     ) -> Result<String, String> {
         crate::guest::prepare_with_progress(
             t,

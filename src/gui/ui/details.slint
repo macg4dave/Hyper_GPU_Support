@@ -1,4 +1,4 @@
-import { Button, Switch, ComboBox, ScrollView, Slider } from "std-widgets.slint";
+import { Button, Switch, ComboBox, ScrollView, Slider, LineEdit } from "std-widgets.slint";
 import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
 import { ResourceEditor, AllocationDisclosure } from "resources.slint";
 import { TechnicalOutput } from "technical-output.slint";
@@ -39,6 +39,7 @@ export component VmDetails inherits Rectangle {
     in property <int> memory-minimum;
     in property <int> memory-maximum;
     in property <int> memory-position;
+    in property <string> memory-input;
     in property <string> memory-label;
     in property <string> memory-hint;
     in property <string> memory-range-start;
@@ -56,6 +57,8 @@ export component VmDetails inherits Rectangle {
     changed memory-position => { memory-slider.value = root.memory-position; }
     callback edited();
     callback memory-edited(int);
+    callback memory-text-edited(string);
+    changed memory-input => { numeric-memory.text = root.memory-input; }
     callback action(string);
     function edit-allocation(index: int, value: string) {
         // Defaults are suggestions until the user edits an omitted triple.
@@ -88,6 +91,7 @@ export component VmDetails inherits Rectangle {
                         padding: 16px; spacing: 10px;
                         Label { text: "GPU support"; font-weight: 600; }
                         Hint { text: root.support-summary; }
+                        if root.recovery : Button { text: "Review recovery"; primary: true; enabled: !Theme.modal-active; clicked => { root.action("recovery"); } }
                         Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: "Enable GPU support in this draft"; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
                         Hint { text: "Physical GPU"; }
                         ComboBox { enabled: !Theme.modal-active && root.eligible && !root.recovery && !root.gpu-selection-fixed; model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
@@ -96,6 +100,22 @@ export component VmDetails inherits Rectangle {
                             Label { text: "GPU Memory request"; font-weight: 600; }
                             Label { text: root.memory-label; font-weight: 600; horizontal-alignment: right; }
                         }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            numeric-memory := LineEdit {
+                                accessible-label: "GPU memory request in decimal GB";
+                                placeholder-text: "GB";
+                                text: root.memory-input;
+                                enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery;
+                                accepted => { root.memory-text-edited(self.text); }
+                            }
+                            Button {
+                                text: "Set request";
+                                enabled: numeric-memory.enabled;
+                                clicked => { root.memory-text-edited(numeric-memory.text); }
+                            }
+                        }
+                        Hint { text: "Enter GB and press Enter or Set request. Use the slider's arrow keys for 0.1 GB steps."; }
                         memory-slider := Slider {
                             visible: root.memory-minimum != root.memory-maximum;
                             accessible-label: "Requested GPU memory in GB";
@@ -114,6 +134,7 @@ export component VmDetails inherits Rectangle {
                         }
                         HorizontalLayout { Hint { text: root.memory-range-start; } Hint { text: root.memory-range-end; horizontal-alignment: right; } }
                         Hint { text: root.memory-hint; }
+                        if root.dirty : Hint { text: root.pending; color: Theme.accent; }
                         Hint { visible: Theme.show-help; text: "Changes take effect only after review and approval. GPU sharing is not qualified."; }
                     }
                 }

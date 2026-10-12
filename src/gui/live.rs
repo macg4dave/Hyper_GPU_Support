@@ -14,7 +14,8 @@ mod presentation;
 mod progress;
 mod source;
 use presentation::{
-    draft_target, observed_row, present, present_actions, resource_controls, update_model,
+    draft_target, observed_row, pending_summary, present, present_actions, resource_controls,
+    update_model,
 };
 #[cfg(windows)]
 use progress::progress_to_ui;
@@ -106,6 +107,7 @@ fn run_background_task<T>(task: impl FnOnce() -> Result<T, String>) -> Result<T,
 #[cfg(windows)]
 fn background_operation<T: Send + 'static>(
     ui: &AppWindow,
+    state: &SharedState,
     busy: &Arc<AtomicBool>,
     title: &str,
     vm_name: Option<&str>,
@@ -115,6 +117,8 @@ fn background_operation<T: Send + 'static>(
     + Send
     + 'static,
 ) -> Result<(), String> {
+    let finished_state = state.clone();
+    let refresh_busy = busy.clone();
     background_for_vm(
         ui,
         busy,
@@ -122,9 +126,12 @@ fn background_operation<T: Send + 'static>(
         vm_name,
         guest_access,
         move || Ok((run_background_task(task), Source.operation_readback())),
-        move |ui, result| match result {
-            Ok((outcome, readback)) => complete(ui, outcome, readback),
-            Err(error) => complete(ui, Err(error.clone()), Err(error)),
+        move |ui, result| {
+            match result {
+                Ok((outcome, readback)) => complete(ui, outcome, readback),
+                Err(error) => complete(ui, Err(error.clone()), Err(error)),
+            }
+            refresh_after_result(ui, &finished_state, &refresh_busy);
         },
     )
 }
@@ -210,6 +217,49 @@ fn refresh(
     source: &Source,
     automatic: bool,
 ) -> Result<(), String> {
+    refresh_with_result(ui, state, busy, source, automatic, None)
+}
+
+// Keep the result visible while independently updating inventory. Continuation
+// buttons open new reviews; this never submits a subsequent effect.
+type ResultNotice = (String, String, String, String);
+
+fn refresh_after_result(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) {
+    let notice = (
+        ui.get_dialog_kind().to_string(),
+        ui.get_dialog_title().to_string(),
+        ui.get_dialog_body().to_string(),
+        ui.get_dialog_details().to_string(),
+    );
+    if !with_state(ui, state, |state| {
+        state.view.needs_readback = true;
+        present(ui, state, false);
+        Ok(())
+    }) {
+        return;
+    }
+    if let Err(error) = refresh_with_result(ui, state, busy, &Source, false, Some(notice.clone())) {
+        dialog(
+            ui,
+            "status-error",
+            &notice.1,
+            &format!(
+                "{}\n\nVM status update could not start: {error}\nRetry the status update before another review.",
+                notice.2
+            ),
+        );
+        ui.set_dialog_details(notice.3.into());
+    }
+}
+
+fn refresh_with_result(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+    source: &Source,
+    automatic: bool,
+    notice: Option<ResultNotice>,
+) -> Result<(), String> {
     if automatic
         && !state
             .lock()
@@ -221,14 +271,14 @@ fn refresh(
         return Ok(());
     }
     if !automatic {
-        ui.set_notice("Refreshing VM information...".into());
+        ui.set_notice("Updating VM status...".into());
     }
     let state = state.clone();
     let source = source.clone();
     background(
         ui,
         busy,
-        if automatic {
+        if automatic || notice.is_some() {
             "Updating VM status"
         } else {
             "Refreshing inventory"
@@ -250,6 +300,7 @@ fn refresh(
             ))
         },
         move |ui, result| {
+            let result_notice = notice;
             with_state(ui, &state, |state| {
                 match result {
                     Ok((
@@ -267,6 +318,7 @@ fn refresh(
                         state.enrollment_recovery_revision = None;
                         state.approved_plan = None;
                         state.verification_plan = None;
+                        state.reset_review = None;
                         // A conflicting draft blocks that editor, not fresh VM/GPU
                         // observations or readable intent for other VMs.
                         let configuration_warning =
@@ -361,6 +413,10 @@ fn refresh(
                             notice = "Some VM or GPU information could not be read. See Technical Details.".into();
                         }
                         ui.set_notice(notice.into());
+                        if let Some((kind, title, body, details)) = &result_notice {
+                            dialog(ui, kind, title, body);
+                            ui.set_dialog_details(details.clone().into());
+                        }
                         Ok(())
                     }
                     Err(error) => {
@@ -369,6 +425,7 @@ fn refresh(
                         state.enrollment_review = None;
                         state.setup_artifacts = None;
                         state.enrollment_recovery_revision = None;
+                        state.reset_review = None;
                         ui.set_execution_ready(false);
                         let error =
                             hyper_gpu_support::reporting::operator_error("Inventory read", &error);
@@ -392,7 +449,22 @@ fn refresh(
                         ui.set_system_summary(
                             format!("Live discovery unavailable: {error}").into(),
                         );
-                        if automatic { Ok(()) } else { Err(error) }
+                        if let Some((_, title, body, details)) = &result_notice {
+                            dialog(
+                                ui,
+                                "status-error",
+                                title,
+                                &format!(
+                                    "{body}\n\nCurrent VM status is unavailable: {error}\nRetry the status update before another review."
+                                ),
+                            );
+                            ui.set_dialog_details(details.clone().into());
+                            Ok(())
+                        } else if automatic {
+                            Ok(())
+                        } else {
+                            Err(error)
+                        }
                     }
                 }
             });
@@ -621,7 +693,7 @@ fn enroll_live(
     ui: &AppWindow,
     state: &SharedState,
     busy: &Arc<AtomicBool>,
-    source: &Source,
+    _source: &Source,
 ) -> Result<(), String> {
     let (approved, artifacts) = {
         let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
@@ -638,7 +710,6 @@ fn enroll_live(
     };
     let finished_state = state.clone();
     let refresh_busy = busy.clone();
-    let source = source.clone();
     let progress = progress_to_ui(ui.as_weak());
     background(
         ui,
@@ -653,9 +724,13 @@ fn enroll_live(
         },
         move |ui, result| match result {
             Ok(()) => {
-                if let Err(error) = refresh(ui, &finished_state, &refresh_busy, &source, false) {
-                    dialog(ui, "error", "Permission status unavailable", &error);
-                }
+                dialog(
+                    ui,
+                    "permission-saved",
+                    "GPU management permission saved",
+                    "Permission for the reviewed VM/GPU pair was saved. Your draft is retained. Continue to a separate setup review; GPU support and guest readiness have not been confirmed.",
+                );
+                refresh_after_result(ui, &finished_state, &refresh_busy);
             }
             Err(error) => {
                 if !with_state(ui, &finished_state, |state| {
@@ -750,6 +825,7 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
         .contains(&hyper_gpu_support::workflow::PreviewAction::Verify);
     background_operation(
         ui,
+        state,
         busy,
         "Apply approved changes",
         Some(&vm_name),
@@ -802,7 +878,16 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                         },
                         &if setup_required {
                             format!(
-                                "{result_vm_name}: hardware rendering passed, graceful final shutdown was confirmed, and your settings were saved. The VM is off; start it through Hyper-V when ready."
+                                "{result_vm_name}: GPU support {}. VRAM request: {}. Hardware rendering passed, graceful final shutdown was confirmed, and your settings were saved. The VM is off; start it through Hyper-V when ready.",
+                                if selected.enabled {
+                                    "enabled"
+                                } else {
+                                    "disabled"
+                                },
+                                selected.vram.as_ref().map_or_else(
+                                    || "provider default".to_owned(),
+                                    |v| super::memory::format_gb(v.optimal)
+                                )
                             )
                         } else {
                             format!(
@@ -895,6 +980,7 @@ fn save_only_live(
     let progress = progress_to_ui(ui.as_weak());
     background_operation(
         ui,
+        state,
         busy,
         "Retry configuration save only",
         None,
@@ -1023,6 +1109,7 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
     let result_vm_name = vm_name.clone();
     background_operation(
         ui,
+        state,
         busy,
         "Verify GPU setup",
         Some(&vm_name),
@@ -1147,6 +1234,7 @@ fn reconcile_live(
     let prompt_name = vm_name.clone();
     background_operation(
         ui,
+        state,
         busy,
         "Check recorded outcome",
         Some(&vm_name),
@@ -1200,15 +1288,15 @@ fn reconcile_live(
             match result {
                 Ok(outcome) if outcome.finished && outcome.operation.is_none() => dialog(
                     ui,
-                    "info",
+                    "recovery-ended",
                     "Interrupted attempt ended",
-                    "Fresh checks established the recorded host state and safely ended the attempt without repeating GPU work or saving requested settings. Any failed or unknown guest check remains recorded; ending recovery does not certify guest setup or rendering. Refresh, then review repair or another supported operation.",
+                    "Fresh checks established the recorded host state and safely ended the attempt without repeating GPU work or saving requested settings. Any failed or unknown guest check remains recorded; ending recovery does not certify guest setup or rendering. Review repair or another supported operation.",
                 ),
                 Ok(outcome) if outcome.finished => dialog(
                     ui,
                     "info",
                     "Recorded outcome confirmed",
-                    "Fresh checks established the reviewed outcome and any required configuration publication. No GPU assignment, allocation or preparation was repeated. Refresh before another operation.",
+                    "Fresh checks established the reviewed outcome and any required configuration publication. No GPU assignment, allocation or preparation was repeated. VM status is updated before another review.",
                 ),
                 Ok(outcome) => dialog(
                     ui,
@@ -1221,8 +1309,9 @@ fn reconcile_live(
                 ),
                 Err(error) => {
                     dialog(ui, "error", "Recovery remains blocked", &error);
+                    ui.set_dialog_kind("recovery-blocked".into());
                     ui.set_dialog_body(format!(
-                        "{}\nRecovery remains blocked. Use Refresh and Review recovery; an administrator may need to check the VM state before new changes.",
+                        "{}\nReview partial removal here. For an interrupted enable on a stopped VM, Remove partial GPU setup can restore its recorded starting host configuration. If that review cannot establish safe removal, recovery stays blocked and its explanation names the unavailable facts.",
                         hyper_gpu_support::reporting::operator_error("Reconciliation", &error),
                     ).into());
                 }
@@ -1232,9 +1321,21 @@ fn reconcile_live(
 }
 
 #[cfg(windows)]
-fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
-    let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
-    state.reset_review = None;
+fn partial_removal_candidate(
+    state: &State,
+) -> Result<
+    (
+        hyper_gpu_support::configuration_store::Revision,
+        hyper_gpu_support::workflow::ResetReview,
+    ),
+    String,
+> {
+    if state.view.needs_readback {
+        return Err(
+            "Current VM status is unavailable. Retry the status update before reviewing removal."
+                .into(),
+        );
+    }
     let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
     let inventory = state
         .view
@@ -1269,9 +1370,18 @@ fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
     let revision = hyper_gpu_support::configuration_store::Revision::of(
         &serde_json::to_vec(record).map_err(|e| e.to_string())?,
     );
+    Ok((revision, approved))
+}
+
+#[cfg(windows)]
+fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
+    let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
+    state.reset_review = None;
+    let (revision, approved) = partial_removal_candidate(&state)?;
+    let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
     let body = format!(
-        "Virtual machine: {}\n\nRemove the partial {} attachment and its allocations. Restore the compatibility settings recorded before the interrupted change. The VM stays off; no guest connection or driver installation is performed.\n\nKeep the saved settings, guest files and archived failure evidence. Invalidate old setup eligibility so a later setup performs fresh checks. After removal, Refresh, then use Delete profile to remove app authorization before re-enrolling.\n\nStarting compatibility settings to restore: low MMIO {} MB, high MMIO {} MB, cache types {}, automatic checkpoints {}. This does not complete the interrupted allocation or save its requested settings.",
-        observed.name,
+        "Virtual machine: {}\n\nRemove the partial {} attachment and its allocations. Restore the compatibility settings recorded before the interrupted change. The VM stays off; no guest connection or driver installation is performed.\n\nKeep the saved settings, guest files and archived failure evidence. Invalidate old setup eligibility so a later setup performs fresh checks. After removal, review the next step here. A fresh enrollment may require deleting the inactive app profile first; deletion has its own review and confirmation.\n\nStarting compatibility settings to restore: low MMIO {} MB, high MMIO {} MB, cache types {}, automatic checkpoints {}. This does not complete the interrupted allocation or save its requested settings.",
+        approved.observed.name,
         approved.gpu.name,
         record.initial.settings.low_mmio,
         record.initial.settings.high_mmio,
@@ -1307,6 +1417,7 @@ fn reset_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
     let finished = state.clone();
     background_operation(
         ui,
+        state,
         busy,
         "Remove partial GPU setup",
         Some(&name),
@@ -1323,9 +1434,9 @@ fn reset_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
             match result {
                 Ok(_) => dialog(
                     ui,
-                    "info",
+                    "reset-complete",
                     "Partial GPU setup removed",
-                    "The partial attachment was removed and the recorded starting compatibility settings were confirmed. The VM remains off. Old setup eligibility is invalid; guest files and failure evidence are retained. Refresh, then use More actions > Delete profile before re-enrolling and setting up GPU support again.",
+                    "The partial attachment was removed and the recorded starting compatibility settings were confirmed. The VM remains off. Old setup eligibility is invalid; guest files and failure evidence are retained. Review Delete profile here if a fresh enrollment is needed. It removes saved settings, app permission and managed history, and requires its own confirmation. Otherwise close this result and review Repair / Reinstall.",
                 ),
                 Err(error) => dialog(ui, "error", "Partial GPU removal did not complete", &error),
             }
@@ -1419,9 +1530,9 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 ui.set_dirty(changed);
                 ui.set_pending(
                     if changed {
-                        "Unapplied edits for this VM; validate and review before effects."
+                        pending_summary(ui.get_gpu_enabled(), &raw_values)
                     } else {
-                        "No unapplied edits"
+                        "No unapplied edits".to_owned()
                     }
                     .into(),
                 );
@@ -1495,6 +1606,43 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         }
     });
     let weak = ui.as_weak();
+    let numeric_weak = ui.as_weak();
+    let numeric_state = state.clone();
+    ui.on_memory_text_edited(move |text| {
+        let Some(ui) = numeric_weak.upgrade() else {
+            return;
+        };
+        if ui.get_presenting()
+            || ui.get_updating()
+            || ui.get_running()
+            || !ui.get_dialog_kind().is_empty()
+        {
+            return;
+        }
+        let values = ui
+            .get_values()
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>();
+        let selection = numeric_state
+            .lock()
+            .map_err(|_| "Presentation state unavailable".to_owned())
+            .and_then(|state| {
+                state.memory_text_values(
+                    ui.get_selected_id().as_str(),
+                    ui.get_gpu_index(),
+                    &values,
+                    &text,
+                )
+            });
+        match selection {
+            Ok(values) => {
+                ui.set_values(model(values.into_iter().map(Into::into).collect()));
+                ui.invoke_edited();
+            }
+            Err(error) => ui.set_memory_hint(error.into()),
+        }
+    });
     let action_state = state.clone();
     let action_busy = busy.clone();
     let action_source = source.clone();
@@ -1502,7 +1650,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         let Some(ui) = weak.upgrade() else { return; }; if ui.get_running() { return; }
         if ui.get_dialog_kind().is_empty() { ui.set_focus_return_action(action.clone()); }
         if action_busy.load(Ordering::Acquire)
-            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "remove-gpu" | "forget" | "confirm-forget" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "reconcile-enrollment" | "save-only" | "credentials")
+            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "remove-gpu" | "forget" | "confirm-forget" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "review-reset" | "confirm-reset" | "reconcile-enrollment" | "save-only" | "credentials" | "discard-review-forget")
         {
             ui.set_notice("VM information is updating. You can keep editing; try this action when the update finishes.".into());
             return;
@@ -1547,6 +1695,16 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         }
         let result = match action.as_str() {
             "refresh" => refresh(&ui, &action_state, &action_busy, &action_source, false),
+            #[cfg(windows)]
+            "discard-review-forget" if ui.get_dialog_kind() == "reset-complete" => {
+                if !with_state(&ui, &action_state, |state| {
+                    if state.action_recovery_message().is_some() { return Err("Review unfinished recovery first.".into()); }
+                    state.discard();
+                    present(&ui, state, true);
+                    Ok(())
+                }) { return; }
+                review_forget_live(&ui, &action_state, &action_busy)
+            }
             #[cfg(windows)]
             "forget" => review_forget_live(&ui, &action_state, &action_busy),
             #[cfg(windows)]

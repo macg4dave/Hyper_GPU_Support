@@ -20,6 +20,9 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
         .map(|stage| stage.to_string())
         .collect();
     ui.set_stages(model(Vec::new()));
+    ui.set_progress_steps(model(Vec::new()));
+    ui.set_current_stage("".into());
+    ui.set_transfer_fraction(-1.0);
     ui.set_dialog_details(if kind == "error" {
         diagnostics::failure_details(title, body, &previous_stages).into()
     } else {

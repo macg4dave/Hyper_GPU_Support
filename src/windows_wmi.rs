@@ -632,6 +632,11 @@ mod tests {
         }
         // SAFETY: complete in-memory class definition; returned instance owns ref.
         let object = Object(unsafe { class.SpawnInstance(0) }.unwrap());
+        assert_eq!(object.optional_number("Large").unwrap(), None);
+        object.set_number("Large", 6_000_000_000).unwrap();
+        assert_eq!(object.number("Large").unwrap(), 6_000_000_000);
+        assert!(object.set_number("Flag", 1).is_err());
+        assert!(object.set_number("Text", 1).is_err());
         object
             .set("Large", VARIANT::from(BSTR::from(u64::MAX.to_string())))
             .unwrap();

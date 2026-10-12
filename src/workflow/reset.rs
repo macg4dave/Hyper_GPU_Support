@@ -170,7 +170,7 @@ mod tests {
         backend.state.power = Power::Off;
         let mut record = recovery_record(&backend, true);
         record.graphics_required = Some(false);
-        record.expected_settings = crate::model::Settings::gpu();
+        record.expected_settings = record.initial.settings.for_gpu();
         backend.state.settings = record.expected_settings.clone();
         backend.state.gpus = vec![target().gpu_interface];
         backend.journal = Some(Journal {
@@ -204,7 +204,8 @@ mod tests {
         assert!(backend.state.gpus.is_empty());
         assert_eq!(backend.state.settings, record.initial.settings);
         assert_eq!(backend.state.power, Power::Off);
-        assert_eq!(backend.events, ["detach", "settings"]);
+        assert_eq!(backend.events, ["detach"]);
+        assert_eq!(backend.settings_writes, 1);
         assert_eq!(backend.allocation_writes, 0);
         let journal = backend.journal.as_ref().unwrap();
         assert!(!journal.pending && journal.settings_released && journal.prepared.is_none());

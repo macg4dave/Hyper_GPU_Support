@@ -74,6 +74,7 @@ pub(super) fn forget_live(
     let vm_id = approved.pair.vm_id.clone();
     let vm_name = ui.get_vm_name().to_string();
     let progress = progress_to_ui(ui.as_weak());
+    let refresh_busy = busy.clone();
     background(
         ui,
         busy,
@@ -92,10 +93,10 @@ pub(super) fn forget_live(
             match failure {
                 None => dialog(
                     ui,
-                    "info",
+                    "profile-deleted",
                     "App profile deleted",
                     &format!(
-                        "{vm_name}: deletion of this app's saved settings, authorization and managed history was verified. The Hyper-V VM, disks, checkpoints, guest files and other app profiles remain. No GPU or power changes were performed. Use Refresh for current inventory before reviewing a new setup."
+                        "{vm_name}: deletion of this app's saved settings, authorization and managed history was verified. The Hyper-V VM, disks, checkpoints, guest files and other app profiles remain. No GPU or power changes were performed. Current status is being updated. Continue to a new permission/setup review when ready."
                     ),
                 ),
                 Some(error) => dialog(
@@ -108,6 +109,7 @@ pub(super) fn forget_live(
                     ),
                 ),
             }
+            refresh_after_result(ui, &finished_state, &refresh_busy);
         },
     )
 }

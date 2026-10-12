@@ -14,7 +14,7 @@ pub(super) fn progress_to_ui(
         let _ = weak.upgrade_in_event_loop(move |ui| {
             let stage = match progress.stage.as_str() {
                 "Persist operation recovery" => "Saving progress",
-                "Prepare current signed payload" => "Installing the GPU driver files in the VM",
+                "Prepare current signed payload" => "Preparing GPU driver files",
                 "Compatibility settings" => "Updating GPU compatibility settings",
                 "Provider allocation" => "Applying your GPU resource settings",
                 "Graceful guest shutdown" => "Shutting down the VM safely",
@@ -28,14 +28,70 @@ pub(super) fn progress_to_ui(
                 hyper_gpu_support::worker::StageStatus::Done => "Complete",
                 hyper_gpu_support::worker::StageStatus::Failed => "Failed",
             };
-            // The information header is stable. Transfer counters replace the
-            // current transfer row; lifecycle and terminal events stay distinct.
-            ui.set_stages(append_progress(
-                ui.get_stages(),
-                format!("{stage} · {status}").into(),
-            ));
+            let row: slint::SharedString = format!("{stage} · {status}").into();
+            let stages = append_progress(ui.get_stages(), row.clone());
+            ui.set_dialog_details(
+                format!(
+                    "Reported events (not proof of final state):\n{}",
+                    stages
+                        .iter()
+                        .map(|row| row.to_string())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+                .into(),
+            );
+            ui.set_stages(stages);
+            if progress.stage != "Persist operation recovery" {
+                ui.set_current_stage(row.clone());
+                ui.set_transfer_fraction(transfer_fraction(&progress.stage).unwrap_or(-1.0));
+                let mut steps = ui.get_progress_steps();
+                if progress.stage == "Checking and installing copied driver files" {
+                    steps = update_steps(steps, "Copying files ? Complete".into());
+                }
+                ui.set_progress_steps(update_steps(steps, row));
+            }
         });
     }
+}
+
+/// Only the worker's fixed acknowledged-copy format supplies a determinate value.
+#[cfg(any(windows, test))]
+fn transfer_fraction(stage: &str) -> Option<f32> {
+    if !stage.starts_with(hyper_gpu_support::reporting::TRANSFER_PROGRESS_PREFIX) {
+        return None;
+    }
+    let percent = stage
+        .split_once('(')?
+        .1
+        .split_once("%)")?
+        .0
+        .parse::<u8>()
+        .ok()?;
+    (percent <= 100).then_some(f32::from(percent) / 100.0)
+}
+
+#[cfg(any(windows, test))]
+fn update_steps(
+    steps: slint::ModelRc<slint::SharedString>,
+    row: slint::SharedString,
+) -> slint::ModelRc<slint::SharedString> {
+    let key = |text: &str| {
+        if text.starts_with(hyper_gpu_support::reporting::TRANSFER_PROGRESS_PREFIX) {
+            "Copying files".to_owned()
+        } else {
+            text.rsplit_once(" · ")
+                .map_or(text, |(stage, _)| stage)
+                .to_owned()
+        }
+    };
+    let mut rows: Vec<_> = steps.iter().collect();
+    if let Some(existing) = rows.iter_mut().find(|previous| key(previous) == key(&row)) {
+        *existing = row;
+    } else {
+        rows.push(row);
+    }
+    super::presentation::update_model(steps, rows)
 }
 
 #[cfg(any(windows, test))]
@@ -83,6 +139,29 @@ fn transfer_update(previous: &str, current: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copying_percentage_does_not_certify_preparation_and_phase_changes_clear_it() {
+        assert_eq!(
+            transfer_fraction("Copying files: 8 MB of 10 MB (80%); verification pending"),
+            Some(0.8)
+        );
+        assert_eq!(
+            transfer_fraction("Copying files: progress unavailable; verification pending"),
+            None
+        );
+        assert_eq!(
+            transfer_fraction("Checking and installing copied driver files"),
+            None
+        );
+        assert_eq!(transfer_fraction("Copying files: (101%)"), None);
+        let steps = update_steps(model(vec![]), "Starting the VM · In progress".into());
+        let steps = update_steps(steps, "Starting the VM · Complete".into());
+        assert_eq!(steps.row_count(), 1);
+        assert_eq!(steps.row_data(0).unwrap(), "Starting the VM · Complete");
+        let steps = update_steps(steps, "Graphics check · Failed".into());
+        assert_eq!(steps.row_count(), 2);
+    }
 
     #[test]
     fn progress_retains_each_event_in_order_without_rebuilding_the_existing_model() {

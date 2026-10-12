@@ -690,12 +690,31 @@ fn execute(
             crate::windows_wmi::reconcile_pending_operation()?;
             let revision = configuration_store::protected::revision(&record.target.vm_id)?;
             approved.validate(&record, &revision)?;
-            if let Some(existing) = &record.reset {
-                if serde_json::to_value(existing).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&approved).map_err(|e| e.to_string())?
+            if record.reset.is_none() {
+                let mut fresh = NativeBackend {
+                    credential: None,
+                    manifest: None,
+                    data: data.clone(),
+                };
+                if serde_json::to_value(fresh.inspect(&record.target)?)
+                    .map_err(|e| e.to_string())?
+                    != serde_json::to_value(&approved.observed).map_err(|e| e.to_string())?
+                    || serde_json::to_value(fresh.gpu(&record.target)?)
+                        .map_err(|e| e.to_string())?
+                        != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
+                    || serde_json::to_value(fresh.journal(&record.target)?)
+                        .map_err(|e| e.to_string())?
+                        != serde_json::to_value(Some(&approved.journal))
+                            .map_err(|e| e.to_string())?
                 {
-                    return Err("Partial GPU removal is bound to its original review".into());
+                    return Err("Partial GPU removal facts changed before admission; Refresh and review again".into());
                 }
+            }
+            if let Some(existing) = &record.reset
+                && serde_json::to_value(existing).map_err(|e| e.to_string())?
+                    != serde_json::to_value(&approved).map_err(|e| e.to_string())?
+            {
+                return Err("Partial GPU removal is bound to its original review".into());
             }
             record.reset = Some(approved);
             runner::atomic_json(&runner::recovery_path()?, &record)?;
@@ -902,7 +921,14 @@ fn execute(
                 manifest: None,
                 data: data.clone(),
             };
-            let (current, admitted) = workflow::admit_approved(&mut backend, &approved)?;
+            let (current, admitted) = ObservedBackend {
+                backend: &mut backend,
+                notify: &mut notify,
+                before_effect: None,
+            }
+            .stage("Checking reviewed VM and driver files", |backend| {
+                workflow::admit_approved(backend, &approved)
+            })?;
             let driver_version = admitted.driver_version().to_owned();
             let mut record = SaveRecord {
                 schema: 1,
@@ -1625,13 +1651,22 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
         })?;
         let result =
             crate::diagnostics::run("Prepare current signed payload", "approved-worker", || {
-                self.backend
-                    .prepare_with_progress(t, &mut |bytes, total, files, count| {
-                        (self.notify)(Progress {
-                            stage: crate::reporting::transfer_progress(bytes, total, files, count),
-                            status: StageStatus::Running,
-                        })
+                self.backend.prepare_with_progress(t, &mut |event| {
+                    (self.notify)(Progress {
+                        stage: match event {
+                            workflow::PreparationProgress::Copying {
+                                bytes,
+                                total,
+                                files,
+                                count,
+                            } => crate::reporting::transfer_progress(bytes, total, files, count),
+                            workflow::PreparationProgress::CheckingAndInstalling => {
+                                "Checking and installing copied driver files".into()
+                            }
+                        },
+                        status: StageStatus::Running,
                     })
+                })
             });
         let delivery = (self.notify)(Progress {
             stage: "Prepare current signed payload".into(),
@@ -1657,6 +1692,46 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn admission_progress_is_visible_before_work_and_delivery_failure_prevents_work() {
+        for fail_delivery in [false, true] {
+            let mut backend = NativeBackend {
+                credential: None,
+                manifest: None,
+                data: std::path::PathBuf::new(),
+            };
+            let mut updates = Vec::new();
+            let mut notify = |update: Progress| {
+                updates.push(update.status);
+                if fail_delivery {
+                    Err("disconnected".into())
+                } else {
+                    Ok(())
+                }
+            };
+            let mut called = false;
+            let result = ObservedBackend {
+                backend: &mut backend,
+                notify: &mut notify,
+                before_effect: None,
+            }
+            .stage("Checking reviewed VM and driver files", |_| {
+                called = true;
+                Err::<(), _>("stale review".into())
+            });
+            assert!(result.is_err());
+            assert_eq!(called, !fail_delivery);
+            assert_eq!(
+                updates,
+                if fail_delivery {
+                    vec![StageStatus::Running]
+                } else {
+                    vec![StageStatus::Running, StageStatus::Failed]
+                }
+            );
+        }
+    }
 
     #[test]
     fn forget_terminal_reply_requires_complete_bound_removal_without_gpu_effect_result() {

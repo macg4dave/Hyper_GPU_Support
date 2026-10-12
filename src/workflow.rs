@@ -43,6 +43,24 @@ pub struct OperationResult {
     /// Settings changed by another manager were preserved during disable.
     pub settings_preserved: bool,
 }
+/// Preparation events from the supervised guest transport; none certifies success.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PreparationProgress {
+    /// Bytes and files acknowledged by the guest, before independent verification.
+    Copying {
+        /// Total bytes acknowledged by the guest so far.
+        bytes: u64,
+        /// Reviewed payload byte count.
+        total: u64,
+        /// Files with complete acknowledgements.
+        files: usize,
+        /// Reviewed payload file count.
+        count: usize,
+    },
+    /// Transfer metadata/ACLs completed; guest integrity checks and installation begin.
+    CheckingAndInstalling,
+}
+
 /// The concrete management boundary, also used for meaningful workflow tests.
 pub trait Backend {
     /// Read fresh selected VM state.
@@ -70,12 +88,12 @@ pub trait Backend {
     ) -> Result<(), String>;
     /// Prepare the current payload in the running guest; return independently verified digest.
     fn prepare(&mut self, target: &Target) -> Result<String, String>;
-    /// Prepare with (acknowledged bytes, total bytes, completed files, total files).
+    /// Report acknowledged copying and the real post-copy preparation boundary.
     /// Adapters without transport retain stage progress only.
     fn prepare_with_progress(
         &mut self,
         target: &Target,
-        progress: &mut dyn FnMut(u64, u64, usize, usize) -> Result<(), String>,
+        progress: &mut dyn FnMut(PreparationProgress) -> Result<(), String>,
     ) -> Result<String, String> {
         let _ = progress;
         self.prepare(target)

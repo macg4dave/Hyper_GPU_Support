@@ -88,7 +88,7 @@ fn bridge(
     mode: &str,
     manifest: Option<&Manifest>,
     gpu: Option<&Gpu>,
-    progress: &mut dyn FnMut(u64, u64, usize, usize) -> Result<(), String>,
+    progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
 ) -> Result<String, String> {
     crate::diagnostics::run(
         "guest-transport",
@@ -181,7 +181,15 @@ fn bridge(
                 monitor.clone(),
                 &mut || {
                     if let Some(p) = monitor.take_progress(Instant::now())? {
-                        progress(p.bytes, p.total, p.files, p.count)?;
+                        progress(crate::workflow::PreparationProgress::Copying {
+                            bytes: p.bytes,
+                            total: p.total,
+                            files: p.files,
+                            count: p.count,
+                        })?;
+                        if p.done {
+                            progress(crate::workflow::PreparationProgress::CheckingAndInstalling)?;
+                        }
                     }
                     Ok(())
                 },
@@ -238,15 +246,15 @@ fn bridge(
 }
 /// Copy and independently verify the current complete payload.
 pub fn prepare(t: &Target, manifest: &Manifest, credential: &Credential) -> Result<String, String> {
-    prepare_with_progress(t, manifest, credential, &mut |_, _, _, _| Ok(()))
+    prepare_with_progress(t, manifest, credential, &mut |_| Ok(()))
 }
 /// Prepare with real acknowledged transport totals, before independent receipt verification.
-/// The callback receives acknowledged bytes, total bytes, completed files and total files.
+/// Events carry acknowledged counters and the post-copy integrity/installation boundary.
 pub fn prepare_with_progress(
     t: &Target,
     manifest: &Manifest,
     credential: &Credential,
-    progress: &mut dyn FnMut(u64, u64, usize, usize) -> Result<(), String>,
+    progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
 ) -> Result<String, String> {
     let text = bridge(t, credential, "prepare", Some(manifest), None, progress)?;
     let receipt: Receipt =
@@ -279,7 +287,7 @@ pub fn verify(
         "verify",
         Some(manifest),
         Some(gpu),
-        &mut |_, _, _, _| Ok(()),
+        &mut |_| Ok(()),
     )?;
     let checked: VerificationReport = serde_json::from_str(text.trim()).map_err(|_| {
         crate::reporting::ComponentFailure {
