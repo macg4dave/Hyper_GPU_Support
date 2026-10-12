@@ -43,20 +43,51 @@ def main():
                 errors.append(f"{path.relative_to(ROOT)}: missing link {target}")
             elif fragment and destination.suffix == ".md" and fragment not in anchors(destination.read_text(encoding="utf-8")):
                 errors.append(f"{path.relative_to(ROOT)}: missing anchor {target}")
-    backlog = (ROOT / "docs/BACKLOG.md").read_text(encoding="utf-8")
-    cards = re.findall(r"^### (APP-\d{3})\b", backlog, re.M)
-    registered = re.findall(r"^\| (APP-\d{3}) \|", backlog, re.M)
-    if len(cards) != len(set(cards)) or set(cards) != set(registered):
+    backlog = (ROOT / "docs/backlog.md").read_text(encoding="utf-8")
+    cards = re.findall(r"^### (LANG-\d{3})\b", backlog, re.M)
+    registered = re.findall(r"^\| (LANG-\d{3}) \|", backlog, re.M)
+    if (
+        not cards
+        or len(cards) != len(set(cards))
+        or len(registered) != len(set(registered))
+        or set(cards) != set(registered)
+    ):
         errors.append("Backlog cards and register must contain the same unique task IDs")
-    for name in ("ROADMAP.md", "BACKLOG.md", "BASELINE.md", "TESTING.md"):
-        for task in set(re.findall(r"APP-\d{3}", (ROOT / "docs" / name).read_text(encoding="utf-8"))):
+    # APP references are completed historical context. Validate the active plan.
+    for name in ("roadmap.md", "backlog.md"):
+        for task in set(re.findall(r"LANG-\d{3}", (ROOT / "docs" / name).read_text(encoding="utf-8"))):
             if task not in cards:
                 errors.append(f"{name}: unknown task {task}")
-    for row in re.findall(r"^\| APP-\d{3} \|.*$", backlog, re.M):
+    graph = {}
+    for row in re.findall(r"^\| LANG-\d{3} \|.*$", backlog, re.M):
         task, dependencies = row.split("|")[1].strip(), row.split("|")[4].strip()
-        for dependency in re.findall(r"APP-\d{3}", dependencies):
-            if dependency not in cards or dependency >= task:
+        graph[task] = re.findall(r"LANG-\d{3}", dependencies)
+        for dependency in graph[task]:
+            if dependency not in cards or dependency == task:
                 errors.append(f"{task}: invalid dependency {dependency}")
+        card = re.search(rf"^### {task}\b.*?(?=^### |\Z)", backlog, re.M | re.S)
+        if card:
+            declared = re.search(r"^Dependencies: (.+)$", card.group(), re.M)
+            actual = re.findall(r"LANG-\d{3}", declared.group(1)) if declared else []
+            if not declared or set(actual) != set(graph[task]):
+                errors.append(f"{task}: card and register dependencies differ")
+    # Stable IDs need not be chronological; reject cycles rather than forward IDs.
+    visited, active = set(), set()
+
+    def visit(task):
+        if task in active:
+            errors.append(f"{task}: cyclic task dependency")
+            return
+        if task in visited:
+            return
+        active.add(task)
+        for dependency in graph.get(task, []):
+            visit(dependency)
+        active.remove(task)
+        visited.add(task)
+
+    for task in graph:
+        visit(task)
     whitespace = subprocess.run(["git", "-c", "core.safecrlf=false", "diff", "--check"], cwd=ROOT)
     for error in errors:
         print(error, file=sys.stderr)

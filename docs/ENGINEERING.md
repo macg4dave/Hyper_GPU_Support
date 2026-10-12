@@ -1,6 +1,6 @@
 # Engineering workflow
 
-This page owns task/status conventions and documentation maintenance. [AGENTS.md](../AGENTS.md) owns agent behavior; [testing](TESTING.md) owns check timing and scenarios. Use [backlog](BACKLOG.md#next-implementation-action) for work selection within the current user request.
+This page owns task/status conventions and documentation maintenance. [AGENTS.md](../AGENTS.md) owns agent behavior; [testing](TESTING.md) owns check timing and scenarios. Use [backlog](backlog.md#next-implementation-action) for work selection within the current user request.
 
 ## One task at a time
 
@@ -35,8 +35,8 @@ Evidence for a gate/run records revision and working-tree context, exact command
 | [README](../README.md) | Product overview and navigation |
 | [AGENTS.md](../AGENTS.md) | Codex behavior and authorization |
 | [Rust guidance](../.github/prompts/rust.prompt.md), [Slint guidance](../.github/prompts/slint.prompt.md) | Focused coding practices, loaded for applicable source work |
-| [Roadmap](ROADMAP.md) | Release requirements, sequence, milestone gates |
-| [Backlog](BACKLOG.md) | Task IDs, dependencies, implementation/validation status, next action |
+| [Roadmap](roadmap.md) | Release requirements, sequence, milestone gates |
+| [Backlog](backlog.md) | Task IDs, dependencies, implementation/validation status, next action |
 | [Baseline](BASELINE.md) | Source inventory, discrepancies, assessment limits |
 | [Architecture](ARCHITECTURE.md) | Components, state separation, data flow |
 | [Configuration](CONFIGURATION.md) | Production intent schemas, storage, compatibility |

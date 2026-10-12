@@ -22,7 +22,7 @@ Codex only. Complete one requested task; current user instructions take preceden
 | Documentation | [Docs](.github/prompts/maintain-docs.prompt.md) |
 | Milestone validation | [Validate](.github/prompts/validate-milestone.prompt.md) |
 
-[Backlog](docs/BACKLOG.md) owns tasks; [roadmap](docs/ROADMAP.md) owns scope/gates. Use [baseline](docs/BASELINE.md) as a source index. Consult [architecture](docs/ARCHITECTURE.md), [configuration](docs/CONFIGURATION.md), [GUI guide](docs/GUI_GUIDE.md), and [security](docs/SECURITY.md) only as needed.
+[Backlog](docs/backlog.md) owns tasks; [roadmap](docs/roadmap.md) owns scope/gates. Use [baseline](docs/BASELINE.md) as a source index. Consult [architecture](docs/ARCHITECTURE.md), [configuration](docs/CONFIGURATION.md), [GUI guide](docs/GUI_GUIDE.md), and [security](docs/SECURITY.md) only as needed.
 
 ## Boundaries
 

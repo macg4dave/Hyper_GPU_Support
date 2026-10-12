@@ -16,7 +16,7 @@ The VRAM range does not establish enforced isolation. Automatic balancing and fu
 
 ## Current state
 
-M1 workflow implementation is complete and its non-hardware gate passed on 11 October 2026: 192 tests, formatting, strict Clippy, product builds, rustdoc and documentation checks. [Closure evidence](docs/evidence/m1-closure.md) records the exact scope. Real GUI/VM qualification is next under M2; hardware behavior and package readiness remain unqualified. [Baseline](docs/BASELINE.md) records those limits.
+The previous APP backlog is complete by user confirmation on 13 October 2026. Current development is the [UI text extraction roadmap](docs/roadmap.md). The [LANG-001 inventory](docs/UI_TEXT_INVENTORY.md) is complete; LANG-002 catalogue design is next. The catalogue is planned, not implemented. Earlier source and check summaries in the handbook are historical context and do not reopen completed APP gates or establish new test results.
 
 Legacy mock/snapshot GUI tooling has been removed under APP-001 and passed the M1 automated gate. Its flags are unsupported; backend unit test doubles remain.
 
@@ -26,8 +26,8 @@ Running the executable without arguments opens the live GUI and can request elev
 
 | Document | Purpose |
 |---|---|
-| [Roadmap](docs/ROADMAP.md) | Agreed scope and milestone gates |
-| [Backlog](docs/BACKLOG.md) | Source tasks and next action |
+| [Roadmap](docs/roadmap.md) | Agreed scope and milestone gates |
+| [Backlog](docs/backlog.md) | Source tasks and next action |
 | [Baseline](docs/BASELINE.md) | Current source gaps and validation limits |
 | [GUI guide](docs/GUI_GUIDE.md) | User workflow |
 | [Architecture](docs/ARCHITECTURE.md) | Shared Rust components and boundaries |
