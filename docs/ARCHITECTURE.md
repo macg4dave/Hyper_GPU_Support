@@ -8,7 +8,10 @@ This page owns component and data-flow boundaries. [Baseline](BASELINE.md) owns 
 |---|---|---|
 | Frontend dispatch | Select the live GUI for argument-free startup, CLI for explicit commands, or fixed internal modes; retired simulation entrypoints removed under APP-001 | [main](../src/main.rs) |
 | Slint presentation | Existing dashboard, VM details, System, Settings, About, dialogs, resource controls | [UI root](../src/gui/ui/app.slint), [GUI host](../src/gui/mod.rs) |
-| Live controller/state | Asynchronous reads, draft/review state, progress, callbacks, model updates | [live](../src/gui/live.rs), [live state](../src/gui/live_state.rs), [GUI model](../src/gui_model.rs) |
+| Live controller/state | Asynchronous reads, draft/review state, operation callbacks | [live](../src/gui/live.rs), [live state](../src/gui/live_state.rs), [GUI model](../src/gui_model.rs) |
+| Live presentation adapters | Slint model updates, selected-VM presentation and editor/resource properties | [presentation](../src/gui/live/presentation.rs) |
+| Live source adapter | Protected discovery, planning, configuration/recovery reads and worker availability | [source](../src/gui/live/source.rs) |
+| Live progress presentation | Ordered worker stages and in-place transfer counter updates | [progress](../src/gui/live/progress.rs) |
 | Shared product model/workflow | Typed intent/observations, planning, lifecycle, selected-target effect decisions | [model](../src/model.rs), [workflow](../src/workflow.rs) |
 | Setup and enrollment | Fixed package bootstrap, additive reviewed pair authority, interrupted setup/pair records | [setup](../src/setup.rs), [enrollment](../src/enrollment.rs) |
 | Restricted elevated worker | Bind/recompute approval, serialize effects, persist recovery and intent | [worker](../src/worker.rs) |
@@ -19,6 +22,8 @@ This page owns component and data-flow boundaries. [Baseline](BASELINE.md) owns 
 | Diagnostics/reporting | Bounded public failure context and opt-in protected tracing | [reporting](../src/reporting.rs), [diagnostics](../src/diagnostics.rs) |
 
 The default application is `hyper-gpu-support.exe`. Setup currently expects that executable plus `hyper-gpu-runner.exe`, `hyper-gpu-guest.exe`, and `d3d11-probe.exe` in the same package directory. Internal setup/worker modes reuse the application executable; they are fixed protocol entrypoints, not general command execution. The installed runner is separate from the initiating user frontend.
+
+The first live-controller extraction separates presentation, protected source reads/planning, and progress into private child modules. `live.rs` still owns background scheduling, refresh completion, operation flows and callback registration; `live_state.rs` retains draft/review/conflict and completion-state decisions. The source adapter reuses the existing runner/worker contracts, and only event-loop callbacks update Slint models. Existing row/progress tests moved with their helpers. This structural pass is source implemented; compilation, test execution and runtime acceptance remain pending the agreed validation checkpoint.
 
 ## Workflow module family
 
