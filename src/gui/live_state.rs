@@ -421,6 +421,47 @@ impl State {
         self.view.draft_eligibility(target)
     }
 
+    /// Explain recovery before offering actions that would be blocked by it.
+    pub fn action_recovery_message(&self) -> Option<String> {
+        let (vm_id, fallback) = if let Some(record) = &self.enrollment_recovery {
+            (Some(record.review.vm_id.as_str()), None)
+        } else if self.import_recovery.is_some() {
+            (None, None)
+        } else if let Some(record) = &self.recovery {
+            (
+                Some(record.target.vm_id.as_str()),
+                Some(record.initial.name.as_str()),
+            )
+        } else {
+            let id = self.view.selected.as_deref()?;
+            if !self
+                .view
+                .inventory
+                .as_ref()?
+                .recorded_state(id)
+                .recovery_required
+            {
+                return None;
+            }
+            (Some(id), None)
+        };
+        let operation = vm_id.map_or_else(
+            || "A configuration import did not finish.".to_owned(),
+            |id| {
+                let name = self
+                    .view
+                    .vm(id)
+                    .map(|vm| vm.name.as_str())
+                    .or(fallback)
+                    .unwrap_or(id);
+                format!("An earlier operation for {name} did not finish.")
+            },
+        );
+        Some(format!(
+            "{operation}\n\nBefore verifying, repairing, removing GPU support or forgetting a pairing, review what happened. Choose Review recovery to see the recorded operation and the available next step. Your edits are kept. Reviewing recovery does not make changes; any available recovery action needs separate confirmation."
+        ))
+    }
+
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
         if self.authority_conflict.as_deref() == Some(id) {
             return Err("Protected enrollment changed. Draft preserved; discard and Refresh before a new enrollment review.".into());
@@ -1394,6 +1435,37 @@ mod tests {
     }
 
     #[test]
+    fn unfinished_operation_explains_recovery_without_discarding_edits_or_releasing_hold() {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        let mut s = state();
+        assert!(s.action_recovery_message().is_none());
+        let draft = s.target(id(&s)).unwrap();
+        s.view.draft = Some(draft.clone());
+        let mut record = save_record(&s);
+        record.phase = SavePhase::EffectsStarted;
+        s.recovery = Some(record);
+        let body = s.action_recovery_message().unwrap();
+        assert!(body.contains("Renamable VM"));
+        assert!(body.contains("Review recovery"));
+        assert!(body.contains("separate confirmation"));
+        assert_eq!(s.view.draft, Some(draft));
+        assert!(matches!(
+            s.recovery.as_ref().unwrap().phase,
+            SavePhase::EffectsStarted
+        ));
+        assert!(s.editor_eligibility(id(&s)).is_err());
+        // A host-wide hold still needs an explanation when another VM is selected.
+        s.view.selected = Some("another-vm".into());
+        assert!(
+            s.action_recovery_message()
+                .unwrap()
+                .contains("Renamable VM")
+        );
+        s.recovery = None;
+        assert!(s.action_recovery_message().is_none());
+    }
+
+    #[test]
     fn external_save_clears_save_only_state_and_preserves_conflicting_draft() {
         let mut s = state();
         let target = s.target(id(&s)).unwrap();
@@ -1894,6 +1966,11 @@ mod tests {
             );
             s.refresh(next.clone());
             assert!(s.recovery.is_none());
+            assert!(
+                s.action_recovery_message()
+                    .unwrap()
+                    .contains("Renamable VM")
+            );
             assert!(
                 s.editor_eligibility(&vm_id)
                     .unwrap_err()

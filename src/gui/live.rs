@@ -1980,6 +1980,22 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             ui.set_notice("VM information is updating. You can keep editing; try this action when the update finishes.".into());
             return;
         }
+        if matches!(action.as_str(), "more" | "verify" | "repair" | "remove-gpu" | "forget") {
+            let message = action_state.lock()
+                .map_err(|_| "Live presentation state unavailable".to_owned())
+                .map(|state| state.action_recovery_message());
+            match message {
+                Ok(Some(body)) => {
+                    dialog(&ui, "recovery-needed", "Review the unfinished operation first", &body);
+                    return;
+                }
+                Err(error) => {
+                    dialog(&ui, "error", "Cannot read operation state", &error);
+                    return;
+                }
+                Ok(None) => {}
+            }
+        }
         let result = match action.as_str() {
             "refresh" => refresh(&ui, &action_state, &action_busy, &action_source, false),
             #[cfg(windows)]

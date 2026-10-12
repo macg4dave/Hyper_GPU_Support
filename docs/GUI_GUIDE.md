@@ -66,6 +66,8 @@ Verify's review now names the current authenticated payload digest and explains 
 
 Progress names actual stages and explains delays plainly. Failed configuration publication offers bound save-only retry; uncertain effects require explicit reconciliation. Do not replay GPU work or clear recovery to make a status look successful.
 
+When an unfinished operation blocks More actions, the dialog names the affected VM and offers **Review recovery**. Verify, Repair / Reinstall, Remove GPU support and Forget pairing use the same explanation before changing drafts or starting a new review. The button opens the existing recovery review; it does not confirm recovery or clear a hold. Edits remain intact. This presentation change is source implemented; compilation, automated regression execution and real interaction validation are pending.
+
 Current-source review additionally blocks new editing/reviews when the selected journal requires recovery, even without a loaded save record. Failed controller state/recovery reads remain visible and disable execution instead of being replaced by a completion dialog. Installed worker availability is checked in background jobs; admission still performs fresh authentication. See the [review record](evidence/m1-source-review.md) for validation limits.
 
 ## Validation

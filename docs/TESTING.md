@@ -36,6 +36,7 @@ The gate is non-elevated, fails on the first failed stage, reports what ran, and
 - Settings survive reload, drafts remain separate, and conflicts block stale execution.
 - Additive enrollment and selected-VM operations preserve other targets.
 - Publication failure permits bound save-only retry; uncertain effects retain recovery and never trigger blind replay.
+- Unfinished operations replace blocked More actions with an explanation naming the affected VM and a Review recovery button. Opening it preserves edits and holds, uses the existing recovery review, and requires separate confirmation before any recovery action. Check both host-wide records and selected-VM pending journals, plus the normal menu after recovery is resolved.
 - Reconciliation handles a start error after a power change, safely restores only unchanged approved facts, retains refused-shutdown failures, and blocks restoration after changed facts. Pending journals without a save record still block new controller reviews.
 - Existing trust, IPC, locking, transport/output budgets, and interruption boundaries remain enforced.
 - Checkpoint rollback follow-ups (APP-016 through APP-022): unchanged host receipts remain historical, current host/guest discrepancies and unavailable checks are distinct, explicit same-digest reinstall cannot skip preparation, and removal/forget preserve other targets and recovery evidence. Execute added isolated regressions at the agreed milestone gate; APP-016 regressions are currently unrun.

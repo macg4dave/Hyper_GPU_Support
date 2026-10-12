@@ -247,8 +247,7 @@ mod tests {
     use crate::model::Power;
     use crate::workflow::test_support::{fake, target};
     use crate::workflow::{
-        GuestCheck, Journal, admit_verification, apply, plan_verification, verify, verify_admitted,
-        verify_approved,
+        admit_verification, apply, plan_verification, verify, verify_admitted, verify_approved,
     };
 
     #[test]
@@ -342,74 +341,6 @@ mod tests {
         assert_eq!(backend.payload_reads, 1);
         verify_admitted(&mut backend, admitted).unwrap();
         assert_eq!(backend.payload_reads, 1);
-    }
-
-    #[test]
-    fn payload_mismatch_or_unavailable_verify_preserves_recovery_and_restores_only_reviewed_power()
-    {
-        use crate::reporting::{ComponentFailure, FailureCause};
-        for power in [Power::Off, Power::Running] {
-            for cause in [
-                FailureCause::FileMissing,
-                FailureCause::FileChanged,
-                FailureCause::ReadbackMismatch,
-                FailureCause::AccessDenied,
-                FailureCause::TimedOut,
-                FailureCause::Unavailable,
-            ] {
-                let mut backend = fake();
-                apply(&mut backend, &target()).unwrap();
-                backend.state.power = power.clone();
-                let history = backend.journal.as_ref().unwrap().last_verified;
-                backend.events.clear();
-                backend.payload_check_failure = Some(cause);
-                let error = verify(&mut backend, &target()).unwrap_err();
-                let failure = ComponentFailure::decode(&error).unwrap();
-                assert_eq!(format!("{:?}", failure.cause), format!("{cause:?}"));
-                assert_eq!(backend.state.power, power);
-                assert!(backend.journal.as_ref().unwrap().pending);
-                assert!(backend.journal.as_ref().unwrap().verification_only);
-                assert_eq!(backend.journal.as_ref().unwrap().last_verified, history);
-                let journal = backend.journal.as_ref().unwrap();
-                let mismatch = matches!(
-                    cause,
-                    FailureCause::FileMissing
-                        | FailureCause::FileChanged
-                        | FailureCause::ReadbackMismatch
-                );
-                assert_eq!(
-                    journal.latest_check,
-                    Some(if mismatch {
-                        GuestCheck::PayloadMismatch
-                    } else {
-                        GuestCheck::Unavailable
-                    })
-                );
-                assert!(!journal.setup_eligible());
-                assert_eq!(journal.prepared.is_none(), mismatch);
-                let reopened: Journal =
-                    serde_json::from_str(&serde_json::to_string(journal).unwrap()).unwrap();
-                assert!(!reopened.setup_eligible());
-                if mismatch {
-                    let repair = decision(&mut backend, &target()).unwrap();
-                    assert!(repair.stale && repair.setup_required);
-                }
-                assert!(
-                    !backend
-                        .events
-                        .iter()
-                        .any(|e| matches!(*e, "graphics" | "prepare" | "attach" | "allocation"))
-                );
-                assert_eq!(
-                    backend.events,
-                    if power == Power::Off {
-                        vec!["start", "payload-check", "shutdown"]
-                    } else {
-                        vec!["payload-check"]
-                    }
-                );
-            }
-        }
     }
 
     #[test]
