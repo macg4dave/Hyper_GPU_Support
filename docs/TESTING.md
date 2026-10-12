@@ -43,6 +43,8 @@ The gate is non-elevated, fails on the first failed stage, reports what ran, and
 
 Add coverage for real missing behavior and failure boundaries. Reuse meaningful existing tests. Dedicated retired GUI simulation tests were removed through APP-001. The replacement startup-dispatch regression and retained live controller/state tests passed APP-008 execution; real interaction remains APP-009 acceptance.
 
+APP-029 adds isolated compatibility-write regressions: matching-settings VRAM changes and same-digest reinstall skip the native write; re-enable after ownership release records the fresh matching baseline; required settings-write failure retains pending recovery and prevents attachment/graphics. These regressions remain unrun until the agreed automated checkpoint.
+
 ## Live qualification scenarios
 
 APP-009 prepares the exact environment, targets, effects, workload interval, evidence locations, final power states, and stop conditions before requesting authorization.

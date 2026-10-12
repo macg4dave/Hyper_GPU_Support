@@ -2,13 +2,25 @@
 
 Priority: **P0**, as recorded in the [roadmap](ROADMAP.md#p0-workflow-modularization).
 
-Status: **Planned; implementation not started.** The user requested this standalone implementation plan on 12 October 2026. Creating the plan and assigning priority does not authorize source implementation, builds/tests or live operations. Begin implementation only when requested.
+Status (12 October 2026): **Source implementation complete; automated validation pending milestone gate.** The user subsequently requested implementation of this plan. The module extraction and test relocation are complete; builds/tests and live operations have not run.
 
 ## Objective
 
 Break [workflow.rs](../src/workflow.rs) into a small, idiomatic Rust module family while preserving all existing functionality and behavior. Keep the current public API, shared backend boundary, protected operation architecture and Slint design. This is an organizational refactor, not a redesign of planning, execution or recovery.
 
 This file owns the extraction instructions. [Architecture](ARCHITECTURE.md), [security](SECURITY.md), [configuration](CONFIGURATION.md) and [testing](TESTING.md) remain authoritative for product contracts; [AGENTS.md](../AGENTS.md) owns agent behavior.
+
+## Implementation record
+
+The implemented layout matches the target below. `src/workflow.rs` is now an 82-line shared contract and explicit re-export entry point. The six private production modules own journal state, planning, Apply, Verify, reconciliation and guest-check primitives. Admission-token fields remain private; internal decisions and shared helpers use only the necessary workflow-family visibility. Caller paths remain unchanged.
+
+The fresh starting inventory confirmed 3,665 lines and 74 workflow tests. All 74 scenario names and bodies were retained: 1 journal test, 7 planning tests, 36 Apply tests, 13 Verify tests and 6 reconciliation tests are inline; 11 cross-operation/other-VM scenarios remain in `workflow/tests.rs`. The shared isolated backend and six fixture/support items are test-only. No test-filter consumers requiring changes were found in scripts, Cargo configuration or GitHub guidance.
+
+Structural comparison against the captured starting tree accounted for all 39 production items, all 74 test bodies, the backend double and every shared fixture. Comparison preserved string literals and expressions, normalizing only whitespace, formatting trailing commas, necessary sibling visibility and admission type qualification. Serde attributes/defaults and caller exports were also inspected. The APP-017 through APP-022 fixes remain part of the extracted source; no behavior or product policy was intentionally changed.
+
+Validation: targeted `rustfmt --edition 2024 src/workflow.rs` (including its children), the structural comparison, documentation checks and diff whitespace checks. These are static checks, not compilation or executed behavioral evidence. All-target compilation/discovery, isolated regression execution, lint, binary build and API documentation remain pending the agreed automated checkpoint. No GUI launch, guest access, credentials, protected writes, VM/GPU effects or installed-artifact update ran. No milestone gate is closed by this extraction.
+
+Subsequent review follow-up: APP-029 changes enabled Apply to skip unchanged compatibility writes, with three added regressions (77 workflow tests total). This is a separately requested behavior improvement after extraction; the original structural comparison above describes the extraction snapshot. APP-027 and APP-028 track the two remaining review findings without implementation. Compilation and regression execution remain pending.
 
 ## Starting point
 

@@ -4,6 +4,10 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
+Workflow source-review follow-up (12 October 2026): APP-027 (High) and APP-028 (Medium) are queued for separate implementation. The user authorized only APP-029's compatibility-write improvement; its source and regression coverage are complete, with compilation/test execution pending.
+
+**P0 workflow modularization: Implementation Done; validation Pending milestone gate (12 October 2026).** The user requested the [standalone plan](WORKFLOW_REFACTOR_PLAN.md) be implemented. Six private production modules now sit behind the existing workflow entry point; all 74 workflow tests and the current review fixes were preserved. Targeted formatting, structural comparison, documentation and diff checks passed. Compilation/test execution and the remaining automated gate stages have not run. No milestone closed and no live operations ran. This completed refactor does not authorize another backlog task.
+
 **Next source action: APP-024 — Add Delete profile under VM More actions, when requested.** APP-016 through APP-022 are source implemented; APP-017 through APP-022 were reviewed and corrected as one related workstream on 12 October 2026. APP-024 reuses APP-022's protected transition and was not included in that review's implementation scope. The combined review ran static checks only; current compilation and regression execution remain pending under the milestone policy. APP-023 remains blocked by the agreed automated gate and separately authorized prepared live sequence. Allocation and concurrent-sharing qualification below remain open.
 
 **APP-009 / APP-011 — Resolve the allocation contract and complete M2 preparation.** M1 is closed with [gate evidence](evidence/m1-closure.md). The [prepared sequence and source assessment](evidence/m2-preparation.md) record remaining environment facts and proposed effects. Selected-VM setup is already user-accepted; the remaining live sequence has not run. APP-011 source removes the metadata-derived VRAM ceiling; validate these changes at the agreed checkpoint before separately authorized live allocation checks.
@@ -38,6 +42,9 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 | APP-024 | M2 | Add Delete profile under VM More actions | APP-022 | Ready | Not run |
 | APP-025 | M2 | Keep Technical Details only where they add diagnostic value | APP-008 | Ready | Not run |
 | APP-026 | M2 | Display the slider VRAM maximum as a whole GB | APP-002 | Ready | Not run |
+| APP-027 | M2 | Retire a failed verification-only Apply without blocking repair | APP-019, APP-020 | Ready (High review finding) | Not run |
+| APP-028 | M2 | Preserve the guest failure when restoration-proof persistence fails | APP-018, APP-019 | Ready (Medium review finding) | Not run |
+| APP-029 | M2 | Skip unchanged compatibility writes during enabled Apply | APP-006 | Done (source implemented) | Pending milestone gate; regressions unrun |
 
 Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records the original five fixes and completed follow-up review. The [M1 closure](evidence/m1-closure.md) supersedes historical unrun/open statements in the implementation notes below for automated validation only; live qualification remains pending.
 
@@ -319,3 +326,31 @@ Acceptance:
 - Cover below/at/above half-GB boundaries, exact whole-GB capacities, non-grid maximum endpoints, GPU switching and unavailable capacity. Assert that selecting the maximum still produces the original exact bytes. Visual acceptance remains a separately authorized milestone check.
 
 Status: task added only; no slider, backend or saved configuration changes are included in this request. Build, automated tests and live UI checks are not run.
+
+### APP-027 — Retire a failed verification-only Apply without blocking repair
+
+Priority: High. Source-review finding (12 October 2026); added at the user's request, not implemented.
+
+When the current preparation digest matches but successful check evidence is absent/invalid, Apply can require verification without host changes or preparation. It records a pending verification-only journal. A proven guest mismatch invalidates preparation, but the Apply receipt requires publication: the existing negative-completion branch only admits standalone Verify receipts, and the preparation-not-started branch excludes verification-only journals. Further Apply/reinstall/removal rejects pending recovery; repeated reconciliation cannot fix mismatched guest files.
+
+Acceptance: provide a narrowly bound, explicitly reconciled negative completion for this failed Apply case only after independent proof of unchanged host/GPU facts, committed revision and safely completed reviewed lifecycle. Preserve negative check evidence and preparation invalidation; cancel the failed operation's intent publication. Never fabricate success, replay effects, clear uncertain holds or automatically repair files. Add isolated regressions for matching-digest/missing-success Apply followed by payload mismatch, explicit retirement and reviewed reinstall/removal, plus changed/unavailable facts, uncertain outcomes, refused restoration and interrupted persistence. Reuse existing retirement/receipt/worker machinery.
+
+Implementation: Ready. Validation: Not run. Builds/tests and live effects require their existing checkpoint/authorization; this card alone does not authorize execution.
+
+### APP-028 — Preserve the guest failure when restoration-proof persistence fails
+
+Priority: Medium. Source-review finding (12 October 2026); added at the user's request, not implemented.
+
+`record_restored_check_failure` can fail while saving or independently reading back the restored-negative proof. Verify and verification-only reconciliation propagate that failure before combining their operation outcomes, hiding the original payload/graphics failure behind the persistence error.
+
+Acceptance: retain both the original guest failure and restoration-proof save/readback failure with actionable, secret-free context. Preserve pending recovery and negative evidence; failed proof persistence must not certify restoration or grant negative retirement. Add isolated Verify/reconciliation regressions with a terminal payload or graphics failure followed by successful restoration and denied save or mismatching/unavailable readback. Preserve the existing primary/restoration error combinations and reporting boundaries.
+
+Implementation: Ready. Validation: Not run. This card authorizes no implementation or runtime checks.
+
+### APP-029 — Skip unchanged compatibility writes during enabled Apply
+
+User request (12 October 2026): implement the workflow review's easy win. Write compatibility settings only when the freshly admitted initial settings differ from the reviewed desired settings, matching the planner's Settings action. Retain the applied-settings journal, ownership acquisition/release, original baseline and independent final readback. Required writes and their failure/recovery behavior remain intact.
+
+Implementation: Done (source implemented). Enabled Apply now guards the settings backend call with the same comparison used by its preview. Test-only write counting and three focused regressions cover VRAM-only updates and same-digest reinstall with matching settings, re-enable after ownership release with a matching external baseline, and a required write failure retaining recovery without attachment or graphics. No authority, lifecycle, payload, allocation or publication policy changed.
+
+Validation: targeted Rust formatting/check, documentation checks and diff whitespace checks only. Compilation, automated regressions, lint/build/API documentation and live acceptance remain pending the agreed checkpoint. No GUI launch, credentials, guest access, protected writes or VM/GPU effects ran. APP-027 and APP-028 remain unimplemented.

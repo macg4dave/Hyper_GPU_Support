@@ -27,9 +27,9 @@ Legacy mock/snapshot GUI tooling is retired and removed from source through APP-
 
 ## P0: workflow modularization
 
-**P0 — Break up `src/workflow.rs` while preserving behavior.** This is the next planned source priority, ahead of further feature work. The standalone [AI implementation plan](WORKFLOW_REFACTOR_PLAN.md) specifies module ownership, function mapping, dependency boundaries, extraction order, compatibility requirements and validation. Keep the existing backend, worker/security/recovery architecture and public workflow API.
+**P0 — Break up `src/workflow.rs` while preserving behavior.** Source extraction is complete; automated validation remains pending. The standalone [AI implementation plan](WORKFLOW_REFACTOR_PLAN.md) specifies module ownership, function mapping, dependency boundaries, extraction order, compatibility requirements and validation. Keep the existing backend, worker/security/recovery architecture and public workflow API.
 
-Status (12 October 2026): **Plan written; implementation not started; refactor validation not run.** The user requested the plan and roadmap priority only. Source implementation requires a subsequent request. Existing APP-017 through APP-022 fixes remain part of the starting tree, with their automated/visual/live validation still pending. P0 ordering does not close or replace any milestone gate. The backlog is unchanged by this planning request.
+Status (12 October 2026): **Implementation Done; validation Pending milestone gate.** At the user's subsequent request, the workflow was extracted into six private production modules with an 82-line shared root and explicit compatible re-exports. All 74 existing tests and the APP-017 through APP-022 fixes were preserved. Targeted formatting, item/test comparison, documentation and diff checks passed; compilation, regression execution and the remaining automated gate stages have not run. Existing visual/live acceptance remains pending. P0 completion does not close or replace any milestone gate; the next separate source action remains in the backlog.
 
 ## Milestones
 

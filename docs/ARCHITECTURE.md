@@ -20,6 +20,25 @@ This page owns component and data-flow boundaries. [Baseline](BASELINE.md) owns 
 
 The default application is `hyper-gpu-support.exe`. Setup currently expects that executable plus `hyper-gpu-runner.exe`, `hyper-gpu-guest.exe`, and `d3d11-probe.exe` in the same package directory. Internal setup/worker modes reuse the application executable; they are fixed protocol entrypoints, not general command execution. The installed runner is separate from the initiating user frontend.
 
+## Workflow module family
+
+[Workflow root](../src/workflow.rs) retains the shared `Backend` trait and `OperationResult`, with explicit re-exports preserving public and crate-visible caller paths. Its private children own the operation stages:
+
+| Module | Responsibility |
+|---|---|
+| [Journal](../src/workflow/journal.rs) | Durable state, setup eligibility, check persistence/readback and historical success timestamps |
+| [Planning](../src/workflow/planning.rs) | Read-only decision gathering, reviewed effects and per-setting restoration calculation |
+| [Apply](../src/workflow/apply.rs) | Consumed admission and ordered setup/update, ordinary change, reinstall and removal effects |
+| [Verification](../src/workflow/verification.rs) | Explicit Verify admission, current payload checks and operation-specific restoration guards |
+| [Reconciliation](../src/workflow/reconciliation.rs) | Independently prove achieved outcomes and recorded lifecycle without replaying Apply |
+| [Guest checks](../src/workflow/guest_check.rs) | Shared check classification, restored-negative evidence and graceful power restoration/readback |
+
+Enabled Apply writes compatibility settings only when admitted initial settings differ from the reviewed target. Matching settings still acquire/retain the recorded ownership baseline, and final independent readback remains mandatory (APP-029).
+
+Operation modules depend on the shared contracts/helpers; Verify and reconciliation do not depend on each other's execution. Admission-token fields remain private to their operation modules; planning internals and shared primitives are visible only within the workflow family. The worker still owns authority, authentication, locks, protected receipts, publication and audit. Backend adapters and transport remain outside this family.
+
+Focused tests live inline with their owning module. [Shared doubles/fixtures](../src/workflow/test_support.rs) and [cross-operation scenarios](../src/workflow/tests.rs) are compiled only under `#[cfg(test)]`. The [refactor record](WORKFLOW_REFACTOR_PLAN.md#implementation-record) accounts for all 74 existing tests and separates static source checks from pending automated validation.
+
 ## State separation
 
 | State | Meaning | Does not establish |
