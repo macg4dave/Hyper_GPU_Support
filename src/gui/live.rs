@@ -2053,7 +2053,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             #[cfg(windows)]
             "forget" => review_forget_live(&ui, &action_state, &action_busy),
             #[cfg(windows)]
-            "confirm-forget" if ui.get_dialog_kind() == "forget-review" => forget_live(&ui, &action_state, &action_busy, &action_source),
+            "confirm-forget" if ui.get_dialog_kind() == "forget-review" => forget_live(&ui, &action_state, &action_busy),
             "review" => review(&ui, &action_state, &action_busy, &action_source),
             #[cfg(windows)]
             "confirm-enroll" => enroll_live(&ui, &action_state, &action_busy, &action_source),
@@ -2182,7 +2182,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 }); Ok(())
             }
             "shortcuts" => {
-                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. VRAM requests use bytes without a metadata-derived 1 GB ceiling; hardware behavior awaits live validation. Use the toggle or More actions > Remove GPU support to disable support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement remains unavailable. Forget pairing requires an inactive profile and separate confirmation.";
+                let help = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. VRAM requests use bytes without a metadata-derived 1 GB ceiling; hardware behavior awaits live validation. Use the toggle or More actions > Remove GPU support to disable support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement remains unavailable. Delete profile removes only app records, requires an inactive profile and separate confirmation, and never changes VM power or GPU support.";
                 dialog(&ui, "info", "Application help", help); Ok(())
             },
             _ => Err("This action is not connected yet. Use the supported CLI; no operation was performed.".into()),

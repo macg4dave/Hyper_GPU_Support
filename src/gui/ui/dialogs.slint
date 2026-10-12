@@ -67,7 +67,7 @@ export component OperationDialog inherits Rectangle {
                             ActionChoice { label: "Verify Graphics"; reason: root.verify-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
                             ActionChoice { label: "Repair / Reinstall"; reason: root.repair-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
                             ActionChoice { label: "Remove GPU support"; reason: root.remove-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
-                            ActionChoice { label: "Forget pairing"; reason: root.forget-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
+                            ActionChoice { label: "Delete profile"; reason: root.forget-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
                         }
                     }
                 }
@@ -117,7 +117,7 @@ export component OperationDialog inherits Rectangle {
                     if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
                     if root.kind == "review" : Button { text: "Cancel"; clicked => { root.action("close"); } }
                     if root.kind == "forget-review" : Button { text: "Cancel"; clicked => { root.action("close"); } }
-                    if root.kind == "forget-review" : Button { text: "Forget pairing"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
+                    if root.kind == "forget-review" : Button { text: "Delete profile"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
                     if root.kind == "review" : Button { text: root.execution-ready ? "Apply" : "Apply unavailable"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
                     if root.kind == "verify-review" : Button { text: "Verify approved graphics"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
                     if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }

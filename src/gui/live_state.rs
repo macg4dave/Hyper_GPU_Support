@@ -458,7 +458,7 @@ impl State {
             },
         );
         Some(format!(
-            "{operation}\n\nBefore verifying, repairing, removing GPU support or forgetting a pairing, review what happened. Choose Review recovery to see the recorded operation and the available next step. Your edits are kept. Reviewing recovery does not make changes; any available recovery action needs separate confirmation."
+            "{operation}\n\nBefore verifying, repairing, removing GPU support or deleting an app profile, review what happened. Choose Review recovery to see the recorded operation and the available next step. Your edits are kept. Reviewing recovery does not make changes; any available recovery action needs separate confirmation."
         ))
     }
 
@@ -600,12 +600,12 @@ impl State {
         Ok(target)
     }
 
-    /// Profile removal is separate from drafts and requires independently inactive host support.
+    /// Profile deletion changes app records only; host support must already be inactive.
     pub fn forget_target(&self) -> Result<Target, String> {
         let id = self.view.selected.as_deref().ok_or("Select a VM first.")?;
         if self.view.draft.is_some() || self.view.unsaved || self.view.needs_readback {
             return Err(
-                "Discard or complete pending edits and Refresh before Forget pairing.".into(),
+                "Discard or complete pending edits and Refresh before Delete profile.".into(),
             );
         }
         if self.recovery.is_some()
@@ -616,7 +616,7 @@ impl State {
             || !self.committed.errors.is_empty()
         {
             return Err(
-                "Resolve recovery or conflicting/unreadable records before Forget pairing.".into(),
+                "Resolve recovery or conflicting/unreadable records before Delete profile.".into(),
             );
         }
         let inventory = self.view.inventory.as_ref().ok_or("Refresh first.")?;
@@ -629,7 +629,7 @@ impl State {
         let vm = self.view.vm(id).ok_or("VM unavailable; Refresh first.")?;
         if inventory.recorded_state(id).recovery_required || !inventory.managed.contains_key(id) {
             return Err(
-                "Complete GPU removal and Refresh its managed history before Forget pairing."
+                "Complete GPU removal and Refresh its managed history before Delete profile."
                     .into(),
             );
         }
@@ -640,8 +640,30 @@ impl State {
             vm,
             inventory.managed.get(id).and_then(Option::as_ref),
             self.committed.documents.get(id).map(|d| &d.target),
-        )?;
+        ).map_err(|error| format!("Delete profile changes app records only and cannot remove GPU support or change VM power. {error}"))?;
         Ok(target)
+    }
+
+    /// The worker's successful terminal reply already certifies protected readback.
+    /// Failure retains cached records as unknown until Refresh, never as proof of retention.
+    pub fn finish_profile_deletion(
+        &mut self,
+        id: &str,
+        result: Result<(), String>,
+    ) -> Result<(), String> {
+        self.cancel_review();
+        self.view.needs_readback = true;
+        result?;
+        self.view
+            .configuration
+            .targets
+            .retain(|target| target.vm_id != id);
+        self.committed.documents.remove(id);
+        if let Some(inventory) = &mut self.view.inventory {
+            inventory.enrolled.retain(|target| target.vm_id != id);
+            inventory.managed.remove(id);
+        }
+        Ok(())
     }
 
     fn check_forget_review(
@@ -660,7 +682,7 @@ impl State {
             .or_insert(hyper_gpu_support::configuration_store::Revision::Missing);
         if review.pair.target()? != target || review.configurations != revisions {
             return Err(
-                "Selection, saved profiles or pairing changed; review Forget pairing again.".into(),
+                "Selection, saved profiles or pairing changed; review Delete profile again.".into(),
             );
         }
         Ok(())
@@ -680,7 +702,7 @@ impl State {
         let review = self
             .removal_review
             .as_ref()
-            .ok_or("Open a fresh Forget pairing review first.")?;
+            .ok_or("Open a fresh Delete profile review first.")?;
         self.check_forget_review(review)?;
         Ok(review.clone())
     }
@@ -2442,6 +2464,119 @@ mod tests {
         );
         assert!(s.reviewed_forget().is_err());
         assert!(s.accept_forget_review(review).is_err());
+    }
+
+    fn profiles_for_deletion() -> (State, Target, Target) {
+        let mut s = state();
+        let mut selected = s.target(id(&s)).unwrap();
+        selected.enabled = false;
+        let mut other = selected.clone();
+        other.vm_id = "87654321-4321-4321-4321-cba987654321".into();
+        s.load_committed(committed(vec![selected.clone(), other.clone()], "profiles"))
+            .unwrap();
+        let inventory = s.view.inventory.as_mut().unwrap();
+        let mut vm = inventory.discovery.vms[0].clone();
+        vm.vm_id = other.vm_id.clone();
+        vm.name = "Other VM".into();
+        inventory.discovery.vms.push(vm);
+        inventory.enrolled.push(other.clone());
+        inventory.managed.insert(selected.vm_id.clone(), None);
+        inventory.managed.insert(other.vm_id.clone(), None);
+        (s, selected, other)
+    }
+
+    #[test]
+    fn completed_profile_deletion_keeps_vm_and_other_profiles_without_host_changes() {
+        let (mut s, selected, other) = profiles_for_deletion();
+        let vm_before = s.view.vm(&selected.vm_id).unwrap().clone();
+        let other_document = s.committed.documents[&other.vm_id].clone();
+        let other_vm = s.view.vm(&other.vm_id).unwrap().clone();
+        assert!(s.forget_target().is_ok());
+        s.finish_profile_deletion(&selected.vm_id, Ok(())).unwrap();
+        assert_eq!(s.view.selected.as_deref(), Some(selected.vm_id.as_str()));
+        assert_eq!(
+            serde_json::to_value(s.view.vm(&selected.vm_id).unwrap()).unwrap(),
+            serde_json::to_value(&vm_before).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(s.view.vm(&other.vm_id).unwrap()).unwrap(),
+            serde_json::to_value(&other_vm).unwrap()
+        );
+        assert!(!s.committed.documents.contains_key(&selected.vm_id));
+        assert_eq!(
+            s.committed.documents[&other.vm_id].target,
+            other_document.target
+        );
+        assert_eq!(
+            s.committed.documents[&other.vm_id].revision,
+            other_document.revision
+        );
+        assert_eq!(s.view.configuration.targets, vec![other.clone()]);
+        let inventory = s.view.inventory.as_ref().unwrap();
+        assert_eq!(inventory.enrolled, vec![other.clone()]);
+        assert!(!inventory.managed.contains_key(&selected.vm_id));
+        assert!(inventory.managed.contains_key(&other.vm_id));
+        assert!(s.view.needs_readback);
+        let candidate = s.target(&selected.vm_id).unwrap();
+        assert!(!candidate.enabled);
+        assert!(!s.enrolled(&candidate));
+        assert!(s.view.eligibility(&candidate).is_err());
+        assert!(s.forget_target().is_err());
+        // A fresh discovery keeps the VM available for new setup, with no old history.
+        let fresh = s.view.inventory.clone().unwrap();
+        s.refresh(fresh);
+        assert!(s.editor_eligibility(&selected.vm_id).is_ok());
+        assert!(!s.enrolled(&s.target(&selected.vm_id).unwrap()));
+    }
+
+    #[test]
+    fn failed_or_partial_deletion_keeps_cache_unknown_and_retains_recovery() {
+        let (mut s, selected, other) = profiles_for_deletion();
+        let vm_before = s.view.vm(&selected.vm_id).unwrap().clone();
+        s.recovery = Some(save_record(&s));
+        assert!(
+            s.finish_profile_deletion(
+                &selected.vm_id,
+                Err("history deletion failed after settings removal".into())
+            )
+            .unwrap_err()
+            .contains("history deletion failed")
+        );
+        // Cached records are not claimed to still exist in the protected store.
+        assert!(s.committed.documents.contains_key(&selected.vm_id));
+        assert!(s.committed.documents.contains_key(&other.vm_id));
+        assert!(s.view.needs_readback);
+        assert!(s.recovery.is_some());
+        assert_eq!(
+            serde_json::to_value(s.view.vm(&selected.vm_id).unwrap()).unwrap(),
+            serde_json::to_value(&vm_before).unwrap()
+        );
+        assert!(s.forget_target().is_err());
+        assert!(
+            s.selected_actions(0, &allocation_values(&selected))
+                .recovery
+        );
+        assert!(s.removal_review.is_none());
+    }
+
+    #[test]
+    fn delete_profile_never_stages_host_removal_or_power_changes_for_active_support() {
+        let (mut s, selected, _) = profiles_for_deletion();
+        s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus =
+            vec![selected.gpu_interface.clone()];
+        s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Running;
+        let vm_before = s.view.vm(&selected.vm_id).unwrap().clone();
+        let reason = s.forget_target().unwrap_err();
+        assert!(reason.contains("app records only"));
+        assert!(reason.contains("cannot remove GPU support or change VM power"));
+        assert_eq!(
+            serde_json::to_value(s.view.vm(&selected.vm_id).unwrap()).unwrap(),
+            serde_json::to_value(&vm_before).unwrap()
+        );
+        assert!(s.view.draft.is_none());
+        assert!(s.approved_plan.is_none());
+        assert!(s.removal_review.is_none());
+        assert!(s.committed.documents.contains_key(&selected.vm_id));
     }
 
     #[test]
