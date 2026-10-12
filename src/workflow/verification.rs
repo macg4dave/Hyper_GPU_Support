@@ -1,6 +1,6 @@
 //! Explicit guest verification with reviewed admission and lifecycle restoration.
 use super::guest_check::{check_guest, record_restored_check_failure, restore_guest_power};
-use super::journal::{persist_check, verified_at};
+use super::journal::{persist_check, require_journal, verified_at};
 use super::{Backend, GuestCheck, Journal, OperationResult};
 use crate::model::{Gpu, Power, Target, VmState};
 use serde::{Deserialize, Serialize};
@@ -187,6 +187,7 @@ fn verify_current_payload(
     // A start error may follow a real state change. Inspect and restore even then,
     // retaining both failures and the durable intent if recovery cannot complete.
     let restoration = (|| {
+        require_journal(backend, target, &journal)?;
         let current = backend.inspect(target)?;
         let mut expected = before.clone();
         expected.power = current.power.clone();
@@ -203,6 +204,7 @@ fn verify_current_payload(
             return Err("verification cannot authorize restarting the stopped guest".into());
         }
         restore_guest_power(backend, target, &journal.restore_power)?;
+        require_journal(backend, target, &journal)?;
         expected.power = journal.restore_power.clone();
         if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
             != serde_json::to_value(&expected).map_err(|e| e.to_string())?
@@ -230,9 +232,10 @@ fn verify_current_payload(
     if effective.power != journal.restore_power || effective.gpus != before.gpus {
         return Err("verification lifecycle readback failed".into());
     }
+    require_journal(backend, target, &journal)?;
     journal.pending = false;
     journal.last_verified = Some(verified_at());
-    backend.save(target, &journal)?;
+    persist_check(backend, target, &journal)?;
     Ok(OperationResult {
         effective,
         prepared: false,

@@ -74,6 +74,16 @@ pub(super) fn persist_check(
     journal: &Journal,
 ) -> Result<(), String> {
     backend.save(target, journal)?;
+    require_journal(backend, target, journal)
+}
+
+// A local check result grants no authority to overwrite changed durable history.
+// Use this before delayed power changes and before advancing completion evidence.
+pub(super) fn require_journal(
+    backend: &mut impl Backend,
+    target: &Target,
+    journal: &Journal,
+) -> Result<(), String> {
     let observed = backend.journal(target)?;
     if serde_json::to_value(observed).map_err(|e| e.to_string())?
         != serde_json::to_value(Some(journal)).map_err(|e| e.to_string())?

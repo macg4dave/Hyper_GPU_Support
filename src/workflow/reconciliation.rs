@@ -1,6 +1,6 @@
 //! Independent outcome reconciliation without replaying Apply effects.
 use super::guest_check::{check_guest, record_restored_check_failure, restore_guest_power};
-use super::journal::{persist_check, verified_at};
+use super::journal::{persist_check, require_journal, verified_at};
 use super::{Backend, GuestCheck, OperationResult};
 use crate::model::{Power, Target, VmState};
 
@@ -63,6 +63,7 @@ pub(crate) fn reconcile_with_graphics(
             check_guest(backend, target, &gpu, &mut journal)
         })();
         let restoration = (|| {
+            require_journal(backend, target, &journal)?;
             let current = backend.inspect(target)?;
             let mut expected = observed.clone();
             expected.power = current.power.clone();
@@ -85,6 +86,7 @@ pub(crate) fn reconcile_with_graphics(
         // Record restoration only after independent full host readback, including
         // any final power transition; a partial restoration cannot enable repair.
         let restoration = restoration.and_then(|()| {
+            require_journal(backend, target, &journal)?;
             let mut expected = observed.clone();
             expected.power = restore.clone();
             if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
@@ -123,6 +125,7 @@ pub(crate) fn reconcile_with_graphics(
     {
         return Err("reconciliation independent readback changed".into());
     }
+    require_journal(backend, target, &journal)?;
     journal.pending = false;
     if check_graphics {
         journal.last_verified = Some(verified_at());
@@ -134,7 +137,7 @@ pub(crate) fn reconcile_with_graphics(
         journal.applied = effective.settings.clone();
         journal.settings_released = false;
     }
-    backend.save(target, &journal)?;
+    persist_check(backend, target, &journal)?;
     Ok(OperationResult {
         effective,
         prepared: false,

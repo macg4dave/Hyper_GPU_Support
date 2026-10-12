@@ -7,6 +7,86 @@ use crate::workflow::{
 };
 
 #[test]
+fn changed_check_journals_block_power_restoration_and_completion() {
+    use crate::workflow::test_support::Drift;
+    for reconciliation in [false, true] {
+        for stage in ["start", "verify", "shutdown"] {
+            for failed_check in [false, true] {
+                let mut backend = fake();
+                apply(&mut backend, &target()).unwrap();
+                let original = backend.journal.as_ref().unwrap().original.high_mmio;
+                if reconciliation {
+                    let journal = backend.journal.as_mut().unwrap();
+                    journal.pending = true;
+                    journal.verification_only = true;
+                }
+                backend.events.clear();
+                backend.fail_verify = failed_check;
+                backend.drift_at = Some((stage, Drift::Journal));
+                let observed = backend.state.clone();
+                let result = if reconciliation {
+                    reconcile_with_graphics(
+                        &mut backend, &target(), &observed, Power::Off, Some("current"), true,
+                    )
+                } else {
+                    verify(&mut backend, &target())
+                };
+                let error = result.unwrap_err();
+                assert!(error.contains("journal"), "{error}");
+                if failed_check && stage != "start" {
+                    assert!(error.contains("graphics failed"), "{error}");
+                }
+                let journal = backend.journal.as_ref().unwrap();
+                assert_eq!(journal.original.high_mmio, original + 1);
+                assert!(journal.pending && !journal.check_restored);
+                assert_eq!(backend.events, match stage {
+                    "start" => vec!["start"],
+                    "verify" => vec!["start", "graphics"],
+                    _ => vec!["start", "graphics", "shutdown"],
+                });
+                assert_eq!(backend.state.power, if stage == "shutdown" { Power::Off } else { Power::Running });
+            }
+        }
+    }
+}
+
+#[test]
+fn check_completion_requires_independent_journal_readback() {
+    for operation in ["verify", "graphics-reconciliation", "ordinary-reconciliation"] {
+        for unavailable in [false, true] {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            backend.journal_writes = 0;
+            backend.events.clear();
+            let final_write = if operation == "ordinary-reconciliation" { 1 } else { 4 };
+            if unavailable {
+                backend.fail_read_after_save_at = Some(final_write);
+            } else {
+                backend.mismatch_read_after_save_at = Some(final_write);
+            }
+            let observed = backend.state.clone();
+            let result = if operation == "verify" {
+                verify(&mut backend, &target())
+            } else {
+                backend.journal.as_mut().unwrap().pending = true;
+                reconcile_with_graphics(
+                    &mut backend, &target(), &observed, Power::Off, Some("current"),
+                    operation == "graphics-reconciliation",
+                )
+            };
+            assert!(result.unwrap_err().contains("journal"));
+            assert_eq!(backend.journal_writes, final_write);
+            assert_eq!(backend.state.power, Power::Off);
+            assert!(!backend.events.contains(&"prepare"));
+            assert!(!backend.events.contains(&"attach"));
+            if operation == "ordinary-reconciliation" {
+                assert!(backend.events.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
 fn failed_verification_only_apply_can_end_without_publication_then_repair_or_remove() {
     use crate::configuration_store::Revision;
     for initial_power in [Power::Off, Power::Running] {

@@ -1,5 +1,5 @@
 //! Shared guest-check evidence and graceful power restoration primitives.
-use super::journal::persist_check;
+use super::journal::{persist_check, require_journal};
 use super::{Backend, GuestCheck, Journal};
 use crate::model::{Gpu, Power, Target};
 
@@ -10,6 +10,7 @@ pub(super) fn check_guest(
     journal: &mut Journal,
 ) -> Result<(), String> {
     use crate::reporting::{Component, ComponentFailure, FailureCause};
+    require_journal(backend, target, journal)?;
     journal.latest_check = Some(GuestCheck::Interrupted);
     journal.check_restored = false;
     persist_check(backend, target, journal)?;
