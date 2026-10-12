@@ -270,10 +270,35 @@ impl SaveRecord {
         let Some(journal) = journal else {
             return Ok(None);
         };
+        // Fresh verification-only Apply admission proves no host/configuration
+        // change was needed. Its reviewed final Off replaces initial power only;
+        // all other starting facts and the original committed revision must match.
+        let failed_apply_check = self.publication_required
+            && self.target.enabled
+            && self.graphics_required == Some(true)
+            && self.expected_power == Some(crate::model::Power::Off)
+            && self.initial.gpus == [self.target.gpu_interface.clone()]
+            && self.target.allocations_match(&self.initial)
+            && self.expected_settings == self.initial.settings
+            && journal.verification_only
+            && journal.preparation_started == Some(false)
+            && self.initial_journal.as_ref().is_some_and(|original| {
+                original.schema == 1
+                    && !original.pending
+                    && original.vm_id == self.target.vm_id
+                    && original.gpu_interface == self.target.gpu_interface
+                    && original.prepared.is_some()
+                    && original.prepared == self.payload_digest
+                    && !original.setup_eligible()
+            });
+        let mut restored_baseline = self.initial.clone();
+        if failed_apply_check {
+            restored_baseline.power = self.final_power()?;
+        }
         if driver != self.driver_version
             || revision != &self.expected
             || serde_json::to_value(state).map_err(|e| e.to_string())?
-                != serde_json::to_value(&self.initial).map_err(|e| e.to_string())?
+                != serde_json::to_value(&restored_baseline).map_err(|e| e.to_string())?
             || journal.schema != 1
             || journal.vm_id != self.target.vm_id
             || journal.gpu_interface != self.target.gpu_interface
@@ -293,15 +318,16 @@ impl SaveRecord {
             return Ok(None);
         }
         let mut after = journal.clone();
-        let reason = if !self.publication_required
+        let reason = if (!self.publication_required || failed_apply_check)
             && journal.verification_only
             && journal.check_restored
-            && journal.restore_power == self.initial.power
+            && journal.restore_power == restored_baseline.power
             && matches!(
                 journal.latest_check,
                 Some(GuestCheck::Failed | GuestCheck::Unavailable | GuestCheck::PayloadMismatch)
             ) {
-            // No successful result is fabricated; preserve the latest negative facts.
+            // No successful result or configuration is published. The worker
+            // archives/ends this exact failed attempt and retains negative facts.
             after.pending = false;
             RetirementReason::FailedVerification
         } else if self.publication_required

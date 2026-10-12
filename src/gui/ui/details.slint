@@ -4,6 +4,18 @@ import { ResourceEditor, AllocationDisclosure } from "resources.slint";
 import { TechnicalOutput } from "technical-output.slint";
 
 export component VmDetails inherits Rectangle {
+    in property <string> focus-return-action;
+    in property <int> focus-return-serial;
+    changed focus-return-serial => {
+        if root.focus-return-action != "refresh" && root.focus-return-action != "recovery" {
+            root.restore-action-focus(root.focus-return-action);
+        }
+    }
+    callback restore-action-focus(string);
+    restore-action-focus(action) => {
+        if action == "review" && review.enabled { review.focus(); }
+        else { more-button.focus(); }
+    }
     in property <string> name;
     in property <[string]> gpu-options;
     in property <string> identity;
@@ -136,7 +148,7 @@ export component VmDetails inherits Rectangle {
         HorizontalLayout { spacing: 8px;
             review := Button { enabled: !Theme.modal-active && (root.dirty && root.eligible && !root.recovery && root.validation == ""); text: "Apply"; primary: true;  clicked => { root.action("review"); } }
             Button { enabled: !Theme.modal-active && (root.dirty); text: "Discard draft";  clicked => { root.action("discard"); } }
-            Button { enabled: !Theme.modal-active; text: "More actions…"; clicked => { root.action("more"); } }
+            more-button := Button { enabled: !Theme.modal-active; text: "More actions…"; clicked => { root.action("more"); } }
         }
     }
 }

@@ -1,9 +1,11 @@
 //! Admission and execution of reviewed selected-VM changes.
-use super::guest_check::{check_guest, restore_guest_power};
+use super::guest_check::{check_guest, record_restored_check_failure};
 use super::journal::{persist_check, verified_at};
 use super::planning::{Decision, decision, decision_for_operation, plan_from_decision};
 use super::{Backend, GuestCheck, OperationResult, Plan};
 use crate::model::{Power, Resource, Target};
+mod facts;
+use facts::ApplyFacts;
 
 /// Apply one selected target after independently reading and validating current state.
 /// Failures retain recovery intent; no disk recreation or forced shutdown is attempted.
@@ -106,8 +108,11 @@ fn execute_decision(
         assignment,
         needs_changes,
         setup_required,
+        managed,
         ..
     } = d;
+    let mut facts = ApplyFacts::new(initial.clone(), gpu.clone(), managed);
+    facts.check(backend, target)?;
     // Record power-only ordinary operations too, before graceful shutdown.
     if needs_changes || setup_required || initial.power != restore_power {
         journal.pending = true;
@@ -130,72 +135,74 @@ fn execute_decision(
         } else {
             backend.save(target, &journal)?;
         }
+        facts.journal = Some(journal.clone());
+        facts.check(backend, target)?;
     }
     let operation: Result<OperationResult, String> = (|| {
         if needs_changes {
             if initial.power == Power::Running {
-                backend.power(target, Power::Off)?;
+                facts.power(backend, target, Power::Off)?;
             }
             if stale {
+                facts.check(backend, target)?;
                 journal.preparation_started = Some(true);
                 persist_check(backend, target, &journal)?;
+                facts.journal = Some(journal.clone());
+                facts.check(backend, target)?;
                 if assignment {
-                    backend.assign(target, false)?;
+                    facts.assign(backend, target, false)?;
                 }
-                backend.power(target, Power::Running)?;
+                facts.power(backend, target, Power::Running)?;
                 let prepared = backend.prepare(target)?;
                 if Some(&prepared) != digest.as_ref() {
                     return Err(
                         "driver changed during preparation; reconcile and rediscover".into(),
                     );
                 }
-                backend.power(target, Power::Off)?;
+                facts.power(backend, target, Power::Off)?;
                 journal.prepared = Some(prepared);
-                backend.save(target, &journal)?;
+                facts.save(backend, target, &journal)?;
             }
             if target.enabled {
                 if initial.settings != desired {
-                    backend
-                        .settings(target, &desired)
+                    facts
+                        .settings(backend, target, &desired)
                         .map_err(|e| format!("apply compatibility settings: {e}"))?;
                 }
                 journal.applied = desired.clone();
                 journal.settings_released = false;
-                backend.save(target, &journal)?;
-                if backend.inspect(target)?.gpus.is_empty() {
-                    backend
-                        .assign(target, true)
+                facts.save(backend, target, &journal)?;
+                if facts.state.gpus.is_empty() {
+                    facts
+                        .assign(backend, target, true)
                         .map_err(|e| format!("attach selected GPU: {e}"))?;
                 }
                 for resource in Resource::ALL {
                     if let Some(value) = target.allocation(resource) {
-                        backend.allocation(target, resource, value)?;
+                        facts.allocation(backend, target, resource, value)?;
                     }
                 }
             } else {
                 if assignment {
-                    backend.assign(target, false)?;
+                    facts.assign(backend, target, false)?;
                 }
                 if initial.settings != disabled_settings {
-                    // A shutdown/detach can take time; do not overwrite a newly external value.
-                    if backend.inspect(target)?.settings != initial.settings {
-                        return Err("compatibility settings changed during removal; retain recovery and review the new state".into());
-                    }
-                    backend.settings(target, &disabled_settings)?;
+                    facts.settings(backend, target, &disabled_settings)?;
                 }
             }
         }
         let mut verified = false;
         if setup_required {
-            if backend.inspect(target)?.power != Power::Running {
-                backend.power(target, Power::Running)?;
+            facts.check(backend, target)?;
+            if facts.state.power != Power::Running {
+                facts.power(backend, target, Power::Running)?;
             }
-            check_guest(backend, target, &gpu, &mut journal)?;
+            let checked = check_guest(backend, target, &gpu, &mut journal);
+            facts.journal = Some(journal.clone());
+            checked?;
             verified = true;
         }
-        if backend.inspect(target)?.power != restore_power {
-            backend.power(target, restore_power.clone())?;
-        }
+        facts.restore(backend, target, &restore_power)?;
         let effective = backend.inspect(target)?;
         let expected_gpus = if target.enabled {
             vec![target.gpu_interface.clone()]
@@ -217,7 +224,7 @@ fn execute_decision(
         if verified {
             journal.last_verified = Some(verified_at());
         }
-        backend.save(target, &journal)?;
+        facts.save(backend, target, &journal)?;
         Ok(OperationResult {
             effective,
             prepared: stale,
@@ -229,11 +236,19 @@ fn execute_decision(
     // attached boot using partial guest files. Pending state explains the next apply.
     operation.map_err(|error| {
         if journal.verification_only && restore_power == Power::Off {
-            let restoration = restore_guest_power(backend, target, &Power::Off);
-            return format!(
-                "GPU-PV verification failed: {error}; power restoration: {}",
-                restoration.err().unwrap_or_else(|| "completed".into())
-            );
+            let restoration = facts.restore(backend, target, &Power::Off);
+            let checked = Err(error.clone());
+            if let Err(proof) =
+                record_restored_check_failure(backend, target, &mut journal, &checked, &restoration)
+            {
+                return proof;
+            }
+            return match restoration {
+                Ok(()) => format!("GPU-PV verification failed: {error}"),
+                Err(restoration) => format!(
+                    "power restoration failed: {restoration}; GPU-PV verification failed: {error}"
+                ),
+            };
         }
         format!("GPU-PV operation failed: {error}")
     })
@@ -241,12 +256,103 @@ fn execute_decision(
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{Allocation, Power, Resource, Settings, Target};
+    use crate::model::{Allocation, Power, Resource, Target};
     use crate::workflow::test_support::{extended_target, fake, target, trace};
     use crate::workflow::{
         GuestCheck, PreviewAction, admit_approved, apply, apply_admitted, apply_approved, plan,
         plan_reinstall,
     };
+
+    #[test]
+    fn preparation_drift_blocks_later_shutdown_settings_and_attachment() {
+        use crate::workflow::test_support::Drift;
+        for drift in [
+            Drift::Settings,
+            Drift::Gpu,
+            Drift::Assignment,
+            Drift::Resource,
+            Drift::Power,
+            Drift::Journal,
+            Drift::Unavailable,
+        ] {
+            let mut backend = fake();
+            let original = backend.state.settings.clone();
+            backend.drift_at = Some(("prepare", drift));
+            let error = apply(&mut backend, &target()).unwrap_err();
+            assert!(
+                error.contains("changed") || error.contains("unavailable"),
+                "{error}"
+            );
+            assert_eq!(backend.events, ["shutdown", "start", "prepare"]);
+            assert_eq!(backend.settings_writes, 0);
+            assert_eq!(backend.allocation_writes, 0);
+            assert!(backend.journal.as_ref().unwrap().pending);
+            if !matches!(drift, Drift::Journal) {
+                assert_eq!(backend.journal.as_ref().unwrap().original, original);
+            }
+        }
+    }
+
+    #[test]
+    fn verification_only_failure_restores_power_only_with_unchanged_host_facts() {
+        use crate::workflow::test_support::Drift;
+        for drift in [
+            Drift::Settings,
+            Drift::Gpu,
+            Drift::Assignment,
+            Drift::Resource,
+            Drift::Power,
+            Drift::Journal,
+            Drift::Unavailable,
+        ] {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            backend.journal.as_mut().unwrap().latest_check = Some(GuestCheck::Failed);
+            backend.events.clear();
+            backend.fail_verify = true;
+            backend.drift_at = Some(("verify", drift));
+            let approved = plan(&mut backend, &target()).unwrap();
+            assert!(!approved.preview.actions.contains(&PreviewAction::Prepare));
+            let error = apply_approved(&mut backend, &approved).unwrap_err();
+            assert!(error.contains("graphics failed"), "{error}");
+            assert_eq!(backend.events, ["start", "graphics"]);
+            assert!(backend.journal.as_ref().unwrap().pending);
+            assert_eq!(
+                backend.state.power,
+                if matches!(drift, Drift::Power) {
+                    Power::Off
+                } else {
+                    Power::Running
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn changed_facts_between_own_writes_block_following_effects() {
+        use crate::workflow::test_support::Drift;
+        let mut backend = fake();
+        backend.drift_at = Some(("settings", Drift::Assignment));
+        assert!(
+            apply(&mut backend, &target())
+                .unwrap_err()
+                .contains("facts changed")
+        );
+        assert!(!backend.events.contains(&"attach"));
+        assert!(backend.journal.as_ref().unwrap().pending);
+
+        let mut backend = fake();
+        let requested = extended_target();
+        backend.drift_at = Some(("allocation", Drift::Resource));
+        assert!(
+            apply(&mut backend, &requested)
+                .unwrap_err()
+                .contains("facts changed")
+        );
+        assert_eq!(backend.allocation_calls, [Resource::Compute]);
+        assert!(!backend.events.contains(&"graphics"));
+        assert!(backend.journal.as_ref().unwrap().pending);
+    }
 
     #[test]
     fn vram_change_and_reinstall_skip_unchanged_compatibility_writes() {

@@ -3,6 +3,8 @@ use super::{Backend, EffectPreview, Journal, PreviewAction};
 use crate::model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState};
 
 pub(super) struct Fake {
+    pub(super) drift_at: Option<(&'static str, Drift)>,
+    pub(super) inspect_unavailable: bool,
     pub(super) state: VmState,
     pub(super) journal: Option<Journal>,
     pub(super) events: Vec<&'static str>,
@@ -34,6 +36,48 @@ pub(super) struct Fake {
     pub(super) corrupt_resource: Option<Resource>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum Drift {
+    Settings,
+    Gpu,
+    Assignment,
+    Resource,
+    Power,
+    Journal,
+    Unavailable,
+}
+
+impl Fake {
+    fn drift(&mut self, stage: &str) {
+        let Some((at, drift)) = self.drift_at else {
+            return;
+        };
+        if at != stage {
+            return;
+        }
+        self.drift_at = None;
+        match drift {
+            Drift::Settings => self.state.settings.high_mmio += 1,
+            Drift::Gpu => self.gpu_driver = "externally-changed",
+            Drift::Assignment => self.state.gpus = vec!["external-gpu".into()],
+            Drift::Resource => {
+                self.state.compute = Some(Allocation {
+                    minimum: 1,
+                    optimal: 2,
+                    maximum: 3,
+                })
+            }
+            Drift::Power => self.state.power = Power::Off,
+            Drift::Journal => {
+                if let Some(journal) = &mut self.journal {
+                    journal.original.high_mmio += 1;
+                }
+            }
+            Drift::Unavailable => self.inspect_unavailable = true,
+        }
+    }
+}
+
 pub(super) fn target() -> Target {
     Target {
         compute: None,
@@ -48,6 +92,8 @@ pub(super) fn target() -> Target {
 
 pub(super) fn fake() -> Fake {
     Fake {
+        drift_at: None,
+        inspect_unavailable: false,
         state: VmState {
             compute: None,
             encode: None,
@@ -131,6 +177,9 @@ pub(super) fn recovery_record(
 
 impl Backend for Fake {
     fn inspect(&mut self, _: &Target) -> Result<VmState, String> {
+        if self.inspect_unavailable {
+            return Err("host readback unavailable".into());
+        }
         Ok(self.state.clone())
     }
     fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
@@ -202,6 +251,11 @@ impl Backend for Fake {
             }
         }
         self.state.power = p;
+        self.drift(if self.state.power == Power::Running {
+            "start"
+        } else {
+            "shutdown"
+        });
         if self.state.power == Power::Running && self.fail_start_after_effect {
             if self.change_settings_on_start_failure {
                 self.state.settings.high_mmio += 1;
@@ -220,6 +274,7 @@ impl Backend for Fake {
         if !e && self.change_settings_on_detach {
             self.state.settings.high_mmio += 1;
         }
+        self.drift(if e { "attach" } else { "detach" });
         Ok(())
     }
     fn settings(&mut self, _: &Target, s: &Settings) -> Result<(), String> {
@@ -228,6 +283,7 @@ impl Backend for Fake {
             return Err("settings interrupted".into());
         }
         self.state.settings = s.clone();
+        self.drift("settings");
         Ok(())
     }
     fn allocation(&mut self, _: &Target, resource: Resource, v: &Allocation) -> Result<(), String> {
@@ -243,10 +299,12 @@ impl Backend for Fake {
             Resource::Encode => self.state.encode = readback,
             Resource::Decode => self.state.decode = readback,
         }
+        self.drift("allocation");
         Ok(())
     }
     fn prepare(&mut self, _: &Target) -> Result<String, String> {
         self.events.push("prepare");
+        self.drift("prepare");
         if self.fail_prepare {
             Err("interrupted".into())
         } else {
@@ -254,6 +312,7 @@ impl Backend for Fake {
         }
     }
     fn verify(&mut self, _: &Target, _: &Gpu) -> Result<(), String> {
+        self.drift("verify");
         if self.stop_on_verify {
             self.state.power = Power::Off;
         }

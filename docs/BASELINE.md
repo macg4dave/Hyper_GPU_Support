@@ -102,3 +102,5 @@ APP-029 source skips unchanged compatibility writes during enabled Apply while p
 ## Updating this page
 
 Record actual source changes separately from executed checks. Link validation to its revision, environment, and evidence. Do not claim a slider reserves VRAM, that an operation succeeded from a simulation, or that a successful build proves GPU sharing.
+
+Backlog clearance checkpoint (12 October 2026): APP-034 now implements delayed-stage Apply VM/GPU/journal checks and safe verification-only restoration. The [automated gate](evidence/backlog-clearance.md) passed 287 tests, strict Clippy, binaries and API docs against this checkpoint. This validates current source and prior review regressions automatically; GUI interaction/live qualification remain open. APP-027 is the next recovery task.

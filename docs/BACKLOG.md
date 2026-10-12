@@ -4,9 +4,11 @@ This queue replaces the previous task plan. [Roadmap](ROADMAP.md) owns requireme
 
 ## Next implementation action
 
-**Full source review (12 October 2026): APP-033 complete in source; automated validation pending.** The user authorized review of current code, small/medium fixes and tasks for larger defects. [Review findings](evidence/full-source-review.md) record the fixes and limits. APP-028 is now source implemented. Next safety work when requested: APP-034 (Apply drift checks) and existing APP-027 (failed verification-only Apply retirement). No live effects or new automated gate ran.
+**Backlog clearance (12 October 2026): APP-034 source and automated checks complete; APP-027 is next.** The user authorized continuing through the backlog, including builds/tests and live testing. [Clearance evidence](evidence/backlog-clearance.md) records each checkpoint; live cards close only from their actual scenario evidence.
 
-**UI usability work (12 October 2026): APP-030 source implemented; validation pending milestone gate and real interaction.** The [source audit](BASELINE.md#ui-interaction-audit---12-october-2026) records the initial gaps and subsequent source status. APP-024 is now source implemented with app-record-only deletion; APP-031 source now aligns operation wording; next UI action when requested: APP-025 (useful diagnostics), APP-032 (dialog interaction), then APP-026 (VRAM label). Existing recovery prerequisites and milestone gates remain in force. The user authorized APP-030, APP-024 and APP-031 source implementation; no further card or live GUI check is authorized.
+**Full source review (12 October 2026): APP-033 source and automated checks complete.** The user authorized review of current code, small/medium fixes and tasks for larger defects. [Review findings](evidence/full-source-review.md) record the fixes and limits. APP-028 is now source implemented. Next safety work when requested: APP-034 (Apply drift checks) and existing APP-027 (failed verification-only Apply retirement). No live effects or new automated gate ran.
+
+**UI usability work (12 October 2026): APP-030 source implemented; validation pending milestone gate and real interaction.** The [source audit](BASELINE.md#ui-interaction-audit---12-october-2026) records the initial gaps and subsequent source status. APP-024 is now source implemented with app-record-only deletion; APP-031 source now aligns operation wording; next UI action when requested: APP-025 (useful diagnostics), APP-032 (dialog interaction), then APP-026 (VRAM label). Existing recovery prerequisites and milestone gates remain in force. The user authorized APP-030, APP-024 and APP-031 source implementation; subsequent backlog clearance authorizes continued work and testing as recorded above.
 
 Workflow source-review follow-up (12 October 2026): APP-027 (High) remains queued; APP-028 (Medium) was subsequently source implemented in APP-033. The user authorized only APP-029's compatibility-write improvement; its source and regression coverage are complete, with compilation/test execution pending.
 
@@ -33,7 +35,7 @@ Workflow source-review follow-up (12 October 2026): APP-027 (High) remains queue
 | APP-011 | M2 | Correct physical VRAM and provider mapping | APP-008 | In progress (ceiling removal source implemented; acceptance pending) | Not run |
 | APP-012 | M2 | Make transfer progress human readable | APP-008 | In progress (source implemented; visual acceptance pending) | Pending milestone gate and live display check |
 | APP-013 | M3 | Measure and improve guest transfer throughput | APP-008 | In progress (source implemented; measured acceptance pending) | Pending milestone gate and live throughput/memory comparison |
-| APP-014 | M2 | Clarify slider-to-VRAM triple semantics | APP-011 | Ready (card-capacity maximum confirmed) | Not run |
+| APP-014 | M2 | Clarify slider-to-VRAM triple semantics | APP-011 | Done (source implemented) | 89 frontend tests passed; exact live write/readback pending |
 | APP-015 | M2 | Prepare sustained concurrent-render evidence | APP-008 | Ready | Not run |
 | APP-016 | M2 | Separate authorization from guest setup status | APP-008 | Done (source implemented) | Pending milestone gate and visual acceptance |
 | APP-017 | M2 | Report saved-versus-observed host configuration differences | APP-016 | Done (source implemented) | Pending milestone gate and visual acceptance |
@@ -45,15 +47,15 @@ Workflow source-review follow-up (12 October 2026): APP-027 (High) remains queue
 | APP-023 | M2 | Qualify checkpoint rollback detection and recovery | APP-017, APP-018, APP-019, APP-020, APP-022 | Blocked: automated gate and prepared live authorization | Not run |
 | APP-024 | M2 | Add Delete profile under VM More actions | APP-022 | Done (source implemented; app records only) | Pending milestone gate and real interaction; regressions unrun |
 | APP-025 | M2 | Keep Technical Details only where they add diagnostic value | APP-008 | Ready | Not run |
-| APP-026 | M2 | Display the slider VRAM maximum as a whole GB | APP-002 | Ready | Not run |
-| APP-027 | M2 | Retire a failed verification-only Apply without blocking repair | APP-019, APP-020 | Ready (High review finding) | Not run |
-| APP-028 | M2 | Preserve the guest failure when restoration-proof persistence fails | APP-018, APP-019 | Done (source implemented in APP-033) | Pending milestone gate; regressions unrun |
+| APP-026 | M2 | Display the slider VRAM maximum as a whole GB | APP-002 | Done (source implemented) | 90 frontend tests passed; live endpoint label rendered; selectable endpoint blocked by recovery |
+| APP-027 | M2 | Retire a failed verification-only Apply without blocking repair | APP-019, APP-020 | Done | Passed: [automated checkpoint](evidence/backlog-clearance.md); live acceptance remains M2 |
+| APP-028 | M2 | Preserve the guest failure when restoration-proof persistence fails | APP-018, APP-019 | Done | Passed: automated checkpoint |
 | APP-029 | M2 | Skip unchanged compatibility writes during enabled Apply | APP-006 | Done (source implemented) | Pending milestone gate; regressions unrun |
 | APP-030 | M2 | Explain selected-VM action availability before activation | APP-016, APP-021, APP-022 | Done (source implemented) | Pending milestone gate and real interaction; regressions unrun |
 | APP-031 | M2 | Make action labels and review language match actual effects | APP-018, APP-020, APP-021 | Done (source implemented) | Pending milestone gate and real interaction; regressions unrun |
 | APP-032 | M2 | Make dialogs usable with keyboard and constrained layouts | APP-003 | Ready (Medium interaction risk) | Not run |
-| APP-033 | M2 | Review current source and fix bounded logic gaps | APP-008 | Done (source review and fixes) | Static checks only; automated gate pending |
-| APP-034 | M2 | Recheck admitted Apply facts before delayed writes and power restoration | APP-006, APP-019 | Ready (High review finding) | Not run |
+| APP-033 | M2 | Review current source and fix bounded logic gaps | APP-008 | Done | Passed: automated checkpoint; live acceptance remains M2 |
+| APP-034 | M2 | Recheck admitted Apply facts before delayed writes and power restoration | APP-006, APP-019 | Done | Passed: [automated checkpoint](evidence/backlog-clearance.md); live acceptance remains M2 |
 
 Current-source review (11 October 2026): [APP-001 through APP-008 assessment](evidence/m1-source-review.md) records the original five fixes and completed follow-up review. The [M1 closure](evidence/m1-closure.md) supersedes historical unrun/open statements in the implementation notes below for automated validation only; live qualification remains pending.
 
@@ -182,7 +184,7 @@ User clarification (11 October 2026): 2 GB was an example, never a fixed cap. Th
 
 Source review found that `MemorySlider::select` retains/expands the existing maximum, and omitted intent borrows provider defaults as its editing baseline. Replace that editing behavior with the confirmed selected-card maximum when the user explicitly edits the slider. Preserve exact saved triples on load; do not silently migrate settings. Handle GPU changes and unavailable capacity truthfully, retaining ordered triples and reviewed writes. No reservation or enforcement claim follows from setting the maximum.
 
-Acceptance: slider bounds, reviewed maximum and written MaxPartitionVRAM follow the selected card; selected optimal remains within that range. New requests do not inherit an arbitrary metadata ceiling. Cover decreasing/increasing selection, exact physical endpoints, legacy triples, omitted requests and GPU switching. Source implementation and tests remain pending; this clarification updates the task only.
+Acceptance: slider bounds, reviewed maximum and written MaxPartitionVRAM follow the selected card; selected optimal remains within that range. New requests do not inherit an arbitrary metadata ceiling. Cover decreasing/increasing selection, exact physical endpoints, legacy triples, omitted requests and GPU switching. Implementation: Done (source, 12 October 2026). Explicit slider edits always use the selected physical capacity for maximum; loading retains exact legacy values. Added GPU-capacity switching/decreasing/increasing/omitted-request coverage and updated prior bounds assertions. Validation: all 89 frontend tests passed. Live selected-card endpoint rendering passed in the current MCP-enabled GUI; explicit byte write/readback remains blocked by the existing VM1 hold.
 
 ### APP-015 — Prepare sustained concurrent-render evidence
 
@@ -340,17 +342,19 @@ Acceptance:
 - Unknown/unavailable capacity remains unavailable; rounding does not create a default capacity or make an unsupported range selectable.
 - Cover below/at/above half-GB boundaries, exact whole-GB capacities, non-grid maximum endpoints, GPU switching and unavailable capacity. Assert that selecting the maximum still produces the original exact bytes. Visual acceptance remains a separately authorized milestone check.
 
-Status: task added only; no slider, backend or saved configuration changes are included in this request. Build, automated tests and live UI checks are not run.
+Implementation: Done (source, 12 October 2026). Whole-GB half-up labels apply only to the capacity endpoint and exact maximum selection; integer quotient/remainder avoids rounding overflow. Exact slider selection, byte requests and review facts remain intact; the existing hint labels this presentation as rounded. Added below/at/above-half, whole-GB and maximum-byte preservation coverage. Validation: all 90 frontend tests passed. Current live GUI rendered the real card endpoint as 8 GB while retaining 8,278,507,520 bytes in diagnostics. Selecting an endpoint is blocked by existing recovery, so full interaction acceptance remains pending.
 
 ### APP-027 — Retire a failed verification-only Apply without blocking repair
 
-Priority: High. Source-review finding (12 October 2026); added at the user's request, not implemented.
+Priority: High. Source-review finding (12 October 2026); source implemented during authorized backlog clearance.
 
 When the current preparation digest matches but successful check evidence is absent/invalid, Apply can require verification without host changes or preparation. It records a pending verification-only journal. A proven guest mismatch invalidates preparation, but the Apply receipt requires publication: the existing negative-completion branch only admits standalone Verify receipts, and the preparation-not-started branch excludes verification-only journals. Further Apply/reinstall/removal rejects pending recovery; repeated reconciliation cannot fix mismatched guest files.
 
 Acceptance: provide a narrowly bound, explicitly reconciled negative completion for this failed Apply case only after independent proof of unchanged host/GPU facts, committed revision and safely completed reviewed lifecycle. Preserve negative check evidence and preparation invalidation; cancel the failed operation's intent publication. Never fabricate success, replay effects, clear uncertain holds or automatically repair files. Add isolated regressions for matching-digest/missing-success Apply followed by payload mismatch, explicit retirement and reviewed reinstall/removal, plus changed/unavailable facts, uncertain outcomes, refused restoration and interrupted persistence. Reuse existing retirement/receipt/worker machinery.
 
-Implementation: Ready. Validation: Not run. Builds/tests and live effects require their existing checkpoint/authorization; this card alone does not authorize execution.
+Implementation: Done (12 October 2026). Failed verification-only Apply now persists its independently restored negative check. Fresh receipts may retire only with matching unchanged host facts (allowing only the reviewed final Off), current driver/revision, exact pair and initial matching-digest/ineligible check history. No requested configuration is published. The existing archived before/after transition binds interrupted retirement; negative check/preparation invalidation/history remain. GUI and CLI avoid guest credentials for a negative-completion candidate; the worker revalidates under its lock. Two isolated regressions cover Off/Running and missing/invalid success, reviewed repair/removal, interrupted before/after/third-state transitions, refused restoration, uncertain start, denied proof save, unavailable/mismatching readback and altered host/driver/revision/admission facts.
+
+Validation: full non-hardware gate passed (201 library plus 88 frontend tests, strict Clippy, binaries and API docs); live acceptance remains M2. [Clearance evidence](evidence/backlog-clearance.md) owns subsequent results.
 
 ### APP-028 — Preserve the guest failure when restoration-proof persistence fails
 
@@ -449,4 +453,6 @@ Acceptance:
 - Keep previews accurate and ordinary operations guest-free. Never replay preparation, attachment or allocation to obtain proof or release recovery.
 - Add isolated regression/failure coverage for external settings, GPU/driver, assignment/resource and power changes during preparation/checks, unavailable inspections, successful expected transitions, refused restoration, and interrupted proof persistence. Inspect native adapter safeguards and effect order together; source-only changes are not live acceptance.
 
-Implementation: Ready. Validation: Not run. This review creates the task; the broader change requires a separate requested implementation and the existing automated/live gates.
+Implementation: Done (12 October 2026). A private Apply facts helper advances only stage-specific expected fields after our effects. Complete VM/GPU/journal checks surround writes and power transitions; adapter recreation captures only provider resource defaults. Verification-only restoration checks all non-power facts, refuses external restart, and can restore an uncertain start only when independently justified. Guest check completion refuses a changed/unreadable journal rather than overwriting it. Three isolated regressions cover preparation/check drift across settings, GPU/driver, assignment, resource, power, journal and unavailable observations, plus changes between our writes. Native adapter Off/identity/category/readback safeguards remain.
+
+Validation: full non-elevated automated gate passed, including 199 library and 88 frontend tests, strict Clippy, all product binary builds and API docs. [Checkpoint evidence](evidence/backlog-clearance.md) records initial failures/corrections and exact local reports. No GUI or live VM/GPU effects ran for this card.

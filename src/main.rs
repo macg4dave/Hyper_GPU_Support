@@ -109,7 +109,48 @@ fn execute(args: &[String]) -> Result<(), String> {
                 if record.operation_id != operation_id {
                     return Err("reconciliation operation identity mismatch".into());
                 }
-                let credential = if record.requires_graphics() {
+                // A proven negative completion ends this attempt without guest
+                // work. These reads only select whether to prompt; the worker
+                // independently validates the proof again under its lock.
+                let negative_candidate = if record.requires_graphics() {
+                    let inventory: hyper_gpu_support::gui_model::Inventory =
+                        serde_json::from_value(runner::submit(runner::request(
+                            Operation::Discover,
+                            None,
+                            None,
+                        ))?)
+                        .map_err(|e| format!("Invalid recovery inventory: {e}"))?;
+                    let revision = hyper_gpu_support::configuration_store::read_committed()
+                        .revision(&record.target.vm_id)?;
+                    inventory
+                        .discovery
+                        .vms
+                        .iter()
+                        .find(|vm| vm.vm_id == record.target.vm_id)
+                        .zip(
+                            inventory
+                                .discovery
+                                .gpus
+                                .iter()
+                                .find(|gpu| gpu.interface == record.target.gpu_interface),
+                        )
+                        .is_some_and(|(vm, gpu)| {
+                            record
+                                .negative_completion(
+                                    vm,
+                                    &gpu.driver_version,
+                                    &revision,
+                                    inventory
+                                        .managed
+                                        .get(&record.target.vm_id)
+                                        .and_then(Option::as_ref),
+                                )
+                                .is_ok_and(|candidate| candidate.is_some())
+                        })
+                } else {
+                    false
+                };
+                let credential = if record.requires_graphics() && !negative_candidate {
                     Some(
                         credentials::read(&record.target.vm_id)?
                             .map_or_else(|| prompt(&record.target.vm_id), Ok)?,

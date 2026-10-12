@@ -36,7 +36,7 @@ export component OperationDialog inherits Rectangle {
     private property <bool> consent: false;
     private property <bool> technical: false;
     private property <bool> follow-progress: true;
-    changed kind => { root.follow-progress = true; root.technical = false; }
+    changed kind => { root.follow-progress = true; root.technical = false; root.consent = false; }
     changed title => { root.technical = false; }
     changed body => { root.consent = false; root.technical = false; }
     changed details => { root.technical = false; }
@@ -45,102 +45,110 @@ export component OperationDialog inherits Rectangle {
     callback action(string);
     background: #00000088;
     TouchArea { }
-    HorizontalLayout {
-        padding: 24px;
-        Rectangle { horizontal-stretch: 1; }
-        Surface {
-            max-width: 620px; min-width: 0px; preferred-width: 620px;
-            min-height: 0px;
-            clip: true;
-            VerticalLayout {
-                padding: 24px; spacing: 16px;
-                Label { text: "Hyper GPU Support"; font-size: 11px; font-weight: 600; color: Theme.muted; }
-                Heading { text: root.title; wrap: word-wrap; overflow: clip; min-width: 0px; }
-                body-scroll := ScrollView {
-                    min-height: 0px;
-                    preferred-height: root.stages.length > 0 ? 90px : 240px;
-                    max-height: root.stages.length > 0 ? 130px : 10000px;
-                    vertical-stretch: 1;
-                    horizontal-scrollbar-policy: always-off;
-                    content-width: self.visible-width;
-                    VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
-                        width: body-scroll.visible-width;
-                        Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
-                        if root.kind == "more" : VerticalLayout {
-                            spacing: 12px;
-                            ActionChoice { label: "Verify GPU setup"; reason: root.verify-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
-                            ActionChoice { label: "Repair / Reinstall"; reason: root.repair-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
-                            ActionChoice { label: "Remove GPU support"; reason: root.remove-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
-                            ActionChoice { label: "Delete profile"; reason: root.forget-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
-                        }
-                    }
-                }
-                if root.stages.length > 0 : Rectangle {
-                    min-height: 0px; preferred-height: 180px; max-height: 240px;
-                    vertical-stretch: 1;
-                    clip: true;
-                    progress-scroll := ScrollView {
+    FocusScope {
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                if !root.running { root.action("close"); }
+                accept
+            } else { reject }
+        }
+        HorizontalLayout {
+            padding: 24px;
+            Rectangle { horizontal-stretch: 1; }
+            Surface {
+                max-width: 620px; min-width: 0px; preferred-width: 620px;
+                min-height: 0px;
+                clip: true;
+                VerticalLayout {
+                    padding: 24px; spacing: 16px;
+                    Label { text: "Hyper GPU Support"; font-size: 11px; font-weight: 600; color: Theme.muted; }
+                    Heading { text: root.title; wrap: word-wrap; overflow: clip; min-width: 0px; }
+                    body-scroll := ScrollView {
+                        min-height: 0px;
+                        preferred-height: root.stages.length > 0 ? 90px : 240px;
+                        max-height: root.stages.length > 0 ? 130px : 10000px;
+                        vertical-stretch: 1;
                         horizontal-scrollbar-policy: always-off;
                         content-width: self.visible-width;
-                        changed content-height => {
-                            if root.follow-progress { self.content-y = min(0px, self.visible-height - self.content-height); }
-                        }
-                        changed visible-height => {
-                            if root.follow-progress { self.content-y = min(0px, self.visible-height - self.content-height); }
-                        }
-                        scrolled => {
-                            root.follow-progress = self.content-y <= min(0px, self.visible-height - self.content-height) + 2px;
-                        }
-                        VerticalLayout {
-                            spacing: 8px; alignment: start; padding-right: 8px;
-                            width: progress-scroll.visible-width;
-                            for stage in root.stages : Hint {
-                                text: stage; font-size: 13px;
-                                width: max(0px, progress-scroll.visible-width - 8px);
-                                wrap: word-wrap; overflow: clip;
+                        VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
+                            width: body-scroll.visible-width;
+                            Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
+                            if root.kind == "more" : VerticalLayout {
+                                spacing: 12px;
+                                ActionChoice { label: "Verify GPU setup"; reason: root.verify-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
+                                ActionChoice { label: "Repair / Reinstall"; reason: root.repair-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
+                                ActionChoice { label: "Remove GPU support"; reason: root.remove-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
+                                ActionChoice { label: "Delete profile"; reason: root.forget-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
                             }
                         }
                     }
-                }
-                if root.running : ProgressIndicator { indeterminate: true; }
-                if root.technical && root.details != "" && root.details != root.body : TechnicalOutput {
-                    vertical-stretch: 1;
-                    text: root.details;
-                }
-                if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox { text: root.power-consent; checked <=> root.consent; }
-                if root.kind == "review" && !root.execution-ready : Hint { text: "Apply is unavailable. Close this review and use Refresh to check setup or recovery."; color: Theme.accent; }
-                HorizontalLayout {
-                    spacing: 8px;
-                    dismiss-button := Button {
-                        text: root.running ? "Operation in progress" : root.kind == "switch" ? "Stay on VM" : root.kind == "exit" || root.kind == "enroll-review" ? "Keep editing" : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? "Cancel" : "Close";
-                        enabled: !root.running;
-                        clicked => { root.action("close"); }
+                    if root.stages.length > 0 : Rectangle {
+                        min-height: 0px; preferred-height: 180px; max-height: 240px;
+                        vertical-stretch: 1;
+                        clip: true;
+                        progress-scroll := ScrollView {
+                            horizontal-scrollbar-policy: always-off;
+                            content-width: self.visible-width;
+                            changed content-height => {
+                                if root.follow-progress { self.content-y = min(0px, self.visible-height - self.content-height); }
+                            }
+                            changed visible-height => {
+                                if root.follow-progress { self.content-y = min(0px, self.visible-height - self.content-height); }
+                            }
+                            scrolled => {
+                                root.follow-progress = self.content-y <= min(0px, self.visible-height - self.content-height) + 2px;
+                            }
+                            VerticalLayout {
+                                spacing: 8px; alignment: start; padding-right: 8px;
+                                width: progress-scroll.visible-width;
+                                for stage in root.stages : Hint {
+                                    text: stage; font-size: 13px;
+                                    width: max(0px, progress-scroll.visible-width - 8px);
+                                    wrap: word-wrap; overflow: clip;
+                                }
+                            }
+                        }
                     }
-                    if root.kind == "switch" : Button { text: "Discard & Switch"; clicked => { root.action("switch"); } }
-                    if root.kind == "switch" : Button { text: "Review Changes"; primary: true; clicked => { root.action("review"); } }
-                    if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
-                    if root.kind == "enroll-review" : Button { text: "Allow GPU management"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-enroll"); } }
-                    if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
-                    if root.kind == "forget-review" : Button { text: "Delete profile"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
-                    if root.kind == "review" : Button { text: root.execution-ready ? "Apply" : "Apply unavailable"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
-                    if root.kind == "verify-review" : Button { text: "Verify GPU setup"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
-                    if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
-                    if root.kind == "recovery" : Button { text: "Check recorded outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
-                    if root.kind == "recovery-needed" : Button { text: "Review recovery"; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
-                }
-                if root.kind == "more" : HorizontalLayout {
-                    if root.action-recovery : Button { text: "Review recovery"; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
-                    if root.dirty && !root.action-recovery : Button { text: "Review changes"; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
-                    if root.dirty : Button { text: "Discard draft"; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
-                    Button { text: "Refresh"; enabled: !root.running && !root.updating; clicked => { root.action("refresh"); } }
-                    Rectangle { horizontal-stretch: 1; }
-                }
-                if root.details != "" && root.details != root.body : HorizontalLayout {
-                    detail-button := TechnicalDetailsButton { expanded <=> root.technical; }
-                    Rectangle { horizontal-stretch: 1; }
+                    if root.running : ProgressIndicator { indeterminate: true; }
+                    if root.technical && root.details != "" && root.details != root.body : TechnicalOutput {
+                        vertical-stretch: 1;
+                        text: root.details;
+                    }
+                    if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox { text: root.power-consent; checked <=> root.consent; }
+                    if root.kind == "review" && !root.execution-ready : Hint { text: "Apply is unavailable. Close this review and use Refresh to check setup or recovery."; color: Theme.accent; }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        dismiss-button := Button {
+                            text: root.running ? "Operation in progress" : root.kind == "switch" ? "Stay on VM" : root.kind == "exit" || root.kind == "enroll-review" ? "Keep editing" : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? "Cancel" : "Close";
+                            enabled: !root.running;
+                            clicked => { root.action("close"); }
+                        }
+                        if root.kind == "switch" : Button { text: "Discard & Switch"; clicked => { root.action("switch"); } }
+                        if root.kind == "switch" : Button { text: "Review Changes"; primary: true; clicked => { root.action("review"); } }
+                        if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
+                        if root.kind == "enroll-review" : Button { text: "Allow GPU management"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-enroll"); } }
+                        if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
+                        if root.kind == "forget-review" : Button { text: "Delete profile"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
+                        if root.kind == "review" : Button { text: root.execution-ready ? "Apply" : "Apply unavailable"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
+                        if root.kind == "verify-review" : Button { text: "Verify GPU setup"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
+                        if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
+                        if root.kind == "recovery" : Button { text: "Check recorded outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
+                        if root.kind == "recovery-needed" : Button { text: "Review recovery"; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
+                    }
+                    if root.kind == "more" : HorizontalLayout {
+                        if root.action-recovery : Button { text: "Review recovery"; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
+                        if root.dirty && !root.action-recovery : Button { text: "Review changes"; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
+                        if root.dirty : Button { text: "Discard draft"; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
+                        Button { text: "Refresh"; enabled: !root.running && !root.updating; clicked => { root.action("refresh"); } }
+                        Rectangle { horizontal-stretch: 1; }
+                    }
+                    if root.details != "" && root.details != root.body : HorizontalLayout {
+                        detail-button := TechnicalDetailsButton { expanded <=> root.technical; }
+                        Rectangle { horizontal-stretch: 1; }
+                    }
                 }
             }
+            Rectangle { horizontal-stretch: 1; }
         }
-        Rectangle { horizontal-stretch: 1; }
     }
 }

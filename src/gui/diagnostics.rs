@@ -102,6 +102,31 @@ pub(super) fn selected_vm_details(state: &State) -> String {
 mod tests {
     use super::*;
     #[test]
+    fn selection_changes_clear_old_identity_and_redact_unreadable_saved_intent() {
+        let first = "11111111-1111-1111-1111-111111111111";
+        let second = "22222222-2222-2222-2222-222222222222";
+        let mut state = State::default();
+        assert!(selected_vm_details(&state).is_empty());
+        state.view.selected = Some(first.into());
+        state.view.needs_readback = true;
+        state
+            .committed
+            .errors
+            .insert(format!("{first}.toml"), "token=private-value".into());
+        let details = selected_vm_details(&state);
+        assert!(details.contains(first));
+        assert!(details.contains("Current observation unavailable"));
+        assert!(details.contains("saved_intent_read_error"));
+        assert!(!details.contains("private-value"));
+        state.view.selected = Some(second.into());
+        let details = selected_vm_details(&state);
+        assert!(details.contains(second));
+        assert!(!details.contains(first));
+        state.view.selected = None;
+        assert!(selected_vm_details(&state).is_empty());
+    }
+
+    #[test]
     fn completion_read_failure_keeps_the_original_typed_failure_without_adapter_secrets() {
         use hyper_gpu_support::reporting::{Component, ComponentFailure, FailureCause};
         let primary = ComponentFailure {

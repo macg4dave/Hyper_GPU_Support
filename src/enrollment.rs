@@ -215,9 +215,7 @@ impl RemovalState {
             for (key, revision) in expected {
                 let current = &actual[key];
                 if key == id {
-                    if (completed && *current != Revision::Missing)
-                        || (!completed && current != revision && *current != Revision::Missing)
-                    {
+                    if (completed || current != revision) && *current != Revision::Missing {
                         return Err("Selected profile revision changed; retain recovery.".into());
                     }
                 } else if current != revision {

@@ -7,6 +7,149 @@ use crate::workflow::{
 };
 
 #[test]
+fn failed_verification_only_apply_can_end_without_publication_then_repair_or_remove() {
+    use crate::configuration_store::Revision;
+    for initial_power in [Power::Off, Power::Running] {
+        for missing_success in [false, true] {
+            let mut backend = fake();
+            apply(&mut backend, &target()).unwrap();
+            let journal = backend.journal.as_mut().unwrap();
+            if missing_success {
+                journal.last_verified = None;
+            } else {
+                journal.latest_check = Some(GuestCheck::Unavailable);
+            }
+            backend.state.power = initial_power.clone();
+            let mut record = recovery_record(&backend, true);
+            let history = backend.journal.as_ref().unwrap().last_verified;
+            backend.payload_check_failure = Some(crate::reporting::FailureCause::FileMissing);
+            backend.events.clear();
+            let approved = plan(&mut backend, &target()).unwrap();
+            assert!(!approved.preview.actions.contains(&PreviewAction::Prepare));
+            assert!(apply_approved(&mut backend, &approved).is_err());
+            assert_eq!(backend.state.power, Power::Off);
+            assert!(!backend.events.contains(&"prepare"));
+            let pending = backend.journal.as_ref().unwrap().clone();
+            assert!(pending.pending && pending.verification_only && pending.check_restored);
+            assert!(pending.prepared.is_none());
+            assert_eq!(pending.last_verified, history);
+            assert!(
+                plan_reinstall(&mut backend, &target())
+                    .unwrap()
+                    .preview
+                    .pending_recovery
+            );
+            let effects = backend.events.clone();
+            let retirement = record
+                .negative_completion(&backend.state, "new", &Revision::Missing, Some(&pending))
+                .unwrap()
+                .unwrap();
+            assert!(!retirement.after.pending);
+            assert_eq!(
+                retirement.after.latest_check,
+                Some(GuestCheck::PayloadMismatch)
+            );
+            assert_eq!(retirement.after.last_verified, history);
+            assert!(retirement.after.prepared.is_none());
+            record.retirement = Some(retirement.clone());
+            for journal in [&retirement.before, &retirement.after] {
+                assert!(
+                    record
+                        .negative_completion(
+                            &backend.state,
+                            "new",
+                            &Revision::Missing,
+                            Some(journal)
+                        )
+                        .unwrap()
+                        .is_some()
+                );
+            }
+            let mut changed = retirement.after.clone();
+            changed.last_verified = Some(999);
+            assert!(
+                record
+                    .negative_completion(&backend.state, "new", &Revision::Missing, Some(&changed))
+                    .is_err()
+            );
+            backend.save(&target(), &retirement.after).unwrap();
+            assert_eq!(backend.events, effects); // Retirement has no guest/GPU effects.
+            backend.payload_check_failure = None;
+            if missing_success {
+                let repair = plan_reinstall(&mut backend, &target()).unwrap();
+                assert!(apply_approved(&mut backend, &repair).unwrap().verified);
+            } else {
+                let mut disabled = target();
+                disabled.enabled = false;
+                assert!(
+                    !plan(&mut backend, &disabled)
+                        .unwrap()
+                        .preview
+                        .credentials_required
+                );
+                apply(&mut backend, &disabled).unwrap();
+                assert!(backend.state.gpus.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn failed_check_apply_retirement_refuses_changed_missing_or_uncertain_proof() {
+    use crate::configuration_store::Revision;
+    for scenario in 0..12 {
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        backend.journal.as_mut().unwrap().last_verified = None;
+        let mut record = recovery_record(&backend, true);
+        backend.payload_check_failure = Some(crate::reporting::FailureCause::FileChanged);
+        if scenario == 0 {
+            backend.fail_shutdown = true;
+        }
+        if scenario == 1 {
+            backend.fail_save_at = Some(backend.journal_writes + 4);
+        }
+        if scenario == 9 {
+            backend.fail_read_after_save_at = Some(backend.journal_writes + 4);
+        }
+        if scenario == 10 {
+            backend.mismatch_read_after_save_at = Some(backend.journal_writes + 4);
+        }
+        if scenario == 11 {
+            backend.fail_start_after_effect = true;
+        }
+        assert!(apply(&mut backend, &target()).is_err());
+        let mut revision = Revision::Missing;
+        let mut driver = "new";
+        match scenario {
+            2 => backend.state.settings.high_mmio += 1,
+            3 => backend.state.gpus.clear(),
+            4 => revision = Revision::of(b"external change"),
+            5 => driver = "changed",
+            6 => record.graphics_required = None,
+            7 => record.initial_journal = None,
+            8 => backend.journal.as_mut().unwrap().preparation_started = None,
+            _ => {}
+        }
+        let effects = backend.events.clone();
+        let journal_read = backend.journal(&target());
+        assert!(
+            !journal_read
+                .and_then(|journal| record.negative_completion(
+                    &backend.state,
+                    driver,
+                    &revision,
+                    journal.as_ref()
+                ))
+                .is_ok_and(|candidate| candidate.is_some()),
+            "scenario {scenario}"
+        );
+        assert_eq!(backend.events, effects);
+        assert!(backend.journal.as_ref().unwrap().pending);
+    }
+}
+
+#[test]
 fn restored_failure_retains_primary_when_proof_save_or_readback_fails() {
     use crate::reporting::{ComponentFailure, FailureCause};
     for reconciliation in [false, true] {

@@ -30,6 +30,12 @@ pub(super) fn format_gb(bytes: u64) -> String {
     }
 }
 
+// Presentation only. Quotient/remainder avoids overflow when rounding near u64::MAX.
+fn rounded_capacity(bytes: u64) -> String {
+    let whole = bytes / BYTES_PER_GB + u64::from(bytes % BYTES_PER_GB >= BYTES_PER_GB / 2);
+    format!("{whole} GB")
+}
+
 /// Physical capacity is displayed separately from the provider's byte request.
 pub(super) fn format_gib(bytes: u64) -> String {
     format!("{:.2} GiB", bytes as f64 / (1u64 << 30) as f64)
@@ -92,13 +98,26 @@ impl MemorySlider {
             },
             label: current.map_or_else(
                 || "No explicit request".into(),
-                |v| format_gb(v.optimal),
+                |v| {
+                    if v.optimal == physical_capacity {
+                        rounded_capacity(physical_capacity)
+                    } else {
+                        format_gb(v.optimal)
+                    }
+                },
             ),
             range_start: format_gb(lower * BYTES_PER_STEP),
-            range_end: format_gb(physical_capacity),
-            range_note: (bounds.optimal < BYTES_PER_GB).then(|| {
-                "The existing request is below 1 GB and has been retained exactly. The slider starts at 1 GB; edit it or use Advanced Allocation to change the request.".into()
-            }),
+            range_end: rounded_capacity(physical_capacity),
+            range_note: {
+                let mut notes = Vec::new();
+                if physical_capacity % BYTES_PER_GB != 0 {
+                    notes.push("The maximum endpoint label is rounded to the nearest whole GB. Review and Technical Details retain the exact byte values.");
+                }
+                if bounds.optimal < BYTES_PER_GB {
+                    notes.push("The existing request is below 1 GB and has been retained exactly. The slider starts at 1 GB; edit it or use Advanced Allocation to change the request.");
+                }
+                (!notes.is_empty()).then(|| notes.join("\n"))
+            },
             bounds: bounds.clone(),
             physical_capacity,
         })
@@ -116,7 +135,8 @@ impl MemorySlider {
         let result = Allocation {
             minimum: self.bounds.minimum.min(optimal),
             optimal,
-            maximum: self.bounds.maximum.max(optimal),
+            // Only an explicit edit adopts the selected card's exact maximum.
+            maximum: self.physical_capacity,
         };
         result.validate(&result)?;
         Ok(result)
@@ -148,13 +168,55 @@ mod tests {
         assert_eq!(slider.label, "4.000000001 GB");
         let selected = slider.select(55).unwrap();
         assert_eq!(selected.minimum, current.minimum);
-        assert_eq!(selected.maximum, current.maximum);
+        assert_eq!(selected.maximum, 8_000_000_000);
         assert_eq!(selected.optimal, 5_500_000_000);
         let expanded = slider.select(70).unwrap();
-        assert_eq!(expanded.maximum, 7_000_000_000);
+        assert_eq!(expanded.maximum, 8_000_000_000);
         assert_eq!(expanded.minimum, current.minimum);
         assert!(slider.select(81).is_err());
         assert!(slider.select(-1).is_err());
+    }
+
+    #[test]
+    fn slider_edits_use_new_card_capacity_without_migrating_loaded_legacy_maximum() {
+        let saved = Allocation {
+            minimum: 1,
+            optimal: 4_000_000_001,
+            maximum: 16_000_000_000,
+        };
+        for capacity in [8_589_934_592, 24_000_000_000] {
+            let slider = MemorySlider::new(&limits(), Some(&saved), capacity).unwrap();
+            assert_eq!(slider.label, "4.000000001 GB");
+            for position in [20, 60, slider.maximum] {
+                let edited = slider.select(position).unwrap();
+                assert_eq!(edited.maximum, capacity);
+                assert!(edited.optimal <= edited.maximum);
+            }
+            assert_eq!(saved.maximum, 16_000_000_000);
+        }
+        let slider = MemorySlider::new(&limits(), None, 8_589_934_592).unwrap();
+        assert_eq!(slider.select(20).unwrap().maximum, 8_589_934_592);
+    }
+
+    #[test]
+    fn capacity_labels_round_half_up_without_changing_selection_bytes() {
+        for (capacity, expected) in [
+            (8_499_999_999, "8 GB"),
+            (8_500_000_000, "9 GB"),
+            (8_500_000_001, "9 GB"),
+            (8_000_000_000, "8 GB"),
+        ] {
+            let slider = MemorySlider::new(&limits(), None, capacity).unwrap();
+            assert_eq!(slider.range_end, expected);
+            let selected = slider.select(slider.maximum).unwrap();
+            assert_eq!(selected.optimal, capacity);
+            assert_eq!(selected.maximum, capacity);
+            let loaded = MemorySlider::new(&limits(), Some(&selected), capacity).unwrap();
+            assert_eq!(loaded.label, expected);
+            assert_eq!(loaded.position, loaded.maximum);
+            assert_eq!(slider.select(40).unwrap().optimal, 4_000_000_000);
+        }
+        assert_eq!(rounded_capacity(u64::MAX), "18446744074 GB");
     }
 
     #[test]
@@ -184,7 +246,7 @@ mod tests {
             maximum: 1_000_000_000,
         };
         let slider = MemorySlider::new(&limits, None, 8_589_934_592).unwrap();
-        assert_eq!(slider.range_end, "8.589934592 GB");
+        assert_eq!(slider.range_end, "9 GB");
         assert_eq!(slider.maximum, 86);
         assert_eq!(slider.minimum, 10);
         assert_eq!(slider.select(10).unwrap().optimal, 1_000_000_000);
@@ -197,7 +259,7 @@ mod tests {
             MemorySlider::new(&limits, Some(&selected), 8_589_934_592)
                 .unwrap()
                 .label,
-            "8.589934592 GB"
+            "9 GB"
         );
     }
 
@@ -214,7 +276,7 @@ mod tests {
         assert_eq!(selected.optimal, capacity);
         let refreshed = MemorySlider::new(&limits, Some(&selected), capacity).unwrap();
         assert_eq!(refreshed.position, refreshed.maximum);
-        assert_eq!(refreshed.label, "8.589934592 GB");
+        assert_eq!(refreshed.label, "9 GB");
     }
 
     #[test]
@@ -243,7 +305,7 @@ mod tests {
         let edited = slider.select(10).unwrap();
         assert_eq!(edited.optimal, BYTES_PER_GB);
         assert_eq!(edited.minimum, 0);
-        assert_eq!(edited.maximum, BYTES_PER_GB);
+        assert_eq!(edited.maximum, 8_000_000_000);
         assert!(slider.select(9).is_err());
     }
 

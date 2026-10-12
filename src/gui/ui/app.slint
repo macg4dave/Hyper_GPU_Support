@@ -15,6 +15,14 @@ export component AppWindow inherits Window {
     in-out property <int> theme-index: 0;
     in-out property <bool> execution-ready: false;
     in-out property <bool> updating: false;
+    in-out property <string> focus-return-action;
+    private property <int> focus-return-serial: 0;
+    changed dialog-kind => {
+        if root.dialog-kind == "" {
+            root.focus-return-serial += 1;
+            if root.page != 0 || root.selected-id == "" { dashboard.focus(); }
+        }
+    }
     in property <string> verify-unavailable: "Select a VM first.";
     in property <string> repair-unavailable: "Select a VM first.";
     in property <string> remove-unavailable: "Select a VM first.";
@@ -100,7 +108,11 @@ export component AppWindow inherits Window {
                 Rectangle { height: root.recovery ? 72px : 42px; background: Theme.tint;
                     HorizontalLayout { padding-left: 18px; padding-right: 18px; spacing: 12px;
                         Hint { text: root.recovery ? ("Pending protected recovery record. New GPU changes are blocked; inspection does not clear recovery.") : root.notice; }
-                        if root.recovery : Button { enabled: !Theme.modal-active; text: "Inspect recovery"; clicked => { root.action("recovery"); } }
+                        if root.recovery : Button {
+                            property <int> restore-request: root.focus-return-serial;
+                            changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
+                            enabled: !Theme.modal-active; text: "Inspect recovery"; clicked => { root.action("recovery"); }
+                        }
                     }
                 }
                 if root.page == 0 : ScrollView {
@@ -111,7 +123,11 @@ export component AppWindow inherits Window {
                         Rectangle {
                             width: root.split; background: Theme.vm-panel;
                             VerticalLayout { padding: 16px; spacing: 12px;
-                                HorizontalLayout { spacing: Theme.gap; Label { text: "Virtual Machines"; font-size: 17px; font-weight: 600; horizontal-stretch: 1; } Button { enabled: !Theme.modal-active; text: "Refresh"; clicked => { root.action("refresh"); } } }
+                                HorizontalLayout { spacing: Theme.gap; Label { text: "Virtual Machines"; font-size: 17px; font-weight: 600; horizontal-stretch: 1; } Button {
+                                    property <int> restore-request: root.focus-return-serial;
+                                    changed restore-request => { if root.focus-return-action == "refresh" { self.focus(); } }
+                                    enabled: !Theme.modal-active; text: "Refresh"; clicked => { root.action("refresh"); }
+                                } }
                                 Hint { text: root.vms.length + " VMs shown"; }
                                 if root.vms.length == 0 : Hint { text: "No live VM rows available. Check the discovery message or Refresh."; }
                                 vm-list := ScrollView {
@@ -128,6 +144,8 @@ export component AppWindow inherits Window {
                         }
                         divider := Splitter { position <=> root.split; }
                         if root.selected-id != "" : VmDetails {
+                            focus-return-action: root.focus-return-action;
+                            focus-return-serial: root.focus-return-serial;
                             min-width: 610px;
                             gpu-options: root.gpu-options;
                             name: root.vm-name; identity: root.selected-id; power: root.power; status: root.status;

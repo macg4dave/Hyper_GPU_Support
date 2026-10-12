@@ -579,7 +579,8 @@ mod tests {
                 3 => {
                     t.vram = Some(Allocation {
                         minimum: 0,
-                        maximum: 101,
+                        // Ordering remains invalid independently of provider metadata.
+                        maximum: 49,
                         optimal: 50,
                     })
                 }
