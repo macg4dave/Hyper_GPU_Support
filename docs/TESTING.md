@@ -104,7 +104,25 @@ APP-027/APP-028 recovery cases and APP-011 allocation behaviour retain their own
 
 ## Evidence and claims
 
+The requested build on 12 October 2026 fixed two Slint compilation errors
+(a duplicate VM-card property and a conditional Verify-button focus reference)
+and updated an outdated VRAM test fixture. Strict Clippy uses a documented,
+function-scoped argument-count allowance for the existing background-operation
+orchestrator. The locked development binary build, all-target tests (306 passed),
+formatting, strict Clippy and API documentation generation passed; local logs are under
+`local/evidence/build-20261012/`. The full documentation gate was not run because
+the roadmap, backlog and several evidence documents were deliberately removed
+pending replacement. These results do not close a milestone or establish live
+GUI appearance, keyboard focus, installation, guest or VM/GPU behavior.
+
 Record revision/working-tree context, commands, exact environment, authorized sequence, timestamped stages, outcomes, and exclusions in ignored local evidence storage. Flush operation-boundary records so crashes retain the last known stage. Exclude credentials.
+
+The 13 October 2026 automatic-polling fix passed the 100 application tests,
+including independent poll admission, obsolete-result rejection and panic cleanup;
+strict Clippy, formatting and the locked binary build also passed. Evidence is
+under `local/evidence/polling-fix-20261013/`. The installed package hash checks
+passed with enrollment and saved state preserved. The GUI was reopened; visual
+confirmation that controls stay available across timer ticks remains pending.
 
 Report Passed, Failed, Not run, and Unknown honestly. A scoped pass applies to its recorded environment and interval; it does not prove universal stability or VRAM isolation. Readback or sequential verification alone does not prove concurrent sharing.
 

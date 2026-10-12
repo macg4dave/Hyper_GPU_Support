@@ -12,6 +12,7 @@ use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
+pub(super) mod polling;
 mod presentation;
 mod progress;
 mod source;
@@ -100,6 +101,38 @@ fn background<T: Send + 'static>(
     background_for_vm(ui, busy, title, None, false, task, complete)
 }
 
+/// Automatic reads leave foreground admission and visible UI state untouched.
+fn background_refresh<T: Send + 'static>(
+    ui: &AppWindow,
+    busy: &Arc<AtomicBool>,
+    poll: Option<polling::Ticket>,
+    title: &str,
+    task: impl FnOnce() -> Result<T, String> + Send + 'static,
+    complete: impl FnOnce(&AppWindow, Result<T, String>) + Send + 'static,
+) -> Result<(), String> {
+    let Some(ticket) = poll else {
+        return background(ui, busy, title, task, complete);
+    };
+    let weak = ui.as_weak();
+    let foreground_busy = busy.clone();
+    std::thread::Builder::new()
+        .name("gui-status-poll".into())
+        .spawn(move || {
+            let result = run_background_task(task);
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                if ticket.can_publish(
+                    foreground_busy.load(Ordering::Acquire),
+                    !ui.get_dialog_kind().is_empty() || ui.get_running(),
+                ) {
+                    complete(&ui, result);
+                }
+                // Ticket drop releases polling admission even for discarded results.
+            });
+        })
+        .map_err(|error| format!("Cannot start status poll: {error}"))?;
+    Ok(())
+}
+
 fn run_background_task<T>(task: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(task))
         .unwrap_or_else(|_| Err("The backend task ended without a terminal outcome. Refresh and inspect protected recovery before retrying.".into()))
@@ -107,6 +140,10 @@ fn run_background_task<T>(task: impl FnOnce() -> Result<T, String>) -> Result<T,
 
 /// Gather protected files while still busy, without blocking Slint completion.
 #[cfg(windows)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep operation state, progress context, task and completion explicit at this orchestration boundary"
+)]
 fn background_operation<T: Send + 'static>(
     ui: &AppWindow,
     state: &SharedState,
@@ -286,24 +323,31 @@ fn refresh_with_result(
     automatic: bool,
     notice: Option<ResultNotice>,
 ) -> Result<(), String> {
-    if automatic
-        && !state
-            .lock()
-            .map_err(|_| "Presentation state unavailable")?
-            .can_poll()
-    {
-        // First-install observations remain usable until an explicit refresh.
-        // The installed-only poll must not turn them historical every 15 seconds.
-        return Ok(());
-    }
+    let poll = {
+        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        if automatic {
+            // First-install observations remain usable until an explicit refresh.
+            if !state.can_poll() {
+                return Ok(());
+            }
+            let Some(ticket) = state.polling.begin() else {
+                return Ok(());
+            };
+            Some(ticket)
+        } else {
+            state.polling.invalidate();
+            None
+        }
+    };
     if !automatic {
         ui.set_notice("Updating VM status...".into());
     }
     let state = state.clone();
     let source = source.clone();
-    background(
+    background_refresh(
         ui,
         busy,
+        poll,
         if automatic || notice.is_some() {
             "Updating VM status"
         } else {
@@ -1676,6 +1720,9 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     let action_source = source.clone();
     ui.on_action(move |action| {
         let Some(ui) = weak.upgrade() else { return; }; if ui.get_running() { return; }
+        if let Ok(state) = action_state.lock() {
+            state.polling.invalidate();
+        }
         if ui.get_dialog_kind().is_empty() { ui.set_focus_return_action(action.clone()); }
         if action_busy.load(Ordering::Acquire)
             && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "remove-gpu" | "forget" | "confirm-forget" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "review-reset" | "confirm-reset" | "reconcile-enrollment" | "save-only" | "credentials" | "discard-review-forget")

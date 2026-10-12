@@ -95,7 +95,8 @@ export component VmDetails inherits Rectangle {
                         padding: 16px; spacing: 10px;
                         Label { text: "GPU support"; font-weight: 600; }
                         Hint { text: root.support-summary; }
-                        if root.verify-unavailable == "" && !root.recovery : verify-button := Button {
+                        verify-button := Button {
+                            visible: root.verify-unavailable == "" && !root.recovery;
                             text: "Verify GPU setup";
                             primary: !root.dirty;
                             enabled: !Theme.modal-active && root.execution-ready && !root.updating;

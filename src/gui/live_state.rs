@@ -6,6 +6,7 @@ use hyper_gpu_support::{
 };
 
 pub(super) struct State {
+    pub polling: std::sync::Arc<super::live::polling::Polling>,
     pub view: View,
     pub result_notice: Option<super::result_notice::ResultNotice>,
     pub pending_selection: Option<String>,
@@ -45,6 +46,7 @@ pub(super) struct OperationReadback {
 impl Default for State {
     fn default() -> Self {
         Self {
+            polling: Default::default(),
             view: View::new(Configuration {
                 schema: 2,
                 targets: vec![],
@@ -1348,11 +1350,12 @@ mod tests {
     fn numeric_memory_edit_preserves_other_fields_and_refuses_invalid_raw_triples() {
         let mut s = state();
         let gpu = &mut s.view.inventory.as_mut().unwrap().discovery.gpus[0];
-        gpu.vram = Some(Allocation {
+        gpu.vram = Allocation {
             minimum: 0,
             optimal: 1_000_000_000,
             maximum: 1_000_000_000,
-        });
+        }
+        .into();
         gpu.physical_vram_bytes = Some(8_278_507_520);
         let mut raw = values("0", "4000000000", "8000000000");
         raw[3..].fill("123".into());
