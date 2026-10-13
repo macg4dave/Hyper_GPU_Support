@@ -14,7 +14,7 @@ Codex only. Complete one requested task; current user instructions take preceden
 | Work | Guidance |
 |---|---|
 | Rust implementation/review | [Rust](.github/prompts/rust.prompt.md) |
-| Slint or Rust UI wiring | [Slint](.github/prompts/slint.prompt.md) |
+| Slint, Rust UI wiring or live GUI testing | [Slint](.github/prompts/slint.prompt.md) |
 | Implementation | [Implement](.github/prompts/implement-task.prompt.md) |
 | Planning | [Plan](.github/prompts/task-plan.prompt.md) |
 | Code review | [Review](.github/prompts/code-review.prompt.md) |

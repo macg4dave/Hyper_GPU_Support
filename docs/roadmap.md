@@ -1,6 +1,6 @@
 # QA roadmap
 
-**Status:** Planned; no QA tests run under this plan.
+**Status:** First Codex exploratory GUI session run on 13 October 2026; acceptance remains blocked by a failed Verify journey and incomplete coverage. See the [session questionnaire](../qa/inbox/2026-10-13-codex-first-user-session.md). No product fixes or user acceptance are claimed.
 
 Qualify the installed Windows application through the [agreed user workflow](../README.md#agreed-workflow): discover an existing VM/GPU, configure, review, enrol, Apply, Verify and make everyday changes. Preserve the existing Slint UI, shared Rust core and protected operation architecture. Track tasks in the [backlog](backlog.md), observations through the [QA guide](../qa/README.md), and defects in the [case index](../qa/INDEX.md).
 

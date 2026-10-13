@@ -4,16 +4,16 @@ Follow the [QA roadmap](roadmap.md). Planned tasks are not test results or autho
 
 | ID | Stage | Task | Implementation | Dependencies | Validation |
 |---|---|---|---|---|---|
-| QA-001 | Prepare | Prepare test sessions | Ready | None | Not run |
-| QA-002 | Core | Discovery and selection | Blocked: prerequisites | QA-001 | Not run |
-| QA-003 | Core | Initial setup | Blocked: prerequisites | QA-002 | Not run |
-| QA-004 | Core | Everyday changes | Blocked: prerequisites | QA-002 | Not run |
-| QA-005 | Failure/UI | Verify, repair and profile removal | Blocked: prerequisites | QA-002 | Not run |
-| QA-006 | Failure/UI | Cancellation and recovery | Blocked: prerequisites | QA-002 | Not run |
-| QA-007 | Failure/UI | Usability | Blocked: prerequisites | QA-002 | Not run |
-| QA-008 | Failure/UI | Responsiveness and diagnostics | Blocked: prerequisites | QA-002 | Not run |
-| QA-009 | Acceptance | Candidate regression | Blocked: prerequisites | QA-003, QA-004, QA-005, QA-006, QA-007, QA-008 | Not run |
-| QA-010 | Acceptance | Acceptance decision | Blocked: prerequisites | QA-009 | Not run |
+| QA-001 | Prepare | Prepare test sessions | Done: existing-VM exploratory session | None | Passed: prepared target/effects/stop conditions recorded |
+| QA-002 | Core | Discovery and selection | In progress | QA-001 | Failed: reopen selection; discovery/manual refresh passed |
+| QA-003 | Core | Initial setup | Blocked: clean setup scenario not prepared | QA-002 | Not run |
+| QA-004 | Core | Everyday changes | In progress | QA-002 | Passed: 6→4 GB, disable/re-enable at 6 GB; endpoint effects Not tested |
+| QA-005 | Failure/UI | Verify, repair and profile removal | In progress | QA-002 | Failed: Verify returned Unknown and retained recovery; repair/removal Not tested |
+| QA-006 | Failure/UI | Cancellation and recovery | In progress | QA-002 | Passed: review Cancel and recovery persistence; remaining scenarios Not tested |
+| QA-007 | Failure/UI | Usability | In progress | QA-002 | Failed: misleading wording; inspected 1240×860, scale 1, dark only |
+| QA-008 | Failure/UI | Responsiveness and diagnostics | In progress | QA-002 | Failed: long foreground waits/limited details; periodic draft samples passed |
+| QA-009 | Acceptance | Candidate regression | Blocked: Verify failure and incomplete coverage | QA-003, QA-004, QA-005, QA-006, QA-007, QA-008 | Not run: exploratory build identity and ordinary-feature automated gate recorded separately |
+| QA-010 | Acceptance | Acceptance decision | Blocked: QA-009 incomplete | QA-009 | Not run |
 
 ## Task cards
 
@@ -99,4 +99,6 @@ Review candidate results, P0/P1 blockers, recovery usability, deferred P2/P3 and
 
 ## Next action
 
-Start with **QA-001** when requested, then run the prepared GUI journeys. Exact candidate identity is not an early-testing prerequisite; capture it at QA-009. After each session, submit observations to `qa/inbox/` and update task validation with actual outcomes/evidence. Fix authorised BUG cases through the repository workflow; source/automated passes remain separate from user GUI acceptance.
+The [first exploratory session](../qa/inbox/2026-10-13-codex-first-user-session.md) submitted a questionnaire and five bug reports. On request, process the inbox, prioritising the failed Verify result and retained recovery before further modification tests. No fixes or case closures are authorised by these reports alone. Exact candidate regression remains QA-009; automated passes remain separate from GUI/guest acceptance.
+
+Session evidence: `local/evidence/qa/2026-10-13-codex-first-session/`. All four VMs were Off after Verify failed; VM1's original GPU and 6 GB saved request were restored, but its managed journal remains pending with latest_check=failed and the protected receipt remains EffectsStarted. The hold was preserved through graceful close/reopen. The ordinary-feature non-hardware gate passed at `local/evidence/m1-gate-20261013T175650800Z`; the installed exploratory build used Slint's MCP feature for real GUI inspection. User assistance was limited to local native guest sign-in. Clean setup, profile removal, credential cancellation, injected interruptions, recovery completion, other display settings and final acceptance remain unrun.
