@@ -5,19 +5,15 @@ use hyper_gpu_support::{
     workflow::{Plan, VerificationPlan},
 };
 
-fn power_name(power: &Power) -> &'static str {
-    match power {
-        Power::Off => "Off",
-        Power::Running => "Running",
-        Power::Other(_) => "Unknown",
-    }
+fn power_name(power: &Power) -> hyper_gpu_support::ui_text::UiMessage {
+    hyper_gpu_support::ui_text::power(power)
 }
 
 pub(super) fn apply_consent(plan: &Plan) -> String {
-    format!(
-        "Approve reviewed starts/shutdowns; final state after successful completion: {}.",
-        power_name(&plan.preview.restore_power)
-    )
+    hyper_gpu_support::ui_text::operations::apply::power_consent(&power_name(
+        &plan.preview.restore_power,
+    ))
+    .into_string()
 }
 
 pub(super) fn recovery_consent(final_power: &Power) -> String {

@@ -1187,7 +1187,10 @@ fn verify_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> R
         ui,
         state,
         busy,
-        Operation::new(Kind::Verify, "Verify GPU setup"),
+        Operation::new(
+            Kind::Verify,
+            hyper_gpu_support::ui_text::operations::verify::title().as_str(),
+        ),
         Some(&vm_name),
         true,
         move || {

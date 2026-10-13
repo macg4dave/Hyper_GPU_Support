@@ -11,7 +11,13 @@ use ui_text::{
 };
 
 fn baseline() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/ui-text/validator/baseline")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(
+        if Path::new(env!("CARGO_MANIFEST_DIR")).ends_with("standalone") {
+            "../../../tests/fixtures/ui-text/validator/baseline"
+        } else {
+            "../../tests/fixtures/ui-text/validator/baseline"
+        },
+    )
 }
 fn documents() -> BTreeMap<String, Vec<u8>> {
     fs::read_dir(baseline())

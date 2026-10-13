@@ -1,4 +1,4 @@
-# Non-elevated, non-hardware M1 gate. Test effects are reviewed in docs/evidence/m1-source-review.md.
+# Non-elevated, non-hardware gate. Catalogue tests use local files and headless windows.
 [CmdletBinding()]
 param()
 $ErrorActionPreference = 'Stop'
@@ -12,6 +12,10 @@ $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')
 $evidence = Join-Path $root "local/evidence/m1-gate-$stamp"
 New-Item -ItemType Directory -Path $evidence -Force | Out-Null
 $stages = @(
+    @{ Name = 'Catalogue validator tests'; Tool = 'cargo'; Arguments = @('test', '--locked', '--manifest-path', 'tools/ui-text/standalone/Cargo.toml') },
+    @{ Name = 'Active catalogue'; Tool = 'cargo'; Arguments = @('run', '--locked', '--manifest-path', 'tools/ui-text/standalone/Cargo.toml', '--', 'resources/i18n/en-GB') },
+    @{ Name = 'Copy scan tests'; Tool = 'python'; Arguments = @('-B', 'scripts/testing/test_check_ui_copy.py') },
+    @{ Name = 'Copy scan'; Tool = 'python'; Arguments = @('-B', 'scripts/testing/check-ui-copy.py') },
     @{ Name = 'Documentation'; Tool = 'python'; Arguments = @('scripts/testing/check-docs.py') },
     @{ Name = 'Formatting'; Tool = 'cargo'; Arguments = @('fmt', '--all', '--', '--check') },
     @{ Name = 'Non-hardware tests'; Tool = 'cargo'; Arguments = @('test', '--locked', '--all-targets') },
@@ -29,7 +33,7 @@ $report = [ordered]@{
     cargo = (& cargo --version)
     rustc = (& rustc --version)
     input_hashes = @(& git ls-files --cached --others --exclude-standard | Where-Object {
-        $_ -match '^(src/|scripts/testing/|Cargo\.(toml|lock)$|build\.rs$|rust-toolchain\.toml$|\.cargo/)'
+        $_ -match '^(src/|scripts/testing/|resources/i18n/|tools/ui-text/|tests/|Cargo\.(toml|lock)$|build\.rs$|rust-toolchain\.toml$|\.cargo/)'
     } | ForEach-Object {
         if (Test-Path -LiteralPath $_ -PathType Leaf) {
             [ordered]@{ path = $_; sha256 = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant() }

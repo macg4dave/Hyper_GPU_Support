@@ -1,13 +1,13 @@
 # UI text validator
 
-Independent contributor crate for LANG-007. It has no product, Slint or Windows-backend dependency. Its isolated lockfile uses the root lockfile's resolved Serde/TOML versions and dependency closure. No root build wiring or runtime loader is added here.
+Independent contributor crate for LANG-007. It has no product, Slint or Windows-backend dependency. Its isolated lockfile uses the root lockfile's resolved Serde/TOML versions and dependency closure. LANG-004 now uses the shared library as a root build dependency; no runtime loader is added. The standalone manifest at `standalone/Cargo.toml` has its own workspace/lockfile and reuses `../src` and `../tests` directly, without a product dependency. The root library package participates in the product workspace; the root default member stays the product. This avoids nested workspace-root conflicts while retaining one implementation.
 
 Run from the repository root:
 
 ```powershell
-cargo test --locked --manifest-path tools/ui-text/Cargo.toml
-cargo run --locked --manifest-path tools/ui-text/Cargo.toml -- tests/fixtures/ui-text/validator/baseline
-cargo run --locked --manifest-path tools/ui-text/Cargo.toml -- tests/fixtures/ui-text/validator/baseline --generate local/evidence/ui-text-generated
+cargo test --locked --manifest-path tools/ui-text/standalone/Cargo.toml
+cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- resources/i18n/en-GB
+cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- resources/i18n/en-GB --generate local/evidence/ui-text-generated
 python -B scripts/testing/test_check_ui_copy.py
 python -B scripts/testing/check-ui-copy.py --json
 ```
@@ -16,8 +16,8 @@ Add `--offline` to Cargo commands when the pinned dependencies are cached. Resou
 
 [contract.rs](src/contract.rs) is the independent developer-owned active contract, without resource wording. Its nine keys form the closed LANG-004 representative subset: fixed Verify title, conditional Apply power consent, the three required power categories, guest sign-in message, two captions and explanation wrapper. Fixture TOML under [the baseline directory](../../tests/fixtures/ui-text/validator/baseline) supplies source-derived verbatim wording. Other inventory keys remain pending and are rejected as unknown until their prepared extraction batch explicitly activates them.
 
-Both CLI and future `build.rs` use `validate_directory(path, contract)` and `Catalogue::generate()`. Validation covers strict UTF-8/schema, exact metadata, owning files/keys, template grammar, types/occurrences, generated name conflicts and native UTF-16 budgets including termination. Only validated catalogues can generate sources. Generation uses parsed segments and contract argument order, preserves decoded text, escapes Rust/Slint separately, and inserts arguments as data. It returns deterministic UTF-8/LF source bytes; the build adapter will own Cargo rerun tracking and output publication in LANG-004.
+Both CLI and `build.rs` use `validate_directory(path, contract)` and `Catalogue::generate()`. Validation covers strict UTF-8/schema, exact metadata, owning files/keys, template grammar, types/occurrences, generated name conflicts and native UTF-16 budgets including termination. Only validated catalogues can generate sources. Generation uses parsed segments and contract argument order, preserves decoded text, escapes Rust/Slint separately, and inserts arguments as data. It returns deterministic UTF-8/LF source bytes; the build adapter tracks directory membership, required files and tool sources, and publishes only validated output in `OUT_DIR`.
 
-The copy scan enforces absence of known baseline wording in the contract/generator and lists advisory candidates in reviewed pending product paths. [Its reviewed policy](../../tests/fixtures/ui-text/validator/copy-scan.json) records why each path is pending. Rust test modules and test fixtures are excluded. Lexical scanning is deliberately limited: it is not a Rust/Slint parser, secret detector, complete English detector or inventory reconciliation. Narrow/activate consumer guards as extraction proceeds; do not treat advisory counts as migration coverage.
+The copy scan enforces absence of known baseline wording in the contract/generator and lists other advisory candidates in reviewed product paths. [Its reviewed policy](../../tests/fixtures/ui-text/validator/copy-scan.json) records each path's extraction boundary. Rust test modules and test fixtures are excluded. Lexical scanning is deliberately limited: it is not a Rust/Slint parser, secret detector, complete English detector or inventory reconciliation. Narrow/activate consumer guards as extraction proceeds; do not treat advisory counts as migration coverage.
 
-Focused tests use synthetic edits, local temporary files, CLI subprocesses and a temporary Windows directory junction (or Unix symlink) to exercise rejection without reading its target. No native prompt, GUI launch, guest, VM, GPU, driver, protected runner or actual vault operation is used. Generated-source compilation, two-window globals, TOML-only rebuild propagation and product integration remain LANG-004. Rendered/editor acceptance remains later work.
+Focused tests use synthetic edits, local temporary files, CLI subprocesses and a temporary Windows directory junction (or Unix symlink) to exercise rejection without reading its target. No native prompt, GUI launch, guest, VM, GPU, driver, protected runner or actual vault operation is used. LANG-004 now proves generated compilation, two headless window defaults and TOML-only rebuild propagation for the representative subset. The explicit resource-mutating proof is `python -B scripts/testing/test-ui-text-rebuild.py`; it restores original bytes in `finally`. Rendered/editor acceptance remains later work.

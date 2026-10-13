@@ -1,6 +1,6 @@
 # UI text development backlog
 
-Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory, LANG-002 design and LANG-003 baseline and LANG-013 control separation are complete; LANG-007 validation tooling is complete; product catalogue/integration remains pending. Open cards do not authorize automatic execution.
+Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory, LANG-002 design and LANG-003 baseline and LANG-013 control separation are complete; LANG-007 validation tooling is complete; LANG-004 representative catalogue/build integration is implemented; bulk extraction remains pending. Open cards do not authorize automatic execution.
 
 ## Completed legacy work
 
@@ -8,7 +8,7 @@ The previous APP backlog is complete by user confirmation on 13 October 2026. AP
 
 ## Next implementation action
 
-**LANG-004: prove representative build and consumer integration.** Use the shared [validator crate](../tools/ui-text/README.md) and the exact nine-key active contract/fixture subset. Wire the root build to validation/generation, prove generated Rust/Slint compilation and TOML-only directory/file rebuilds, then migrate the prepared representative consumers. Complete one requested card at a time.
+**LANG-005: extract fixed screen and dialog copy.** Proceed through the prepared static batches using the [active catalogue/build contract](UI_TEXT_GUIDE.md#lang-004-representative-integration), preserved [baseline](UI_TEXT_BASELINE.md) and reviewed scan policy. LANG-004 source integration is implemented; the complete checkpoint still reports the existing documentation links. Complete one requested card at a time.
 
 ## Task register
 
@@ -17,8 +17,8 @@ The previous APP backlog is complete by user confirmation on 13 October 2026. AP
 | LANG-001 | Done | Static review passed; repository docs check failed (deleted handbook links) | None | L1 |
 | LANG-002 | Done | Passed: design/targeted checks; Failed: repository docs links | LANG-001 | L1 |
 | LANG-003 | Done | Passed: targeted baseline review; Failed: repository docs links | LANG-001, LANG-002 | L1 |
-| LANG-004 | Ready | Not run | LANG-003, LANG-007, LANG-013 | L2 |
-| LANG-005 | Blocked | Not run | LANG-004 | L3 |
+| LANG-004 | Done | Passed: representative/rebuild checks; Failed: checkpoint documentation | LANG-003, LANG-007, LANG-013 | L2 |
+| LANG-005 | Ready | Not run | LANG-004 | L3 |
 | LANG-006 | Blocked | Not run | LANG-005 | L3 |
 | LANG-007 | Done | Passed: focused validator/scan checks; L2 integration pending | LANG-002, LANG-003 | L2 |
 | LANG-008 | Blocked | Not run | LANG-004, LANG-007 | L3 |
@@ -75,6 +75,10 @@ Extend existing `build.rs`; generate into `OUT_DIR` and share the validated cata
 Document the actual standalone validator command and add shared checks to the existing non-hardware gate without restoring removed CI/tooling. Prove a TOML-only edit updates both consumers after rebuilding; restore original text afterward. Verify file addition/deletion invalidation and safe generated syntax.
 
 Acceptance: representative integration and resource-only rebuild proof pass; invalid resources fail clearly. Validation: targeted generation/rebuild checks and L2 automated checkpoint; rendered acceptance remains separately authorized/evidenced.
+
+Delivered 13 October 2026: active nine-key resources, shared build validation/generation into OUT_DIR, read-only Slint defaults/re-export and library accessors; Verify title, reviewed-power Apply consent and native sign-in message/captions/wrapper are migrated verbatim. Root package/standalone manifests reuse the same tool sources with aligned locks and no dependency upgrades. The non-hardware gate includes catalogue/scan stages and resource/tool/test input hashes.
+
+Representative tests compile the generated Rust/Slint and compare resource bytes, typed power composition and opaque inserted values; two headless windows receive defaults without host initialization. The resource-only rebuild proof passed edited Unicode/quotes/backslashes/braces/newlines, unknown-file addition/removal, required-file deletion and malformed-template rejection; original resource bytes are restored and baseline equality passes. The full checkpoint fails on the existing 22 documentation links, so L2 is not marked closed. Remaining automated source-check results and separately untested rendering/native/live effects are recorded in the [integration guide](UI_TEXT_GUIDE.md#lang-004-representative-integration). No GUI/native prompt, guest, protected runner, VM/GPU or vault effect ran.
 
 ### LANG-005 - Extract fixed screen and dialog copy
 

@@ -369,10 +369,10 @@ pub fn validate_documents(
                             .and_then(|extra| units.checked_add(extra))
                     });
             }
-            if let Some(budget) = spec.native_budget {
-                if units.is_none_or(|units| units > budget) {
-                    errors.insert(format!("{at}:text: unknown bound or UTF-16 native budget exceeded (including terminator)"));
-                }
+            if let Some(budget) = spec.native_budget
+                && units.is_none_or(|units| units > budget)
+            {
+                errors.insert(format!("{at}:text: unknown bound or UTF-16 native budget exceeded (including terminator)"));
             }
             messages.insert(
                 key,

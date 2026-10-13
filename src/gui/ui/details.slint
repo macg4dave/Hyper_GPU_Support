@@ -1,3 +1,4 @@
+import { UiText } from "ui-text.slint";
 import { Button, Switch, ComboBox, ScrollView, Slider, LineEdit } from "std-widgets.slint";
 import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
 import { ResourceEditor, AllocationDisclosure } from "resources.slint";
@@ -101,7 +102,7 @@ export component VmDetails inherits Rectangle {
                         Hint { text: root.support-summary; }
                         verify-button := Button {
                             visible: root.verify-allowed && !root.recovery;
-                            text: "Verify GPU setup";
+                            text: UiText.operations-verify-title;
                             primary: !root.dirty;
                             enabled: !Theme.modal-active && root.execution-ready && !root.updating;
                             clicked => { root.action("verify"); }

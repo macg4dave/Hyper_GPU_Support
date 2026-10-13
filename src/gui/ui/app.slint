@@ -1,3 +1,5 @@
+import { UiText } from "ui-text.slint";
+export { UiText }
 import { Button, ScrollView } from "std-widgets.slint";
 import { Theme, Label, Hint } from "theme.slint";
 import { VmRow, VmCard, Splitter } from "cards.slint";
@@ -41,8 +43,8 @@ export component AppWindow inherits Window {
     in-out property <[VmRow]> vms;
     in-out property <string> selected-id: "";
     in-out property <string> vm-name: "";
-    in-out property <string> power: "Unknown";
-    in-out property <string> status: "Unknown";
+    in-out property <string> power: UiText.common-state-unknown;
+    in-out property <string> status: UiText.common-state-unknown;
     in property <bool> vm-unsupported;
     in property <bool> setup-required;
     in property <bool> draft-valid;

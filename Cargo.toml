@@ -1,6 +1,7 @@
 [workspace]
-members = ["."]
-exclude = ["tools/lab", "vendor/i-slint-backend-winit"]
+members = [".", "tools/ui-text"]
+default-members = ["."]
+exclude = ["tools/lab", "tools/ui-text/standalone", "vendor/i-slint-backend-winit"]
 resolver = "3"
 
 [package]
@@ -23,6 +24,10 @@ missing_docs = "warn"
 
 [build-dependencies]
 slint-build = "=1.18.1"
+ui-text = { path = "tools/ui-text" }
+
+[dev-dependencies]
+ui-text = { path = "tools/ui-text" }
 
 # Backport Windows exposure-region repainting without upgrading Slint.
 [patch.crates-io]

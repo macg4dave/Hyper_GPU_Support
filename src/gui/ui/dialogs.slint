@@ -1,3 +1,4 @@
+import { UiText } from "ui-text.slint";
 import { Button, CheckBox, ProgressIndicator, ScrollView } from "std-widgets.slint";
 import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
 import { TechnicalOutput } from "technical-output.slint";
@@ -93,7 +94,7 @@ export component OperationDialog inherits Rectangle {
                             }
                             if root.kind == "more" : VerticalLayout {
                                 spacing: 12px;
-                                ActionChoice { label: "Verify GPU setup"; reason: root.verify-unavailable; allowed: root.verify-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
+                                ActionChoice { label: UiText.operations-verify-title; reason: root.verify-unavailable; allowed: root.verify-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
                                 ActionChoice { label: "Repair / Reinstall"; reason: root.repair-unavailable; allowed: root.repair-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
                                 ActionChoice { label: "Remove GPU support"; reason: root.remove-unavailable; allowed: root.remove-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
                                 ActionChoice { label: "Delete profile"; reason: root.forget-unavailable; allowed: root.forget-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
@@ -160,7 +161,7 @@ export component OperationDialog inherits Rectangle {
                         if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
                         if root.kind == "forget-review" : Button { text: "Delete profile"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
                         if root.kind == "review" : Button { text: root.execution-ready ? "Apply" : "Apply unavailable"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
-                        if root.kind == "verify-review" : Button { text: "Verify GPU setup"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
+                        if root.kind == "verify-review" : Button { text: UiText.operations-verify-title; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
                         if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
                         if root.kind == "recovery" : Button { text: "Check recorded outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
                         if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { text: "Remove partial GPU setup…"; enabled: root.execution-ready && !root.updating && root.reset-allowed; clicked => { root.action("review-reset"); } }

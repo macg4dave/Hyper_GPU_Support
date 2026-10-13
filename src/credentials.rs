@@ -173,11 +173,10 @@ fn explain_guest_sign_in(
     use windows::Win32::UI::WindowsAndMessaging::{
         IDCANCEL, IDOK, MB_ICONINFORMATION, MB_OKCANCEL, MessageBoxW,
     };
-    let caption = prompt_wide("Sign in to your virtual machine");
-    let message = prompt_wide(&format!(
-        "{}\n\nChoose OK to enter your details. Cancel returns to the app.",
-        guest_prompt_message(vm, name),
-    ));
+    let caption = prompt_wide(crate::ui_text::credentials::explanation::caption().as_str());
+    let guest_message = guest_prompt_message(vm, name);
+    let message =
+        prompt_wide(crate::ui_text::credentials::explanation::wrapper(&guest_message).as_str());
     // SAFETY: live terminated strings, optional dialog owner; no credentials are collected here.
     let result = unsafe {
         MessageBoxW(
@@ -209,8 +208,8 @@ fn prompt_native(
     name: &str,
     parent: windows::Win32::Foundation::HWND,
 ) -> Result<Credential, String> {
-    let caption = prompt_wide("Hyper GPU Support - Sign in");
-    let message = prompt_wide(&guest_prompt_message(vm, name));
+    let caption = prompt_wide(crate::ui_text::credentials::native::caption().as_str());
+    let message = prompt_wide(guest_prompt_message(vm, name).as_str());
     let target = prompt_wide(&format!("HyperGpuSupport/guest/{vm}"));
     let info = CREDUI_INFOW {
         cbSize: std::mem::size_of::<CREDUI_INFOW>() as u32,
@@ -269,11 +268,9 @@ fn retain_if_requested(
     Ok(credential)
 }
 
-fn guest_prompt_message(_vm: &str, name: &str) -> String {
+fn guest_prompt_message(_vm: &str, name: &str) -> crate::ui_text::UiMessage {
     let name: String = name.chars().filter(|c| !c.is_control()).take(256).collect();
-    format!(
-        "Sign in to {name}\n\nEnter the Windows administrator username and password you use inside this virtual machine. The app uses them for the guest steps you approve in review.\n\nRemember is optional. Leave it unchecked to use your details just this once; selecting it saves them securely on this computer for this VM."
-    )
+    crate::ui_text::credentials::guest_sign_in::message(&name)
 }
 
 #[cfg(test)]
@@ -281,20 +278,13 @@ mod prompt_tests {
     use super::*;
 
     #[test]
-    fn prompt_names_the_guest_and_explains_which_account_is_needed() {
-        let text = super::guest_prompt_message("vm-guid", "test-001");
-        for expected in [
-            "test-001",
-            "username and password",
-            "Windows administrator",
-            "guest steps you approve in review",
-            "Remember is optional. Leave it unchecked",
-        ] {
-            assert!(text.contains(expected));
-        }
-        assert!(!text.contains("vm-guid"));
-        assert!(!text.contains("set up GPU support"));
-        assert!(text.len() < 400);
+    fn native_name_bound_and_control_filter_precede_catalogue_insertion() {
+        let prepared = "😀".repeat(256);
+        let input = format!("\0\n\t{}", "😀".repeat(257));
+        let actual = guest_prompt_message("bound-id", &input);
+        let expected = crate::ui_text::credentials::guest_sign_in::message(&prepared);
+        assert_eq!(actual.as_str(), expected.as_str());
+        assert!(!actual.as_str().contains('\0'));
     }
 
     #[test]
@@ -398,8 +388,8 @@ mod prompt_tests {
 
     #[test]
     fn vm_display_name_cannot_inject_lines_or_terminate_native_text() {
-        let text = guest_prompt_message("bound-id", "guest\0\n\tname");
-        assert!(text.starts_with("Sign in to guestname\n"));
+        let text = guest_prompt_message("bound-id", "guest\0\n\tname").into_string();
+        assert!(text.contains("guestname"));
         assert!(!text.contains("bound-id"));
         assert!(!text.contains('\0'));
     }

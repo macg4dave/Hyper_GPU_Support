@@ -28,6 +28,7 @@ mod security;
 pub mod setup;
 #[cfg(windows)]
 mod trust;
+pub mod ui_text;
 #[cfg(windows)]
 mod windows_com;
 #[cfg(windows)]

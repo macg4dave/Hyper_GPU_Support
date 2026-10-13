@@ -1,5 +1,7 @@
 //! Approved Slint presentation over the protected live backend.
 mod actions;
+#[cfg(test)]
+mod catalogue_tests;
 mod diagnostics;
 mod host_configuration;
 mod live;

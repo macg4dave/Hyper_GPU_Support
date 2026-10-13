@@ -1,6 +1,6 @@
 # UI text catalogue and generation contract
 
-LANG-002 design, 13 October 2026. This guide fixes the resource/formatting/build contract for the [roadmap](roadmap.md), grounded in the [inventory](UI_TEXT_INVENTORY.md) and [source register](UI_TEXT_OCCURRENCES.md). The [LANG-003 baseline](UI_TEXT_BASELINE.md) now records final keys, source-derived expectations and extraction batches. LANG-007 now implements the isolated validator/generator and LANG-013 separates control from copy. The product catalogue/build bindings are still pending LANG-004 integration. LANG-008 completes the editor handoff with actual commands and catalogue entries.
+LANG-002 design, 13 October 2026. This guide fixes the resource/formatting/build contract for the [roadmap](roadmap.md), grounded in the [inventory](UI_TEXT_INVENTORY.md) and [source register](UI_TEXT_OCCURRENCES.md). The [LANG-003 baseline](UI_TEXT_BASELINE.md) now records final keys, source-derived expectations and extraction batches. LANG-007 now implements the isolated validator/generator and LANG-013 separates control from copy. LANG-004 now integrates the nine-key representative product catalogue and generated build bindings. Bulk extraction remains LANG-005/006. LANG-008 completes the editor handoff with actual commands and catalogue entries.
 
 ## Ownership and files
 
@@ -158,7 +158,7 @@ The [tools/ui-text crate](../tools/ui-text/README.md) now provides the reusable 
 
 This makes TOML parsing explicitly available to the build without relying on the product's runtime dependency. Build and standalone both call the same library functions for file discovery, schema/contract validation, template parsing and deterministic generation. The standalone accepts a catalogue directory and validates it at execution time, so malformed resources do not stop compilation of the validator itself. The tool is contributor tooling, not a new installed product binary or privileged runtime loader.
 
-Extend [build.rs](../build.rs) in LANG-004 as follows:
+[build.rs](../build.rs) implements the representative integration as follows:
 
 1. Discover the resource directory and contract inputs; emit Cargo rebuild directives for the directory, each discovered file and code contract/tool sources. Directory tracking catches additions/deletions. Required directory/file disappearance is a clear build error.
 2. Validate the whole active catalogue and contracts before creating usable generated outputs. Report sorted, actionable file/key/field errors; a failed catalogue stops the build, with no stale generated output accepted as fallback.
@@ -170,7 +170,7 @@ All generated Rust functions use fixed validated keys and typed arguments, never
 
 Generate the Slint global with fixed-text properties bound to decoded, escaped literals at declaration. Static components use `UiText.operations-verify-title`, for example. Parameterised templates are formatted in Rust and assigned through existing properties/models; no Slint callbacks, runtime key lookup or `replace-all` template engine are needed.
 
-Globals are per component/window instance, not shared across independent windows. Literal defaults therefore provide the catalogue immediately for every instance and require no host-side initialization loop or initial blank-value fallback. Re-export the global from the entrypoint if Rust global access is required by integration/tests; there is no need to expose mutators for ordinary presentation. LANG-004 must compile and test the chosen read-only property direction, imports/re-export, hidden/default bindings and two independently created instances without launching the live GUI. This remains a design requiring prototype proof on 1.18.1. [Slint globals documentation](https://docs.slint.dev/docs/slint/guide/language/coding/globals/).
+Globals are per component/window instance, not shared across independent windows. Literal defaults therefore provide the catalogue immediately for every instance and require no host-side initialization loop or initial blank-value fallback. Re-export the global from the entrypoint if Rust global access is required by integration/tests; there is no need to expose mutators for ordinary presentation. LANG-004 must compile and test the chosen read-only property direction, imports/re-export, hidden/default bindings and two independently created instances without launching the live GUI. LANG-004 compiles this read-only global on 1.18.1 and checks two headless instances without host initialization. [Slint globals documentation](https://docs.slint.dev/docs/slint/guide/language/coding/globals/).
 
 ## Generated escaping and failure policy
 
@@ -195,16 +195,36 @@ No product compilation, generated prototype, Rust test execution, GUI/native pro
 
 ## LANG-007 implemented checks
 
-The isolated tool accepts the nine-key baseline under `tests/fixtures/ui-text/validator/baseline` with strict UTF-8 TOML and independently fixed metadata/types/occurrences/native budgets. It has no fallback English in its contract, no resource input at tool compilation time, and no dependency on product or Slint. Generated output is deterministic and uses separate Rust/Slint serializers. These source bytes have not yet passed LANG-004 generated-code compilation or consumer integration.
+The isolated tool accepts the nine-key baseline under `tests/fixtures/ui-text/validator/baseline` with strict UTF-8 TOML and independently fixed metadata/types/occurrences/native budgets. It has no fallback English in its contract, no resource input at tool compilation time, and no dependency on product or Slint. Generated output is deterministic and uses separate Rust/Slint serializers. LANG-004 now proves generated compilation and representative consumer integration, as recorded below.
 
 ```powershell
-cargo test --locked --manifest-path tools/ui-text/Cargo.toml
-cargo run --locked --manifest-path tools/ui-text/Cargo.toml -- tests/fixtures/ui-text/validator/baseline
-cargo run --locked --manifest-path tools/ui-text/Cargo.toml -- tests/fixtures/ui-text/validator/baseline --generate local/evidence/ui-text-generated
+cargo test --locked --manifest-path tools/ui-text/standalone/Cargo.toml
+cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- tests/fixtures/ui-text/validator/baseline
+cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- tests/fixtures/ui-text/validator/baseline --generate local/evidence/ui-text-generated
 python -B scripts/testing/test_check_ui_copy.py
 python -B scripts/testing/check-ui-copy.py --json
 ```
 
 The nine Rust tests exercise schema/encoding/file/key failures, metadata/type changes, grammar/occurrences, generated name collisions, deterministic/adversarial source serialization, native UTF-16 boundaries and filesystem/CLI failure publication. A temporary Windows junction verifies reparse rejection; it does not access guests or protected data. Two Python tests exercise the copy scan, including Rust test exclusion. Known active baseline literals in tooling are hard errors; product findings stay advisory under reviewed pending-extraction exceptions. The scan does not replace inventory reconciliation or semantic wording review.
 
-Focused checks passed on 13 October 2026; repository documentation checking still fails on 22 existing deleted-handbook links. Root build integration, generated-code compile proof, resource-only rebuilds, the full L2 gate and rendered behavior remain unverified. Product wording is still in its original producers until LANG-004/005/006 activate consumers.
+Focused checks passed on 13 October 2026; repository documentation checking still fails on 22 existing deleted-handbook links. This paragraph records the LANG-007 boundary before integration; the subsequent LANG-004 results are recorded below.
+
+
+## LANG-004 representative integration
+
+The active product resources are now `resources/i18n/en-GB/{common,operations,credentials}.toml`, with the nine-key independent contract. The build calls the shared validator before emitting `OUT_DIR/ui_text.rs` and `OUT_DIR/ui-text.slint`; failed validation stops compilation instead of accepting stale generated files. Required file/directory and tooling-source changes trigger rebuilds. No runtime filesystem/TOML access is added to product presentation.
+
+The root build dependency uses `tools/ui-text/Cargo.toml`. The isolated CLI uses `tools/ui-text/standalone/Cargo.toml` and its own aligned lockfile, compiling the same source/test files without product or Slint dependencies. Root default-member builds retain the existing product binaries. No existing dependency version was upgraded.
+
+The Verify title is bound in Rust and Slint, including hidden dialog action paths. Apply consent takes a typed final-power catalogue message. Native prompt captions, the guest explanation and wrapper use typed accessors after the existing 256-scalar/control-character name filter. Cancellation, account prompts, vault opt-in and reviewed effects are unchanged. Shared power labels and initial unknown display defaults use the catalogue; remaining source copy is pending bulk extraction. English expectations stay in TOML fixtures, not duplicate Rust assertions.
+
+```powershell
+cargo test --locked --test ui_text
+cargo test --locked --bin hyper-gpu-support gui::catalogue_tests
+python -B scripts/testing/test-ui-text-rebuild.py
+powershell -NoProfile -File scripts/testing/check.ps1
+```
+
+The rebuild script is an explicit contributor proof: run it alone. It temporarily edits only prepared resource text, tests generated Rust output against current resource bytes and Slint defaults in two headless instances, proves unknown-file addition and required-file deletion invalidate builds, and rejects malformed templates. It restores the original resource bytes in `finally`, then rebuilds/verifies the verbatim baseline. Adversarial quotes, backslashes, literal braces, Unicode and newlines remain data. No live application, renderer, native prompt or backend is launched.
+
+The non-hardware gate now runs the isolated validator tests, active resource validation and copy scan before its existing stages. Its evidence hashes include resources, tool contracts/manifests/lockfiles and tests. Rendered fit, focus/interaction and live native prompts remain separately authorized later acceptance; a headless getter check does not prove appearance.
