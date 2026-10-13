@@ -1,5 +1,51 @@
 # UI text catalogue and generation contract
 
+## Internationalisation architecture
+
+Infrastructure preparation, 13 October 2026. This section describes the current locale-loading contract; the LANG sections below retain historical extraction evidence. **Only `en-GB` exists and is available.** No English text, stable key, application branch, GUI layout or language selector changes as part of this preparation.
+
+Resources use `resources/i18n/<locale>/<feature>.toml`. The existing ten `en-GB` feature files already have this structure and remain byte-for-byte unchanged. Locale directories are discovered by the shared build-time loader in `tools/ui-text/src/locales.rs`. Each directory contains the complete active key set, with its own matching `locale` headers. Keys and generated accessor signatures come from the same code-owned contract for every locale; translating a sentence never renames its key. Context, severity, types, occurrence constraints and native budgets remain shared developer-owned metadata.
+
+The loader validates **all** discovered locales before generation. A missing request or an unavailable exact language tag resolves to `en-GB`, which must always be present and valid. There is no automatic host-language selection, language-prefix negotiation, per-message fallback or silent fallback after a malformed installed catalogue. Missing files/keys, invalid TOML/UTF-8, unknown fields/keys, header mismatches, incompatible placeholders and links/reparse points stop the build. Complete translations prevent mixed-language consent/results and keep omissions visible during review.
+
+`build.rs` calls this loader and compiles one resolved catalogue into both typed Rust accessors/constants and the existing Slint `UiText` global. The generated `LOCALE`, `DEFAULT_LOCALE`, `AVAILABLE_LOCALES` and `UiText.locale` expose the validated selection without changing UI behavior. The contributor-only `HYPER_GPU_UI_LOCALE` build environment variable can request a locale; Cargo tracks it, the locale root, each discovered directory, required files and generator sources. At present every request resolves to `en-GB`. Runtime presentation reads compiled messages, with no filesystem access, parser, mutable language state or initialization loop. Selecting another build locale later requires a rebuild; runtime switching is outside this task.
+
+### Slint translation decision
+
+The pinned Slint 1.18.1 [`@tr` infrastructure](https://docs.slint.dev/docs/slint/guide/development/translations/) supports contexts, positional formatting, plural forms, gettext at runtime and bundled PO catalogues. It is suitable for applications whose translation source is Slint/gettext. This application also has Rust/native text, borrowed fixed constants, named typed arguments and independently checked consent/native contracts. Using `@tr` alone would leave Rust/native messages untranslated; combining it with the existing system would require TOML-to-PO conversion, named-to-positional conversion and synchronized selection/formatting paths. The current shared generator already supplies the same validated strings to both consumers, so it remains the simpler integration. No gettext dependency, PO/MO copies or translation extraction tool is introduced.
+
+### Adding a future language
+
+When translation work is separately authorized:
+
+1. Copy the complete `en-GB` feature set into a new directory named with the exact language tag. Directory names consist of an alphabetic language subtag and optional alphanumeric subtags separated by hyphens; path separators are forbidden. Use the conventional canonical tag consistently because selection is exact and case-sensitive.
+2. Set each file's `locale` header to that tag. Retain `schema`, `feature`, all message keys, metadata and placeholder declarations. Translate only `text`; preserve effects, uncertainty, consent and safe parameter boundaries. Do not copy generated Rust or Slint files.
+3. Keep named placeholders intact. Templates may reorder or repeat parameters within their occurrence constraints, with `{{`/`}}` for literal braces. Each required parameter must still occur; types cannot change. Inserted values remain data and are never parsed again.
+4. Validate the entire locale root, request the new locale for generation/build, and review decoded text and resulting display. Discovery adds it to the available set without editing application call sites or a registration list. Incomplete or invalid translations must be completed before inclusion; do not relax validation to publish them.
+
+```powershell
+# Current complete-root validation; only en-GB is discovered.
+cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- resources/i18n --locale en-GB
+# Contributor build selection; remove the variable to return to the default.
+$env:HYPER_GPU_UI_LOCALE = 'en-GB'
+cargo build --locked --bins
+Remove-Item Env:HYPER_GPU_UI_LOCALE
+```
+
+The older single-directory CLI commands below remain supported and validate British English only. `--locale TAG` changes the CLI input to the locale root and uses the same loader as the product build; an unavailable tag prints the resolved fallback. `--generate OUTPUT_DIRECTORY` also works in root mode and requires outputs outside the locale root.
+
+### Formatting and future plurals
+
+Keep counts as typed `u64`, `usize` or `i32` inputs and numeric/unit facts behind `DisplayValue`. Locale-dependent wording can change placeholder order without changing producers or arithmetic. Current base-10 numeric formatting, precision, units and prepared display values deliberately remain unchanged; a translation alone does not change the interpretation of a numeric fact.
+
+Existing singular/plural branches and submessage keys retain their current behavior. Future plural messages must receive the original numeric count, not a formatted string or an English singular/plural flag. Their stable semantic key and parameter contract belong to the shared presentation generator; locale-specific form selection belongs there as well, so application callers pass facts and never test a locale. Plan categories `zero`, `one`, `two`, `few`, `many`, `other` as required by the chosen locale, validating every form against the same placeholder and native-budget contract. Do not assume every language has two forms or use `count == 1` in new application logic. There is no automatic plural-rule engine or plural-form TOML schema in this revision: extending the shared generator/schema for the first plural translation is a future infrastructure task, not authorization to rewrite current English. Slint's existing plural support should be reconsidered at that boundary if the common Rust/native contract can be retained cleanly.
+
+Current scope also retains the existing extraction boundary: some dynamic/reporting text remains in source, as recorded below. Locale loading covers the active catalogue, not a claim that every application string has been extracted. Complete translation coverage and rendered fit need their own future acceptance.
+
+### Infrastructure verification
+
+On 13 October 2026, the final source passed `cargo build --locked --bins`, the standalone validator's 12 tests, the three product `ui_text` tests, fixed/dynamic historical-binding tests and the one headless `gui::catalogue_tests` check (18 focused tests total). Complete-root CLI validation reported 408 messages, resolved `en-GB`, and only `en-GB` available. Validator Clippy with `--all-targets -- -D warnings`, `cargo fmt --all -- --check`, the copy scan and `git diff --check` passed. All ten English resource files have no diff. Headless checks exercise bindings in two windows without rendering or backend access; no live GUI/native prompt/VM/GPU check ran. The documentation checker could not run because `docs/backlog.md` was already deleted in the working tree; the existing backlog/roadmap deletions were preserved. The full repository gate was not run for this focused infrastructure task.
+
 LANG-002 design, 13 October 2026. This guide fixes the resource/formatting/build contract for the [roadmap](roadmap.md), grounded in the [inventory](UI_TEXT_INVENTORY.md) and [source register](UI_TEXT_OCCURRENCES.md). The [LANG-003 baseline](UI_TEXT_BASELINE.md) now records final keys, source-derived expectations and extraction batches. LANG-007 now implements the isolated validator/generator and LANG-013 separates control from copy. LANG-004 now integrates the nine-key representative product catalogue and generated build bindings. Bulk extraction remains LANG-005/006. LANG-008 completes the editor handoff with actual commands and catalogue entries.
 
 ## Ownership and files
@@ -27,7 +73,7 @@ Developers own keys, schema, metadata, parameter bindings, independent contracts
 
 ## Strict TOML schema
 
-Each file contains exactly `schema`, `locale`, `feature` and `messages`. `schema = 1`, `locale = "en-GB"`, and `feature` equals the file stem. TOML message keys are quoted dotted strings, not implicit nested message tables. A message entry contains these fields:
+Each file contains exactly `schema`, `locale`, `feature` and `messages`. `schema = 1`, `locale` equals the enclosing locale directory (`"en-GB"` today), and `feature` equals the file stem. TOML message keys are quoted dotted strings, not implicit nested message tables. A message entry contains these fields:
 
 | Field | Required type / meaning |
 |---|---|
@@ -41,7 +87,7 @@ Each file contains exactly `schema`, `locale`, `feature` and `messages`. `schema
 | `placeholders` | Array of inline tables with exactly `name` and `type`; empty array for fixed text |
 | `space_hint` | Nonempty advisory string describing wrapping/width/API surface; not a numeric rejection threshold |
 
-Unknown root/entry/placeholder fields are errors. Metadata values and placeholder declarations must equal the code-owned contract; placeholder table order is immaterial and names are unique. Missing metadata is not silently defaulted. There are no resource-controlled `allow_empty`, parameter-length overrides, formatting flags, executable expressions, includes or fallback locales.
+Unknown root/entry/placeholder fields are errors. Metadata values and placeholder declarations must equal the code-owned contract; placeholder table order is immaterial and names are unique. Missing metadata is not silently defaulted. There are no resource-controlled `allow_empty`, parameter-length overrides, formatting flags, executable expressions, includes or fallback policy; the loader owns the British English fallback.
 
 All resource files are strict UTF-8 without a BOM. Reject malformed UTF-8, duplicate TOML tables/fields, duplicate keys across files, unknown files/keys, missing required files/keys, wrong feature assignment and unsupported schema/locale. Discover lowercase `.toml` regular files at the feature directory's top level; reject unexpected non-TOML files, subdirectories and links/reparse points. Keep the editor guide/screenshots elsewhere.
 

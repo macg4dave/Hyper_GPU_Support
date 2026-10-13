@@ -120,10 +120,16 @@ fn render_module(node: &Module<'_>, output: &mut String) {
     }
 }
 
-pub(crate) fn sources(catalogue: &Catalogue) -> Sources {
+pub(crate) fn sources(catalogue: &Catalogue, locale: Option<&str>) -> Sources {
     let mut tree = Module::default();
     let mut slint =
         String::from("// Generated; edit resource text, not this file.\nexport global UiText {\n");
+    if let Some(locale) = locale {
+        slint.push_str(&format!(
+            "    out property <string> locale: {};\n",
+            slint_literal(locale)
+        ));
+    }
     for (key, message) in &catalogue.messages {
         let mut parts: Vec<_> = key.split('.').collect();
         let name = parts.pop().expect("validated key");

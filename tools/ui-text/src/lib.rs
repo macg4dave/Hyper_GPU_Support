@@ -1,6 +1,7 @@
-//! Strict catalogue validation shared by contributor CLI and future build generation.
+//! Strict catalogue validation shared by contributor CLI and product build generation.
 pub mod contract;
 mod generate;
+pub mod locales;
 pub mod template;
 
 use contract::{Consumer, Message, Metadata, Placeholder};
@@ -71,7 +72,7 @@ impl Catalogue {
     }
     /// Deterministic source bytes. Compilation/integration proof belongs to LANG-004.
     pub fn generate(&self) -> generate::Sources {
-        generate::sources(self)
+        generate::sources(self, None)
     }
 }
 pub use generate::Sources;
@@ -240,6 +241,16 @@ pub fn validate_documents(
     documents: impl IntoIterator<Item = (String, Vec<u8>)>,
     contract: &[Message],
 ) -> Result<Catalogue, Errors> {
+    validate_locale_documents(documents, contract, locales::DEFAULT_LOCALE)
+}
+
+/// Validate a complete translation against the same independent message contract.
+/// The locale comes from discovery, never from a resource-controlled default.
+pub fn validate_locale_documents(
+    documents: impl IntoIterator<Item = (String, Vec<u8>)>,
+    contract: &[Message],
+    locale: &str,
+) -> Result<Catalogue, Errors> {
     let mut errors = BTreeSet::new();
     contract_errors(contract, &mut errors);
     let required_files: BTreeSet<_> = contract
@@ -274,8 +285,8 @@ pub fn validate_documents(
         if document.schema != 1 {
             errors.insert(format!("{file}:schema: expected 1"));
         }
-        if document.locale != "en-GB" {
-            errors.insert(format!("{file}:locale: expected en-GB"));
+        if document.locale != locale {
+            errors.insert(format!("{file}:locale: expected {locale}"));
         }
         if file != format!("{}.toml", document.feature) {
             errors.insert(format!("{file}:feature: must equal filename stem"));
@@ -412,7 +423,7 @@ pub fn validate_documents(
     }
 }
 
-fn linked(metadata: &fs::Metadata) -> bool {
+pub(crate) fn linked(metadata: &fs::Metadata) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
@@ -426,6 +437,15 @@ fn linked(metadata: &fs::Metadata) -> bool {
 
 /// Read only flat lowercase TOML regular files, rejecting links and reparse points.
 pub fn validate_directory(directory: &Path, contract: &[Message]) -> Result<Catalogue, Errors> {
+    validate_locale_directory(directory, contract, locales::DEFAULT_LOCALE)
+}
+
+/// Validate a flat locale directory with an exact matching locale header.
+pub fn validate_locale_directory(
+    directory: &Path,
+    contract: &[Message],
+    locale: &str,
+) -> Result<Catalogue, Errors> {
     let metadata =
         fs::symlink_metadata(directory).map_err(|e| vec![format!("catalogue directory: {e}")])?;
     if linked(&metadata) || !metadata.is_dir() {
@@ -473,7 +493,7 @@ pub fn validate_directory(directory: &Path, contract: &[Message]) -> Result<Cata
             }
         }
     }
-    match validate_documents(documents, contract) {
+    match validate_locale_documents(documents, contract, locale) {
         Ok(catalogue) if errors.is_empty() => Ok(catalogue),
         Ok(_) => Err(errors.into_iter().collect()),
         Err(validation) => {

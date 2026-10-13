@@ -9,27 +9,32 @@ fn write_changed(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 }
 
 fn main() {
-    let directory = Path::new("resources/i18n/en-GB");
+    let root = Path::new("resources/i18n");
     // Directory tracking covers unknown additions and required file deletions.
-    println!("cargo:rerun-if-changed={}", directory.display());
+    println!("cargo:rerun-if-changed={}", root.display());
+    println!("cargo:rerun-if-env-changed=HYPER_GPU_UI_LOCALE");
     println!("cargo:rerun-if-changed=tools/ui-text/src");
     println!("cargo:rerun-if-changed=tools/ui-text/Cargo.toml");
     let contract = ui_text::contract::active();
     let files: std::collections::BTreeSet<_> =
         contract.iter().map(|message| message.feature()).collect();
-    for feature in files {
-        println!(
-            "cargo:rerun-if-changed={}/{}.toml",
-            directory.display(),
-            feature
-        );
+    let requested = std::env::var("HYPER_GPU_UI_LOCALE").ok();
+    let catalogue =
+        ui_text::locales::load(root, requested.as_deref(), &contract).unwrap_or_else(|errors| {
+            panic!(
+                "UI text catalogue validation failed:\n{}",
+                errors.join("\n")
+            )
+        });
+    for locale in &catalogue.available {
+        println!("cargo:rerun-if-changed={}/{locale}", root.display());
+        for feature in &files {
+            println!(
+                "cargo:rerun-if-changed={}/{locale}/{feature}.toml",
+                root.display()
+            );
+        }
     }
-    let catalogue = ui_text::validate_directory(directory, &contract).unwrap_or_else(|errors| {
-        panic!(
-            "UI text catalogue validation failed:\n{}",
-            errors.join("\n")
-        )
-    });
     let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo OUT_DIR"));
     let generated = catalogue.generate();
     write_changed(&output.join("ui_text.rs"), generated.rust.as_bytes())

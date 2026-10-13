@@ -2,6 +2,13 @@
 use hyper_gpu_support::{model::Power, ui_text as display};
 use std::{collections::BTreeMap, path::Path};
 
+#[test]
+fn british_english_is_the_only_compiled_language() {
+    assert_eq!(display::DEFAULT_LOCALE, "en-GB");
+    assert_eq!(display::LOCALE, "en-GB");
+    assert_eq!(display::AVAILABLE_LOCALES, &["en-GB"]);
+}
+
 fn entries(directory: &str) -> BTreeMap<String, String> {
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join(directory);
     let mut result = BTreeMap::new();

@@ -1,77 +1,32 @@
-# UI text development roadmap
+﻿# QA roadmap
 
-Status: L1 deliverables recorded and L2 automated integration gate passed. LANG-005 fixed GUI extraction and LANG-008 editor guide are implemented; LANG-006 remains in progress. The catalogue has 408 of 696 planned keys. L3 migration/rendered acceptance and L4 editorial delivery remain open. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
+**Status:** Planned; no tests run under this plan.
 
-## Outcome and viability
+Test the installed Windows application through its normal GUI workflow. Reuse existing automated checks and the [QA report folder](../qa/README.md). Track planned work in the [QA backlog](QA_BACKLOG.md) and defects in the [case index](../qa/INDEX.md).
 
-Make application-owned English GUI text editable in UTF-8 TOML resources without Rust or Slint source edits for subsequent wording changes. A rebuild is acceptable. Extract existing wording verbatim, prove equivalence, then perform a separate British English editorial pass. Codex owns code/integration and semantic/visual review; the language editor owns wording only.
+## Test stages
 
-**Viable as a staged presentation refactor.** Rust already uses TOML, Slint 1.18.1 compiles through [build.rs](../build.rs), and components already consume string properties and Rust models. No runtime catalogue loader, translation framework, new GUI or alternate operation backend is needed. LANG-004 now provides compiled representative bindings and headless/resource-only rebuild proof; it does not establish rendered or live backend behavior. Estimate effort after the inventory: static labels are straightforward; tracing dynamic/error/progress consumers is the larger part.
-
-### Source findings
-
-| Source | Development consequence |
-|---|---|
-| [Slint UI](../src/gui/ui/app.slint) embeds labels, hints, defaults, consent and accessibility text | Include hidden/disabled states and composed labels, not just `text:` literals |
-| [Operation wording](../src/gui/wording.rs) now selects guest explanations by local operation identity | Introduce a stable operation identity before extracting titles |
-| [Progress UI](../src/gui/live/progress.rs) now derives counters and row identity from immutable worker input before rendering; [reporting](../src/reporting.rs) defines the transfer format | Preserve wire formats. Derive identity/counters from immutable input before formatting editable rows; never parse edited display text |
-| [Credentials](../src/credentials.rs) detects cancellation by an exact error string | Preserve the sentinel and map cancellation to separate editable presentation; preserve local prompts and opt-in storage |
-| Reporting uses structured failure envelopes and some text-based classification | Catalogue copy belongs after classification/redaction. Preserve envelope tokens, allowed numeric facts, limits and secret filtering |
-| [Dialog host](../src/gui/mod.rs) separates operator summaries and diagnostics | Reuse that boundary; do not expose arbitrary adapter output as catalogue parameters |
-| [Documentation checker](../scripts/testing/check-docs.py) validates the active LANG cards and links | References to deleted handbook pages now point to current owners; no retired page/tooling is restored |
-
-## Scope and invariants
-
-Include app-owned GUI titles, labels, tooltips/hints, accessibility names, confirmations/consent, unavailable-action reasons, status/progress, results/error summaries and native credential-explanation copy. Trace shared backend/reporting prose actually displayed on these surfaces. Identify and check shared CLI consumers affected by extraction.
-
-Exclude protocol/action/dialog tokens, resource keys, storage schemas, filenames, credential identifiers, diagnostic envelopes, raw Windows/driver messages and third-party/native widget wording. Inventory app-owned technical-detail prose and either extract it or justify each exception; ordinary UI copy cannot hide under a blanket diagnostics exception.
-
-- Preserve the approved Slint design, Rust core and protected operation architecture: admission, target identity, consent, final power, failure semantics, recovery holds and save-only behavior.
-- Editable copy never selects an operation, classifies a result or proves completion. Insert dynamic names/paths/numbers once as data, with no recursive placeholder expansion.
-- Preserve permitted diagnostic facts and current sanitisation. Never put passwords or arbitrary unsafe adapter output into resources or parameters.
-- Extraction preserves exact wording, punctuation, whitespace and numeric/unit formatting. British English improvements start only after the baseline gate.
-- GUI launches, credentials, guest access, VM/GPU effects, protected writes, installation and driver changes still require prepared authorization under [testing](ENGINEERING.md#validation-and-live-acceptance). Documentation/source work does not authorize these effects.
-
-## Architecture direction
-
-Use one authoritative catalogue in `resources/i18n/en-GB/`, split by coherent feature, for example `common.toml`, `dashboard.toml`, `dialogs.toml`, `operations.toml`, `credentials.toml`. Inventory determines final grouping. Keys describe meaning, not current English or source locations.
-
-Each entry contains text plus context: screen/state, audience/intent, consequences/severity, named placeholders, and applicable space constraints. Suggested starting shape:
-
-```toml
-[messages."operations.verify_title"]
-text = "Verify GPU setup"
-context = "Action/title for a reviewed driver/setup and rendering check."
-placeholders = []
-```
-
-The [LANG-002 guide](UI_TEXT_GUIDE.md) fixes the full schema, parameter types, literal-brace escaping, multiline rules and protected semantics; the abbreviated example above is illustrative rather than the complete schema. Maintain an independent code-owned required-key/parameter contract: editing text and metadata together must not defeat validation. Length guidance is advisory unless a real API limit requires rejection; character counts do not prove layout fit.
-
-Extend the existing build path to validate TOML and generate typed Rust accessors and a Slint string global into `OUT_DIR`. Static components import the global; parameterised wording uses the same catalogue through Rust presenters and existing properties. [Slint globals](https://docs.slint.dev/docs/slint/guide/language/coding/globals/) support cross-component access and host bindings. Generated imports, syntax escaping and any per-window initialization must be proved on pinned 1.18.1 in LANG-004.
-
-Generated code is not hand-edited or a second English source. Generate deterministically and track both resource contents and directory membership for rebuilds. A TOML-only edit must update Rust and Slint after rebuilding; adding/deleting files must trigger validation. Runtime files are not loaded by privileged workers. `build.rs` needs explicit build-time TOML validation through the shared tooling library; the existing runtime dependency alone is insufficient. Reuse pinned versions without upgrades.
-
-Provide a standalone validator sharing the build rules. Reject malformed/duplicate/unknown/missing keys, invalid schemas, empty required text, placeholder mismatch and generated identifier collisions. No blank/wrong-message fallback. A hard-coded-copy scan supplements the inventory and review; it cannot prove coverage alone.
-
-## Milestones
-
-| Milestone | Cards | Exit gate |
+| Stage | Focus | Complete when |
 |---|---|---|
-| L1: Design and baseline | LANG-001, LANG-002, LANG-003 | Complete inventory/exceptions, consumer map, schema/formatting decision and verbatim comparison baseline |
-| L2: Safe integration | LANG-013, LANG-007, LANG-004 | Copy/control separation, validator failure tests and representative integration pass. TOML-only edits rebuild into Rust and Slint; no live effects needed for this proof |
-| L3: Verbatim migration | LANG-005, LANG-006, LANG-008, LANG-009 | Inventory reconciled; baseline output matches; editor guide delivered; non-hardware gate passes; separately authorized representative rendered/interaction checks evidenced |
-| L4: Editorial delivery | LANG-010, LANG-011, LANG-012 | Resource-only diff reviewed for accurate consequences; validation/build pass; affected rendered surfaces checked; recurring handoff documented |
+| 1. Prepare | Record build, Windows/GPU versions, prepared VMs and authorised effects | Test targets, reset method and evidence location are known |
+| 2. Core workflows | Discovery, initial setup, GPU toggle, VRAM, Apply and Verify | Main journeys pass on the installed candidate |
+| 3. Failure and UI checks | Cancellation, recovery, stale state, responsiveness, layout and wording | Failures have usable next actions; controls remain usable |
+| 4. Regression and acceptance | Retest fixes, run the existing automated gate, review open defects | Required tests pass and the user accepts remaining limitations |
 
-Run focused validator/formatting failure checks when developing those contracts. Run the existing non-hardware gate at integration/migration checkpoints, not after every extraction batch. Record Passed, Failed and Not run separately. Rendering/build checks do not prove VM behavior; do not repeat driver setup solely for screenshots. See [testing](ENGINEERING.md#validation-and-live-acceptance) for effects and evidence.
+## Report and retest
 
-L1 deliverables remain the frozen [inventory](UI_TEXT_INVENTORY.md), [occurrence register](UI_TEXT_OCCURRENCES.md), [catalogue contract](UI_TEXT_GUIDE.md) and [baseline](UI_TEXT_BASELINE.md). L2 passed the current non-hardware checkpoint and restored resource-only rebuild proof on 13 October 2026. The checkpoint includes 10 validator tests, 3 copy-scan tests, 316 root tests, documentation, formatting, strict lint, binary builds and API documentation; rendered/native/guest/protected effects are excluded. LANG-005/008 are implemented, while LANG-006 has an initial typed batch and 288 keys remain in the [migration register](../tests/fixtures/ui-text/migration.json). L3/L4 are not complete: full dynamic/reporting migration, full baseline/clean-build coverage and separately authorized visual acceptance remain. The old APP plan stays accepted complete without creating new live test evidence.
+1. User submits a [questionnaire](../qa/templates/USER_QUESTIONNAIRE.md) or [bug report](../qa/templates/BUG_REPORT_CARD.md) in `qa/inbox/`.
+2. On request, Codex triages reports into `qa/cases/` and updates `qa/INDEX.md`, preserving originals.
+3. Fix authorised defects, record checks and build/install status, then provide GUI retest steps.
+4. The user retests. Close a defect only after successful user acceptance.
 
-## Delivery order and editorial handoff
+**Case states:** New → Triaged → Fixing → Ready for user retest → User verified → Closed. Use Needs information, Blocked, Duplicate or Deferred where appropriate. Track implementation and validation separately.
 
-LANG-001, then LANG-002/LANG-003, then LANG-013/LANG-007 before LANG-004. Extract under LANG-005/LANG-006, finish LANG-008 and close LANG-009. Only then perform LANG-010/LANG-011 and finish LANG-012. IDs remain stable from the proposal; numeric order is not dependency order.
+**Severity:** P0 = unsafe effects, data loss, host instability or secret exposure; P1 = broken core workflow, false success or unusable recovery; P2 = secondary failure or confusing workaround; P3 = cosmetic issue.
 
-Editors receive the catalogue, `docs/UI_TEXT_GUIDE.md` and available non-secret context/screenshots. They edit `text` fields only, flag ambiguity/length risk, and preserve keys, placeholders, metadata/contracts, severity, consent and functional meaning. Codex validates resources and semantics, rebuilds and checks affected layouts. Automated validation cannot prove truthful wording.
+## Validation boundaries
 
-Out of scope: additional languages, runtime language switching/hot reload, general GUI redesign, dependency upgrades, backend operation rewrites, wire/storage format changes and reopening completed APP tasks.
-
-Current checkpoint evidence: `local/evidence/m1-gate-20261013T164555662Z/report.json` and `local/evidence/lang-004-rebuild-20261013T164730986109Z/report.json`. The first attempted checkpoint failed a generator-test assertion that counted unrelated functions; the second failed five needless borrows. Both were corrected before the final passing run. Original resource hashes were restored after the rebuild proof. No live application/native prompt, credential/vault, guest, protected write, VM/GPU or driver effect ran.
+- Record each scenario as Passed, Failed, Blocked or Not tested, with build and evidence. Keep sensitive raw evidence out of Git; use `local/evidence/qa/` for suitable local evidence.
+- Live GUI launches, installation, guest access and VM/GPU effects need explicit target/effect authorisation under [AGENTS.md](../AGENTS.md). Use prepared test VMs; stop on uncertain effects and preserve recovery evidence.
+- At a checkpoint, use the existing non-hardware gate: `powershell -NoProfile -File scripts/testing/check.ps1`. Inspect effects first and follow [engineering validation](ENGINEERING.md#validation-and-live-acceptance). Automated checks do not prove live GUI or GPU behaviour.
+- Acceptance requires no unresolved P0/P1 defects, successful core journeys and fix retests on the candidate, recorded automated results, and explicit disclosure of untested or deferred work.

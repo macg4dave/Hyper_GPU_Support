@@ -13,7 +13,7 @@ $evidence = Join-Path $root "local/evidence/m1-gate-$stamp"
 New-Item -ItemType Directory -Path $evidence -Force | Out-Null
 $stages = @(
     @{ Name = 'Catalogue validator tests'; Tool = 'cargo'; Arguments = @('test', '--locked', '--manifest-path', 'tools/ui-text/standalone/Cargo.toml') },
-    @{ Name = 'Active catalogue'; Tool = 'cargo'; Arguments = @('run', '--locked', '--manifest-path', 'tools/ui-text/standalone/Cargo.toml', '--', 'resources/i18n/en-GB') },
+    @{ Name = 'Active catalogue'; Tool = 'cargo'; Arguments = @('run', '--locked', '--manifest-path', 'tools/ui-text/standalone/Cargo.toml', '--', 'resources/i18n', '--locale', 'en-GB') },
     @{ Name = 'Copy scan tests'; Tool = 'python'; Arguments = @('-B', 'scripts/testing/test_check_ui_copy.py') },
     @{ Name = 'Copy scan'; Tool = 'python'; Arguments = @('-B', 'scripts/testing/check-ui-copy.py') },
     @{ Name = 'Documentation'; Tool = 'python'; Arguments = @('scripts/testing/check-docs.py') },

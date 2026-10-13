@@ -506,6 +506,90 @@ impl Drop for Temp {
 }
 
 #[test]
+fn locale_loading_defaults_and_falls_back_without_changing_catalogue_bytes() {
+    let contract = contract::active();
+    let root = baseline().parent().unwrap().to_owned();
+    let original = ui_text::validate_directory(&baseline(), &contract)
+        .unwrap()
+        .generate();
+    for requested in [
+        None,
+        Some("en-GB"),
+        Some("unavailable"),
+        Some("../../outside"),
+    ] {
+        let loaded = ui_text::locales::load(&root, requested, &contract).unwrap();
+        assert_eq!(loaded.locale, "en-GB");
+        assert_eq!(loaded.available, ["en-GB"]);
+        let unchanged = loaded.catalogue.generate();
+        assert_eq!(original.rust, unchanged.rust);
+        assert_eq!(original.slint, unchanged.slint);
+        let generated = loaded.generate();
+        assert!(
+            generated
+                .rust
+                .contains("pub const LOCALE: &str = \"en-GB\"")
+        );
+        assert!(
+            generated
+                .slint
+                .contains("out property <string> locale: \"en-GB\"")
+        );
+    }
+    // A translation header cannot pick another locale or change fallback policy.
+    assert!(ui_text::validate_locale_documents(documents(), &contract, "unavailable").is_err());
+    // Exercise locale-independent validation in memory with unchanged English.
+    // This private-use test tag is never installed or made available in the app.
+    let mut tagged = documents();
+    for file in tagged.keys().cloned().collect::<Vec<_>>() {
+        change(&mut tagged, &file, |document| {
+            document["locale"] = "en-GB-x-test".into();
+        });
+    }
+    let tagged = ui_text::validate_locale_documents(tagged, &contract, "en-GB-x-test")
+        .unwrap()
+        .generate();
+    assert_eq!(original.rust, tagged.rust);
+    assert_eq!(original.slint, tagged.slint);
+}
+
+#[test]
+fn invalid_locale_roots_or_catalogues_never_fall_back_silently() {
+    let root = Temp::new();
+    let contract = contract::active();
+    assert!(ui_text::locales::load(&root.0, None, &contract).is_err());
+    let locale = root.0.join("en-GB");
+    fs::create_dir(&locale).unwrap();
+    for (file, bytes) in documents() {
+        fs::write(locale.join(file), bytes).unwrap();
+    }
+    assert!(ui_text::locales::load(&root.0, None, &contract).is_ok());
+    let destination = Temp::new();
+    let output = destination.0.join("generated");
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_ui-text"))
+            .arg(&root.0)
+            .args(["--locale", "unavailable", "--generate"])
+            .arg(&output)
+            .output()
+            .unwrap()
+    };
+    assert!(invoke().status.success());
+    let before = fs::read(output.join("ui_text.rs")).unwrap();
+    let common = fs::read(locale.join("common.toml")).unwrap();
+    fs::write(locale.join("common.toml"), b"invalid TOML").unwrap();
+    assert!(ui_text::locales::load(&root.0, Some("unavailable"), &contract).is_err());
+    assert!(!invoke().status.success());
+    assert_eq!(fs::read(output.join("ui_text.rs")).unwrap(), before);
+    fs::write(locale.join("common.toml"), common).unwrap();
+    fs::write(root.0.join("unexpected.toml"), b"").unwrap();
+    assert!(ui_text::locales::load(&root.0, None, &contract).is_err());
+    fs::remove_file(root.0.join("unexpected.toml")).unwrap();
+    fs::remove_file(locale.join("common.toml")).unwrap();
+    assert!(ui_text::locales::load(&root.0, None, &contract).is_err());
+}
+
+#[test]
 fn links_and_windows_reparse_directories_are_rejected_without_reading_targets() {
     let catalogue = Temp::new();
     catalogue.copy();
@@ -525,6 +609,7 @@ fn links_and_windows_reparse_directories_are_rejected_without_reading_targets() 
     std::os::unix::fs::symlink(&target.0, &link).unwrap();
     assert!(ui_text::validate_directory(&catalogue.0, &contract::active()).is_err());
     assert!(ui_text::validate_directory(&link, &contract::active()).is_err());
+    assert!(ui_text::locales::load(&link, None, &contract::active()).is_err());
     #[cfg(windows)]
     fs::remove_dir(&link).unwrap();
     #[cfg(not(windows))]

@@ -50,6 +50,10 @@ fn catalogue_globals_initialize_in_two_independent_headless_windows() {
     let unknown = text("common", "common.state.unknown");
     for window in [&first, &second] {
         assert_eq!(
+            window.global::<UiText>().get_locale(),
+            hyper_gpu_support::ui_text::LOCALE
+        );
+        assert_eq!(
             window.global::<UiText>().get_operations_verify_title(),
             title
         );
