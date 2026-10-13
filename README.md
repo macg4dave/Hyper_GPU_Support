@@ -16,7 +16,7 @@ The VRAM range does not establish enforced isolation. Automatic balancing and fu
 
 ## Current state
 
-The previous APP backlog is complete by user confirmation on 13 October 2026. Current development is the [UI text extraction roadmap](docs/roadmap.md). The [LANG-001 inventory](docs/UI_TEXT_INVENTORY.md) is complete; LANG-002 catalogue design is next. The catalogue is planned, not implemented. Earlier source and check summaries in the handbook are historical context and do not reopen completed APP gates or establish new test results.
+The previous APP backlog is complete by user confirmation on 13 October 2026. Current development is the [UI text extraction roadmap](docs/roadmap.md). The [inventory](docs/UI_TEXT_INVENTORY.md), [catalogue design](docs/UI_TEXT_GUIDE.md) and [source-derived verbatim baseline](docs/UI_TEXT_BASELINE.md) are complete; LANG-013 copy/control separation is next. The catalogue is planned, not implemented. Earlier source and check summaries in the handbook are historical context and do not reopen completed APP gates or establish new test results.
 
 Legacy mock/snapshot GUI tooling has been removed under APP-001 and passed the M1 automated gate. Its flags are unsupported; backend unit test doubles remain.
 

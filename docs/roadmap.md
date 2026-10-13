@@ -1,6 +1,6 @@
 # UI text development roadmap
 
-Status: L1 in progress; LANG-001 inventory complete. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
+Status: L1 deliverables recorded; LANG-001 inventory, LANG-002 design and LANG-003 source-derived baseline complete. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
 
 ## Outcome and viability
 
@@ -45,11 +45,11 @@ context = "Action/title for a reviewed driver/setup and rendering check."
 placeholders = []
 ```
 
-LANG-002 settles the full schema, parameter types, literal-brace escaping, multiline rules and protected semantics. Maintain an independent code-owned required-key/parameter contract: editing text and metadata together must not defeat validation. Length guidance is advisory unless a real API limit requires rejection; character counts do not prove layout fit.
+The [LANG-002 guide](UI_TEXT_GUIDE.md) fixes the full schema, parameter types, literal-brace escaping, multiline rules and protected semantics; the abbreviated example above is illustrative rather than the complete schema. Maintain an independent code-owned required-key/parameter contract: editing text and metadata together must not defeat validation. Length guidance is advisory unless a real API limit requires rejection; character counts do not prove layout fit.
 
 Extend the existing build path to validate TOML and generate typed Rust accessors and a Slint string global into `OUT_DIR`. Static components import the global; parameterised wording uses the same catalogue through Rust presenters and existing properties. [Slint globals](https://docs.slint.dev/docs/slint/guide/language/coding/globals/) support cross-component access and host bindings. Generated imports, syntax escaping and any per-window initialization must be proved on pinned 1.18.1 in LANG-004.
 
-Generated code is not hand-edited or a second English source. Generate deterministically and track both resource contents and directory membership for rebuilds. A TOML-only edit must update Rust and Slint after rebuilding; adding/deleting files must trigger validation. Runtime files are not loaded by privileged workers. `build.rs` needs an explicit TOML build dependency; the existing runtime dependency alone is insufficient. Reuse pinned versions without upgrades.
+Generated code is not hand-edited or a second English source. Generate deterministically and track both resource contents and directory membership for rebuilds. A TOML-only edit must update Rust and Slint after rebuilding; adding/deleting files must trigger validation. Runtime files are not loaded by privileged workers. `build.rs` needs explicit build-time TOML validation through the shared tooling library; the existing runtime dependency alone is insufficient. Reuse pinned versions without upgrades.
 
 Provide a standalone validator sharing the build rules. Reject malformed/duplicate/unknown/missing keys, invalid schemas, empty required text, placeholder mismatch and generated identifier collisions. No blank/wrong-message fallback. A hard-coded-copy scan supplements the inventory and review; it cannot prove coverage alone.
 
@@ -64,7 +64,7 @@ Provide a standalone validator sharing the build rules. Reject malformed/duplica
 
 Run focused validator/formatting failure checks when developing those contracts. Run the existing non-hardware gate at integration/migration checkpoints, not after every extraction batch. Record Passed, Failed and Not run separately. Rendering/build checks do not prove VM behavior; do not repeat driver setup solely for screenshots. See [testing](TESTING.md) for effects and evidence.
 
-L1 is in progress: the [LANG-001 inventory](UI_TEXT_INVENTORY.md) and [occurrence register](UI_TEXT_OCCURRENCES.md) are complete through static review. The catalogue contract and evaluated verbatim baseline remain LANG-002/003; L1 is not closed. L2–L4 remain planned. The old APP plan is accepted complete: no legacy card, removed evidence page or old live scenario blocks this work. Acceptance does not create new test evidence. Existing product/security behavior remains the baseline to preserve.
+L1 inventory/design/baseline deliverables are recorded through static and targeted fixture review: [inventory](UI_TEXT_INVENTORY.md), [occurrence register](UI_TEXT_OCCURRENCES.md), [catalogue contract](UI_TEXT_GUIDE.md) and [verbatim baseline/batches](UI_TEXT_BASELINE.md). Expected strings are source-derived, not executed product/visual evidence; no compiled/runtime milestone is claimed. Repository documentation checking still reports links to deleted handbook pages. No catalogue/validator/integration is implemented yet. LANG-013 and LANG-007 are ready for L2 source work, in that order; L2–L4 gates remain pending. The old APP plan is accepted complete: no legacy card, removed evidence page or old live scenario blocks this work. Acceptance does not create new test evidence. Existing product/security behavior remains the baseline to preserve.
 
 ## Delivery order and editorial handoff
 

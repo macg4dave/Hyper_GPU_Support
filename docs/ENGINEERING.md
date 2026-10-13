@@ -37,6 +37,9 @@ Evidence for a gate/run records revision and working-tree context, exact command
 | [Rust guidance](../.github/prompts/rust.prompt.md), [Slint guidance](../.github/prompts/slint.prompt.md) | Focused coding practices, loaded for applicable source work |
 | [Roadmap](roadmap.md) | Release requirements, sequence, milestone gates |
 | [Backlog](backlog.md) | Task IDs, dependencies, implementation/validation status, next action |
+| [UI text guide](UI_TEXT_GUIDE.md) | Catalogue schema, formatting/generation contract and editor handoff |
+| [UI text inventory](UI_TEXT_INVENTORY.md) | Presentation consumer/classification audit and extraction coverage |
+| [UI text baseline](UI_TEXT_BASELINE.md) | Final extraction mapping, historical output fixtures and semantic regression requirements |
 | [Baseline](BASELINE.md) | Source inventory, discrepancies, assessment limits |
 | [Architecture](ARCHITECTURE.md) | Components, state separation, data flow |
 | [Configuration](CONFIGURATION.md) | Production intent schemas, storage, compatibility |

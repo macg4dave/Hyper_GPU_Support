@@ -1,6 +1,6 @@
 # UI text development backlog
 
-Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory is complete; no catalogue/integration exists yet. Open cards do not authorize automatic execution.
+Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory, LANG-002 design and LANG-003 baseline are complete; no catalogue/integration exists yet. Open cards do not authorize automatic execution.
 
 ## Completed legacy work
 
@@ -8,25 +8,25 @@ The previous APP backlog is complete by user confirmation on 13 October 2026. AP
 
 ## Next implementation action
 
-**LANG-002: define catalogue and generation contracts.** Use the [reviewed inventory](UI_TEXT_INVENTORY.md) and its [occurrence register](UI_TEXT_OCCURRENCES.md), including the copy/control dependencies, to settle the schema and typed generation design. Complete one requested card at a time.
+**LANG-013: separate control data from editable copy.** Use the [baseline and batches](UI_TEXT_BASELINE.md), its [control contract](../tests/fixtures/ui-text/control-contract.json), and the inventory's CD1–CD12 register to preserve original output/worker formats while removing display-string decisions. LANG-007 is also ready, after this source separation in the chosen sequence. Complete one requested card at a time.
 
 ## Task register
 
 | Task | Implementation | Validation | Dependencies | Milestone |
 |---|---|---|---|---|
 | LANG-001 | Done | Static review passed; repository docs check failed (deleted handbook links) | None | L1 |
-| LANG-002 | Ready | Not run | LANG-001 | L1 |
-| LANG-003 | Blocked | Not run | LANG-001, LANG-002 | L1 |
+| LANG-002 | Done | Passed: design/targeted checks; Failed: repository docs links | LANG-001 | L1 |
+| LANG-003 | Done | Passed: targeted baseline review; Failed: repository docs links | LANG-001, LANG-002 | L1 |
 | LANG-004 | Blocked | Not run | LANG-003, LANG-007, LANG-013 | L2 |
 | LANG-005 | Blocked | Not run | LANG-004 | L3 |
 | LANG-006 | Blocked | Not run | LANG-005 | L3 |
-| LANG-007 | Blocked | Not run | LANG-002, LANG-003 | L2 |
+| LANG-007 | Ready | Not run | LANG-002, LANG-003 | L2 |
 | LANG-008 | Blocked | Not run | LANG-004, LANG-007 | L3 |
 | LANG-009 | Blocked | Not run | LANG-005, LANG-006, LANG-008 | L3 |
 | LANG-010 | Blocked | Not run | LANG-009 | L4 |
 | LANG-011 | Blocked | Not run | LANG-010 | L4 |
 | LANG-012 | Blocked | Not run | LANG-011 | L4 |
-| LANG-013 | Blocked | Not run | LANG-003 | L2 |
+| LANG-013 | Ready | Not run | LANG-003 | L2 |
 
 Blocked refers only to outstanding new LANG dependencies. No legacy APP gate applies. Future validator commands must be documented when implemented; the existing non-hardware gate is `powershell -NoProfile -File scripts/testing/check.ps1`.
 
@@ -54,6 +54,8 @@ Design build-time Rust accessors and a Slint global using existing compilation, 
 
 Acceptance: fixed, parameterised, multiline and native-prompt examples have unambiguous contracts grounded in current consumers. Validation: design/source review; prototype proof belongs to LANG-004.
 
+Delivered 13 October 2026: [catalogue/generation contract](UI_TEXT_GUIDE.md), including feature/schema/key rules, typed parameters and one-pass formatting, independent required-key/metadata/API contracts, native bounds, per-window Slint literal defaults, Rust/library/shared CLI integration, deterministic escaping/rebuild tracking and a product-independent validator design. Static source/design review, targeted guide links/whitespace, TOML examples/parameter declarations, verbatim source comparison and native worst-case length arithmetic passed (`python -B -X utf8 local/evidence/lang-002/review.py`); `git diff --check` passed. `python scripts/testing/check-docs.py` failed on the same 22 links to deleted handbook pages. No catalogue/tool/product implementation, build, Rust tests or live operations ran. Compile/incremental proof remains LANG-004; L1 still requires LANG-003.
+
 ### LANG-003 - Record baseline and extraction batches
 
 Dependencies: LANG-001, LANG-002.
@@ -61,6 +63,8 @@ Dependencies: LANG-001, LANG-002.
 Map producers to keys and preserve original punctuation, whitespace, branches and number/unit formatting, including existing spelling until editorial review. Define feature batches and expected outputs for setup, ordinary Apply, Verify, repair, removal, deletion, cancellation, uncertainty and recovery. Include synthetic quotes/braces/slashes/newlines/Unicode/long names. Separate stable semantic tests from verbatim migration checks.
 
 Acceptance: traceable old-to-new comparison and LANG-013 coverage of control-data risks. Validation: baseline review; no invented visual/live results.
+
+Delivered 13 October 2026: [baseline/batches](UI_TEXT_BASELINE.md), [final source-to-key mapping](../tests/fixtures/ui-text/mapping.json), [expected outputs](../tests/fixtures/ui-text/outputs.json) and [semantic control requirements](../tests/fixtures/ui-text/control-contract.json). All 1,404 inventoried occurrences have a disposition; 696 final keys have typed bindings and comparison examples; 841 source-derived expectations cover required journeys/data/format boundaries and all twelve control risks are assigned to LANG-013. `python -B -X utf8 local/evidence/lang-003/review.py` and `git diff --check` passed; `python scripts/testing/check-docs.py` failed on the same 22 links to deleted handbook pages. These are reviewed source-derived outputs, not executed product Rust/Slint tests. No product changes, catalogue implementation, builds, rendering, credentials or VM/guest/protected effects ran. Actual presenter comparison and generation/runtime proof remain later gates.
 
 ### LANG-004 - Integrate the build-time catalogue
 
