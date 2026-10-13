@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "baseline": "tests/fixtures/ui-text/validator/baseline",
+  "paths": [
+    {"path": "tools/ui-text/src/contract.rs", "mode": "enforce", "reason": "Independent contract metadata may explain meaning but must contain no baseline fallback wording."},
+    {"path": "tools/ui-text/src/generate.rs", "mode": "enforce", "reason": "Generator serializes validated segments; no active baseline wording may be embedded in tooling."},
+    {"path": "src/gui/wording.rs", "mode": "pending", "reason": "LANG-004 migrates representative consent; remaining operation copy awaits LANG-006. Test-only copy is excluded."},
+    {"path": "src/credentials.rs", "mode": "pending", "reason": "LANG-004 migrates representative native wording; immutable cancellation and errors await explicit classification. Rust tests excluded."},
+    {"path": "src/gui/ui/app.slint", "mode": "pending", "reason": "Product entrypoint/default copy awaits LANG-004/005; no generated global is imported yet."},
+    {"path": "src/gui/ui/details.slint", "mode": "pending", "reason": "Static details labels await LANG-005; typed control flags were separated in LANG-013."},
+    {"path": "src/gui/ui/dialogs.slint", "mode": "pending", "reason": "Static dialog labels await LANG-005; action/dialog tokens are immutable protocol exceptions."}
+  ]
+}

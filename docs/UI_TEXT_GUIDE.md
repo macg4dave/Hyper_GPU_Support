@@ -1,6 +1,6 @@
 # UI text catalogue and generation contract
 
-LANG-002 design, 13 October 2026. This guide fixes the resource/formatting/build contract for the [roadmap](roadmap.md), grounded in the [inventory](UI_TEXT_INVENTORY.md) and [source register](UI_TEXT_OCCURRENCES.md). The [LANG-003 baseline](UI_TEXT_BASELINE.md) now records final keys, source-derived expectations and extraction batches. The catalogue, validator and generated bindings are not implemented yet. LANG-007 implements validation; LANG-013 separates control from copy; LANG-004 proves integration. LANG-008 completes the editor handoff with actual commands and catalogue entries.
+LANG-002 design, 13 October 2026. This guide fixes the resource/formatting/build contract for the [roadmap](roadmap.md), grounded in the [inventory](UI_TEXT_INVENTORY.md) and [source register](UI_TEXT_OCCURRENCES.md). The [LANG-003 baseline](UI_TEXT_BASELINE.md) now records final keys, source-derived expectations and extraction batches. LANG-007 now implements the isolated validator/generator and LANG-013 separates control from copy. The product catalogue/build bindings are still pending LANG-004 integration. LANG-008 completes the editor handoff with actual commands and catalogue entries.
 
 ## Ownership and files
 
@@ -72,7 +72,7 @@ Booleans, power/availability/resource display choices and singular/plural wordin
 
 ## Independent code contract
 
-LANG-007 will implement a Rust contract in the validation/generation tool, separate from all resource files. For each key it records:
+LANG-007 implements a Rust contract in [the validation/generation tool](../tools/ui-text/src/contract.rs), separate from all resource files. For each key it records:
 
 - Required owning feature/file, semantic key and generated Rust/Slint names; explicit fixed-versus-parameterised consumer kind.
 - Exact non-text metadata from the schema above, including protected consequence/severity context.
@@ -154,7 +154,7 @@ Placeholder example: a template `Recorded name: {vm_name}; literal {{final_power
 
 ## Build and consumer integration
 
-Use one small build-time Rust crate at the proposed `tools/ui-text/` path, with a reusable library and standalone validator binary. The root package declares an explicit path build dependency on that library. Its TOML/Serde dependencies reuse the root lockfile's resolved versions (currently TOML `0.9.12+spec-1.1.0`, Serde `1.0.229`); adding build/standalone entries must not upgrade existing dependencies. Root `toml = "0.9.8"` is a compatible requirement, not the resolved version. The standalone tool has an isolated workspace/lockfile and no dependency on the product, Slint, Windows backend or resources at compile time. Keep its dependency versions aligned with the root lockfile.
+The [tools/ui-text crate](../tools/ui-text/README.md) now provides the reusable validation/generation library and standalone validator binary. The root package declares an explicit path build dependency on that library. Its TOML/Serde dependencies reuse the root lockfile's resolved versions (currently TOML `0.9.12+spec-1.1.0`, Serde `1.0.229`); adding build/standalone entries must not upgrade existing dependencies. Root `toml = "0.9.8"` is a compatible requirement, not the resolved version. The standalone tool has an isolated workspace/lockfile and no dependency on the product, Slint, Windows backend or resources at compile time. Keep its dependency versions aligned with the root lockfile.
 
 This makes TOML parsing explicitly available to the build without relying on the product's runtime dependency. Build and standalone both call the same library functions for file discovery, schema/contract validation, template parsing and deterministic generation. The standalone accepts a catalogue directory and validates it at execution time, so malformed resources do not stop compilation of the validator itself. The tool is contributor tooling, not a new installed product binary or privileged runtime loader.
 
@@ -186,8 +186,25 @@ LANG-007 tests invalid fixtures and adversarial quotes/braces/slashes/newlines/U
 
 Editors receive the catalogue and context after LANG-009. Edit only `text`; preserve placeholders, keys, metadata, severity, consent, conditional success/unknown wording and the distinction between copying, preparation, verification and saved permission. Report ambiguous meaning or clipping risk rather than revising operation semantics. British English editorial improvements belong to LANG-010; key/source changes return to the developer.
 
-The future standalone command will target the independent tool manifest and resource directory. It is deliberately not presented as an executable command yet: neither manifest nor validator exists. LANG-007 documents the real focused validator/test commands; LANG-004 adds its shared checks to [the existing non-hardware gate](../scripts/testing/check.ps1), including resource/contract hashes in evidence inputs. LANG-008 supplies actual editor validation/rebuild commands and screenshots/context available at handoff.
+The standalone command now targets the independent tool manifest and resource directory, using the exact code-owned active set. [Executable commands and validation scope](../tools/ui-text/README.md) are documented; LANG-004 adds its shared checks to [the existing non-hardware gate](../scripts/testing/check.ps1), including resource/contract hashes in evidence inputs. LANG-008 supplies actual editor validation/rebuild commands and screenshots/context available at handoff.
 
 Design/source review passed using current producers, Cargo manifest/lockfile, pinned Slint build API/docs and Windows bindings/docs. `python -B -X utf8 local/evidence/lang-002/review.py` passed guide links/whitespace, three TOML example blocks, required fields/parameter declarations, verbatim source comparison and native worst-case UTF-16 arithmetic (818 units including termination for the prompt example). `git diff --check` passed. `python scripts/testing/check-docs.py` failed on the same 22 links to deleted handbook pages; no unrelated files were restored or changed to resolve them.
 
 No product compilation, generated prototype, Rust test execution, GUI/native prompt, guest access, protected write, VM/GPU effect or installation ran. These example checks do not validate a formatter/generator implementation, which does not exist yet. The subsequent [LANG-003 baseline](UI_TEXT_BASELINE.md) records final mapping and source-derived expectations; current next work is in the [backlog](backlog.md#next-implementation-action).
+
+
+## LANG-007 implemented checks
+
+The isolated tool accepts the nine-key baseline under `tests/fixtures/ui-text/validator/baseline` with strict UTF-8 TOML and independently fixed metadata/types/occurrences/native budgets. It has no fallback English in its contract, no resource input at tool compilation time, and no dependency on product or Slint. Generated output is deterministic and uses separate Rust/Slint serializers. These source bytes have not yet passed LANG-004 generated-code compilation or consumer integration.
+
+```powershell
+cargo test --locked --manifest-path tools/ui-text/Cargo.toml
+cargo run --locked --manifest-path tools/ui-text/Cargo.toml -- tests/fixtures/ui-text/validator/baseline
+cargo run --locked --manifest-path tools/ui-text/Cargo.toml -- tests/fixtures/ui-text/validator/baseline --generate local/evidence/ui-text-generated
+python -B scripts/testing/test_check_ui_copy.py
+python -B scripts/testing/check-ui-copy.py --json
+```
+
+The nine Rust tests exercise schema/encoding/file/key failures, metadata/type changes, grammar/occurrences, generated name collisions, deterministic/adversarial source serialization, native UTF-16 boundaries and filesystem/CLI failure publication. A temporary Windows junction verifies reparse rejection; it does not access guests or protected data. Two Python tests exercise the copy scan, including Rust test exclusion. Known active baseline literals in tooling are hard errors; product findings stay advisory under reviewed pending-extraction exceptions. The scan does not replace inventory reconciliation or semantic wording review.
+
+Focused checks passed on 13 October 2026; repository documentation checking still fails on 22 existing deleted-handbook links. Root build integration, generated-code compile proof, resource-only rebuilds, the full L2 gate and rendered behavior remain unverified. Product wording is still in its original producers until LANG-004/005/006 activate consumers.

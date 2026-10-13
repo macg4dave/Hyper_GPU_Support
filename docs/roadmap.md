@@ -1,6 +1,6 @@
 # UI text development roadmap
 
-Status: L1 deliverables recorded; LANG-001 inventory, LANG-002 design and LANG-003 source-derived baseline complete; LANG-013 source separation implemented with focused semantic checks. L2 remains open. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
+Status: L1 deliverables recorded; LANG-001 inventory, LANG-002 design and LANG-003 source-derived baseline complete; LANG-013 source separation and LANG-007 isolated validation/generation implemented with focused checks. L2 remains open. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
 
 ## Outcome and viability
 
@@ -64,7 +64,7 @@ Provide a standalone validator sharing the build rules. Reject malformed/duplica
 
 Run focused validator/formatting failure checks when developing those contracts. Run the existing non-hardware gate at integration/migration checkpoints, not after every extraction batch. Record Passed, Failed and Not run separately. Rendering/build checks do not prove VM behavior; do not repeat driver setup solely for screenshots. See [testing](TESTING.md) for effects and evidence.
 
-L1 inventory/design/baseline deliverables are recorded through static and targeted fixture review: [inventory](UI_TEXT_INVENTORY.md), [occurrence register](UI_TEXT_OCCURRENCES.md), [catalogue contract](UI_TEXT_GUIDE.md) and [verbatim baseline/batches](UI_TEXT_BASELINE.md). Expected strings are source-derived, not executed product/visual evidence; no compiled/runtime milestone is claimed. Repository documentation checking still reports links to deleted handbook pages. No catalogue/validator/integration is implemented yet. LANG-013 and LANG-007 are ready for L2 source work, in that order; L2–L4 gates remain pending. The old APP plan is accepted complete: no legacy card, removed evidence page or old live scenario blocks this work. Acceptance does not create new test evidence. Existing product/security behavior remains the baseline to preserve.
+L1 inventory/design/baseline deliverables are recorded through static and targeted fixture review: [inventory](UI_TEXT_INVENTORY.md), [occurrence register](UI_TEXT_OCCURRENCES.md), [catalogue contract](UI_TEXT_GUIDE.md) and [verbatim baseline/batches](UI_TEXT_BASELINE.md). Expected strings are source-derived, not executed product/visual evidence; no compiled/runtime milestone is claimed. Repository documentation checking still reports links to deleted handbook pages. LANG-013 control separation and LANG-007 isolated validator/generator checks have passed. The product catalogue/build integration is not implemented yet; LANG-004 is ready for representative L2 integration; L2–L4 gates remain pending. The old APP plan is accepted complete: no legacy card, removed evidence page or old live scenario blocks this work. Acceptance does not create new test evidence. Existing product/security behavior remains the baseline to preserve.
 
 ## Delivery order and editorial handoff
 

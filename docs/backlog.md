@@ -1,6 +1,6 @@
 # UI text development backlog
 
-Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory, LANG-002 design and LANG-003 baseline and LANG-013 control separation are complete; no catalogue/integration exists yet. Open cards do not authorize automatic execution.
+Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory, LANG-002 design and LANG-003 baseline and LANG-013 control separation are complete; LANG-007 validation tooling is complete; product catalogue/integration remains pending. Open cards do not authorize automatic execution.
 
 ## Completed legacy work
 
@@ -8,7 +8,7 @@ The previous APP backlog is complete by user confirmation on 13 October 2026. AP
 
 ## Next implementation action
 
-**LANG-007: implement catalogue validation.** Use the independent contract in the [UI text guide](UI_TEXT_GUIDE.md) and the historical [baseline/batches](UI_TEXT_BASELINE.md). LANG-013 control separation is implemented; LANG-004 remains blocked on validator delivery. Complete one requested card at a time.
+**LANG-004: prove representative build and consumer integration.** Use the shared [validator crate](../tools/ui-text/README.md) and the exact nine-key active contract/fixture subset. Wire the root build to validation/generation, prove generated Rust/Slint compilation and TOML-only directory/file rebuilds, then migrate the prepared representative consumers. Complete one requested card at a time.
 
 ## Task register
 
@@ -17,10 +17,10 @@ The previous APP backlog is complete by user confirmation on 13 October 2026. AP
 | LANG-001 | Done | Static review passed; repository docs check failed (deleted handbook links) | None | L1 |
 | LANG-002 | Done | Passed: design/targeted checks; Failed: repository docs links | LANG-001 | L1 |
 | LANG-003 | Done | Passed: targeted baseline review; Failed: repository docs links | LANG-001, LANG-002 | L1 |
-| LANG-004 | Blocked | Not run | LANG-003, LANG-007, LANG-013 | L2 |
+| LANG-004 | Ready | Not run | LANG-003, LANG-007, LANG-013 | L2 |
 | LANG-005 | Blocked | Not run | LANG-004 | L3 |
 | LANG-006 | Blocked | Not run | LANG-005 | L3 |
-| LANG-007 | Ready | Not run | LANG-002, LANG-003 | L2 |
+| LANG-007 | Done | Passed: focused validator/scan checks; L2 integration pending | LANG-002, LANG-003 | L2 |
 | LANG-008 | Blocked | Not run | LANG-004, LANG-007 | L3 |
 | LANG-009 | Blocked | Not run | LANG-005, LANG-006, LANG-008 | L3 |
 | LANG-010 | Blocked | Not run | LANG-009 | L4 |
@@ -103,6 +103,10 @@ Implement one core shared by standalone validation and build generation. Reject 
 Add isolated failure fixtures, deterministic generation checks and adversarial Unicode/braces/quotes/newlines/code-like text. Invalid resources must stop generation/build. Add a focused hard-coded-copy scan with reviewed exceptions; use lexical scans as advisory where classification is unreliable. Reconcile inventory separately.
 
 Acceptance: documented local checks reject each invalid fixture and accept baseline resources; build/standalone checks share rules. Validation: execute targeted validator/failure tests here; generated compile proof at LANG-004. No GUI/hardware effects.
+
+Delivered 13 October 2026: isolated `tools/ui-text` library/CLI, pinned aligned lockfile, independent nine-key active contract, strict baseline/failure fixtures, deterministic segment-based Rust/Slint generation and focused copy scan with reviewed pending-source exceptions. Rust tests use synthetic edits and semantic validation assertions rather than duplicated UI English. The historical mapping/outputs are unchanged; no shipped catalogue or root build integration was added.
+
+Focused validation: nine Rust validator tests and two Python scan tests passed; standalone baseline validation/generation and copy scan passed. Formatting/diff checks passed. Repository docs checking still reports the existing 22 deleted-handbook links. Generated-source compile proof, root non-hardware/L2 gate, product rebuild propagation and rendered/live behavior remain pending LANG-004/later gates. See [tool commands and boundaries](../tools/ui-text/README.md).
 
 ### LANG-008 - Complete the editor guide
 
