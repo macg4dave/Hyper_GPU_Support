@@ -17,7 +17,7 @@ SPEC.loader.exec_module(CHECK)
 
 
 class PlanChecks(unittest.TestCase):
-    def check_plan(self, dependencies, *, roadmap="LANG-001", extra="", card_dependencies=None):
+    def check_plan(self, dependencies, *, roadmap=None, extra="", card_dependencies=None, qa_layout=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             docs = root / "docs"
@@ -25,13 +25,19 @@ class PlanChecks(unittest.TestCase):
             rows = []
             cards = []
             for task, deps in dependencies.items():
-                rows.append(f"| {task} | Ready | Not run | {', '.join(deps) or 'None'} | L1 |")
+                if qa_layout:
+                    rows.append(f"| {task} | Prepare | Work | Ready | {', '.join(deps) or 'None'} | Not run |")
+                else:
+                    rows.append(f"| {task} | Ready | Not run | {', '.join(deps) or 'None'} | L1 |")
                 declared = (card_dependencies or {}).get(task, deps)
                 cards.append(f"### {task} - Work\n\nDependencies: {', '.join(declared) or 'None'}.\n")
             (docs / "backlog.md").write_text(
-                "# Backlog\n" + "\n".join(rows + cards) + extra, encoding="utf-8"
+                "# Backlog\n"
+                + ("| ID | Stage | Task | Implementation | Dependencies | Validation |\n" if qa_layout
+                   else "| ID | Implementation | Validation | Dependencies | Stage |\n")
+                + "\n".join(rows + cards) + extra, encoding="utf-8"
             )
-            (docs / "roadmap.md").write_text("# Roadmap\n" + roadmap, encoding="utf-8")
+            (docs / "roadmap.md").write_text("# Roadmap\n" + (roadmap if roadmap is not None else next(iter(dependencies), "No tasks")), encoding="utf-8")
             output = io.StringIO()
             with patch.object(CHECK, "ROOT", root), patch.object(
                 CHECK.subprocess, "check_output", return_value=b""
@@ -86,6 +92,46 @@ class PlanChecks(unittest.TestCase):
         )
         self.assertEqual(result, 1)
         self.assertIn("missing link missing.md", output)
+
+    def test_qa_plan_accepts_historical_language_context(self):
+        result, output = self.check_plan(
+            {"QA-001": [], "QA-002": ["QA-001"]},
+            roadmap="QA-001 and QA-002; LANG-006 is historical.",
+            qa_layout=True,
+        )
+        self.assertEqual(result, 0, output)
+
+    def test_unknown_qa_roadmap_task_fails(self):
+        result, output = self.check_plan({"QA-001": []}, roadmap="QA-099")
+        self.assertEqual(result, 1)
+        self.assertIn("unknown task QA-099", output)
+
+    def test_qa_dependency_cycle_fails(self):
+        result, output = self.check_plan(
+            {"QA-001": ["QA-002"], "QA-002": ["QA-001"]}
+        )
+        self.assertEqual(result, 1)
+        self.assertIn("cyclic task dependency", output)
+
+    def test_qa_missing_dependency_fails(self):
+        result, output = self.check_plan({"QA-001": ["QA-099"]})
+        self.assertEqual(result, 1)
+        self.assertIn("invalid dependency QA-099", output)
+
+    def test_qa_card_register_disagreement_fails(self):
+        result, output = self.check_plan(
+            {"QA-001": [], "QA-002": ["QA-001"]},
+            card_dependencies={"QA-002": []},
+        )
+        self.assertEqual(result, 1)
+        self.assertIn("card and register dependencies differ", output)
+
+    def test_qa_duplicate_register_fails(self):
+        result, output = self.check_plan(
+            {"QA-001": []}, extra="\n| QA-001 | Ready | Not run | None | Prepare |\n"
+        )
+        self.assertEqual(result, 1)
+        self.assertIn("same unique task IDs", output)
 
     def test_empty_active_plan_fails(self):
         result, output = self.check_plan({}, roadmap="No tasks")

@@ -1,32 +1,63 @@
-﻿# QA roadmap
+# QA roadmap
 
-**Status:** Planned; no tests run under this plan.
+**Status:** Planned; no QA tests run under this plan.
 
-Test the installed Windows application through its normal GUI workflow. Reuse existing automated checks and the [QA report folder](../qa/README.md). Track planned work in the [QA backlog](QA_BACKLOG.md) and defects in the [case index](../qa/INDEX.md).
+Qualify the installed Windows application through the [agreed user workflow](../README.md#agreed-workflow): discover an existing VM/GPU, configure, review, enrol, Apply, Verify and make everyday changes. Preserve the existing Slint UI, shared Rust core and protected operation architecture. Track tasks in the [backlog](backlog.md), observations through the [QA guide](../qa/README.md), and defects in the [case index](../qa/INDEX.md).
+
+This page owns the QA scope and acceptance gates. [Engineering](ENGINEERING.md) owns repository status/evidence conventions and check timing; [AGENTS.md](../AGENTS.md) owns authorisation. Earlier APP work and language-extraction records remain historical context, not proof of current behaviour. Address defects in existing workflows; new features and broad refactors need their own requested scope.
 
 ## Test stages
 
 | Stage | Focus | Complete when |
 |---|---|---|
-| 1. Prepare | Record build, Windows/GPU versions, prepared VMs and authorised effects | Test targets, reset method and evidence location are known |
-| 2. Core workflows | Discovery, initial setup, GPU toggle, VRAM, Apply and Verify | Main journeys pass on the installed candidate |
-| 3. Failure and UI checks | Cancellation, recovery, stale state, responsiveness, layout and wording | Failures have usable next actions; controls remain usable |
-| 4. Regression and acceptance | Retest fixes, run the existing automated gate, review open defects | Required tests pass and the user accepts remaining limitations |
+| 1. Prepare | Choose resettable test VMs, starting states, allowed effects, stop conditions and evidence location | Sessions can be run safely; an exact release candidate is not required |
+| 2. Core workflows | Discovery, initial setup, GPU toggle, VRAM, Apply and Verify | Actual GUI outcomes and guest health/final power state are recorded |
+| 3. Failure and UI checks | Cancellation, recovery, stale state, responsiveness, layout, keyboard access and wording | Failures have supported next actions; actions remain readable and reachable |
+| 4. Regression and acceptance | Identify the installed candidate, retest fixes and core journeys, run the existing automated gate and review open defects | Candidate-specific results and limitations support the user's acceptance decision |
 
-## Report and retest
+Early exploratory sessions may use the current installed app. Record the version/build if readily available; unknown identity does not block early testing. Exact installed build/revision and automated evidence become required at QA-009, before final acceptance. Early passes do not transfer automatically to that candidate.
 
-1. User submits a [questionnaire](../qa/templates/USER_QUESTIONNAIRE.md) or [bug report](../qa/templates/BUG_REPORT_CARD.md) in `qa/inbox/`.
-2. On request, Codex triages reports into `qa/cases/` and updates `qa/INDEX.md`, preserving originals.
-3. Fix authorised defects, record checks and build/install status, then provide GUI retest steps.
-4. The user retests. Close a defect only after successful user acceptance.
+## Test journeys
 
-**Case states:** New → Triaged → Fixing → Ready for user retest → User verified → Closed. Use Needs information, Blocked, Duplicate or Deferred where appropriate. Track implementation and validation separately.
+| Journey | What to check |
+|---|---|
+| Open/close and discovery | Correct VM/GPU identity, installation/enrolment state, preserved selection and drafts across refresh/reopening |
+| Initial setup | Enable GPU, choose VRAM, review actual changes and power transitions, consent/enrolment, Apply and Verify; confirm guest health and agreed final power state |
+| Everyday changes | VRAM from 1 GB to selected-card physical capacity; disable/re-enable without repeating setup; saved and observed state agree after refresh/reopening |
+| Verify, repair and profile removal | Missing drivers, stale enrolment/state, missing VM/GPU and configuration mismatch produce truthful results and supported next steps; profile removal is clearly distinguished from GPU/guest effects |
+| Cancellation and recovery | Cancel review/credentials, reject guest access, interrupt authorised work, reopen with unresolved records; retain warnings and evidence without silent retry or clearing holds |
+| Usability | Minimum window size, long names/text, DPI/themes, keyboard focus, scrolling, reachable actions, progress and useful error wording |
+| Responsiveness | Observe several periodic refresh cycles while editing and during dialogs; check progress, repeated actions, bounded waits, diagnostics and repaint behaviour |
 
-**Severity:** P0 = unsafe effects, data loss, host instability or secret exposure; P1 = broken core workflow, false success or unusable recovery; P2 = secondary failure or confusing workaround; P3 = cosmetic issue.
+Use known resettable VMs for negative scenarios. Record the starting state/reset method before introducing one fault per scenario. Candidate faults include checkpoint-restored missing drivers, unavailable GPU, stale plan, rejected credentials, interrupted transfer and publication/readback failure. Prepare each scenario and obtain the applicable authorisation before running it; the checklist is not authorisation.
 
-## Validation boundaries
+For crashes/hangs, record the last action, elapsed time, whether the app or host stopped responding, and whether the outcome is uncertain. Stop further affected modification tests until state is safely reconciled; preserve recovery evidence.
 
-- Record each scenario as Passed, Failed, Blocked or Not tested, with build and evidence. Keep sensitive raw evidence out of Git; use `local/evidence/qa/` for suitable local evidence.
-- Live GUI launches, installation, guest access and VM/GPU effects need explicit target/effect authorisation under [AGENTS.md](../AGENTS.md). Use prepared test VMs; stop on uncertain effects and preserve recovery evidence.
-- At a checkpoint, use the existing non-hardware gate: `powershell -NoProfile -File scripts/testing/check.ps1`. Inspect effects first and follow [engineering validation](ENGINEERING.md#validation-and-live-acceptance). Automated checks do not prove live GUI or GPU behaviour.
-- Acceptance requires no unresolved P0/P1 defects, successful core journeys and fix retests on the candidate, recorded automated results, and explicit disclosure of untested or deferred work.
+## Repository report and fix workflow
+
+1. The user tests through the normal GUI and submits a [questionnaire](../qa/templates/USER_QUESTIONNAIRE.md) or [bug report](../qa/templates/BUG_REPORT_CARD.md) in `qa/inbox/`. Record the failed GUI path before using developer diagnostics; shell/configuration workarounds do not establish GUI acceptance.
+2. On request, Codex processes the inbox using the [intake prompt](../qa/prompts/PROCESS_QA_INBOX.md), preserves originals, links duplicates, creates stable BUG cases and updates `qa/INDEX.md`. There is no automatic inbox watcher.
+3. Fix only authorised defects, one requested case or scoped batch at a time. Include tightly related corrections and meaningful failure regressions; preserve unrelated edits. Use existing components and do not expand into unrelated backlog work or delegate unless requested.
+4. At the coherent fix/checkpoint, record source changes, focused checks and build outcome. Installation/live testing require separate applicable authorisation. Record installed/not-installed status and return short GUI-only retest steps with the starting state and expected result.
+5. The user retests. Record Pass, Still broken, Different result or Not tested. Close only after positive user acceptance; lack of reproduction alone means Needs information or Blocked.
+
+**Case states:** New -> Triaged -> Fixing -> Ready for user retest -> User verified -> Closed. Also use Needs information, Blocked, Duplicate or Deferred. Keep implementation, automated validation, installation and user retest distinct. The backlog tracks test tasks; BUG cases track product defects. Update both from actual evidence without marking unrun journeys passed.
+
+## Severity and acceptance
+
+| Severity | Meaning | Gate |
+|---|---|---|
+| P0 | Unsafe effects, data loss, host instability or secret exposure | Stop affected live tests; block release |
+| P1 | Broken core workflow, false success or unusable critical recovery | Block release |
+| P2 | Secondary failure or confusing workaround | Fix when practical or explicitly defer |
+| P3 | Cosmetic or nonblocking wording/layout | May defer with a recorded reason |
+
+Record each scenario as Passed, Failed, Blocked or Not tested, with evidence and build identity where known. Keep secrets out of tracked reports; use ignored `local/evidence/qa/` for suitable local evidence. Live GUI launches, installation, credentials/guest access, protected writes and VM/GPU/driver effects follow [AGENTS.md](../AGENTS.md) and [security](SECURITY.md). Never request passwords in chat, blindly replay effects, clear uncertain recovery or force power-off/restart.
+
+At an agreed checkpoint, inspect effects and run the existing non-hardware gate: `powershell -NoProfile -File scripts/testing/check.ps1`, following [engineering validation](ENGINEERING.md#validation-and-live-acceptance). Do not run full tests after individual edits. Automated checks do not prove live GUI, guest or GPU behaviour.
+
+Final acceptance requires the exact installed candidate recorded at QA-009, successful core journeys and fix retests on that candidate, recorded automated results, no unresolved P0/P1, a usable critical recovery route, disclosed untested/deferred scenarios and the user's explicit acceptance decision at QA-010.
+
+## Plan maintenance validation
+
+Consolidated 13 October 2026. Documentation/tooling checks passed: `python -B scripts/testing/test_check_docs.py` (14 isolated tests), `python -B scripts/testing/check-docs.py` (39 Markdown files, 10 QA cards, zero errors), and `git diff --check`. No product build, full automated gate, installation or live QA ran for this consolidation. All QA task results remain Not run.

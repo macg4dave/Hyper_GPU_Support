@@ -2,7 +2,7 @@
 
 You are processing user-submitted testing reports for **Hyper_GPU_Support**.
 
-Follow `AGENTS.md`, `docs/ENGINEERING.md`, `docs/SECURITY.md` and `docs/QA_ROADMAP.md` first. This request authorises intake/triage of reports currently in `qa/inbox/` and source fixes for confirmed defects in that scoped batch. It **does not** by itself authorise a live GUI launch, VM/guest operation, elevation, installation, driver changes, host restart or destructive state reset. Obtain explicit scoped authorisation before those effects.
+Follow `AGENTS.md`, `docs/ENGINEERING.md`, `docs/SECURITY.md` and `docs/roadmap.md` first. This request authorises intake/triage of reports currently in `qa/inbox/` and source fixes for confirmed defects in that scoped batch. It **does not** by itself authorise a live GUI launch, VM/guest operation, elevation, installation, driver changes, host restart or destructive state reset. Obtain explicit scoped authorisation before those effects.
 
 ## Intake
 

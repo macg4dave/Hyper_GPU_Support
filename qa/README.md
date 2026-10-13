@@ -1,6 +1,6 @@
 # QA report inbox
 
-This folder is the hand-off between **your GUI testing** and **Codex fixing defects**. Start with [the QA roadmap](../docs/QA_ROADMAP.md) and [test backlog](../docs/QA_BACKLOG.md). The product's existing [agent rules](../AGENTS.md) and [validation boundaries](../docs/ENGINEERING.md#validation-and-live-acceptance) continue to apply.
+This folder is the hand-off between **your GUI testing** and **Codex fixing defects**. Start with [the QA roadmap](../docs/roadmap.md) and [test backlog](../docs/backlog.md). The product's existing [agent rules](../AGENTS.md) and [validation boundaries](../docs/ENGINEERING.md#validation-and-live-acceptance) continue to apply.
 
 ## The two forms
 
@@ -20,8 +20,8 @@ If you find several faults in one session, submit a questionnaire and one separa
 ## Folder layout
 
 ```text
-docs/QA_ROADMAP.md               Test stages and acceptance gates
-docs/QA_BACKLOG.md               Planned test tasks and results
+docs/roadmap.md                 Test stages and acceptance gates
+docs/backlog.md                 Planned test tasks and results
 qa/README.md                    This guide
 qa/INDEX.md                     AI-maintained status overview
 qa/templates/USER_QUESTIONNAIRE.md  Your test-session report template

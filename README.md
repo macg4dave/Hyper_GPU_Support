@@ -16,7 +16,7 @@ The VRAM range does not establish enforced isolation. Automatic balancing and fu
 
 ## Current state
 
-The previous APP backlog is complete by user confirmation on 13 October 2026. Current development is the [UI text extraction roadmap](docs/roadmap.md). Fixed GUI copy and the [editor handoff](docs/UI_TEXT_GUIDE.md#editor-handoff) are implemented; the catalogue contains 408 of 696 planned keys with generated Rust/Slint bindings. LANG-006 dynamic/progress/failure extraction is in progress. Full migration, rendered acceptance and the later editorial pass remain pending. Earlier check summaries are historical context and do not establish new test results; [backlog](docs/backlog.md) records exact implementation and validation status.
+The previous APP backlog is complete by user confirmation on 13 October 2026. Current work follows the consolidated [QA roadmap](docs/roadmap.md). Fixed GUI copy and the [editor handoff](docs/UI_TEXT_GUIDE.md#editor-handoff) are implemented; the catalogue contains 408 of 696 planned keys with generated Rust/Slint bindings. LANG-006 dynamic/progress/failure extraction was recorded as in progress before the QA planning transition. Full migration, rendered acceptance and the later editorial pass remain pending. Earlier check summaries are historical context and do not establish new test results; [backlog](docs/backlog.md) now tracks QA tasks and their actual results.
 
 Legacy mock/snapshot GUI tooling has been removed under APP-001 and passed the M1 automated gate. Its flags are unsupported; backend unit test doubles remain.
 
@@ -27,7 +27,7 @@ Running the executable without arguments opens the live GUI and can request elev
 | Document | Purpose |
 |---|---|
 | [Roadmap](docs/roadmap.md) | Agreed scope and milestone gates |
-| [Backlog](docs/backlog.md) | Source tasks and next action |
+| [Backlog](docs/backlog.md) | QA tasks, dependencies and next action |
 | [UI text inventory](docs/UI_TEXT_INVENTORY.md) | Presentation consumers and retained input exceptions |
 | [Agreed workflow](#agreed-workflow) | User workflow |
 | [Architecture](docs/ARCHITECTURE.md) | Shared Rust components and boundaries |

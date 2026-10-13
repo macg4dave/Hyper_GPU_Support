@@ -236,7 +236,7 @@ The standalone command now targets the independent tool manifest and resource di
 
 Design/source review passed using current producers, Cargo manifest/lockfile, pinned Slint build API/docs and Windows bindings/docs. `python -B -X utf8 local/evidence/lang-002/review.py` passed guide links/whitespace, three TOML example blocks, required fields/parameter declarations, verbatim source comparison and native worst-case UTF-16 arithmetic (818 units including termination for the prompt example). `git diff --check` passed. `python scripts/testing/check-docs.py` failed on the same 22 links to deleted handbook pages; no unrelated files were restored or changed to resolve them.
 
-No product compilation, generated prototype, Rust test execution, GUI/native prompt, guest access, protected write, VM/GPU effect or installation ran. These example checks do not validate a formatter/generator implementation, which does not exist yet. The subsequent [LANG-003 baseline](UI_TEXT_BASELINE.md) records final mapping and source-derived expectations; current next work is in the [backlog](backlog.md#next-implementation-action).
+No product compilation, generated prototype, Rust test execution, GUI/native prompt, guest access, protected write, VM/GPU effect or installation ran. These example checks do not validate a formatter/generator implementation, which does not exist yet. The subsequent [LANG-003 baseline](UI_TEXT_BASELINE.md) records final mapping and source-derived expectations; current next work is in the [backlog](backlog.md#next-action).
 
 
 ## LANG-007 implemented checks
