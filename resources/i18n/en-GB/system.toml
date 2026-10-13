@@ -1,0 +1,69 @@
+schema = 1
+locale = "en-GB"
+feature = "system"
+
+[messages."system.discovery.initial_setup_notice"]
+text = "First-install inventory read through Windows elevation. Select a VM/GPU and Apply to review package setup and exact enrollment. GPU changes require a separate subsequent review."
+screen = "discover presentation (src/gui/live/source.rs)"
+state = "Selected branch: system.discovery.initial_setup_notice"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."system.discovery.permission_stage"]
+text = "Protected enrollment"
+screen = "discover presentation (src/gui/live/source.rs)"
+state = "Selected branch: system.discovery.permission_stage"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."system.host_label"]
+text = "This computer"
+screen = "Pages presentation (src/gui/ui/pages.slint)"
+state = "Selected branch: system.host_label"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."system.preparation_unsupported"]
+text = "not implemented"
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: system.preparation_unsupported"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."system.subtitle"]
+text = "Virtual machines and GPUs discovered on this computer."
+screen = "Pages presentation (src/gui/ui/pages.slint)"
+state = "Selected branch: system.subtitle"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."system.title"]
+text = "System information"
+screen = "Pages presentation (src/gui/ui/pages.slint)"
+state = "Selected branch: system.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []

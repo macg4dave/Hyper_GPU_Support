@@ -9,3 +9,8 @@ pub fn power(power: &crate::model::Power) -> UiMessage {
         crate::model::Power::Other(_) => common::state::unknown(),
     }
 }
+
+/// Preserve the existing enum debug representation for technical details only.
+pub fn power_debug(power: &crate::model::Power) -> DisplayValue {
+    DisplayValue(format!("{power:?}"))
+}

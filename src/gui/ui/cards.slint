@@ -1,3 +1,4 @@
+import { UiText } from "ui-text.slint";
 import { Theme, Label, Hint, Surface } from "theme.slint";
 
 export struct VmRow { id: string, name: string, power: string, status: string, gpu: string, os: string, power-running: bool, power-stopped: bool, unsupported: bool }
@@ -7,7 +8,7 @@ component GuestOsIcon inherits Rectangle {
     width: Theme.os-icon-size;
     height: Theme.button-height;
     accessible-role: image;
-    accessible-label: root.os == "windows" ? "Windows guest, sample metadata" : root.os == "linux" ? "Linux guest, sample metadata" : "Unknown guest OS";
+    accessible-label: root.os == "windows" ? UiText.dashboard-os-windows-accessible : root.os == "linux" ? UiText.dashboard-os-linux-accessible : UiText.dashboard-os-unknown-accessible;
     if root.os == "linux" : Image { source: @image-url("icons/linux.svg"); width: Theme.os-icon-size; height: Theme.os-icon-size; }
     if root.os != "linux" : Image {
         source: root.os == "windows" ? @image-url("icons/windows.svg") : @image-url("icons/monitor.svg");
@@ -55,7 +56,7 @@ export component VmCard inherits Surface {
                     background: root.updating ? Theme.unknown : root.vm.power-running ? Theme.running : root.vm.power-stopped ? Theme.stopped : Theme.unknown;
                 }
             }
-            Label { text: root.updating ? "Updating VM status" : root.vm.power; font-size: 12px; }
+            Label { text: root.updating ? UiText.dashboard-inventory-updating : root.vm.power; font-size: 12px; }
             Label { text: root.updating ? "" : root.vm.status; font-size: 12px; color: Theme.muted; horizontal-alignment: right; }
         }
         Hint { text: root.updating ? "" : root.vm.gpu; }

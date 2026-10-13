@@ -22,7 +22,7 @@ Codex only. Complete one requested task; current user instructions take preceden
 | Documentation | [Docs](.github/prompts/maintain-docs.prompt.md) |
 | Milestone validation | [Validate](.github/prompts/validate-milestone.prompt.md) |
 
-[Backlog](docs/backlog.md) owns tasks; [roadmap](docs/roadmap.md) owns scope/gates. Use [baseline](docs/BASELINE.md) as a source index. Consult [architecture](docs/ARCHITECTURE.md), [configuration](docs/CONFIGURATION.md), [GUI guide](docs/GUI_GUIDE.md), and [security](docs/SECURITY.md) only as needed.
+[Backlog](docs/backlog.md) owns tasks; [roadmap](docs/roadmap.md) owns scope/gates. Consult [architecture](docs/ARCHITECTURE.md), [configuration](docs/CONFIGURATION.md), the [agreed user workflow](README.md#agreed-workflow), and [security](docs/SECURITY.md) only as needed.
 
 ## Boundaries
 
@@ -33,6 +33,6 @@ Codex only. Complete one requested task; current user instructions take preceden
 
 ## Validation and finish
 
-Write meaningful regression and failure tests with behavior changes. Normally run builds/tests at agreed milestone completion or explicit request, not after individual tasks. Check commands exist and inspect test effects first; [testing](docs/TESTING.md) owns the gate.
+Write meaningful regression and failure tests with behavior changes. Normally run builds/tests at agreed milestone completion or explicit request, not after individual tasks. Check commands exist and inspect test effects first; [testing](docs/ENGINEERING.md#validation-and-live-acceptance) owns the gate.
 
 Update affected documentation and separate implementation/validation status using [engineering](docs/ENGINEERING.md). Report changes, checks actually run, untested behavior, and next task. Close gates only from evidence.

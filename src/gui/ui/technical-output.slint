@@ -1,3 +1,4 @@
+import { UiText } from "ui-text.slint";
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 
@@ -21,7 +22,7 @@ export component TechnicalOutput inherits Rectangle {
             content-height: max(self.visible-height, output.preferred-height);
             output := TextInput {
                 enabled: root.enabled;
-                accessible-label: "Technical details, read only";
+                accessible-label: UiText.diagnostics-read-only-accessible;
                 text: root.text;
                 read-only: true;
                 single-line: false;

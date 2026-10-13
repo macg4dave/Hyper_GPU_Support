@@ -1,3 +1,4 @@
+import { UiText } from "ui-text.slint";
 import { Button, CheckBox, ScrollView, Palette } from "std-widgets.slint";
 import { Theme, Heading, Label, Hint, Surface } from "theme.slint";
 
@@ -14,44 +15,44 @@ export component Pages inherits Rectangle {
         horizontal-scrollbar-policy: always-off;
         VerticalLayout {
             padding: 28px; spacing: 18px;
-            Heading { text: root.page == 2 ? "Settings" : root.page == 1 ? "System information" : "About Hyper GPU Support"; }
-            Hint { text: root.page == 2 ? "Make the workspace yours. Preferences reset on launch." : root.page == 1 ? "Virtual machines and GPUs discovered on this computer." : "Manage GPU support for existing Hyper-V virtual machines."; }
+            Heading { text: root.page == 2 ? UiText.settings-title : root.page == 1 ? UiText.system-title : UiText.settings-about-title; }
+            Hint { text: root.page == 2 ? UiText.settings-preferences-notice : root.page == 1 ? UiText.system-subtitle : UiText.settings-about-subtitle; }
             if root.page == 1 : VerticalLayout {
                 spacing: 18px;
-                Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: "This computer"; font-weight: 600; } Hint { text: root.system-summary; } } }
+                Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: UiText.system-host-label; font-weight: 600; } Hint { text: root.system-summary; } } }
                 for gpu in root.gpu-information : Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: gpu.name; font-weight: 600; } Hint { text: gpu.description; } } }
             }
 
             if root.page == 2 : VerticalLayout {
                 spacing: 18px;
                 Surface { VerticalLayout { padding: 22px; spacing: 12px;
-                    Label { text: "Appearance"; font-weight: 600; }
-                    Hint { text: "Theme"; }
+                    Label { text: UiText.settings-appearance-title; font-weight: 600; }
+                    Hint { text: UiText.settings-appearance-theme-label; }
                     HorizontalLayout { spacing: 10px;
-                        Button { enabled: !Theme.modal-active; text: "Follow Windows"; primary: root.theme-index == 0; clicked => { root.theme-index = 0; Palette.color-scheme = ColorScheme.unknown; } }
-                        Button { enabled: !Theme.modal-active; text: "Light"; primary: root.theme-index == 1; clicked => { root.theme-index = 1; Palette.color-scheme = ColorScheme.light; } }
-                        Button { enabled: !Theme.modal-active; text: "Dark"; primary: root.theme-index == 2; clicked => { root.theme-index = 2; Palette.color-scheme = ColorScheme.dark; } }
+                        Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-follow-windows; primary: root.theme-index == 0; clicked => { root.theme-index = 0; Palette.color-scheme = ColorScheme.unknown; } }
+                        Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-light; primary: root.theme-index == 1; clicked => { root.theme-index = 1; Palette.color-scheme = ColorScheme.light; } }
+                        Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-dark; primary: root.theme-index == 2; clicked => { root.theme-index = 2; Palette.color-scheme = ColorScheme.dark; } }
                     }
-                    CheckBox { enabled: !Theme.modal-active; text: "Show contextual help"; checked <=> Theme.show-help; }
-                    Hint { text: "Fluent controls follow the selected palette immediately."; }
+                    CheckBox { enabled: !Theme.modal-active; text: UiText.settings-appearance-help-label; checked <=> Theme.show-help; }
+                    Hint { text: UiText.settings-appearance-palette-hint; }
                 } }
 
                 Surface { VerticalLayout { padding: 22px; spacing: 10px;
-                    Label { text: "Credentials & diagnostics"; font-weight: 600; }
-                    Hint { text: "Guest credentials use the native Windows dialog for the selected enrolled VM. Remember is an explicit opt-in to this user's Credential Manager."; }
-                    Button { enabled: !Theme.modal-active; text: "Guest credentials for selected VM"; clicked => { root.action("credentials"); } }
+                    Label { text: UiText.settings-credentials-title; font-weight: 600; }
+                    Hint { text: UiText.settings-credentials-body; }
+                    Button { enabled: !Theme.modal-active; text: UiText.settings-credentials-open-label; clicked => { root.action("credentials"); } }
                 } }
             }
             if root.page == 3 : VerticalLayout {
                 spacing: 18px;
                 Surface { VerticalLayout { padding: 24px; spacing: 14px;
-                    Heading { text: "Hyper GPU Support"; }
-                    Label { text: "Hyper GPU Support · 0.1.0"; }
-                    Hint { text: "Review and approve GPU support changes for your virtual machines. Available operations depend on setup, supported GPU capabilities and recovery status."; }
-                    Hint { text: "Explicit CLI commands retain their existing capabilities. Unconnected GUI operations never produce simulated success."; }
-                    Label { text: "Designed for existing VMs"; font-weight: 600; }
-                    Hint { text: "NVIDIA first. Further vendor support and simultaneous GPU sharing require independent qualification."; }
-                    Button { enabled: !Theme.modal-active; text: "View application help"; clicked => { root.action("shortcuts"); } }
+                    Heading { text: UiText.common-branding-title; }
+                    Label { text: UiText.settings-branding-version; }
+                    Hint { text: UiText.settings-about-body; }
+                    Hint { text: UiText.settings-about-cli-hint; }
+                    Label { text: UiText.settings-about-scope-heading; font-weight: 600; }
+                    Hint { text: UiText.settings-about-qualification-hint; }
+                    Button { enabled: !Theme.modal-active; text: UiText.settings-help-open-label; clicked => { root.action("shortcuts"); } }
                 } }
             }
             Rectangle { min-height: 12px; vertical-stretch: 1; }

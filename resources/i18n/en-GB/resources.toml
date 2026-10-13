@@ -1,0 +1,168 @@
+schema = 1
+locale = "en-GB"
+feature = "resources"
+
+[messages."resources.advanced.collapsed_accessible"]
+text = "Advanced Allocation, collapsed"
+screen = "AllocationDisclosure presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.advanced.collapsed_accessible"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.advanced.expanded_accessible"]
+text = "Advanced Allocation, expanded"
+screen = "AllocationDisclosure presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.advanced.expanded_accessible"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.advanced.label"]
+text = "Advanced Allocation"
+screen = "AllocationDisclosure presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.advanced.label"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.collapse_label"]
+text = "Collapse"
+screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.collapse_label"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.default_suffix"]
+text = "{default_value} (default)"
+screen = "AllocationField presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.default_suffix"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "default_value", type = "formatted" }]
+
+[messages."resources.endpoint_rounding_note"]
+text = "The maximum endpoint label is rounded to the nearest whole GB. Review and Technical Details retain the exact byte values."
+screen = "new presentation (src/gui/memory.rs)"
+state = "Selected branch: resources.endpoint_rounding_note"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.expand_label"]
+text = "Expand"
+screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.expand_label"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.field.accessible"]
+text = "{field_label} allocation"
+screen = "AllocationField presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.field.accessible"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "field_label", type = "message" }]
+
+[messages."resources.maximum_label"]
+text = "Maximum"
+screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.maximum_label"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.minimum_label"]
+text = "Minimum"
+screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.minimum_label"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.optimal_label"]
+text = "Optimal"
+screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.optimal_label"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.provider_unavailable"]
+text = "Raw provider capability unknown; editing unavailable"
+screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.provider_unavailable"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.request_absent"]
+text = "No explicit request"
+screen = "new presentation (src/gui/memory.rs)"
+state = "Selected branch: resources.request_absent"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.retained_below_minimum_note"]
+text = "The existing request is below 1 GB and has been retained exactly. The slider starts at 1 GB; edit it or use Advanced Allocation to change the request."
+screen = "new presentation (src/gui/memory.rs)"
+state = "Selected branch: resources.retained_below_minimum_note"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."resources.unspecified"]
+text = "Not specified"
+screen = "AllocationField presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.unspecified"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []

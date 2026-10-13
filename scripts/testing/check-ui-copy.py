@@ -49,6 +49,14 @@ def run(root=ROOT, policy_path=POLICY):
     if not known:
         raise ValueError("copy scan baseline is missing or empty")
     failures, advisories = [], {}
+    retained = {}
+    for exception in policy.get("retained_literals", []):
+        if set(exception) != {"path", "text", "reason"} or not exception["reason"].strip():
+            raise ValueError("invalid retained literal exception")
+        identity = (exception["path"], exception["text"])
+        if identity in retained:
+            raise ValueError("duplicate retained literal exception")
+        retained[identity] = exception["reason"]
     for entry in policy["paths"]:
         path = root / entry["path"]
         if entry["mode"] not in ("enforce", "pending") or not entry["reason"].strip():
@@ -58,7 +66,7 @@ def run(root=ROOT, policy_path=POLICY):
             continue
         count = 0
         for line, value in literals(path.read_text(encoding="utf-8"), path.suffix == ".rs"):
-            if value in known and entry["mode"] == "enforce":
+            if value in known and entry["mode"] == "enforce" and (entry["path"], value) not in retained:
                 failures.append(f'{entry["path"]}:{line}: hard-coded active baseline copy')
             if value in known or re.search(r"[A-Za-z]{2,}\s+[A-Za-z]{2,}", value):
                 count += 1

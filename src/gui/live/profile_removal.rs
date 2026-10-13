@@ -15,7 +15,10 @@ pub(super) fn review_forget_live(
     background(
         ui,
         busy,
-        Operation::new(Kind::Read, "Review app profile deletion"),
+        Operation::new(
+            Kind::Read,
+            hyper_gpu_support::ui_text::operations::profile_deletion::review::PROGRESS_TITLE,
+        ),
         move || {
             Ok((
                 hyper_gpu_support::runner::review_removal(&target)?,
@@ -30,7 +33,7 @@ pub(super) fn review_forget_live(
                         Err(_) => return,
                     };
                     if let Err(error) = state.accept_forget_review(review.clone()) {
-                        dialog(ui, "error", "Review Delete profile again", &error);
+                        dialog(ui, "error", hyper_gpu_support::ui_text::operations::profile_deletion::review::STALE_TITLE, &error);
                         return;
                     }
                     state
@@ -43,18 +46,23 @@ pub(super) fn review_forget_live(
                 dialog(
                     ui,
                     "forget-review",
-                    "Delete this app profile?",
-                    &format!(
-                        "Virtual machine: {name}\nVM ID: {}\nGPU: {}\n\nDelete only this VM's app profile: its saved GPU settings, authorized VM/GPU pairing and managed setup/verification history. Keep all other app profiles, the Hyper-V VM, disks, checkpoints, guest driver files and shared application artifacts.\n\nThis action does not remove GPU support, change VM power, uninstall drivers or request guest credentials. The existing protected deletion path requires GPU support already inactive and the VM off.\n\nDelete profile confirms this review; Windows requests approval to remove the protected app records. Cancel keeps all records. The VM stays discoverable and a new reviewed setup is required to enable GPU support through this app again.",
-                        review.pair.vm_id, review.pair.gpu_interface
-                    ),
+                    hyper_gpu_support::ui_text::operations::profile_deletion::review::TITLE,
+                    &hyper_gpu_support::ui_text::operations::profile_deletion::review::body(
+                        &(name),
+                        &(review.pair.vm_id),
+                        &(review.pair.gpu_interface),
+                    )
+                    .into_string(),
                 );
             }
             Err(error) => dialog(
                 ui,
                 "error",
-                "Profile deletion unavailable",
-                &hyper_gpu_support::reporting::operator_error("Profile deletion review", &error),
+                hyper_gpu_support::ui_text::operations::profile_deletion::review::UNAVAILABLE_TITLE,
+                &hyper_gpu_support::reporting::operator_error(
+                    hyper_gpu_support::ui_text::operations::profile_deletion::review::FAILURE_STAGE,
+                    &error,
+                ),
             ),
         },
     )
@@ -78,7 +86,10 @@ pub(super) fn forget_live(
     background(
         ui,
         busy,
-        Operation::new(Kind::Read, "Delete app profile"),
+        Operation::new(
+            Kind::Read,
+            hyper_gpu_support::ui_text::operations::profile_deletion::PROGRESS_TITLE,
+        ),
         move || hyper_gpu_support::worker::forget_pair(approved, progress).map(|_| ()),
         move |ui, result| {
             let mut failure = None;
@@ -94,18 +105,22 @@ pub(super) fn forget_live(
                 None => dialog(
                     ui,
                     "profile-deleted",
-                    "App profile deleted",
-                    &format!(
-                        "{vm_name}: deletion of this app's saved settings, authorization and managed history was verified. The Hyper-V VM, disks, checkpoints, guest files and other app profiles remain. No GPU or power changes were performed. Current status is being updated. Continue to a new permission/setup review when ready."
-                    ),
+                    hyper_gpu_support::ui_text::operations::profile_deletion::completed::TITLE,
+                    &hyper_gpu_support::ui_text::operations::profile_deletion::completed::body(
+                        &(vm_name),
+                    )
+                    .into_string(),
                 ),
                 Some(error) => dialog(
                     ui,
                     "error",
-                    "Profile deletion did not finish",
+                    hyper_gpu_support::ui_text::operations::profile_deletion::incomplete::TITLE,
                     &format!(
                         "{vm_name}: {}\nSome app profile records may have been removed; which records remain is unknown until read back. Use Refresh and review profile recovery before continuing; do not repeat deletion with a new request. This operation does not change the VM, GPU assignment or guest files.",
-                        hyper_gpu_support::reporting::operator_error("Profile deletion", &error)
+                        hyper_gpu_support::reporting::operator_error(
+                            hyper_gpu_support::ui_text::operations::profile_deletion::FAILURE_STAGE,
+                            &error
+                        )
                     ),
                 ),
             }

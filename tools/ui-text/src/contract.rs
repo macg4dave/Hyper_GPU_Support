@@ -42,7 +42,7 @@ pub struct Parameter {
     pub minimum: usize,
     pub maximum: Option<usize>,
     /// Safe source and preparation rule; never arbitrary adapter or secret prose.
-    pub source: &'static str,
+    pub source: String,
     /// Proven maximum for each occurrence, required on bounded native surfaces.
     pub maximum_utf16: Option<usize>,
 }
@@ -52,6 +52,8 @@ pub struct Parameter {
 pub enum Consumer {
     Fixed,
     Parameterised,
+    /// Generated pure bindings for existing Slint data expressions.
+    SlintParameterised,
 }
 
 #[derive(Clone, Debug)]
@@ -116,13 +118,13 @@ fn parameter(
         },
         minimum: 1,
         maximum: Some(1),
-        source,
+        source: source.into(),
         maximum_utf16: bound,
     }
 }
 
-/// Representative closed subset for LANG-004. All other mapping rows remain pending.
-pub fn active() -> Vec<Message> {
+/// Original representative subset, retained for isolated failure fixtures.
+pub fn representative() -> Vec<Message> {
     let mut result = vec![fixed(
         "operations.verify.title",
         "Verify review and operation dialog",
@@ -205,5 +207,83 @@ pub fn active() -> Vec<Message> {
     ));
     wrapper.consumer = Consumer::Parameterised;
     result.push(wrapper);
+    result
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FixedContract {
+    key: String,
+    metadata: Metadata,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FixedContracts {
+    messages: Vec<FixedContract>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DynamicParameter {
+    declaration: Placeholder,
+    minimum: usize,
+    maximum: Option<usize>,
+    source: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DynamicContract {
+    key: String,
+    metadata: Metadata,
+    parameters: Vec<DynamicParameter>,
+    #[serde(default)]
+    slint: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DynamicContracts {
+    messages: Vec<DynamicContract>,
+}
+
+/// Required product keys, independent of editable resource text.
+pub fn active() -> Vec<Message> {
+    let mut result = representative();
+    let fixed: FixedContracts = toml::from_str(include_str!("fixed-contract.toml"))
+        .expect("developer-owned fixed catalogue contract must be valid");
+    result.extend(fixed.messages.into_iter().map(|entry| Message {
+        key: entry.key,
+        consumer: Consumer::Fixed,
+        metadata: entry.metadata,
+        parameters: vec![],
+        native_budget: None,
+    }));
+    let dynamic: DynamicContracts = toml::from_str(include_str!("dynamic-contract.toml"))
+        .expect("developer-owned dynamic catalogue contract must be valid");
+    result.extend(dynamic.messages.into_iter().map(|entry| {
+        Message {
+            key: entry.key,
+            consumer: if entry.slint {
+                Consumer::SlintParameterised
+            } else {
+                Consumer::Parameterised
+            },
+            metadata: entry.metadata,
+            parameters: entry
+                .parameters
+                .into_iter()
+                .map(|parameter| Parameter {
+                    declaration: parameter.declaration,
+                    minimum: parameter.minimum,
+                    maximum: parameter.maximum,
+                    source: parameter.source,
+                    maximum_utf16: None,
+                })
+                .collect(),
+            native_budget: None,
+        }
+    }));
     result
 }

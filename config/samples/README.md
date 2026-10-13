@@ -12,4 +12,4 @@ Names, observed power, hardware capabilities, and journals are separate from des
 
 `Configuration::parse_vm_file` validates one target and filename/GUID agreement. `Configuration::vm_documents` prepares canonical documents without writing. Schema 3 additionally supports optional Compute/Encode/Decode triples; these examples remain schema 2 for compatibility.
 
-See [configuration](../../docs/CONFIGURATION.md) and [baseline](../../docs/BASELINE.md). These are parser examples, not a GUI rehearsal workflow. No product tests ran during the documentation rewrite.
+See [configuration](../../docs/CONFIGURATION.md) and [baseline](../../docs/ARCHITECTURE.md). These are parser examples, not a GUI rehearsal workflow. No product tests ran during the documentation rewrite.

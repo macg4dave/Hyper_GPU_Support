@@ -78,8 +78,8 @@ fn catalogue_active_bindings_match_resource_bytes_and_keep_insertions_as_data() 
 
 #[test]
 fn catalogue_restored_baseline_is_verbatim() {
-    assert_eq!(
-        entries("resources/i18n/en-GB"),
-        entries("tests/fixtures/ui-text/validator/baseline")
-    );
+    let actual = entries("resources/i18n/en-GB");
+    for (key, expected) in entries("tests/fixtures/ui-text/validator/baseline") {
+        assert_eq!(actual[&key], expected, "{key}");
+    }
 }

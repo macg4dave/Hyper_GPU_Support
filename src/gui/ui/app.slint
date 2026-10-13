@@ -8,7 +8,7 @@ import { Pages, GpuRow } from "pages.slint";
 import { OperationDialog } from "dialogs.slint";
 
 export component AppWindow inherits Window {
-    title: "Hyper GPU Support";
+    title: UiText.common-branding-title;
     preferred-width: 1240px; preferred-height: 860px;
     min-width: 700px; min-height: 520px;
     background: Theme.canvas;
@@ -26,15 +26,15 @@ export component AppWindow inherits Window {
         }
     }
     in property <bool> verify-allowed: false;
-    in property <string> verify-unavailable: "Select a VM first.";
+    in property <string> verify-unavailable: UiText.dashboard-selection-required;
     in property <bool> repair-allowed: false;
-    in property <string> repair-unavailable: "Select a VM first.";
+    in property <string> repair-unavailable: UiText.dashboard-selection-required;
     in property <bool> remove-allowed: false;
-    in property <string> remove-unavailable: "Select a VM first.";
+    in property <string> remove-unavailable: UiText.dashboard-selection-required;
     in property <bool> reset-allowed: false;
     in property <string> reset-unavailable;
     in property <bool> forget-allowed: false;
-    in property <string> forget-unavailable: "Select a VM first.";
+    in property <string> forget-unavailable: UiText.dashboard-selection-required;
     in property <bool> action-recovery: false;
     in property <bool> gpu-selection-fixed: false;
     in property <[string]> gpu-options;
@@ -48,11 +48,11 @@ export component AppWindow inherits Window {
     in property <bool> vm-unsupported;
     in property <bool> setup-required;
     in property <bool> draft-valid;
-    in-out property <string> observed: "Not read";
-    in-out property <string> desired: "No saved configuration";
-    in property <string> pending: "No unapplied edits";
-    in property <string> applied: "No unpublished operation recorded";
-    in-out property <string> verification: "Not verified";
+    in-out property <string> observed: UiText.dashboard-observation-unread;
+    in-out property <string> desired: UiText.dashboard-saved-absent;
+    in property <string> pending: UiText.dashboard-draft-absent;
+    in property <string> applied: UiText.dashboard-outcome-absent;
+    in-out property <string> verification: UiText.dashboard-verification-absent;
     in property <string> support-summary;
     in property <string> inventory-details;
     in property <string> vm-details;
@@ -66,17 +66,17 @@ export component AppWindow inherits Window {
     in property <int> memory-maximum: 2;
     in property <int> memory-position: 1;
     in property <string> memory-input;
-    in property <string> memory-label: "Unavailable";
+    in property <string> memory-label: UiText.common-state-unavailable;
     in property <string> memory-hint;
     in property <string> memory-range-start;
     in property <string> memory-range-end;
     in-out property <[string]> values: ["", "", "", "", "", "", "", "", "", "", "", ""];
     in property <[bool]> resource-available: [false, false, false, false];
-    in property <[string]> resource-hints: ["Capability unknown", "Capability unknown", "Capability unknown", "Capability unknown"];
+    in property <[string]> resource-hints: [UiText.dashboard-capability-unknown, UiText.dashboard-capability-unknown, UiText.dashboard-capability-unknown, UiText.dashboard-capability-unknown];
     in property <[string]> resource-defaults: ["", "", "", "", "", "", "", "", "", "", "", ""];
     in property <bool> presenting: false;
     in-out property <string> validation;
-    in-out property <string> notice: "Reading virtual machine information.";
+    in-out property <string> notice: UiText.dashboard-inventory-reading;
     in-out property <string> dialog-kind;
     in-out property <string> dialog-title;
     in-out property <string> dialog-body;
@@ -102,8 +102,8 @@ export component AppWindow inherits Window {
         Rectangle {
             height: 64px; background: Theme.surface;
             HorizontalLayout { padding: 20px; spacing: 14px;
-                Rectangle { width: 30px; height: 30px; border-radius: 7px; background: Theme.navigation; Text { text: "H"; color: Theme.text; font-weight: 700; font-size: 20px; } }
-                Label { text: "Hyper GPU Support"; font-size: 18px; font-weight: 600; }
+                Rectangle { width: 30px; height: 30px; border-radius: 7px; background: Theme.navigation; Text { text: UiText.common-branding-monogram; color: Theme.text; font-weight: 700; font-size: 20px; } }
+                Label { text: UiText.common-branding-title; font-size: 18px; font-weight: 600; }
                 Rectangle { horizontal-stretch: 1; }
             }
         }
@@ -112,10 +112,10 @@ export component AppWindow inherits Window {
             Rectangle {
                 width: 184px; background: Theme.navigation;
                 VerticalLayout { padding: 14px; padding-top: 20px; spacing: 10px;
-                    dashboard := Button { enabled: !Theme.modal-active; text: "Dashboard"; primary: root.page == 0; clicked => { root.page = 0; } }
-                    system := Button { enabled: !Theme.modal-active; text: "System"; primary: root.page == 1; clicked => { root.page = 1; } }
-                    settings := Button { enabled: !Theme.modal-active; text: "Settings"; primary: root.page == 2; clicked => { root.page = 2; } }
-                    about := Button { enabled: !Theme.modal-active; text: "About"; primary: root.page == 3; clicked => { root.page = 3; } }
+                    dashboard := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-dashboard; primary: root.page == 0; clicked => { root.page = 0; } }
+                    system := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-system; primary: root.page == 1; clicked => { root.page = 1; } }
+                    settings := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-settings; primary: root.page == 2; clicked => { root.page = 2; } }
+                    about := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-about; primary: root.page == 3; clicked => { root.page = 3; } }
                     Rectangle { vertical-stretch: 1; }
                 }
             }
@@ -124,11 +124,11 @@ export component AppWindow inherits Window {
                 spacing: 0px;
                 Rectangle { height: root.recovery ? 72px : 42px; background: Theme.tint;
                     HorizontalLayout { padding-left: 18px; padding-right: 18px; spacing: 12px;
-                        Hint { text: root.recovery ? ("Pending protected recovery record. New GPU changes are blocked; inspection does not clear recovery.") : root.notice; }
+                        Hint { text: root.recovery ? (UiText.dashboard-recovery-banner) : root.notice; }
                         if root.recovery : Button {
                             property <int> restore-request: root.focus-return-serial;
                             changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
-                            enabled: !Theme.modal-active; text: "Inspect recovery"; clicked => { root.action("recovery"); }
+                            enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { root.action("recovery"); }
                         }
                     }
                 }
@@ -140,13 +140,13 @@ export component AppWindow inherits Window {
                         Rectangle {
                             width: root.split; background: Theme.vm-panel;
                             VerticalLayout { padding: 16px; spacing: 12px;
-                                HorizontalLayout { spacing: Theme.gap; Label { text: "Virtual Machines"; font-size: 17px; font-weight: 600; horizontal-stretch: 1; } Button {
+                                HorizontalLayout { spacing: Theme.gap; Label { text: UiText.dashboard-vm-list-title; font-size: 17px; font-weight: 600; horizontal-stretch: 1; } Button {
                                     property <int> restore-request: root.focus-return-serial;
                                     changed restore-request => { if root.focus-return-action == "refresh" { self.focus(); } }
-                                    enabled: !Theme.modal-active; text: "Refresh"; clicked => { root.action("refresh"); }
+                                    enabled: !Theme.modal-active; text: UiText.dashboard-inventory-refresh; clicked => { root.action("refresh"); }
                                 } }
-                                Hint { text: root.vms.length + " VMs shown"; }
-                                if root.vms.length == 0 : Hint { text: "No live VM rows available. Check the discovery message or Refresh."; }
+                                Hint { text: UiText.dashboard-vm-list-count(root.vms.length); }
+                                if root.vms.length == 0 : Hint { text: UiText.dashboard-vm-list-empty; }
                                 vm-list := ScrollView {
                                     accessible-role: list;
                                     horizontal-scrollbar-policy: always-off;
@@ -165,11 +165,11 @@ export component AppWindow inherits Window {
                             focus-return-serial: root.focus-return-serial;
                             min-width: 610px;
                             gpu-options: root.gpu-options;
-                            name: root.vm-name; identity: root.selected-id; power: root.updating ? "Updating VM status" : root.power; status: root.updating ? "" : root.status;
+                            name: root.vm-name; identity: root.selected-id; power: root.updating ? UiText.dashboard-inventory-updating : root.power; status: root.updating ? "" : root.status;
                             vm-unsupported: !root.updating && root.vm-unsupported; setup-required: !root.updating && root.setup-required; draft-valid: root.draft-valid;
                             observed: root.observed; desired: root.desired; verification: root.verification;
                             pending: root.pending; applied: root.applied;
-                            support-summary: root.updating ? "Updating VM status..." : root.support-summary;
+                            support-summary: root.updating ? UiText.dashboard-inventory-updating-notice : root.support-summary;
                             inventory-details: root.inventory-details;
                             technical-details: root.vm-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
@@ -188,7 +188,7 @@ export component AppWindow inherits Window {
                         }
                         if root.selected-id == "" : Rectangle {
                             min-width: 610px;
-                            VerticalLayout { padding: 40px; spacing: 15px; Label { text: "Your VM workspace starts here"; font-size: 23px; } Hint { text: "Choose a discovered VM on the left. Discovery never enrolls or modifies it."; } Rectangle { vertical-stretch: 1; } }
+                            VerticalLayout { padding: 40px; spacing: 15px; Label { text: UiText.dashboard-workspace-title; font-size: 23px; } Hint { text: UiText.dashboard-workspace-body; } Rectangle { vertical-stretch: 1; } }
                         }
                     }
                 }
@@ -196,7 +196,7 @@ export component AppWindow inherits Window {
             }
         }
         Rectangle { height: 30px; background: Theme.surface;
-            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.recovery || root.action-recovery ? "Review recovery before new changes" : root.updating ? "Updating VM information" : root.selected-id == "" ? "Select a VM" : !root.execution-ready || !root.eligible || !root.draft-valid ? "Check the selected VM's status; setup or Refresh may be required" : root.dirty ? "Pending edits; review required before changes" : "No pending edits"; } Hint { text: root.running ? "Operation in progress" : "No operation running"; horizontal-alignment: right; } }
+            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.recovery || root.action-recovery ? UiText.dashboard-status-recovery : root.updating ? UiText.dashboard-status-updating : root.selected-id == "" ? UiText.dashboard-status-selection-required : !root.execution-ready || !root.eligible || !root.draft-valid ? UiText.dashboard-status-prerequisites : root.dirty ? UiText.dashboard-status-draft-pending : UiText.dashboard-status-draft-absent; } Hint { text: root.running ? UiText.dashboard-status-busy : UiText.dashboard-status-idle; horizontal-alignment: right; } }
         }
     }
     if root.dialog-kind != "" : OperationDialog {

@@ -11,6 +11,22 @@ spec.loader.exec_module(scan)
 
 
 class ScanTests(unittest.TestCase):
+    def test_retained_input_exception_is_exact_and_requires_a_review_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "baseline").mkdir()
+            (root / "baseline/a.toml").write_text('[messages.x]\ntext = "x y"\n[messages.z]\ntext = "y z"', encoding="utf-8")
+            (root / "source.rs").write_text('let a = "x y"; let b = "y z";', encoding="utf-8")
+            exception = {"path": "source.rs", "text": "x y", "reason": "Synthetic immutable classifier input"}
+            policy = {"schema": 1, "baseline": "baseline", "paths": [{"path": "source.rs", "mode": "enforce", "reason": "Migrated output"}], "retained_literals": [exception]}
+            path = root / "policy.json"
+            path.write_text(json.dumps(policy), encoding="utf-8")
+            self.assertEqual(len(scan.run(root, path)[0]), 1)
+            exception["reason"] = ""
+            path.write_text(json.dumps(policy), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                scan.run(root, path)
+
     def test_comments_raw_strings_and_rust_tests(self):
         source = '// "x y"\nlet a = r#"{x} \\"#;\nlet b = "x\\ny";\n#[cfg(test)]\nmod tests { let c = "y z"; }'
         self.assertEqual(list(scan.literals(source)), [(2, '{x} \\'), (3, 'x\ny')])

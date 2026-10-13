@@ -28,20 +28,34 @@ pub(super) fn progress_to_ui(
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             let stage = match progress.stage.as_str() {
-                "Persist operation recovery" => "Saving progress",
-                "Prepare current signed payload" => "Preparing GPU driver files",
-                "Compatibility settings" => "Updating GPU compatibility settings",
-                "Provider allocation" => "Applying your GPU resource settings",
-                "Graceful guest shutdown" => "Shutting down the VM safely",
-                "Start guest" => "Starting the VM",
-                "Publish checked VM configuration" => "Saving the checked VM settings",
-                "Save verified configuration only" => "Retrying the bound configuration save",
+                "Persist operation recovery" => {
+                    hyper_gpu_support::ui_text::progress::stage::PERSIST
+                }
+                "Prepare current signed payload" => {
+                    hyper_gpu_support::ui_text::progress::stage::PREPARE
+                }
+                "Compatibility settings" => {
+                    hyper_gpu_support::ui_text::progress::stage::COMPATIBILITY
+                }
+                "Provider allocation" => hyper_gpu_support::ui_text::progress::stage::ALLOCATION,
+                "Graceful guest shutdown" => hyper_gpu_support::ui_text::progress::stage::SHUTDOWN,
+                "Start guest" => hyper_gpu_support::ui_text::progress::stage::START,
+                "Publish checked VM configuration" => {
+                    hyper_gpu_support::ui_text::progress::stage::PUBLISH
+                }
+                "Save verified configuration only" => {
+                    hyper_gpu_support::ui_text::progress::stage::SAVE_ONLY
+                }
                 _ => progress.stage.as_str(),
             };
             let status = match progress.status {
                 hyper_gpu_support::worker::StageStatus::Running => "In progress",
-                hyper_gpu_support::worker::StageStatus::Done => "Complete",
-                hyper_gpu_support::worker::StageStatus::Failed => "Failed",
+                hyper_gpu_support::worker::StageStatus::Done => {
+                    hyper_gpu_support::ui_text::progress::status::COMPLETE
+                }
+                hyper_gpu_support::worker::StageStatus::Failed => {
+                    hyper_gpu_support::ui_text::progress::status::FAILED
+                }
             };
             let row: slint::SharedString = format!("{stage} · {status}").into();
             let slot = state.record(&event);
@@ -67,7 +81,7 @@ pub(super) fn progress_to_ui(
                     steps = write_row(
                         steps,
                         state.step(&Identity::Transfer),
-                        "Copying files · Complete".into(),
+                        hyper_gpu_support::ui_text::progress::copy::COMPLETE.into(),
                     );
                 }
                 ui.set_progress_steps(write_row(steps, state.step(&event.identity), row));

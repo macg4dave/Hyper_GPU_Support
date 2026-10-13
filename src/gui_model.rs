@@ -55,7 +55,7 @@ impl Inventory {
     pub fn recorded_state(&self, id: &str) -> RecordedState {
         let unknown = |preparation: &str, recovery_required| RecordedState {
             preparation: preparation.into(),
-            graphics: "Unknown; no matching graphics verification record was read".into(),
+            graphics: crate::ui_text::diagnostics::history::graphics::UNKNOWN.into(),
             recovery_required,
         };
         if let Some(issue) = self.discovery.issues.iter().find(|issue| {
@@ -64,12 +64,13 @@ impl Inventory {
             return unknown(&issue.text(), true);
         }
         match self.managed.get(id) {
-            None => unknown("Preparation record unavailable", false),
+            None => unknown(
+                crate::ui_text::diagnostics::history::preparation::UNAVAILABLE,
+                false,
+            ),
             Some(None) => RecordedState {
-                preparation: "No preparation record".into(),
-                graphics:
-                    "No recorded graphics verification; attachment does not prove guest health"
-                        .into(),
+                preparation: crate::ui_text::diagnostics::history::preparation::ABSENT.into(),
+                graphics: crate::ui_text::diagnostics::history::graphics::ABSENT.into(),
                 recovery_required: false,
             },
             Some(Some(journal)) => {
@@ -80,30 +81,42 @@ impl Inventory {
                     })
                 {
                     return unknown(
-                        "Preparation record does not match protected enrollment; inspect recovery",
+                        crate::ui_text::diagnostics::history::preparation::PAIR_MISMATCH,
                         true,
                     );
                 }
                 RecordedState {
                     preparation: if journal.pending {
-                        "Recovery pending; preparation outcome requires inspection"
+                        crate::ui_text::diagnostics::history::preparation::PENDING
                     } else if journal.prepared.is_some() {
-                        "Previously prepared; current guest files and driver parity are unknown. A checkpoint rollback can undo guest setup. Use Verify to check current graphics health."
+                        crate::ui_text::diagnostics::history::preparation::HISTORICAL
                     } else {
-                        "No completed preparation recorded"
+                        crate::ui_text::diagnostics::history::preparation::INCOMPLETE
                     }
                     .into(),
-                    graphics: format!("{}{}", match journal.latest_check {
-                        None => "",
-                        Some(GuestCheck::Interrupted) => "Latest check interrupted or incomplete; current guest state unknown. ",
-                        Some(GuestCheck::Passed) => "Latest guest payload and graphics check passed; recovery/lifecycle status applies separately. ",
-                        Some(GuestCheck::PayloadMismatch) => "Latest check found a guest payload mismatch; reviewed preparation is required. ",
-                        Some(GuestCheck::Failed) => "Latest guest check failed; current setup is not certified. ",
-                        Some(GuestCheck::Unavailable) => "Latest guest check unavailable; current setup is unknown. ",
-                    }, journal.last_verified.map_or_else(
-                        || "No recorded graphics verification; attachment does not prove guest health".into(),
-                        |time| format!("Last successful checked rendering: Unix UTC {time} (historical; current guest health unknown)"),
-                    )),
+                    graphics: format!(
+                        "{}{}",
+                        match journal.latest_check {
+                            None => "",
+                            Some(GuestCheck::Interrupted) =>
+                                crate::ui_text::diagnostics::history::graphics::INTERRUPTED,
+                            Some(GuestCheck::Passed) =>
+                                crate::ui_text::diagnostics::history::graphics::PASSED,
+                            Some(GuestCheck::PayloadMismatch) =>
+                                crate::ui_text::diagnostics::history::graphics::MISMATCH,
+                            Some(GuestCheck::Failed) =>
+                                crate::ui_text::diagnostics::history::graphics::FAILED,
+                            Some(GuestCheck::Unavailable) =>
+                                crate::ui_text::diagnostics::history::graphics::UNAVAILABLE,
+                        },
+                        journal.last_verified.map_or_else(
+                            || crate::ui_text::diagnostics::history::graphics::ABSENT.into(),
+                            |time| crate::ui_text::diagnostics::history::graphics::last_success(
+                                time
+                            )
+                            .into_string(),
+                        )
+                    ),
                     recovery_required: journal.pending,
                 }
             }
@@ -145,7 +158,7 @@ impl View {
             .iter()
             .find(|target| target.vm_id == id)
             .map_or_else(
-                || "No saved desired configuration loaded".into(),
+                || crate::ui_text::diagnostics::history::saved::ABSENT.into(),
                 |target| {
                     let allocation = Resource::ALL.into_iter().map(|resource| {
                         target.allocation(resource).map_or_else(
@@ -156,9 +169,9 @@ impl View {
                     format!(
                         "GPU {}; {}; {allocation}",
                         if target.enabled {
-                            "enabled"
+                            crate::ui_text::common::support::ENABLED_SENTENCE
                         } else {
-                            "disabled"
+                            crate::ui_text::common::support::DISABLED_SENTENCE
                         },
                         target.gpu_interface
                     )

@@ -15,27 +15,169 @@
     {
       "path": "src/gui/wording.rs",
       "mode": "enforce",
-      "reason": "Active nine-key copy is migrated. Other lexical copy remains advisory pending LANG-005/006; Rust tests are excluded."
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
     },
     {
       "path": "src/credentials.rs",
       "mode": "enforce",
-      "reason": "Active nine-key copy is migrated. Other lexical copy remains advisory pending LANG-005/006; Rust tests are excluded."
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
     },
     {
       "path": "src/gui/ui/app.slint",
       "mode": "enforce",
-      "reason": "Active nine-key copy is migrated. Other lexical copy remains advisory pending LANG-005/006; Rust tests are excluded."
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
     },
     {
       "path": "src/gui/ui/details.slint",
       "mode": "enforce",
-      "reason": "Active nine-key copy is migrated. Other lexical copy remains advisory pending LANG-005/006; Rust tests are excluded."
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
     },
     {
       "path": "src/gui/ui/dialogs.slint",
       "mode": "enforce",
-      "reason": "Active nine-key copy is migrated. Other lexical copy remains advisory pending LANG-005/006; Rust tests are excluded."
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/ui/cards.slint",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/ui/pages.slint",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/ui/resources.slint",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/ui/technical-output.slint",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/ui/theme.slint",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/actions.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/diagnostics.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/host_configuration.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live_state.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/memory.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/mod.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/operation.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/result_notice.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/polling.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/presentation.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/profile_removal.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/progress.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/progress_state.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/source.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui_model.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    }
+  ],
+  "retained_literals": [
+    {
+      "path": "src/gui/actions.rs",
+      "text": "This VM/GPU pair is not authorized. Close this panel and review first-time setup.",
+      "reason": "Original error identity is classified before selecting catalogue presentation; edited output cannot alter the Result or availability."
+    },
+    {
+      "path": "src/gui/actions.rs",
+      "text": "Select a VM first.",
+      "reason": "Original error-producer input; LANG-006 will migrate its selected display after classification."
+    },
+    {
+      "path": "src/gui/live_state.rs",
+      "text": "Select a VM first.",
+      "reason": "Original error-producer input; LANG-006 will migrate its selected display after classification."
+    },
+    {
+      "path": "src/gui_model.rs",
+      "text": "Disabled",
+      "reason": "Retained support_text public helper has no current production caller; inventory exception, not current GUI copy."
+    },
+    {
+      "path": "src/gui_model.rs",
+      "text": "Enabled",
+      "reason": "Retained support_text public helper has no current production caller; inventory exception, not current GUI copy."
+    },
+    {
+      "path": "src/gui_model.rs",
+      "text": "enable",
+      "reason": "Retained support_text public helper has no current production caller; inventory exception, not current GUI copy."
+    },
+    {
+      "path": "src/gui_model.rs",
+      "text": "disable",
+      "reason": "Retained support_text public helper has no current production caller; inventory exception, not current GUI copy."
     }
   ]
 }

@@ -9,8 +9,15 @@ fn normalized(text: &str) -> String {
 /// Preserve two independently redacted failures when completion reads also fail.
 #[cfg(any(windows, test))]
 pub(super) fn completion_failure(summary: &str, details: &str, primary: &str) -> (String, String) {
-    let original = hyper_gpu_support::reporting::operator_error("Original operation", primary);
-    let primary_details = failure_details("Original operation", primary, &[]);
+    let original = hyper_gpu_support::reporting::operator_error(
+        hyper_gpu_support::ui_text::diagnostics::stage::ORIGINAL,
+        primary,
+    );
+    let primary_details = failure_details(
+        hyper_gpu_support::ui_text::diagnostics::stage::ORIGINAL,
+        primary,
+        &[],
+    );
     (
         format!(
             "{summary}\n\n{original}\nCompletion records could not be confirmed. Use Refresh and inspect recovery before another operation."
@@ -45,12 +52,12 @@ pub(super) fn failure_details(title: &str, error: &str, stages: &[String]) -> St
     if !collected && safe_stages.is_empty() {
         return String::new();
     }
-    let mut result = "Source: this reported failure and its last reported stages; current VM state may require Refresh.\n".to_owned();
+    let mut result = hyper_gpu_support::ui_text::diagnostics::failure::PROVENANCE.to_owned();
     if collected {
         result.push_str(&details);
     }
     if !safe_stages.is_empty() {
-        result.push_str("\nLast reported stages (not proof of final state):\n");
+        result.push_str(hyper_gpu_support::ui_text::diagnostics::failure::STAGES_HEADING);
         result.push_str(&safe_stages.join("\n"));
     }
     result
@@ -93,7 +100,7 @@ pub(super) fn selected_vm_details(state: &State) -> String {
         "observed_host_state": state.view.vm(id),
         "saved_intent_revision": saved.as_ref().ok(),
         "saved_intent_read_error": saved.as_ref().err(),
-        "pending_edits": if state.view.draft.is_some() { "Unapplied draft; see editor for current raw values" } else { "No draft recorded" },
+        "pending_edits": if state.view.draft.is_some() { hyper_gpu_support::ui_text::diagnostics::draft::PRESENT } else { hyper_gpu_support::ui_text::diagnostics::draft::ABSENT },
         "saved_intent": if saved.is_ok() { state.committed.documents.get(id).map(|document| &document.target) } else { None },
         "authorized_pair": pair,
         "selected_gpu_interface": gpu_interface,
@@ -103,12 +110,13 @@ pub(super) fn selected_vm_details(state: &State) -> String {
         "recorded_history_status": inventory.map(|inventory| inventory.recorded_state(id)),
     });
     let source = if state.view.needs_readback || state.view.vm(id).is_none() {
-        "Current observation unavailable. Retained host observations/history below are prior reads, not current health or execution authority; use Refresh."
+        hyper_gpu_support::ui_text::diagnostics::observation::HISTORICAL
     } else {
-        "Source: latest host inventory and saved app records. No fresh guest check; setup/rendering history is historical, not current guest health."
+        hyper_gpu_support::ui_text::diagnostics::observation::CURRENT
     };
-    let facts = serde_json::to_string_pretty(&facts)
-        .unwrap_or_else(|_| "Diagnostic formatting unavailable".into());
+    let facts = serde_json::to_string_pretty(&facts).unwrap_or_else(|_| {
+        hyper_gpu_support::ui_text::diagnostics::formatting::UNAVAILABLE.into()
+    });
     format!(
         "{source}\n{facts}\n\nHost comparison:\n{}\n\nApplied operation:\n{}\n\nVRAM values are exact byte requests/readback; provider values do not establish reserved memory or enforced isolation. Missing records and null fields mean unavailable/absent facts, not proof of success.",
         state.host_configuration_text(id),

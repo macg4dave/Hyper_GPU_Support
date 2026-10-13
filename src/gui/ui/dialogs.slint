@@ -14,7 +14,7 @@ component ActionChoice inherits Rectangle {
     VerticalLayout {
         spacing: 4px;
         Button { text: root.label; enabled: root.allowed && root.ready && !root.updating; clicked => { root.activate(); } }
-        Hint { min-width: 0px; text: root.updating ? "VM information is updating. Wait for the update to finish." : !root.allowed ? root.reason : !root.ready ? "Use Refresh to check application setup and worker availability." : "Opens a fresh review. Changes require separate confirmation."; }
+        Hint { min-width: 0px; text: root.updating ? UiText.dialogs-availability-updating : !root.allowed ? root.reason : !root.ready ? UiText.dialogs-availability-setup-required : UiText.dialogs-availability-review-hint; }
     }
 }
 
@@ -76,7 +76,7 @@ export component OperationDialog inherits Rectangle {
                 clip: true;
                 VerticalLayout {
                     padding: 20px; spacing: 12px;
-                    Label { text: "Hyper GPU Support"; font-size: 11px; font-weight: 600; color: Theme.muted; vertical-stretch: 0; }
+                    Label { text: UiText.common-branding-title; font-size: 11px; font-weight: 600; color: Theme.muted; vertical-stretch: 0; }
                     Heading { text: root.title; wrap: word-wrap; overflow: clip; min-width: 0px; vertical-stretch: 0; }
                     body-scroll := ScrollView {
                         min-height: 0px;
@@ -95,9 +95,9 @@ export component OperationDialog inherits Rectangle {
                             if root.kind == "more" : VerticalLayout {
                                 spacing: 12px;
                                 ActionChoice { label: UiText.operations-verify-title; reason: root.verify-unavailable; allowed: root.verify-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
-                                ActionChoice { label: "Repair / Reinstall"; reason: root.repair-unavailable; allowed: root.repair-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
-                                ActionChoice { label: "Remove GPU support"; reason: root.remove-unavailable; allowed: root.remove-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
-                                ActionChoice { label: "Delete profile"; reason: root.forget-unavailable; allowed: root.forget-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
+                                ActionChoice { label: UiText.dialogs-repair-label; reason: root.repair-unavailable; allowed: root.repair-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
+                                ActionChoice { label: UiText.dialogs-removal-label; reason: root.remove-unavailable; allowed: root.remove-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
+                                ActionChoice { label: UiText.dialogs-profile-deletion-label; reason: root.forget-unavailable; allowed: root.forget-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
                             }
                         }
                     }
@@ -140,72 +140,72 @@ export component OperationDialog inherits Rectangle {
                         text: root.details;
                     }
                     if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox {
-                        text: "I agree to the power changes described above.";
+                        text: UiText.dialogs-power-consent-label;
                         accessible-label: root.power-consent;
                         enabled: !root.running;
                         checked <=> root.consent;
                     }
-                    if root.kind == "review" && !root.execution-ready : Hint { text: "Apply is unavailable. Close this review and use Refresh to check setup or recovery."; color: Theme.accent; }
+                    if root.kind == "review" && !root.execution-ready : Hint { text: UiText.dialogs-apply-unavailable-hint; color: Theme.accent; }
                     FlexboxLayout {
                         spacing: 8px;
                         vertical-stretch: 0;
                         dismiss-button := Button {
-                            text: root.running ? "Operation in progress" : root.kind == "switch" ? "Stay on VM" : root.kind == "exit" || root.kind == "enroll-review" ? "Keep editing" : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? "Cancel" : "Close";
+                            text: root.running ? UiText.dialogs-busy-label : root.kind == "switch" ? UiText.dialogs-switch-stay-label : root.kind == "exit" || root.kind == "enroll-review" ? UiText.dialogs-draft-keep-label : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? UiText.dialogs-cancel-label : UiText.dialogs-close-label;
                             enabled: !root.running && !root.updating;
                             clicked => { root.action("close"); }
                         }
-                        if root.kind == "switch" : Button { text: "Discard & Switch"; clicked => { root.action("switch"); } }
-                        if root.kind == "switch" : Button { text: "Review Changes"; primary: true; clicked => { root.action("review"); } }
-                        if root.kind == "exit" : Button { text: "Discard & Close"; clicked => { root.action("exit"); } }
-                        if root.kind == "enroll-review" : Button { text: "Allow GPU management"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-enroll"); } }
-                        if root.kind == "enrollment-recovery" : Button { text: "Reconcile enrollment authority"; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
-                        if root.kind == "forget-review" : Button { text: "Delete profile"; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
-                        if root.kind == "review" : Button { text: root.execution-ready ? "Apply" : "Apply unavailable"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
+                        if root.kind == "switch" : Button { text: UiText.dialogs-switch-discard-label; clicked => { root.action("switch"); } }
+                        if root.kind == "switch" : Button { text: UiText.dialogs-switch-review-label; primary: true; clicked => { root.action("review"); } }
+                        if root.kind == "exit" : Button { text: UiText.dialogs-exit-discard-label; clicked => { root.action("exit"); } }
+                        if root.kind == "enroll-review" : Button { text: UiText.dialogs-enrollment-confirm-label; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-enroll"); } }
+                        if root.kind == "enrollment-recovery" : Button { text: UiText.dialogs-enrollment-reconcile-label; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
+                        if root.kind == "forget-review" : Button { text: UiText.dialogs-profile-deletion-label; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
+                        if root.kind == "review" : Button { text: root.execution-ready ? UiText.dialogs-apply-label : UiText.dialogs-apply-unavailable-label; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
                         if root.kind == "verify-review" : Button { text: UiText.operations-verify-title; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
-                        if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
-                        if root.kind == "recovery" : Button { text: "Check recorded outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
-                        if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { text: "Remove partial GPU setup…"; enabled: root.execution-ready && !root.updating && root.reset-allowed; clicked => { root.action("review-reset"); } }
-                        if root.kind == "reset-review" : Button { text: "Remove partial GPU setup"; primary: true; enabled: root.execution-ready && !root.updating; clicked => { root.action("confirm-reset"); } }
-                        if root.kind == "recovery-needed" : Button { text: "Review recovery"; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
+                        if root.kind == "save" : Button { text: UiText.operations-save-only-progress-title; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
+                        if root.kind == "recovery" : Button { text: UiText.operations-recovery-progress-title; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
+                        if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { text: UiText.dialogs-partial-removal-review-label; enabled: root.execution-ready && !root.updating && root.reset-allowed; clicked => { root.action("review-reset"); } }
+                        if root.kind == "reset-review" : Button { text: UiText.dialogs-partial-removal-confirm-label; primary: true; enabled: root.execution-ready && !root.updating; clicked => { root.action("confirm-reset"); } }
+                        if root.kind == "recovery-needed" : Button { text: UiText.dialogs-recovery-review-label; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
                     }
                     if root.kind == "recovery" || root.kind == "recovery-blocked" : Hint {
-                        text: root.updating ? "Checking whether partial removal is safe..." : !root.reset-allowed ? root.reset-unavailable : "Partial removal can be reviewed. Nothing changes until you confirm that review.";
+                        text: root.updating ? UiText.dialogs-partial-removal-checking : !root.reset-allowed ? root.reset-unavailable : UiText.dialogs-partial-removal-available;
                         vertical-stretch: 0;
                     }
                     if root.kind == "status-error" || root.kind == "recovery-blocked" : Button {
-                        text: "Retry status update"; enabled: !root.updating;
+                        text: UiText.dialogs-status-retry-label; enabled: !root.updating;
                         clicked => { root.action("refresh"); }
                     }
                     if root.kind == "permission-saved" || root.kind == "profile-deleted" : Button {
-                        text: root.kind == "permission-saved" ? "Continue to setup review" : "Review new GPU setup";
+                        text: root.kind == "permission-saved" ? UiText.dialogs-setup-continue-label : UiText.dialogs-setup-new-review-label;
                         enabled: root.execution-ready && !root.updating && (root.dirty || root.kind == "profile-deleted") && !root.action-recovery;
                         clicked => { root.action(root.kind == "profile-deleted" ? "reapply" : "review"); }
                     }
                     if root.kind == "reset-complete" || root.kind == "recovery-ended" : Button {
-                        text: "Review Repair / Reinstall";
+                        text: UiText.dialogs-repair-review-label;
                         enabled: root.execution-ready && !root.updating && root.repair-allowed;
                         clicked => { root.action("repair"); }
                     }
                     if root.kind == "error" && root.action-recovery : Button {
-                        text: "Review recovery"; enabled: !root.updating;
+                        text: UiText.dialogs-recovery-review-label; enabled: !root.updating;
                         clicked => { root.action("recovery"); }
                     }
                     if root.kind == "reset-complete" : Hint {
-                        text: root.updating ? "Updating VM status..." : !root.forget-allowed && !root.dirty ? root.forget-unavailable : "Fresh enrollment requires a separate profile deletion review. Repair / Reinstall can reuse the existing permission.";
+                        text: root.updating ? UiText.dashboard-inventory-updating-notice : !root.forget-allowed && !root.dirty ? root.forget-unavailable : UiText.dialogs-enrollment-new-permission-hint;
                         vertical-stretch: 0;
                     }
                     if root.kind == "reset-complete" : Button {
-                        text: root.dirty ? "Discard draft and review Delete profile" : "Review Delete profile";
+                        text: root.dirty ? UiText.dialogs-profile-deletion-discard-review-label : UiText.dialogs-profile-deletion-review-label;
                         enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-allowed);
                         clicked => { root.action(root.dirty ? "discard-review-forget" : "forget"); }
                     }
                     if root.kind == "more" : FlexboxLayout {
                         spacing: 8px;
                         vertical-stretch: 0;
-                        if root.action-recovery : Button { text: "Review recovery"; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
-                        if root.dirty && !root.action-recovery : Button { text: "Review changes"; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
-                        if root.dirty : Button { text: "Discard draft"; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
-                        Button { text: "Refresh"; enabled: !root.running && !root.updating; clicked => { root.action("refresh"); } }
+                        if root.action-recovery : Button { text: UiText.dialogs-recovery-review-label; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
+                        if root.dirty && !root.action-recovery : Button { text: UiText.dialogs-apply-review-label; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
+                        if root.dirty : Button { text: UiText.dialogs-draft-discard-label; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
+                        Button { text: UiText.dialogs-inventory-refresh-label; enabled: !root.running && !root.updating; clicked => { root.action("refresh"); } }
                     }
                     if root.details != "" && root.details != root.body : HorizontalLayout {
                         vertical-stretch: 0;

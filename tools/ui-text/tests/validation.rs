@@ -13,9 +13,9 @@ use ui_text::{
 fn baseline() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(
         if Path::new(env!("CARGO_MANIFEST_DIR")).ends_with("standalone") {
-            "../../../tests/fixtures/ui-text/validator/baseline"
+            "../../../resources/i18n/en-GB"
         } else {
-            "../../tests/fixtures/ui-text/validator/baseline"
+            "../../resources/i18n/en-GB"
         },
     )
 }
@@ -30,6 +30,16 @@ fn documents() -> BTreeMap<String, Vec<u8>> {
             )
         })
         .collect()
+}
+fn fixtures() -> PathBuf {
+    baseline()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("tests/fixtures/ui-text/validator")
 }
 fn change(
     documents: &mut BTreeMap<String, Vec<u8>>,
@@ -48,6 +58,25 @@ fn errors(documents: BTreeMap<String, Vec<u8>>, contract: &[Message]) -> Vec<Str
 }
 fn entry<'a>(document: &'a mut toml::Value, key: &str) -> &'a mut toml::Value {
     &mut document["messages"][key]
+}
+
+#[test]
+fn wide_numeric_values_cannot_be_narrowed_into_slint_functions() {
+    let mut contract = contract::active();
+    let count = contract
+        .iter_mut()
+        .find(|message| message.key == "dashboard.vm_list.count")
+        .unwrap();
+    count.parameters[0].declaration.kind = ParameterType::U64;
+    let mut docs = documents();
+    change(&mut docs, "dashboard.toml", |document| {
+        entry(document, "dashboard.vm_list.count")["placeholders"][0]["type"] = "u64".into();
+    });
+    assert!(
+        errors(docs, &contract)
+            .iter()
+            .any(|error| error.contains("u64 values must be formatted by Rust"))
+    );
 }
 
 #[test]
@@ -126,7 +155,7 @@ fn strict_schema_duplicates_utf8_and_file_sets_fail_closed() {
         let mut docs = documents();
         docs.insert(
             "common.toml".into(),
-            fs::read(baseline().parent().unwrap().join("invalid").join(fixture)).unwrap(),
+            fs::read(fixtures().join("invalid").join(fixture)).unwrap(),
         );
         assert!(
             errors(docs, &contract::active())
@@ -244,13 +273,7 @@ fn keys_and_metadata_cannot_be_redefined_by_resources() {
 #[test]
 fn placeholder_grammar_types_declarations_and_occurrence_limits_are_independent() {
     let fixture: toml::Value = toml::from_str(
-        &fs::read_to_string(
-            baseline()
-                .parent()
-                .unwrap()
-                .join("invalid/invalid-templates.toml"),
-        )
-        .unwrap(),
+        &fs::read_to_string(fixtures().join("invalid/invalid-templates.toml")).unwrap(),
     )
     .unwrap();
     for text in fixture["templates"].as_array().unwrap() {
@@ -323,7 +346,7 @@ fn repeated_reordered_parameters_and_code_like_input_are_appended_once_as_data()
         },
         minimum: 1,
         maximum: Some(1),
-        source: "Typed count",
+        source: "Typed count".into(),
         maximum_utf16: Some(20),
     });
     let mut docs = documents();
@@ -341,25 +364,21 @@ fn repeated_reordered_parameters_and_code_like_input_are_appended_once_as_data()
             .rust
             .contains("power_consent(final_power: &UiMessage, count: u64)")
     );
+    let body = sources
+        .rust
+        .split_once("power_consent(final_power: &UiMessage, count: u64)")
+        .unwrap()
+        .1
+        .split_once("\n}\n")
+        .unwrap()
+        .0;
+    assert_eq!(body.matches("let count = count.to_string();").count(), 1);
     assert_eq!(
-        sources
-            .rust
-            .matches("let count = count.to_string();")
-            .count(),
-        1
-    );
-    assert_eq!(
-        sources
-            .rust
-            .matches("__ui_text_output.push_str(final_power.as_str());")
+        body.matches("__ui_text_output.push_str(final_power.as_str());")
             .count(),
         2
     );
-    assert!(
-        sources
-            .rust
-            .contains(&format!("__ui_text_output.push_str({:?});", " {count} "))
-    );
+    assert!(body.contains(&format!("__ui_text_output.push_str({:?});", " {count} ")));
     let parsed = template::parse("{{x}} {x}").unwrap();
     let value = "{y} \" \\ λ\n";
     let actual: String = parsed

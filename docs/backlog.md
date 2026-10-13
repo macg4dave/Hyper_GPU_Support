@@ -1,6 +1,6 @@
 # UI text development backlog
 
-Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory, LANG-002 design and LANG-003 baseline and LANG-013 control separation are complete; LANG-007 validation tooling is complete; LANG-004 representative catalogue/build integration is implemented; bulk extraction remains pending. Open cards do not authorize automatic execution.
+Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-005 fixed GUI extraction and LANG-008 editor guidance are implemented; LANG-006 has a partial typed-template batch. The active catalogue contains 408 of the 696 planned keys; remaining migration and L3/L4 acceptance are open. The user requested all open roadmap work on 13 October 2026; this authorizes the source/docs sequence, with live effects still requiring prepared authorization.
 
 ## Completed legacy work
 
@@ -8,25 +8,25 @@ The previous APP backlog is complete by user confirmation on 13 October 2026. AP
 
 ## Next implementation action
 
-**LANG-005: extract fixed screen and dialog copy.** Proceed through the prepared static batches using the [active catalogue/build contract](UI_TEXT_GUIDE.md#lang-004-representative-integration), preserved [baseline](UI_TEXT_BASELINE.md) and reviewed scan policy. LANG-004 source integration is implemented; the complete checkpoint still reports the existing documentation links. Complete one requested card at a time.
+**LANG-006: finish dynamic/progress/failure extraction.** Continue the [remaining-key register](../tests/fixtures/ui-text/migration.json), preserving original classifier/protocol inputs and moving only their selected display after classification/redaction. The fixed GUI batch and initial typed templates are implemented. Full migration is not complete; do not start the editorial pass or close L3 before its dependencies and acceptance checks pass.
 
 ## Task register
 
 | Task | Implementation | Validation | Dependencies | Milestone |
 |---|---|---|---|---|
-| LANG-001 | Done | Static review passed; repository docs check failed (deleted handbook links) | None | L1 |
-| LANG-002 | Done | Passed: design/targeted checks; Failed: repository docs links | LANG-001 | L1 |
-| LANG-003 | Done | Passed: targeted baseline review; Failed: repository docs links | LANG-001, LANG-002 | L1 |
-| LANG-004 | Done | Passed: representative/rebuild checks; Failed: checkpoint documentation | LANG-003, LANG-007, LANG-013 | L2 |
-| LANG-005 | Ready | Not run | LANG-004 | L3 |
-| LANG-006 | Blocked | Not run | LANG-005 | L3 |
-| LANG-007 | Done | Passed: focused validator/scan checks; L2 integration pending | LANG-002, LANG-003 | L2 |
-| LANG-008 | Blocked | Not run | LANG-004, LANG-007 | L3 |
+| LANG-001 | Done | Passed: static review; current documentation links | None | L1 |
+| LANG-002 | Done | Passed: design/targeted checks; current documentation links | LANG-001 | L1 |
+| LANG-003 | Done | Passed: targeted baseline review; current documentation links | LANG-001, LANG-002 | L1 |
+| LANG-004 | Done | Passed: representative/rebuild and current L2 checkpoint | LANG-003, LANG-007, LANG-013 | L2 |
+| LANG-005 | Done | Passed: executable fixed goldens and headless bindings; visual gate pending | LANG-004 | L3 |
+| LANG-006 | In progress | Passed: initial typed batch; remaining dynamic/reporting coverage pending | LANG-005 | L3 |
+| LANG-007 | Done | Passed: focused checks and current L2 checkpoint | LANG-002, LANG-003 | L2 |
+| LANG-008 | Done | Passed: fixed/dynamic/warning walkthrough and documentation links | LANG-004, LANG-007 | L3 |
 | LANG-009 | Blocked | Not run | LANG-005, LANG-006, LANG-008 | L3 |
 | LANG-010 | Blocked | Not run | LANG-009 | L4 |
 | LANG-011 | Blocked | Not run | LANG-010 | L4 |
 | LANG-012 | Blocked | Not run | LANG-011 | L4 |
-| LANG-013 | Done | Passed: focused semantic checks; pending L2 gate | LANG-003 | L2 |
+| LANG-013 | Done | Passed: focused semantic checks and current L2 checkpoint | LANG-003 | L2 |
 
 Blocked refers only to outstanding new LANG dependencies. No legacy APP gate applies. Future validator commands must be documented when implemented; the existing non-hardware gate is `powershell -NoProfile -File scripts/testing/check.ps1`.
 
@@ -78,7 +78,9 @@ Acceptance: representative integration and resource-only rebuild proof pass; inv
 
 Delivered 13 October 2026: active nine-key resources, shared build validation/generation into OUT_DIR, read-only Slint defaults/re-export and library accessors; Verify title, reviewed-power Apply consent and native sign-in message/captions/wrapper are migrated verbatim. Root package/standalone manifests reuse the same tool sources with aligned locks and no dependency upgrades. The non-hardware gate includes catalogue/scan stages and resource/tool/test input hashes.
 
-Representative tests compile the generated Rust/Slint and compare resource bytes, typed power composition and opaque inserted values; two headless windows receive defaults without host initialization. The resource-only rebuild proof passed edited Unicode/quotes/backslashes/braces/newlines, unknown-file addition/removal, required-file deletion and malformed-template rejection; original resource bytes are restored and baseline equality passes. The full checkpoint fails on the existing 22 documentation links, so L2 is not marked closed. Remaining automated source-check results and separately untested rendering/native/live effects are recorded in the [integration guide](UI_TEXT_GUIDE.md#lang-004-representative-integration). No GUI/native prompt, guest, protected runner, VM/GPU or vault effect ran.
+Representative tests compile the generated Rust/Slint and compare resource bytes, typed power composition and opaque inserted values; two headless windows receive defaults without host initialization. The resource-only rebuild proof passed edited Unicode/quotes/backslashes/braces/newlines, unknown-file addition/removal, required-file deletion and malformed-template rejection; original resource bytes are restored and baseline equality passes. The full checkpoint fails on the existing 22 documentation links, so L2 is not marked closed. Formatting, all root tests, strict lint, product binary builds and API documentation passed when executed separately after that checkpoint failure. Separately untested rendering/native/live effects are recorded in the [integration guide](UI_TEXT_GUIDE.md#lang-004-representative-integration). No GUI/native prompt, guest, protected runner, VM/GPU or vault effect ran.
+
+Current L2 checkpoint, 13 October 2026: all stages of `powershell -NoProfile -File scripts/testing/check.ps1` passed; the current resource-only rebuild proof also passed and restored original bytes. Evidence: `local/evidence/m1-gate-20261013T164555662Z/report.json` and `local/evidence/lang-004-rebuild-20261013T164730986109Z/report.json`. Earlier failed attempts remain recorded in local evidence. These results close L2 only; LANG-006, full L3 migration/clean-build/rendered acceptance and L4 remain open.
 
 ### LANG-005 - Extract fixed screen and dialog copy
 
@@ -87,6 +89,8 @@ Dependencies: LANG-004.
 Migrate static wording by batch, including accessibility, defaults, hidden/disabled states and menu reasons. Preserve callbacks, action/dialog identifiers, property directions, focus, selection and layout. Reconcile inventory/exceptions; external OS/widget text remains documented.
 
 Acceptance: all inventoried fixed app-owned UI wording uses the catalogue and matches the baseline. Validation: focused review/comparison during extraction; build/visual coverage at LANG-009.
+
+LANG-005 delivery, 13 October 2026: fixed screen/dialog/accessibility/default copy now uses generated catalogue properties or static Rust borrows. Layout, callback/action identities, focus and typed state flags are preserved. Original condition/error inputs stay before classification and belong to LANG-006's presentation boundary; unused public view helpers remain explicit inventory exceptions. Four complete Slint compositions use generated pure concatenation from validated segments, preserving their existing data/number types. The 381 active fixed accessors pass executable comparison with the frozen historical mapping. Headless tests compare the four compositions, adversarial inserted text and two independent windows; these are not rendered acceptance. See [reconciliation](../tests/fixtures/ui-text/migration.json).
 
 ### LANG-006 - Extract dynamic, progress and failure presentation
 
@@ -97,6 +101,8 @@ Migrate Rust templates and affected shared reporting consumers, retaining types,
 Catalogue safe summaries and app-owned details after classification/redaction. Preserve sentinels, envelopes, allowed raw codes and secret filtering. Cover unavailable observations, partial/secondary failures, cancellation and recovery/save-only wording without changing admission/holds. Treat inserted values as data, never templates.
 
 Acceptance: inventory reconciles; baseline output matches; edited titles/status cannot affect selection, progress or cancellation. Validation: meaningful presentation/failure regressions and focused checks where needed; full execution at LANG-009.
+
+LANG-006 partial delivery, 13 October 2026: reviewed Verify/guest/power wording and sixteen data-only review/result/history bindings are migrated. The full catalogue has 27 parameterised entries, including the original three representative entries and four Slint compositions. No unchecked message/format-value constructor was added. Original error strings, worker tokens, cancellation sentinels, classification needles and recovery discriminators remain code-owned. The register records 288 planned keys still pending, including formatted review/history/capability data, dynamic diagnostic composition and the after-classification reporting boundary. LANG-006 is not complete and does not satisfy LANG-009's dependency.
 
 ### LANG-007 - Add validation before bulk extraction
 
@@ -119,6 +125,8 @@ Dependencies: LANG-004, LANG-007.
 Finish `docs/UI_TEXT_GUIDE.md`: exact editable fields/files, context, glossary, British English, placeholders, consequences/severity and space guidance. Editor changes `text` only; keys, metadata/contracts, meaning and source stay immutable. Explain ambiguous-copy escalation, safe details and exceptions. Include an editorial request and actual validation/rebuild commands.
 
 Acceptance: an editor can produce a reviewable resource-only diff using guide/catalogue alone. Validation: walkthrough of fixed/dynamic/warning entries and static docs checks.
+
+LANG-008 delivery, 13 October 2026: the [editor handoff](UI_TEXT_GUIDE.md#editor-handoff) identifies the actual editable fields/files, glossary, British English phase boundary, placeholders, protected consequences, ambiguity/space handling, fixed/dynamic/warning examples and current validation commands. It includes an editorial request and recurring feature handoff. Static walkthrough and documentation links passed. This completes the guide, not the migration/editorial/visual gates.
 
 ### LANG-009 - Verify the verbatim migration
 

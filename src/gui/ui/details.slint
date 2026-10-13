@@ -84,7 +84,7 @@ export component VmDetails inherits Rectangle {
         padding: 18px; spacing: 14px;
         HorizontalLayout {
             VerticalLayout { spacing: 5px; Heading { text: root.name; } Hint { text: root.power + " · " + root.status; } }
-            if root.dirty : Label { text: "● Draft changed"; color: Theme.accent; font-size: 12px; }
+            if root.dirty : Label { text: UiText.dashboard-draft-changed; color: Theme.accent; font-size: 12px; }
         }
         details-scroll := ScrollView {
             min-height: 0px;
@@ -98,7 +98,7 @@ export component VmDetails inherits Rectangle {
                 Surface {
                     VerticalLayout {
                         padding: 16px; spacing: 10px;
-                        Label { text: "GPU support"; font-weight: 600; }
+                        Label { text: UiText.dashboard-support-label; font-weight: 600; }
                         Hint { text: root.support-summary; }
                         verify-button := Button {
                             visible: root.verify-allowed && !root.recovery;
@@ -107,34 +107,34 @@ export component VmDetails inherits Rectangle {
                             enabled: !Theme.modal-active && root.execution-ready && !root.updating;
                             clicked => { root.action("verify"); }
                         }
-                        if root.recovery : Button { text: "Review recovery"; primary: true; enabled: !Theme.modal-active; clicked => { root.action("recovery"); } }
-                        Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: "Enable GPU support in this draft"; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
-                        Hint { text: "Physical GPU"; }
+                        if root.recovery : Button { text: UiText.dashboard-recovery-review-label; primary: true; enabled: !Theme.modal-active; clicked => { root.action("recovery"); } }
+                        Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: UiText.dashboard-support-toggle-accessible; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
+                        Hint { text: UiText.dashboard-gpu-label; }
                         ComboBox { enabled: !Theme.modal-active && root.eligible && !root.recovery && !root.gpu-selection-fixed; model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
-                        if root.gpu-selection-fixed : Hint { text: "This VM is authorized for its recorded GPU. Changing that GPU is unavailable; Refresh if the recorded GPU is missing. Your saved memory requests are kept."; }
+                        if root.gpu-selection-fixed : Hint { text: UiText.dashboard-gpu-fixed-hint; }
                         HorizontalLayout {
-                            Label { text: "GPU Memory request"; font-weight: 600; }
+                            Label { text: UiText.dashboard-memory-label; font-weight: 600; }
                             Label { text: root.memory-label; font-weight: 600; horizontal-alignment: right; }
                         }
                         HorizontalLayout {
                             spacing: 8px;
                             numeric-memory := LineEdit {
-                                accessible-label: "GPU memory request in decimal GB";
-                                placeholder-text: "GB";
+                                accessible-label: UiText.dashboard-memory-input-accessible;
+                                placeholder-text: UiText.dashboard-memory-unit;
                                 text: root.memory-input;
                                 enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery;
                                 accepted => { root.memory-text-edited(self.text); }
                             }
                             Button {
-                                text: "Set request";
+                                text: UiText.dashboard-memory-submit;
                                 enabled: numeric-memory.enabled;
                                 clicked => { root.memory-text-edited(numeric-memory.text); }
                             }
                         }
-                        Hint { text: "Enter GB and press Enter or Set request. Use the slider's arrow keys for 0.1 GB steps."; }
+                        Hint { text: UiText.dashboard-memory-keyboard-hint; }
                         memory-slider := Slider {
                             visible: root.memory-minimum != root.memory-maximum;
-                            accessible-label: "Requested GPU memory in GB";
+                            accessible-label: UiText.dashboard-memory-slider-accessible;
                             accessible-value-step: 1;
                             minimum: root.memory-minimum; maximum: root.memory-maximum; step: 1;
                             value: root.memory-position;
@@ -144,29 +144,29 @@ export component VmDetails inherits Rectangle {
                             }
                         }
                         if root.memory-available && root.memory-minimum == root.memory-maximum : Button {
-                            text: "Use " + root.memory-range-start;
+                            text: UiText.dashboard-memory-capacity-button(root.memory-range-start);
                             enabled: !Theme.modal-active && root.eligible && !root.recovery;
                             clicked => { root.memory-edited(root.memory-minimum); }
                         }
                         HorizontalLayout { Hint { text: root.memory-range-start; } Hint { text: root.memory-range-end; horizontal-alignment: right; } }
                         Hint { text: root.memory-hint; }
                         if root.dirty : Hint { text: root.pending; color: Theme.accent; }
-                        Hint { visible: Theme.show-help; text: "Changes take effect only after review and approval. GPU sharing is not qualified."; }
+                        Hint { visible: Theme.show-help; text: UiText.dashboard-support-approval-hint; }
                     }
                 }
                 if root.setup-required : Surface {
                     VerticalLayout {
                         padding: 16px; spacing: 10px;
-                        Label { text: "First-time setup"; font-weight: 600; }
-                        Hint { text: "This Generation 2 VM has no saved GPU configuration. Review the pairing and enrollment before preparing the guest."; }
-                        Button { enabled: !Theme.modal-active && root.eligible && !root.recovery; text: "Review enrollment & NVIDIA setup"; clicked => { root.action("reapply"); } }
+                        Label { text: UiText.dashboard-setup-title; font-weight: 600; }
+                        Hint { text: UiText.dashboard-setup-body; }
+                        Button { enabled: !Theme.modal-active && root.eligible && !root.recovery; text: UiText.dashboard-setup-review-label; clicked => { root.action("reapply"); } }
                     }
                 }
                 if !root.eligible : Surface {
                     VerticalLayout { padding: 16px; spacing: 8px;
-                        Label { text: root.vm-unsupported ? "This VM is not eligible" : ("Configuration is unavailable"); font-weight: 600; }
-                        Hint { text: root.vm-unsupported ? "Non-Generation 2 guests are outside the GPU-P workflow." : (root.validation); }
-                        Button { enabled: !Theme.modal-active; text: "Inspect diagnostics"; clicked => { root.action("diagnostics"); } }
+                        Label { text: root.vm-unsupported ? UiText.dashboard-eligibility-title : (UiText.dashboard-configuration-unavailable-title); font-weight: 600; }
+                        Hint { text: root.vm-unsupported ? UiText.dashboard-eligibility-unsupported-body : (root.validation); }
+                        Button { enabled: !Theme.modal-active; text: UiText.dashboard-diagnostics-inspect-label; clicked => { root.action("diagnostics"); } }
                     }
                 }
                 HorizontalLayout {
@@ -175,8 +175,8 @@ export component VmDetails inherits Rectangle {
                 }
                 if root.advanced-expanded : VerticalLayout {
                     spacing: 14px;
-                    Hint { text: "Exact VRAM request for compatibility with saved settings. Minimum ≤ Optimal ≤ Maximum, in native bytes. Grey defaults are suggestions. Editing an empty group fills its other defaults. Clear all three fields for no explicit write. Use the GPU support toggle or Remove GPU support to disable support."; }
-                    ResourceEditor { title: "VRAM"; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index, value); } }
+                    Hint { text: UiText.dashboard-memory-advanced-hint; }
+                    ResourceEditor { title: UiText.dashboard-memory-vram-label; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index, value); } }
                 }
                 if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }
                 if root.technical-details != "" : HorizontalLayout {
@@ -187,9 +187,9 @@ export component VmDetails inherits Rectangle {
             }
         }
         HorizontalLayout { spacing: 8px;
-            review := Button { enabled: !Theme.modal-active && (root.dirty && root.eligible && !root.recovery && root.draft-valid); text: "Apply"; primary: true;  clicked => { root.action("review"); } }
-            Button { enabled: !Theme.modal-active && (root.dirty); text: "Discard draft";  clicked => { root.action("discard"); } }
-            more-button := Button { enabled: !Theme.modal-active; text: "More actions…"; clicked => { root.action("more"); } }
+            review := Button { enabled: !Theme.modal-active && (root.dirty && root.eligible && !root.recovery && root.draft-valid); text: UiText.dashboard-apply-label; primary: true;  clicked => { root.action("review"); } }
+            Button { enabled: !Theme.modal-active && (root.dirty); text: UiText.dashboard-draft-discard-label;  clicked => { root.action("discard"); } }
+            more-button := Button { enabled: !Theme.modal-active; text: UiText.dashboard-actions-more-label; clicked => { root.action("more"); } }
         }
     }
 }

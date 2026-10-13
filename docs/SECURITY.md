@@ -1,6 +1,6 @@
 # Security and recovery
 
-This page owns product authority/trust boundaries and recovery semantics. [AGENTS.md](../AGENTS.md) owns agent authorization rules; [testing](TESTING.md) owns qualification scenarios. These are contracts to preserve and validate, not a claim that static review proves their enforcement.
+This page owns product authority/trust boundaries and recovery semantics. [AGENTS.md](../AGENTS.md) owns agent authorization rules; [testing](ENGINEERING.md#validation-and-live-acceptance) owns qualification scenarios. These are contracts to preserve and validate, not a claim that static review proves their enforcement.
 
 ## Authority and trust
 

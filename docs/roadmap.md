@@ -1,6 +1,6 @@
 # UI text development roadmap
 
-Status: L1 deliverables recorded; LANG-001 inventory, LANG-002 design and LANG-003 source-derived baseline complete; LANG-013 source separation and LANG-007 isolated validation/generation implemented with focused checks. LANG-004 representative integration and resource-only rebuild proof passed; the checkpoint reports existing broken documentation links, so L2 remains open. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
+Status: L1 deliverables recorded and L2 automated integration gate passed. LANG-005 fixed GUI extraction and LANG-008 editor guide are implemented; LANG-006 remains in progress. The catalogue has 408 of 696 planned keys. L3 migration/rendered acceptance and L4 editorial delivery remain open. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
 
 ## Outcome and viability
 
@@ -18,7 +18,7 @@ Make application-owned English GUI text editable in UTF-8 TOML resources without
 | [Credentials](../src/credentials.rs) detects cancellation by an exact error string | Preserve the sentinel and map cancellation to separate editable presentation; preserve local prompts and opt-in storage |
 | Reporting uses structured failure envelopes and some text-based classification | Catalogue copy belongs after classification/redaction. Preserve envelope tokens, allowed numeric facts, limits and secret filtering |
 | [Dialog host](../src/gui/mod.rs) separates operator summaries and diagnostics | Reuse that boundary; do not expose arbitrary adapter output as catalogue parameters |
-| [Documentation checker](../scripts/testing/check-docs.py) expects removed APP cards | Validate the new LANG plan; historical APP references are completed context, not active dependencies |
+| [Documentation checker](../scripts/testing/check-docs.py) validates the active LANG cards and links | References to deleted handbook pages now point to current owners; no retired page/tooling is restored |
 
 ## Scope and invariants
 
@@ -30,7 +30,7 @@ Exclude protocol/action/dialog tokens, resource keys, storage schemas, filenames
 - Editable copy never selects an operation, classifies a result or proves completion. Insert dynamic names/paths/numbers once as data, with no recursive placeholder expansion.
 - Preserve permitted diagnostic facts and current sanitisation. Never put passwords or arbitrary unsafe adapter output into resources or parameters.
 - Extraction preserves exact wording, punctuation, whitespace and numeric/unit formatting. British English improvements start only after the baseline gate.
-- GUI launches, credentials, guest access, VM/GPU effects, protected writes, installation and driver changes still require prepared authorization under [testing](TESTING.md). Documentation/source work does not authorize these effects.
+- GUI launches, credentials, guest access, VM/GPU effects, protected writes, installation and driver changes still require prepared authorization under [testing](ENGINEERING.md#validation-and-live-acceptance). Documentation/source work does not authorize these effects.
 
 ## Architecture direction
 
@@ -62,9 +62,9 @@ Provide a standalone validator sharing the build rules. Reject malformed/duplica
 | L3: Verbatim migration | LANG-005, LANG-006, LANG-008, LANG-009 | Inventory reconciled; baseline output matches; editor guide delivered; non-hardware gate passes; separately authorized representative rendered/interaction checks evidenced |
 | L4: Editorial delivery | LANG-010, LANG-011, LANG-012 | Resource-only diff reviewed for accurate consequences; validation/build pass; affected rendered surfaces checked; recurring handoff documented |
 
-Run focused validator/formatting failure checks when developing those contracts. Run the existing non-hardware gate at integration/migration checkpoints, not after every extraction batch. Record Passed, Failed and Not run separately. Rendering/build checks do not prove VM behavior; do not repeat driver setup solely for screenshots. See [testing](TESTING.md) for effects and evidence.
+Run focused validator/formatting failure checks when developing those contracts. Run the existing non-hardware gate at integration/migration checkpoints, not after every extraction batch. Record Passed, Failed and Not run separately. Rendering/build checks do not prove VM behavior; do not repeat driver setup solely for screenshots. See [testing](ENGINEERING.md#validation-and-live-acceptance) for effects and evidence.
 
-L1 inventory/design/baseline deliverables are recorded through static and targeted fixture review: [inventory](UI_TEXT_INVENTORY.md), [occurrence register](UI_TEXT_OCCURRENCES.md), [catalogue contract](UI_TEXT_GUIDE.md) and [verbatim baseline/batches](UI_TEXT_BASELINE.md). Expected strings are source-derived, not executed product/visual evidence; no compiled/runtime milestone is claimed. Repository documentation checking still reports links to deleted handbook pages. LANG-013 control separation and LANG-007 isolated validator/generator checks have passed. The representative product catalogue/build integration is implemented and the resource-only rebuild checks passed; LANG-005 is next for bulk fixed-copy extraction; L2–L4 gates remain pending. The old APP plan is accepted complete: no legacy card, removed evidence page or old live scenario blocks this work. Acceptance does not create new test evidence. Existing product/security behavior remains the baseline to preserve.
+L1 deliverables remain the frozen [inventory](UI_TEXT_INVENTORY.md), [occurrence register](UI_TEXT_OCCURRENCES.md), [catalogue contract](UI_TEXT_GUIDE.md) and [baseline](UI_TEXT_BASELINE.md). L2 passed the current non-hardware checkpoint and restored resource-only rebuild proof on 13 October 2026. The checkpoint includes 10 validator tests, 3 copy-scan tests, 316 root tests, documentation, formatting, strict lint, binary builds and API documentation; rendered/native/guest/protected effects are excluded. LANG-005/008 are implemented, while LANG-006 has an initial typed batch and 288 keys remain in the [migration register](../tests/fixtures/ui-text/migration.json). L3/L4 are not complete: full dynamic/reporting migration, full baseline/clean-build coverage and separately authorized visual acceptance remain. The old APP plan stays accepted complete without creating new live test evidence.
 
 ## Delivery order and editorial handoff
 
@@ -73,3 +73,5 @@ LANG-001, then LANG-002/LANG-003, then LANG-013/LANG-007 before LANG-004. Extrac
 Editors receive the catalogue, `docs/UI_TEXT_GUIDE.md` and available non-secret context/screenshots. They edit `text` fields only, flag ambiguity/length risk, and preserve keys, placeholders, metadata/contracts, severity, consent and functional meaning. Codex validates resources and semantics, rebuilds and checks affected layouts. Automated validation cannot prove truthful wording.
 
 Out of scope: additional languages, runtime language switching/hot reload, general GUI redesign, dependency upgrades, backend operation rewrites, wire/storage format changes and reopening completed APP tasks.
+
+Current checkpoint evidence: `local/evidence/m1-gate-20261013T164555662Z/report.json` and `local/evidence/lang-004-rebuild-20261013T164730986109Z/report.json`. The first attempted checkpoint failed a generator-test assertion that counted unrelated functions; the second failed five needless borrows. Both were corrected before the final passing run. Original resource hashes were restored after the rebuild proof. No live application/native prompt, credential/vault, guest, protected write, VM/GPU or driver effect ran.

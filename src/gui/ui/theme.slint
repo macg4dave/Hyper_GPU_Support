@@ -1,3 +1,4 @@
+import { UiText } from "ui-text.slint";
 import { Palette, Button } from "std-widgets.slint";
 
 export global Theme {
@@ -29,7 +30,7 @@ export global Theme {
 
 export component TechnicalDetailsButton inherits Button {
     in-out property <bool> expanded: false;
-    text: root.expanded ? "Hide Technical Details" : "Show Technical Details";
+    text: root.expanded ? UiText.diagnostics-hide-label : UiText.diagnostics-show-label;
     min-width: Theme.technical-button-width;
     max-width: Theme.technical-button-width;
     preferred-width: Theme.technical-button-width;

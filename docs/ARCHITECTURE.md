@@ -1,6 +1,6 @@
 # Architecture
 
-This page owns component and data-flow boundaries. [Baseline](BASELINE.md) owns current implementation findings; [security](SECURITY.md) owns trust/recovery rules; [configuration](CONFIGURATION.md) owns formats and persistence.
+This page owns component and data-flow boundaries. The [roadmap](roadmap.md) and [backlog](backlog.md) record current delivery status; [security](SECURITY.md) owns trust/recovery rules; [configuration](CONFIGURATION.md) owns formats and persistence.
 
 ## Components
 

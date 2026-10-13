@@ -1,0 +1,388 @@
+schema = 1
+locale = "en-GB"
+feature = "diagnostics"
+
+[messages."diagnostics.draft.absent"]
+text = "No draft recorded"
+screen = "selected_vm_details presentation (src/gui/diagnostics.rs)"
+state = "Selected branch: diagnostics.draft.absent"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.draft.present"]
+text = "Unapplied draft; see editor for current raw values"
+screen = "selected_vm_details presentation (src/gui/diagnostics.rs)"
+state = "Selected branch: diagnostics.draft.present"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.failure.provenance"]
+text = "Source: this reported failure and its last reported stages; current VM state may require Refresh.\n"
+screen = "failure_details presentation (src/gui/diagnostics.rs)"
+state = "Selected branch: diagnostics.failure.provenance"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.failure.stages_heading"]
+text = "\nLast reported stages (not proof of final state):\n"
+screen = "failure_details presentation (src/gui/diagnostics.rs)"
+state = "Selected branch: diagnostics.failure.stages_heading"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.formatting.unavailable"]
+text = "Diagnostic formatting unavailable"
+screen = "selected_vm_details presentation (src/gui/diagnostics.rs)"
+state = "Selected branch: diagnostics.formatting.unavailable"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.hide_label"]
+text = "Hide Technical Details"
+screen = "TechnicalDetailsButton presentation (src/gui/ui/theme.slint)"
+state = "Selected branch: diagnostics.hide_label"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.graphics.absent"]
+text = "No recorded graphics verification; attachment does not prove guest health"
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.absent"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.graphics.failed"]
+text = "Latest guest check failed; current setup is not certified. "
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.failed"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.graphics.interrupted"]
+text = "Latest check interrupted or incomplete; current guest state unknown. "
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.interrupted"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.graphics.last_success"]
+text = "Last successful checked rendering: Unix UTC {unix_time} (historical; current guest health unknown)"
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.last_success"
+audience = "administrator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "unix_time", type = "u64" }]
+
+[messages."diagnostics.history.graphics.mismatch"]
+text = "Latest check found a guest payload mismatch; reviewed preparation is required. "
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.mismatch"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.graphics.passed"]
+text = "Latest guest payload and graphics check passed; recovery/lifecycle status applies separately. "
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.passed"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.graphics.unavailable"]
+text = "Latest guest check unavailable; current setup is unknown. "
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.unavailable"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.graphics.unknown"]
+text = "Unknown; no matching graphics verification record was read"
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.unknown"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.preparation.absent"]
+text = "No preparation record"
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.preparation.absent"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.preparation.historical"]
+text = "Previously prepared; current guest files and driver parity are unknown. A checkpoint rollback can undo guest setup. Use Verify to check current graphics health."
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.preparation.historical"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.preparation.incomplete"]
+text = "No completed preparation recorded"
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.preparation.incomplete"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.preparation.pair_mismatch"]
+text = "Preparation record does not match protected enrollment; inspect recovery"
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.preparation.pair_mismatch"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.preparation.pending"]
+text = "Recovery pending; preparation outcome requires inspection"
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.preparation.pending"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.preparation.unavailable"]
+text = "Preparation record unavailable"
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.preparation.unavailable"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.history.saved.absent"]
+text = "No saved desired configuration loaded"
+screen = "saved_desired_text presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.saved.absent"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.attachments.none"]
+text = "none"
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.attachments.none"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.baseline_unavailable"]
+text = "managed compatibility baseline is unavailable or not applicable"
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.baseline_unavailable"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.historical"]
+text = "retained host observations are historical; Refresh to compare"
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.historical"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.inventory_unavailable"]
+text = "host inventory is unavailable"
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.inventory_unavailable"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.matches"]
+text = "Host configuration: compared values match the saved intent."
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.matches"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.observations_incomplete"]
+text = "latest host observations are incomplete; inspect diagnostics"
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.observations_incomplete"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.saved_absent"]
+text = "no saved intent"
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.saved_absent"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.saved_unreadable"]
+text = "saved intent is unreadable"
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.saved_unreadable"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.host_comparison.vm_missing"]
+text = "VM was not returned by the latest host read"
+screen = "comparison presentation (src/gui/host_configuration.rs)"
+state = "Selected branch: diagnostics.host_comparison.vm_missing"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.observation.current"]
+text = "Source: latest host inventory and saved app records. No fresh guest check; setup/rendering history is historical, not current guest health."
+screen = "selected_vm_details presentation (src/gui/diagnostics.rs)"
+state = "Selected branch: diagnostics.observation.current"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.observation.historical"]
+text = "Current observation unavailable. Retained host observations/history below are prior reads, not current health or execution authority; use Refresh."
+screen = "selected_vm_details presentation (src/gui/diagnostics.rs)"
+state = "Selected branch: diagnostics.observation.historical"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.read_only_accessible"]
+text = "Technical details, read only"
+screen = "TechnicalOutput presentation (src/gui/ui/technical-output.slint)"
+state = "Selected branch: diagnostics.read_only_accessible"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.show_label"]
+text = "Show Technical Details"
+screen = "TechnicalDetailsButton presentation (src/gui/ui/theme.slint)"
+state = "Selected branch: diagnostics.show_label"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."diagnostics.stage.original"]
+text = "Original operation"
+screen = "completion_failure presentation (src/gui/diagnostics.rs)"
+state = "Selected branch: diagnostics.stage.original"
+audience = "administrator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []

@@ -101,7 +101,7 @@ impl MemorySlider {
                 (bounds.optimal / BYTES_PER_STEP).clamp(lower, upper) as i32
             },
             label: current.map_or_else(
-                || "No explicit request".into(),
+                || hyper_gpu_support::ui_text::resources::REQUEST_ABSENT.into(),
                 |v| {
                     if v.optimal == physical_capacity {
                         rounded_capacity(physical_capacity)
@@ -115,10 +115,10 @@ impl MemorySlider {
             range_note: {
                 let mut notes = Vec::new();
                 if !physical_capacity.is_multiple_of(BYTES_PER_GB) {
-                    notes.push("The maximum endpoint label is rounded to the nearest whole GB. Review and Technical Details retain the exact byte values.");
+                    notes.push(hyper_gpu_support::ui_text::resources::ENDPOINT_ROUNDING_NOTE);
                 }
                 if bounds.optimal < BYTES_PER_GB {
-                    notes.push("The existing request is below 1 GB and has been retained exactly. The slider starts at 1 GB; edit it or use Advanced Allocation to change the request.");
+                    notes.push(hyper_gpu_support::ui_text::resources::RETAINED_BELOW_MINIMUM_NOTE);
                 }
                 (!notes.is_empty()).then(|| notes.join("\n"))
             },

@@ -156,6 +156,17 @@ fn contract_errors(contract: &[Message], errors: &mut BTreeSet<String>) {
     let mut keys = BTreeSet::new();
     let mut slint = BTreeMap::new();
     for message in contract {
+        if matches!(message.consumer, Consumer::SlintParameterised)
+            && message
+                .parameters
+                .iter()
+                .any(|parameter| matches!(parameter.declaration.kind, contract::ParameterType::U64))
+        {
+            errors.insert(format!(
+                "contract:{}: u64 values must be formatted by Rust before Slint presentation",
+                message.key
+            ));
+        }
         let key = &message.key;
         if matches!(message.consumer, Consumer::Fixed) != message.parameters.is_empty() {
             errors.insert(format!(

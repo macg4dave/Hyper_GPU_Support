@@ -42,7 +42,17 @@ impl State {
     pub fn selected_actions(&self, gpu_index: i32, values: &[String]) -> SelectedActions {
         let recovery = self.action_recovery_message().is_some();
         let common = self.action_prerequisite(recovery);
-        let check = |result: Result<(), String>| (result.is_ok(), result.err().unwrap_or_default());
+        let check = |result: Result<(), String>| {
+            let allowed = result.is_ok();
+            let reason = result.err().unwrap_or_default();
+            let reason = match reason.as_str() {
+                "This VM/GPU pair is not authorized. Close this panel and review first-time setup." => {
+                    hyper_gpu_support::ui_text::dashboard::actions::PERMISSION_REQUIRED.into()
+                }
+                _ => reason,
+            };
+            (allowed, reason)
+        };
         let actions = || -> Result<SelectedActions, String> {
             common?;
             let id = self.view.selected.as_deref().ok_or("Select a VM first.")?;
@@ -126,7 +136,9 @@ impl State {
                 .iter()
                 .any(|issue| issue.target.as_deref() == Some(id))
         }) {
-            return Err("Selected VM observations are incomplete. Correct access and use Refresh; your edits are kept.".into());
+            return Err(
+                "Selected VM observations are incomplete. Correct access and use Refresh; your edits are kept.".into(),
+            );
         }
         let vm = self
             .view
@@ -139,7 +151,9 @@ impl State {
             return Err("Managed operation history is unavailable. Use Refresh before reviewing new actions.".into());
         }
         if vm.generation != 2 {
-            return Err("GPU support requires a Generation 2 VM. Close this panel and select a supported VM.".into());
+            return Err(
+                "GPU support requires a Generation 2 VM. Close this panel and select a supported VM.".into(),
+            );
         }
         if !matches!(vm.power, Power::Off | Power::Running) {
             return Err("The VM is changing power state or is not running/off. Wait for a stable state, then Refresh.".into());

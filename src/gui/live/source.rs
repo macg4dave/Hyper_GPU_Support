@@ -93,8 +93,12 @@ impl Source {
 fn discover() -> Result<(Inventory, Option<String>), String> {
     use hyper_gpu_support::{process, runner, windows_hyperv};
     if runner::pending_setup()?.is_some() || !runner::installed()? {
-        return hyper_gpu_support::setup::discover().map(|inventory| (inventory,
-            Some("First-install inventory read through Windows elevation. Select a VM/GPU and Apply to review package setup and exact enrollment. GPU changes require a separate subsequent review.".into())));
+        return hyper_gpu_support::setup::discover().map(|inventory| {
+            (
+                inventory,
+                Some(hyper_gpu_support::ui_text::system::discovery::INITIAL_SETUP_NOTICE.into()),
+            )
+        });
     }
     match runner::submit(runner::request(runner::Operation::Discover, None, None)) {
         Ok(value) => serde_json::from_value(value)
@@ -110,7 +114,10 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
                 },
                 Some(format!(
                     "{}. Native inventory only; editing is blocked.",
-                    hyper_gpu_support::reporting::operator_error("Protected enrollment", &error)
+                    hyper_gpu_support::reporting::operator_error(
+                        hyper_gpu_support::ui_text::system::discovery::PERMISSION_STAGE,
+                        &error
+                    )
                 )),
             ))
         }

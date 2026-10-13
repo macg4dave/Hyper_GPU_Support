@@ -98,7 +98,9 @@ impl State {
         self.finish_readback(readback)?;
         if let Some(record) = &self.recovery {
             if record.operation_id != operation_id || record.target != *target {
-                return Err("The protected recovery receipt changed after completion. Inspect the loaded operation before any retry.".into());
+                return Err(
+                    "The protected recovery receipt changed after completion. Inspect the loaded operation before any retry.".into(),
+                );
             }
         } else if !saved && self.view.unsaved {
             return Err("Applied changes were confirmed, but their bound save-only receipt is unavailable. Refresh and inspect recovery; do not repeat Apply.".into());
@@ -158,11 +160,20 @@ impl State {
         use hyper_gpu_support::configuration_store::SavePhase;
         if let Some(record) = self.recovery.as_ref().filter(|r| r.target.vm_id == id) {
             return match record.phase {
-                SavePhase::Admitted | SavePhase::EffectsStarted => "Operation outcome uncertain; inspect protected recovery.",
-                SavePhase::Verified(_) if record.publication_required => "Applied and checked; configuration publication is pending. Use the bound save-only retry.",
-                SavePhase::Published(_) => "Applied and published; protected recovery finalization is pending.",
-                SavePhase::Verified(_) => "Graphics check completed; protected recovery finalization is pending. No configuration publication is authorized.",
-            }.into();
+                SavePhase::Admitted | SavePhase::EffectsStarted => {
+                    hyper_gpu_support::ui_text::operations::outcome::UNCERTAIN
+                }
+                SavePhase::Verified(_) if record.publication_required => {
+                    hyper_gpu_support::ui_text::operations::outcome::PUBLICATION_PENDING
+                }
+                SavePhase::Published(_) => {
+                    hyper_gpu_support::ui_text::operations::outcome::FINALIZATION_PENDING
+                }
+                SavePhase::Verified(_) => {
+                    hyper_gpu_support::ui_text::operations::outcome::VERIFY_FINALIZATION_PENDING
+                }
+            }
+            .into();
         }
         if self
             .view
@@ -170,10 +181,9 @@ impl State {
             .as_ref()
             .is_some_and(|t| t.vm_id == id)
         {
-            "Applied changes were checked; saving is not confirmed. Refresh for the bound receipt."
-                .into()
+            hyper_gpu_support::ui_text::operations::outcome::SAVE_UNKNOWN.into()
         } else {
-            "No unpublished operation is recorded; see current observations and saved intent separately.".into()
+            hyper_gpu_support::ui_text::operations::outcome::ABSENT.into()
         }
     }
 
@@ -259,7 +269,9 @@ impl State {
             .ok_or("VRAM bounds are unavailable. Use Refresh to retry.")?;
         let current =
             super::memory::request(values.get(..3).ok_or("VRAM fields are unavailable.")?)?;
-        let capacity = gpu.physical_vram_bytes.filter(|bytes| *bytes > 0)
+        let capacity = gpu
+            .physical_vram_bytes
+            .filter(|bytes| *bytes > 0)
             .ok_or("Physical VRAM capacity could not be matched to the selected GPU. Use raw Advanced Allocation within the provider range.")?;
         super::memory::MemorySlider::new(limits, current.as_ref(), capacity)
     }
@@ -355,11 +367,15 @@ impl State {
                     .is_some_and(|document| document.target == *target);
             if !published {
                 self.view.needs_readback = true;
-                return Err("Recovery record is absent, but verified intent is not confirmed in readable committed configuration. Refresh and inspect before another operation.".into());
+                return Err(
+                    "Recovery record is absent, but verified intent is not confirmed in readable committed configuration. Refresh and inspect before another operation.".into(),
+                );
             }
         } else if self.view.unsaved {
             self.view.needs_readback = true;
-            return Err("Unsaved outcome has no verified target. Refresh and inspect before another operation.".into());
+            return Err(
+                "Unsaved outcome has no verified target. Refresh and inspect before another operation.".into(),
+            );
         }
         // Do not use View::published here: an external save must preserve any draft.
         self.view.unsaved = false;
@@ -447,7 +463,9 @@ impl State {
                 .as_ref()
                 .is_some_and(|i| i.enrolled.iter().any(|t| t.vm_id == target.vm_id))
         {
-            return Err("This selected GPU is not enrolled. Changing an enrolled GPU requires the separate replacement transition, which is not connected yet.".into());
+            return Err(
+                "This selected GPU is not enrolled. Changing an enrolled GPU requires the separate replacement transition, which is not connected yet.".into(),
+            );
         }
         self.view.draft_eligibility(target)
     }
@@ -477,7 +495,7 @@ impl State {
             (Some(id), None)
         };
         let operation = vm_id.map_or_else(
-            || "A configuration import did not finish.".to_owned(),
+            || hyper_gpu_support::ui_text::operations::recovery::IMPORT_UNFINISHED.to_owned(),
             |id| {
                 let name = self
                     .view
@@ -485,7 +503,7 @@ impl State {
                     .map(|vm| vm.name.as_str())
                     .or(fallback)
                     .unwrap_or(id);
-                format!("An earlier operation for {name} did not finish.")
+                hyper_gpu_support::ui_text::operations::recovery::vm_unfinished(name).into_string()
             },
         );
         Some(format!(
@@ -626,7 +644,9 @@ impl State {
         }
         let target = self.draft(id, false, gpu_index, values)?;
         if !self.enrolled(&target) {
-            return Err("GPU removal requires this exact authorized VM/GPU pair; no enrollment or guest work was performed.".into());
+            return Err(
+                "GPU removal requires this exact authorized VM/GPU pair; no enrollment or guest work was performed.".into(),
+            );
         }
         Ok(target)
     }
@@ -756,27 +776,36 @@ pub(super) fn memory_review(plan: &Plan) -> String {
     if let Some(write) = &plan.preview.allocation {
         format!(
             "GPU memory (bytes: minimum / optimal / maximum): {} → {}\n",
-            allocation_description(plan.observed.vram.as_ref(), "Unknown"),
-            allocation_description(Some(write), "Unknown"),
+            allocation_description(
+                plan.observed.vram.as_ref(),
+                hyper_gpu_support::ui_text::common::state::UNKNOWN
+            ),
+            allocation_description(
+                Some(write),
+                hyper_gpu_support::ui_text::common::state::UNKNOWN
+            ),
         )
     } else if let Some(request) = &plan.desired.vram {
         format!(
             "GPU memory request (bytes: minimum / optimal / maximum): {}. No VRAM write is planned.\n",
-            allocation_description(Some(request), "Unknown"),
+            allocation_description(
+                Some(request),
+                hyper_gpu_support::ui_text::common::state::UNKNOWN
+            ),
         )
     } else {
-        "GPU memory: no explicit request.\n".into()
+        hyper_gpu_support::ui_text::operations::apply::review::MEMORY_ABSENT.into()
     }
 }
 
 pub(super) fn review_text(plan: &Plan) -> String {
     let requested = allocation_description(
         plan.desired.vram.as_ref(),
-        "Unspecified; no explicit VRAM request",
+        hyper_gpu_support::ui_text::operations::apply::review::VRAM_UNSPECIFIED,
     );
     let planned = allocation_description(
         plan.preview.allocation.as_ref(),
-        "No allocation write planned; existing/provider values are not explicitly reset",
+        hyper_gpu_support::ui_text::operations::apply::review::VRAM_NO_WRITE,
     );
     let extended = [
         (Resource::Compute, plan.preview.compute.as_ref()),
@@ -790,12 +819,12 @@ pub(super) fn review_text(plan: &Plan) -> String {
             resource.name(),
             allocation_description(
                 plan.desired.allocation(resource),
-                "Unspecified; no explicit request"
+                hyper_gpu_support::ui_text::operations::apply::review::CATEGORY_UNSPECIFIED
             ),
             resource.name(),
             allocation_description(
                 planned,
-                "No explicit category write; new/recreated attachments use provider defaults"
+                hyper_gpu_support::ui_text::operations::apply::review::CATEGORY_NO_WRITE
             ),
         )
     })
@@ -807,9 +836,9 @@ pub(super) fn review_text(plan: &Plan) -> String {
         plan.desired.vm_id,
         plan.desired.gpu_interface,
         if plan.desired.enabled {
-            "Enabled"
+            hyper_gpu_support::ui_text::common::support::ENABLED
         } else {
-            "Disabled"
+            hyper_gpu_support::ui_text::common::support::DISABLED
         },
         plan.preview.summary.join("\n"),
         plan.allocation_units,
@@ -820,40 +849,59 @@ pub(super) fn review_text(plan: &Plan) -> String {
 pub(super) fn review_summary(plan: &Plan) -> String {
     use hyper_gpu_support::workflow::PreviewAction;
     let mut lines = vec![
-        format!("VM: {}", plan.observed.name),
+        hyper_gpu_support::ui_text::operations::apply::review::vm_heading(&(plan.observed.name))
+            .into_string(),
         format!(
             "GPU support: {} → {}",
             if plan.observed.gpus.is_empty() {
-                "Disabled"
+                hyper_gpu_support::ui_text::common::support::DISABLED
             } else {
-                "Enabled"
+                hyper_gpu_support::ui_text::common::support::ENABLED
             },
             if plan.desired.enabled {
-                "Enabled"
+                hyper_gpu_support::ui_text::common::support::ENABLED
             } else {
-                "Disabled"
+                hyper_gpu_support::ui_text::common::support::DISABLED
             }
         ),
     ];
     if plan.reinstall {
-        lines.insert(1, "Repair / Reinstall: run complete signed driver preparation even with matching history, verify current payload and selected-hardware rendering, then leave the VM off.".into());
+        lines.insert(
+            1,
+            hyper_gpu_support::ui_text::operations::repair::review::BODY.into(),
+        );
     }
     if !plan.desired.enabled {
-        lines.insert(1, "Remove GPU support: detach the exact managed GPU if present, restore still-owned compatibility values and leave the VM off. Keep guest driver files, authorization and setup history. No guest credentials or graphics check.".into());
+        lines.insert(
+            1,
+            hyper_gpu_support::ui_text::operations::removal::review::BODY.into(),
+        );
     }
     if plan.initial_setup && !plan.reinstall {
-        lines.insert(1, "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes.".into());
+        lines.insert(
+            1,
+            hyper_gpu_support::ui_text::operations::setup::review::BODY.into(),
+        );
     }
     if !plan.initial_setup
         && plan.preview.credentials_required
         && !plan.reinstall
         && plan.preview.actions.contains(&PreviewAction::Prepare)
     {
-        lines.insert(1, "GPU setup/update required: preparation changed or is invalid. Review driver work, hardware rendering and final shutdown before confirming.".into());
+        lines.insert(
+            1,
+            hyper_gpu_support::ui_text::operations::setup::update_review::BODY.into(),
+        );
     } else if !plan.initial_setup && plan.preview.credentials_required && !plan.reinstall {
-        lines.insert(1, "Verify GPU setup required: check current guest driver files, setup record and hardware rendering without reinstalling drivers. Apply follows the final power state shown below.".into());
+        lines.insert(
+            1,
+            hyper_gpu_support::ui_text::operations::verify::apply_review::BODY.into(),
+        );
     } else if !plan.preview.credentials_required {
-        lines.insert(1, "Ordinary GPU change: no guest access or graphics check. Leave the VM off after success; start it through Hyper-V when ready.".into());
+        lines.insert(
+            1,
+            hyper_gpu_support::ui_text::operations::apply::ordinary_review::BODY.into(),
+        );
     }
     for (resource, write) in [
         (Resource::Vram, plan.preview.allocation.as_ref()),
@@ -865,30 +913,36 @@ pub(super) fn review_summary(plan: &Plan) -> String {
             lines.push(format!(
                 "{} (Minimum / Optimal / Maximum, raw provider values): {} → {}",
                 resource.name(),
-                allocation_description(plan.observed.allocation(resource), "Unknown"),
-                allocation_description(Some(write), "Unknown")
+                allocation_description(
+                    plan.observed.allocation(resource),
+                    hyper_gpu_support::ui_text::common::state::UNKNOWN
+                ),
+                allocation_description(
+                    Some(write),
+                    hyper_gpu_support::ui_text::common::state::UNKNOWN
+                )
             ));
         }
     }
     if let Some(settings) = &plan.preview.settings {
         for (name, before, after) in [
             (
-                "Low MMIO (MiB)",
+                hyper_gpu_support::ui_text::common::compatibility::LOW_MMIO,
                 settings.before.low_mmio.to_string(),
                 settings.after.low_mmio.to_string(),
             ),
             (
-                "High MMIO (MiB)",
+                hyper_gpu_support::ui_text::common::compatibility::HIGH_MMIO,
                 settings.before.high_mmio.to_string(),
                 settings.after.high_mmio.to_string(),
             ),
             (
-                "Guest cache types",
+                hyper_gpu_support::ui_text::common::compatibility::CACHE_TYPES,
                 settings.before.cache_types.to_string(),
                 settings.after.cache_types.to_string(),
             ),
             (
-                "Automatic checkpoints",
+                hyper_gpu_support::ui_text::common::compatibility::CHECKPOINTS,
                 settings.before.automatic_checkpoints.to_string(),
                 settings.after.automatic_checkpoints.to_string(),
             ),
@@ -898,9 +952,9 @@ pub(super) fn review_summary(plan: &Plan) -> String {
             }
         }
     }
-    lines.push("\nPlanned steps, in order:".into());
+    lines.push(hyper_gpu_support::ui_text::operations::apply::review::STEPS_HEADING.into());
     if plan.preview.actions.is_empty() {
-        lines.push("No VM or guest changes are needed. Save the reviewed intent.".into());
+        lines.push(hyper_gpu_support::ui_text::operations::apply::review::NO_EFFECTS.into());
     }
     lines.extend(
         plan.preview
@@ -909,16 +963,30 @@ pub(super) fn review_summary(plan: &Plan) -> String {
             .enumerate()
             .map(|(index, action)| {
                 let step = match action {
-                    PreviewAction::Shutdown => "Gracefully stop the VM.",
-                    PreviewAction::Start => "Start the VM.",
-                    PreviewAction::Detach => "Remove the GPU attachment.",
-                    PreviewAction::Prepare => {
-                        "Prepare the guest with the current signed GPU driver files."
+                    PreviewAction::Shutdown => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::SHUTDOWN
                     }
-                    PreviewAction::Settings => "Update or restore GPU compatibility settings.",
-                    PreviewAction::Attach => "Attach the selected physical GPU.",
-                    PreviewAction::Allocation => "Set the GPU resources shown above.",
-                    PreviewAction::Verify => "Verify GPU setup: check driver files, setup record, device health and hardware rendering.",
+                    PreviewAction::Start => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::START
+                    }
+                    PreviewAction::Detach => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::DETACH
+                    }
+                    PreviewAction::Prepare => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::PREPARE
+                    }
+                    PreviewAction::Settings => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::COMPATIBILITY
+                    }
+                    PreviewAction::Attach => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::ATTACH
+                    }
+                    PreviewAction::Allocation => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::ALLOCATION
+                    }
+                    PreviewAction::Verify => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::VERIFY
+                    }
                 };
                 format!("{}. {step}", index + 1)
             }),
@@ -926,33 +994,37 @@ pub(super) fn review_summary(plan: &Plan) -> String {
     lines.push(format!(
         "\nExpected final VM power after successful completion: {}.",
         match plan.preview.restore_power {
-            hyper_gpu_support::model::Power::Running => "Running",
-            hyper_gpu_support::model::Power::Off => "Stopped",
-            hyper_gpu_support::model::Power::Other(_) => "Unknown",
+            hyper_gpu_support::model::Power::Running =>
+                hyper_gpu_support::ui_text::common::power::RUNNING,
+            hyper_gpu_support::model::Power::Off =>
+                hyper_gpu_support::ui_text::common::power::STOPPED,
+            hyper_gpu_support::model::Power::Other(_) =>
+                hyper_gpu_support::ui_text::common::state::UNKNOWN,
         }
     ));
     if plan.preview.guest_downtime {
-        lines.push("The running VM will be interrupted. Save work inside it before Apply. Approval below is required.".into());
+        lines.push(hyper_gpu_support::ui_text::operations::apply::review::DOWNTIME_WARNING.into());
     }
     if plan.preview.actions.contains(&PreviewAction::Prepare) {
-        lines.push("Driver preparation and file transfer can take several minutes.".into());
+        lines.push(hyper_gpu_support::ui_text::operations::apply::review::TRANSFER_TIME.into());
     }
     if plan.preview.actions.contains(&PreviewAction::Start)
         || plan.preview.actions.contains(&PreviewAction::Shutdown)
     {
-        lines.push("Allow time for Windows to start or shut down gracefully. Shutdown refusal stops further changes.".into());
+        lines.push(hyper_gpu_support::ui_text::operations::apply::review::POWER_TIME.into());
     }
     if plan.preview.actions.contains(&PreviewAction::Verify) {
-        lines.push("The graphics check may take additional time and requires Windows credentials inside this VM.".into());
+        lines.push(hyper_gpu_support::ui_text::operations::apply::review::VERIFY_TIME.into());
     }
     if !plan.preview.actions.is_empty() {
-        lines.push("Completion time varies; no exact duration is promised. Keep the application open until it reports an outcome.".into());
+        lines.push(hyper_gpu_support::ui_text::operations::apply::review::DURATION_UNKNOWN.into());
     }
     if plan.preview.settings_preserved {
-        lines.push("Externally changed compatibility settings will be preserved.".into());
+        lines
+            .push(hyper_gpu_support::ui_text::operations::apply::review::SETTINGS_PRESERVED.into());
     }
     if plan.preview.pending_recovery {
-        lines.push("Interrupted work requires recovery before further changes.".into());
+        lines.push(hyper_gpu_support::ui_text::operations::apply::review::RECOVERY_REQUIRED.into());
     }
     lines.join("\n")
 }

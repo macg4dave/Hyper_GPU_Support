@@ -1,0 +1,533 @@
+[[messages]]
+key = "operations.recovery.power_consent"
+[messages.metadata]
+screen = "recovery_consent presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.recovery.power_consent"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed recovery_consent binding: final_power; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "final_power"
+type = "message"
+
+[[messages]]
+key = "operations.verify.review.body"
+[messages.metadata]
+screen = "verify_review presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.review.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_review binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_review binding: gpu_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "gpu_name"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_review binding: lifecycle; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "lifecycle"
+type = "message"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_review binding: final_power; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "final_power"
+type = "message"
+
+[[messages]]
+key = "operations.verify.review.details"
+[messages.metadata]
+screen = "verify_details presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.review.details"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_details binding: vm_id; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_id"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_details binding: gpu_interface; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "gpu_interface"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_details binding: driver_version; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "driver_version"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_details binding: payload_digest; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "payload_digest"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_details binding: power_debug; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "power_debug"
+type = "formatted"
+
+[[messages]]
+key = "operations.guest.progress_body"
+[messages.metadata]
+screen = "guest_progress presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.guest.progress_body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed guest_progress binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed guest_progress binding: purpose; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "purpose"
+type = "message"
+
+[[messages]]
+key = "operations.profile_deletion.review.body"
+[messages.metadata]
+screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.review.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed review_forget_live binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed review_forget_live binding: vm_id; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_id"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed review_forget_live binding: gpu_interface; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "gpu_interface"
+type = "text"
+
+[[messages]]
+key = "operations.profile_deletion.completed.body"
+[messages.metadata]
+screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.completed.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed forget_live binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.enrollment.review.body"
+[messages.metadata]
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.review.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed review_enrollment binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed review_enrollment binding: gpu_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "gpu_name"
+type = "text"
+
+[[messages]]
+key = "operations.enrollment.artifact_pin"
+[messages.metadata]
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.artifact_pin"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed review_enrollment binding: artifact_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "artifact_name"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed review_enrollment binding: digest; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "digest"
+type = "text"
+
+[[messages]]
+key = "operations.apply.completed.body"
+[messages.metadata]
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.completed.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed apply_live binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.setup.unsaved.effect_summary"
+[messages.metadata]
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.setup.unsaved.effect_summary"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed apply_live binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.apply.unsaved.effect_summary"
+[messages.metadata]
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.unsaved.effect_summary"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed apply_live binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.verify.completed.body"
+[messages.metadata]
+screen = "verify_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.completed.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_live binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.verify.unknown.body"
+[messages.metadata]
+screen = "verify_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.unknown.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed verify_live binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.action.review_prompt"
+[messages.metadata]
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.action.review_prompt"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed run binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.configuration_import.recovery.body"
+[messages.metadata]
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.configuration_import.recovery.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 2
+source = "Reviewed run binding: operation_id; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "operation_id"
+type = "text"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed run binding: destination_count; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "destination_count"
+type = "usize"
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed run binding: published_count; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "published_count"
+type = "usize"
+
+[[messages]]
+key = "operations.apply.recovery.body"
+[messages.metadata]
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.recovery.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed run binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.recovery.review.body"
+[messages.metadata]
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.review.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed run binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.recovery.vm_unfinished"
+[messages.metadata]
+screen = "action_recovery_message presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.recovery.vm_unfinished"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed action_recovery_message binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "operations.apply.review.vm_heading"
+[messages.metadata]
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.vm_heading"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed review_summary binding: vm_name; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "vm_name"
+type = "text"
+
+[[messages]]
+key = "diagnostics.history.graphics.last_success"
+[messages.metadata]
+screen = "recorded_state presentation (src/gui_model.rs)"
+state = "Selected branch: diagnostics.history.graphics.last_success"
+audience = "administrator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed recorded_state binding: unix_time; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "unix_time"
+type = "u64"
+
+[[messages]]
+key = "dashboard.vm_list.count"
+slint = true
+[messages.metadata]
+screen = "AppWindow presentation (src/gui/ui/app.slint)"
+state = "Selected branch: dashboard.vm_list.count"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed AppWindow binding: count; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "count"
+type = "usize"
+
+[[messages]]
+key = "dashboard.memory.capacity_button"
+slint = true
+[messages.metadata]
+screen = "VmDetails presentation (src/gui/ui/details.slint)"
+state = "Selected branch: dashboard.memory.capacity_button"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed VmDetails binding: capacity; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "capacity"
+type = "formatted"
+
+[[messages]]
+key = "resources.field.accessible"
+slint = true
+[messages.metadata]
+screen = "AllocationField presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.field.accessible"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed AllocationField binding: field_label; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "field_label"
+type = "message"
+
+[[messages]]
+key = "resources.default_suffix"
+slint = true
+[messages.metadata]
+screen = "AllocationField presentation (src/gui/ui/resources.slint)"
+state = "Selected branch: resources.default_suffix"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+[[messages.parameters]]
+minimum = 1
+maximum = 1
+source = "Reviewed AllocationField binding: default_value; retain original classification, redaction and numeric preparation before insertion."
+[messages.parameters.declaration]
+name = "default_value"
+type = "formatted"

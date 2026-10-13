@@ -2,6 +2,149 @@ schema = 1
 locale = "en-GB"
 feature = "operations"
 
+[messages."operations.action.menu_title"]
+text = "VM actions"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.action.menu_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.action.review_prompt"]
+text = "Virtual machine: {vm_name}\n\nChoose an action to open its review. Unavailable actions explain what to do first. Your edits are kept until you explicitly discard or apply them."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.action.review_prompt"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.action.setup_unavailable"]
+text = "Use Refresh to check application setup and worker availability. Your edits are kept."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.action.setup_unavailable"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.action.unavailable_title"]
+text = "Action unavailable"
+screen = "with_state presentation (src/gui/live.rs)"
+state = "Selected branch: operations.action.unavailable_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.action.unreadable_title"]
+text = "Cannot read action availability"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.action.unreadable_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.action.updating"]
+text = "VM information is updating. You can keep editing; try this action when the update finishes."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.action.updating"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.completed.body"]
+text = "{vm_name}: GPU assignment, requested settings and final-off state were confirmed; your settings were saved. No guest graphics check was run. Start the VM through Hyper-V when ready."
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.completed.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.apply.completed.title"]
+text = "GPU change confirmed and configuration saved"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.completed.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.failure_stage"]
+text = "Applying changes"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.failure_stage"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.guest_progress"]
+text = "Applying the changes you reviewed, including any required driver preparation and GPU setup checks. Successful completion leaves the VM off."
+screen = "guest_progress presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.apply.guest_progress"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.host_progress"]
+text = "Applying the reviewed GPU changes and checking host readback. The VM will be left off after successful completion. No guest credentials, preparation or graphics check are required."
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.host_progress"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.incomplete.title"]
+text = "Operation did not complete"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.incomplete.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.ordinary_review.body"]
+text = "Ordinary GPU change: no guest access or graphics check. Leave the VM off after success; start it through Hyper-V when ready."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.ordinary_review.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
 [messages."operations.apply.power_consent"]
 text = "Approve reviewed starts/shutdowns; final state after successful completion: {final_power}."
 screen = "Apply review consent"
@@ -13,6 +156,1788 @@ severity = "warning"
 space_hint = "Wrapped consent text; do not omit the conditional final-state fact."
 placeholders = [{ name = "final_power", type = "message" }]
 
+[messages."operations.apply.progress_title"]
+text = "Apply approved changes"
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.recovery.body"]
+text = "Virtual machine: {vm_name}\n\nCheck the already-achieved GPU assignment, settings and final-off state without repeating changes or accessing the guest. Partial or changed state retains recovery. No guest boot, credential prompt or graphics check is required."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.recovery.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.apply.recovery.title"]
+text = "Review interrupted GPU change"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.recovery.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.category_no_write"]
+text = "No explicit category write; new/recreated attachments use provider defaults"
+screen = "review_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.category_no_write"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.category_unspecified"]
+text = "Unspecified; no explicit request"
+screen = "review_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.category_unspecified"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.downtime_warning"]
+text = "The running VM will be interrupted. Save work inside it before Apply. Approval below is required."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.downtime_warning"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.duration_unknown"]
+text = "Completion time varies; no exact duration is promised. Keep the application open until it reports an outcome."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.duration_unknown"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.memory_absent"]
+text = "GPU memory: no explicit request.\n"
+screen = "memory_review presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.memory_absent"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.no_effects"]
+text = "No VM or guest changes are needed. Save the reviewed intent."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.no_effects"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.power_time"]
+text = "Allow time for Windows to start or shut down gracefully. Shutdown refusal stops further changes."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.power_time"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.recovery_required"]
+text = "Interrupted work requires recovery before further changes."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.recovery_required"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.settings_preserved"]
+text = "Externally changed compatibility settings will be preserved."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.settings_preserved"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.step.allocation"]
+text = "Set the GPU resources shown above."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.step.allocation"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.step.attach"]
+text = "Attach the selected physical GPU."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.step.attach"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.step.compatibility"]
+text = "Update or restore GPU compatibility settings."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.step.compatibility"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.step.detach"]
+text = "Remove the GPU attachment."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.step.detach"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.step.prepare"]
+text = "Prepare the guest with the current signed GPU driver files."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.step.prepare"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.step.shutdown"]
+text = "Gracefully stop the VM."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.step.shutdown"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.step.start"]
+text = "Start the VM."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.step.start"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.step.verify"]
+text = "Verify GPU setup: check driver files, setup record, device health and hardware rendering."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.step.verify"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.steps_heading"]
+text = "\nPlanned steps, in order:"
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.steps_heading"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.title"]
+text = "Review changes before Apply"
+screen = "review_operation presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.review.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.transfer_time"]
+text = "Driver preparation and file transfer can take several minutes."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.transfer_time"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.verify_time"]
+text = "The graphics check may take additional time and requires Windows credentials inside this VM."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.verify_time"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.vm_heading"]
+text = "VM: {vm_name}"
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.vm_heading"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.apply.review.vram_no_write"]
+text = "No allocation write planned; existing/provider values are not explicitly reset"
+screen = "review_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.vram_no_write"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.review.vram_unspecified"]
+text = "Unspecified; no explicit VRAM request"
+screen = "review_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.apply.review.vram_unspecified"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.stage_absent"]
+text = "No execution stage was reported."
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.stage_absent"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.apply.unsaved.effect_summary"]
+text = "{vm_name}: GPU changes and final-off state were confirmed. No guest graphics check was run. The VM is off.\n"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.unsaved.effect_summary"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.apply.unsaved.title"]
+text = "GPU change confirmed; configuration not saved"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.apply.unsaved.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.background.reading"]
+text = "Reading the information needed for this action…"
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.background.reading"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.configuration_import.recovery.body"]
+text = "Import operation: {operation_id}\n{destination_count} destinations, {published_count} recorded as published. Resolve this explicit CLI import with import-reconcile --operation {operation_id}. Changed files block continuation; import never changes enrollment or GPU state."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.configuration_import.recovery.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "operation_id", type = "text" }, { name = "destination_count", type = "usize" }, { name = "published_count", type = "usize" }]
+
+[messages."operations.configuration_import.recovery.title"]
+text = "Configuration import requires reconciliation"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.configuration_import.recovery.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.absent.body"]
+text = "No stored credential is available. Apply or Verify will prompt locally when credentials are needed. Select Remember to store them in Windows Credential Manager."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.credentials.absent.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.absent.title"]
+text = "Guest credentials not retained"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.credentials.absent.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.cancelled_action"]
+text = "No guest operation was started. Your pending edits are kept; this does not mean setup or verification completed. Review the action again when ready."
+screen = "credential_cancellation presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.credentials.cancelled_action"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.cancelled_recovery"]
+text = "No recovery action was started. The unfinished operation and its recovery hold remain. Your pending edits are kept. Review recovery again when ready."
+screen = "credential_cancellation presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.credentials.cancelled_recovery"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.cancelled_title"]
+text = "Guest credential request cancelled"
+screen = "credential_request_cancelled presentation (src/gui/live.rs)"
+state = "Selected branch: operations.credentials.cancelled_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.guest_progress"]
+text = "Managing this VM's optional saved sign-in details. This does not connect to the VM, prepare drivers or check graphics."
+screen = "guest_progress presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.credentials.guest_progress"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.stored.body"]
+text = "A stored credential was confirmed in this user's Windows Credential Manager for the selected VM. No guest connection or graphics check was performed."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.credentials.stored.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.stored.title"]
+text = "Stored guest credentials available"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.credentials.stored.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.credentials.unavailable_title"]
+text = "Guest credentials unavailable"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.credentials.unavailable_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.draft.discarded_notice"]
+text = "Draft discarded. No configuration was saved or VM state changed."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.draft.discarded_notice"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.draft.exit.body"]
+text = "Keep editing or discard the in-memory draft and close. Nothing has been applied."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.draft.exit.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.draft.exit.title"]
+text = "Unapplied draft"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.draft.exit.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.draft.gpu_fixed"]
+text = "The recorded GPU pairing is fixed. GPU replacement is unavailable; your edits are kept."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.draft.gpu_fixed"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.draft.switch.body"]
+text = "There is one unapplied VM draft. Stay here, review it, or discard it before switching. Nothing has been applied."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.draft.switch.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.draft.switch.title"]
+text = "Keep your changes?"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.draft.switch.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.artifact_pin"]
+text = "{artifact_name}: {digest}\n"
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.artifact_pin"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "artifact_name", type = "text" }, { name = "digest", type = "text" }]
+
+[messages."operations.enrollment.completed.body"]
+text = "Permission for the reviewed VM/GPU pair was saved. Your draft is retained. Continue to a separate setup review; GPU support and guest readiness have not been confirmed."
+screen = "enroll_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.completed.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.completed.title"]
+text = "GPU management permission saved"
+screen = "enroll_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.completed.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.elevation_notice"]
+text = "\n\nWindows approval is required to save this permission."
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.elevation_notice"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.incomplete.title"]
+text = "App permission was not confirmed"
+screen = "enroll_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.incomplete.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.install_details"]
+text = "\n\nFIRST INSTALL / INTERRUPTED SETUP: install the fixed product package into Program Files, create protected ProgramData state and register the fixed SYSTEM runner task for this operator. Interrupted setup retains its original pair and package pins. If authority is already published, recovery only validates it and completes task/audit registration; authority and artifact files are never overwritten. No VM disk, CPU/RAM or Secure Boot change. Reviewed source artifact SHA-256 pins:\n"
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.install_details"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.install_notice"]
+text = "\n\nThe application also needs to install or finish setting up its management components on this Windows host. Windows will ask for administrator approval. If setup was interrupted, the original VM, GPU and application package must still match."
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.install_notice"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.progress_title"]
+text = "Enroll reviewed VM/GPU pair"
+screen = "enroll_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.recovery.name_unavailable"]
+text = "VM name unavailable; see Technical Details"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.recovery.name_unavailable"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.recovery.partial_deletion"]
+text = "Profile removal was interrupted. Confirm finishes only remaining reviewed record deletions and authority removal after fresh inactive-VM/revision checks. Completed deletions must remain absent; changed or unrelated records stay blocked. Other VMs, guest files and shared artifacts are retained. No guest checks, credentials or VM/GPU effects run."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.recovery.partial_deletion"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.recovery.policy_original"]
+text = "The original policy is present; the pair was not added. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.recovery.policy_original"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.recovery.policy_published"]
+text = "The complete new enrollment policy is present. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.recovery.policy_published"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.recovery.progress_title"]
+text = "Reconcile enrollment authority"
+screen = "reconcile_enrollment_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.recovery.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.recovery.retained_title"]
+text = "Enrollment recovery retained"
+screen = "reconcile_enrollment_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.recovery.retained_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.recovery.status_unavailable_title"]
+text = "Permission status unavailable"
+screen = "reconcile_enrollment_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.recovery.status_unavailable_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.recovery.title"]
+text = "Review interrupted app permission"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.recovery.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.enrollment.review.body"]
+text = "Virtual machine: {vm_name}\nPhysical GPU: {gpu_name}\n\nStep 1: allow this app to manage this VM's selected GPU. This saves permission only; GPU support and VM power will not change.\n\nStep 2: after this permission is confirmed and refreshed, use Apply to review the actual GPU setup and power changes, then confirm that separate review. Your edits are kept. Other VMs' permissions are preserved."
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.review.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }, { name = "gpu_name", type = "text" }]
+
+[messages."operations.enrollment.review.title"]
+text = "Review permission before GPU setup"
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.review.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.guest.generic_progress"]
+text = "Performing the guest steps shown in your review. Wait for the actual result before treating the operation as complete."
+screen = "guest_progress presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.guest.generic_progress"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.guest.progress_body"]
+text = "Virtual machine: {vm_name}\n\n{purpose}\n\nIf prompted, use the Windows administrator account inside this VM. Remembering it is optional. Progress appears below."
+screen = "guest_progress presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.guest.progress_body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }, { name = "purpose", type = "message" }]
+
+[messages."operations.help.body"]
+text = "Select a real VM and physical GPU, then enable GPU support in the draft and choose a VRAM request from 1 GB to the card's detected capacity. VRAM requests use bytes without a metadata-derived 1 GB ceiling; hardware behavior awaits live validation. Use the toggle or More actions > Remove GPU support to disable support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved but are not edited here. Apply first reviews exact enrollment and initial package setup when needed. After enrollment, Apply separately reviews GPU changes; confirmation requests elevation and any guest downtime consent. New publication uses schema 3; schema-2 input remains readable. Failed saving permits save-only retry; uncertain operations require explicit reconciliation. Settings opens the native credential dialog. GPU replacement remains unavailable. Delete profile removes only app records, requires an inactive profile and separate confirmation, and never changes VM power or GPU support."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.help.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.help.title"]
+text = "Application help"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.help.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.details_prompt"]
+text = "Some VM or GPU information could not be read. See Technical Details."
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.details_prompt"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.details_title"]
+text = "Observed state and recovery records"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.details_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.draft_retained"]
+text = "Your edits are kept. Refresh VM information before Apply."
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.draft_retained"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.failure_stage"]
+text = "Inventory read"
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.failure_stage"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.initial_notice"]
+text = "Virtual machine information has not been read yet."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.initial_notice"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.provenance"]
+text = "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.provenance"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.refresh_failed"]
+text = "Could not refresh VM status. You can keep editing; use Refresh before Apply."
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.refresh_failed"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.refresh_title"]
+text = "Refreshing inventory"
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.refresh_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.refreshed"]
+text = "VM status updated. Graphics results reflect previous checks."
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.refreshed"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.saved_unreadable"]
+text = " Some committed configuration could not be read or validated. Affected intent remains unknown; other readable VM files are available."
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.saved_unreadable"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.inventory.summary"]
+text = "Hyper-V virtual machines and available GPUs. Graphics results reflect previous checks."
+screen = "refresh_with_result presentation (src/gui/live.rs)"
+state = "Selected branch: operations.inventory.summary"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.outcome.absent"]
+text = "No unpublished operation is recorded; see current observations and saved intent separately."
+screen = "applied_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.outcome.absent"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.outcome.finalization_pending"]
+text = "Applied and published; protected recovery finalization is pending."
+screen = "applied_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.outcome.finalization_pending"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.outcome.publication_pending"]
+text = "Applied and checked; configuration publication is pending. Use the bound save-only retry."
+screen = "applied_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.outcome.publication_pending"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.outcome.save_unknown"]
+text = "Applied changes were checked; saving is not confirmed. Refresh for the bound receipt."
+screen = "applied_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.outcome.save_unknown"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.outcome.uncertain"]
+text = "Operation outcome uncertain; inspect protected recovery."
+screen = "applied_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.outcome.uncertain"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.outcome.verify_finalization_pending"]
+text = "Graphics check completed; protected recovery finalization is pending. No configuration publication is authorized."
+screen = "applied_text presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.outcome.verify_finalization_pending"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.partial_removal.completed.body"]
+text = "The partial attachment was removed and the recorded starting compatibility settings were confirmed. The VM remains off. Old setup eligibility is invalid; guest files and failure evidence are retained. Review Delete profile here if a fresh enrollment is needed. It removes saved settings, app permission and managed history, and requires its own confirmation. Otherwise close this result and review Repair / Reinstall."
+screen = "reset_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.partial_removal.completed.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.partial_removal.completed.title"]
+text = "Partial GPU setup removed"
+screen = "reset_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.partial_removal.completed.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.partial_removal.review.title"]
+text = "Review partial GPU removal"
+screen = "review_reset presentation (src/gui/live.rs)"
+state = "Selected branch: operations.partial_removal.review.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.partial_removal.title"]
+text = "Remove partial GPU setup"
+screen = "reset_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.partial_removal.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.plan.progress_body"]
+text = "Preparing your changes may take some time. Checking the selected VM, GPU and installed driver files before showing the changes for approval. Nothing is being applied yet."
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.plan.progress_body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.plan.progress_title"]
+text = "Building fresh plan"
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.plan.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.plan.target_mismatch"]
+text = "The backend plan does not match the selected draft. Refresh before retrying."
+screen = "review_operation presentation (src/gui/live.rs)"
+state = "Selected branch: operations.plan.target_mismatch"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.plan.unavailable_title"]
+text = "Plan unavailable"
+screen = "review_operation presentation (src/gui/live.rs)"
+state = "Selected branch: operations.plan.unavailable_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.completed.body"]
+text = "{vm_name}: deletion of this app's saved settings, authorization and managed history was verified. The Hyper-V VM, disks, checkpoints, guest files and other app profiles remain. No GPU or power changes were performed. Current status is being updated. Continue to a new permission/setup review when ready."
+screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.completed.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.profile_deletion.completed.title"]
+text = "App profile deleted"
+screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.completed.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.failure_stage"]
+text = "Profile deletion"
+screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.failure_stage"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.incomplete.title"]
+text = "Profile deletion did not finish"
+screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.incomplete.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.progress_title"]
+text = "Delete app profile"
+screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.recovery.title"]
+text = "Review interrupted profile deletion"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.profile_deletion.recovery.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.review.body"]
+text = "Virtual machine: {vm_name}\nVM ID: {vm_id}\nGPU: {gpu_interface}\n\nDelete only this VM's app profile: its saved GPU settings, authorized VM/GPU pairing and managed setup/verification history. Keep all other app profiles, the Hyper-V VM, disks, checkpoints, guest driver files and shared application artifacts.\n\nThis action does not remove GPU support, change VM power, uninstall drivers or request guest credentials. The existing protected deletion path requires GPU support already inactive and the VM off.\n\nDelete profile confirms this review; Windows requests approval to remove the protected app records. Cancel keeps all records. The VM stays discoverable and a new reviewed setup is required to enable GPU support through this app again."
+screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.review.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }, { name = "vm_id", type = "text" }, { name = "gpu_interface", type = "text" }]
+
+[messages."operations.profile_deletion.review.failure_stage"]
+text = "Profile deletion review"
+screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.review.failure_stage"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.review.progress_title"]
+text = "Review app profile deletion"
+screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.review.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.review.stale_title"]
+text = "Review Delete profile again"
+screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.review.stale_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.review.title"]
+text = "Delete this app profile?"
+screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.review.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.profile_deletion.review.unavailable_title"]
+text = "Profile deletion unavailable"
+screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
+state = "Selected branch: operations.profile_deletion.review.unavailable_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.blocked.title"]
+text = "Recovery remains blocked"
+screen = "reconcile_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.blocked.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.confirmed.body"]
+text = "Fresh checks established the reviewed outcome and any required configuration publication. No GPU assignment, allocation or preparation was repeated. VM status is updated before another review."
+screen = "reconcile_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.confirmed.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.confirmed.title"]
+text = "Recorded outcome confirmed"
+screen = "reconcile_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.confirmed.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.ended.body"]
+text = "Fresh checks established the recorded host state and safely ended the attempt without repeating GPU work or saving requested settings. Any failed or unknown guest check remains recorded; ending recovery does not certify guest setup or rendering. Review repair or another supported operation."
+screen = "reconcile_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.ended.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.ended.title"]
+text = "Interrupted attempt ended"
+screen = "reconcile_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.ended.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.failure_stage"]
+text = "Reconciliation"
+screen = "reconcile_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.failure_stage"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.guest_progress"]
+text = "Checking the interrupted operation and any reviewed guest/power steps. GPU assignment and driver preparation are not repeated. Uncertain results keep recovery blocked."
+screen = "guest_progress presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.recovery.guest_progress"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.host_progress"]
+text = "Checking the already-achieved recorded outcome without repeating GPU work or accessing the guest. Unresolved state retains recovery."
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.host_progress"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.import_unfinished"]
+text = "A configuration import did not finish."
+screen = "action_recovery_message presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.recovery.import_unfinished"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.power_consent"]
+text = "Approve reviewed power changes; expected final state if confirmed: {final_power}."
+screen = "recovery_consent presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.recovery.power_consent"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "final_power", type = "message" }]
+
+[messages."operations.recovery.progress_title"]
+text = "Check recorded outcome"
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.review.body"]
+text = "Virtual machine: {vm_name}\n\nCheck the interrupted GPU operation without repeating it. A terminal failed guest check can end recovery after fresh reads confirm its original host lifecycle was restored; its failure remains recorded. A setup/reinstall attempt that never entered preparation can end after fresh reads confirm unchanged starting host state. These exits require no new guest check or credentials and do not certify setup. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.review.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.recovery.review.title"]
+text = "Review interrupted operation"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.review.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.review_first_title"]
+text = "Review the unfinished operation first"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.review_first_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.unreadable_title"]
+text = "Cannot read operation state"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.unreadable_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.unsaved.title"]
+text = "Outcome verified; configuration unsaved"
+screen = "reconcile_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.unsaved.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.vm_unfinished"]
+text = "An earlier operation for {vm_name} did not finish."
+screen = "action_recovery_message presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.recovery.vm_unfinished"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.removal.review.body"]
+text = "Remove GPU support: detach the exact managed GPU if present, restore still-owned compatibility values and leave the VM off. Keep guest driver files, authorization and setup history. No guest credentials or graphics check."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.removal.review.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.repair.review.body"]
+text = "Repair / Reinstall: run complete signed driver preparation even with matching history, verify current payload and selected-hardware rendering, then leave the VM off."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.repair.review.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.repair.review.title"]
+text = "Review Repair / Reinstall"
+screen = "review_operation presentation (src/gui/live.rs)"
+state = "Selected branch: operations.repair.review.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.review.stale_title"]
+text = "Review again"
+screen = "review_operation presentation (src/gui/live.rs)"
+state = "Selected branch: operations.review.stale_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.blocked.title"]
+text = "Save-only retry blocked"
+screen = "save_only_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.blocked.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.completed.body"]
+text = "Protected publication passed readback. No GPU operation was repeated."
+screen = "save_only_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.completed.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.completed.title"]
+text = "Configuration saved"
+screen = "save_only_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.completed.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.progress_body"]
+text = "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.progress_body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.progress_title"]
+text = "Retry configuration save only"
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.review.body"]
+text = "GPU effects already passed independent readback. Retry saves only the bound configuration; it will not repeat GPU modification. Changed configuration, driver, payload or effective state blocks this retry."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.review.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.review.title"]
+text = "Verified operation awaits configuration publication"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.review.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.unsaved.body"]
+text = "The protected receipt remains available for inspection. No GPU operation was repeated."
+screen = "save_only_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.unsaved.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.save_only.unsaved.title"]
+text = "Configuration still unsaved"
+screen = "save_only_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.save_only.unsaved.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.selection.fallback"]
+text = "the selected VM"
+screen = "background_for_vm presentation (src/gui/live.rs)"
+state = "Selected branch: operations.selection.fallback"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.setup.completed.title"]
+text = "GPU setup/update passed"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.setup.completed.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.setup.incomplete.title"]
+text = "GPU setup/update did not complete"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.setup.incomplete.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.setup.review.body"]
+text = "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.setup.review.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.setup.unsaved.effect_summary"]
+text = "{vm_name}: hardware rendering passed and final shutdown was confirmed. The VM is off.\n"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.setup.unsaved.effect_summary"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.setup.unsaved.title"]
+text = "GPU setup/update passed; settings not saved"
+screen = "apply_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.setup.unsaved.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.setup.update_review.body"]
+text = "GPU setup/update required: preparation changed or is invalid. Review driver work, hardware rendering and final shutdown before confirming."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.setup.update_review.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.validation.stage"]
+text = "Configuration validation"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.validation.stage"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.apply_review.body"]
+text = "Verify GPU setup required: check current guest driver files, setup record and hardware rendering without reinstalling drivers. Apply follows the final power state shown below."
+screen = "review_summary presentation (src/gui/live_state.rs)"
+state = "Selected branch: operations.verify.apply_review.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.completed.body"]
+text = "{vm_name}: current guest driver files and setup record matched the approved driver package; device health and hardware rendering passed. The reviewed final power state was confirmed. Refresh to read the latest check result; it is a record of this check, not a guarantee of future health."
+screen = "verify_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.completed.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.verify.completed.title"]
+text = "Verify GPU setup passed"
+screen = "verify_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.completed.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.consent.off"]
+text = "Approve temporarily starting this VM, then gracefully shutting it down to Off."
+screen = "verify_consent presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.consent.off"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.consent.running"]
+text = "This VM is expected to remain Running during Verify GPU setup."
+screen = "verify_consent presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.consent.running"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.consent.unknown"]
+text = "Power state is unknown. Refresh and review again before continuing."
+screen = "verify_consent presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.consent.unknown"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.guest_progress"]
+text = "Checking the current driver files, setup record, device health and hardware rendering. Drivers are not being reinstalled. VM power follows the reviewed sequence."
+screen = "guest_progress presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.guest_progress"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.incomplete.title"]
+text = "Verify GPU setup did not complete"
+screen = "verify_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.incomplete.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.lifecycle.off"]
+text = "Temporarily start this VM for the check, then gracefully shut it down to Off."
+screen = "verify_review presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.lifecycle.off"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.lifecycle.running"]
+text = "This VM is already running and is expected to remain Running."
+screen = "verify_review presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.lifecycle.running"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.lifecycle.unknown"]
+text = "The VM's power state is unknown or changing. Refresh before a new review."
+screen = "verify_review presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.lifecycle.unknown"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.recovery.body"]
+text = "Check the recorded pair and fresh graphics outcome; restore only the originally approved guest power if safe. No GPU assignment, allocation, preparation or configuration publication is performed."
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.recovery.body"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.recovery.title"]
+text = "Reconcile interrupted graphics check"
+screen = "run presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.recovery.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.review.body"]
+text = "Virtual machine: {vm_name}\nPhysical GPU: {gpu_name}\n\nVerify GPU setup: compare the current guest driver files and setup record with the approved driver package, then check the GPU's device health and hardware rendering. This checks current setup; a past successful check alone does not establish current health.\n\n{lifecycle}\nExpected final power after successful completion: {final_power}.\n\nUse the Windows administrator sign-in for this VM if prompted. File checks, starting Windows and rendering can take time; no exact duration is promised. This refreshes the check tools and diagnostic information inside the VM, but does not reinstall drivers, change GPU assignment or save settings.\n\nVerify GPU setup confirms this review. Cancel keeps your settings and starts no check."
+screen = "verify_review presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.review.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }, { name = "gpu_name", type = "text" }, { name = "lifecycle", type = "message" }, { name = "final_power", type = "message" }]
+
+[messages."operations.verify.review.details"]
+text = "VM ID: {vm_id}\nGPU interface: {gpu_interface}\nDriver version: {driver_version}\nAuthenticated payload digest: {payload_digest}\nObserved power: {power_debug}\n\nCompares current guest destinations and the preparation receipt with the authenticated host manifest before device health/rendering. Protected guest helpers, manifest metadata and optional diagnostics may be refreshed. Fresh protected admission independently checks the reviewed state."
+screen = "verify_details presentation (src/gui/wording.rs)"
+state = "Selected branch: operations.verify.review.details"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_id", type = "text" }, { name = "gpu_interface", type = "text" }, { name = "driver_version", type = "text" }, { name = "payload_digest", type = "text" }, { name = "power_debug", type = "formatted" }]
+
+[messages."operations.verify.review.progress_title"]
+text = "Reviewing Verify GPU setup"
+screen = "review_verification presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.review.progress_title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.verify.review.title"]
+text = "Review Verify GPU setup"
+screen = "review_verification presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.review.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
 [messages."operations.verify.title"]
 text = "Verify GPU setup"
 screen = "Verify review and operation dialog"
@@ -22,4 +1947,26 @@ intent = "Name the reviewed current-setup check."
 consequences = "Title only; never selects an operation or grants approval."
 severity = "information"
 space_hint = "Dialog heading or action button; inspect long wording at supported width/scaling."
+placeholders = []
+
+[messages."operations.verify.unknown.body"]
+text = "{vm_name}: no completed check outcome was established. Use Refresh and Review recovery before another operation."
+screen = "verify_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.unknown.body"
+audience = "operator"
+intent = "Present the selected facts using code-owned data and formatting."
+consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
+severity = "information"
+space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
+placeholders = [{ name = "vm_name", type = "text" }]
+
+[messages."operations.verify.unknown.title"]
+text = "Verify GPU setup outcome unknown"
+screen = "verify_live presentation (src/gui/live.rs)"
+state = "Selected branch: operations.verify.unknown.title"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []

@@ -1,7 +1,7 @@
 //! Source serialization uses parsed segments, never resource syntax as code.
 use crate::{
     Catalogue, ValidMessage,
-    contract::ParameterType,
+    contract::{Consumer, ParameterType},
     template::{Segment, slint_literal},
 };
 use std::collections::BTreeMap;
@@ -50,9 +50,17 @@ fn function(name: &str, message: &ValidMessage, output: &mut String) {
                 _ => None,
             })
             .collect();
+        // Stable borrows for existing &str presenters; still one catalogue source.
         output.push_str(&format!(
-            "UiMessage(::std::borrow::Cow::Borrowed({text:?}))\n"
+            "UiMessage(::std::borrow::Cow::Borrowed({}))\n",
+            name.to_uppercase()
         ));
+        output.push_str("}\n");
+        output.push_str(&format!(
+            "/// Compiled fixed display value.\npub const {}: &str = {text:?};\n",
+            name.to_uppercase()
+        ));
+        return;
     } else {
         for parameter in &message.contract.parameters {
             if matches!(
@@ -137,6 +145,31 @@ pub(crate) fn sources(catalogue: &Catalogue) -> Sources {
                 "    out property <string> {}: {};\n",
                 message.contract.slint_name(),
                 slint_literal(&text)
+            ));
+        } else if matches!(message.contract.consumer, Consumer::SlintParameterised) {
+            let arguments = message
+                .contract
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let kind = match parameter.declaration.kind {
+                        ParameterType::Usize | ParameterType::I32 => "int",
+                        _ => "string",
+                    };
+                    format!("{}: {kind}", parameter.declaration.name)
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let expression = std::iter::once(slint_literal(""))
+                .chain(message.segments.iter().map(|segment| match segment {
+                    Segment::Literal(text) => slint_literal(text),
+                    Segment::Parameter(name) => name.clone(),
+                }))
+                .collect::<Vec<_>>()
+                .join(" + ");
+            slint.push_str(&format!(
+                "    public pure function {}({arguments}) -> string {{ return {expression}; }}\n",
+                message.contract.slint_name(),
             ));
         }
     }

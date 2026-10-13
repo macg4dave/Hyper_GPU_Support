@@ -6,25 +6,29 @@ use hyper_gpu_support::model::Resource;
 pub(super) fn comparison(state: &State, id: &str) -> String {
     let unknown = |reason: &str| format!("Host configuration: Unknown; {reason}.");
     if state.committed.revision(id).is_err() {
-        return unknown("saved intent is unreadable");
+        return unknown(hyper_gpu_support::ui_text::diagnostics::host_comparison::SAVED_UNREADABLE);
     }
     let Some(saved) = state.committed.documents.get(id).map(|d| &d.target) else {
-        return unknown("no saved intent");
+        return unknown(hyper_gpu_support::ui_text::diagnostics::host_comparison::SAVED_ABSENT);
     };
     if state.view.needs_readback {
-        return unknown("retained host observations are historical; Refresh to compare");
+        return unknown(hyper_gpu_support::ui_text::diagnostics::host_comparison::HISTORICAL);
     }
     let Some(inventory) = state.view.inventory.as_ref() else {
-        return unknown("host inventory is unavailable");
+        return unknown(
+            hyper_gpu_support::ui_text::diagnostics::host_comparison::INVENTORY_UNAVAILABLE,
+        );
     };
     let Some(vm) = state.view.vm(id) else {
-        return unknown("VM was not returned by the latest host read");
+        return unknown(hyper_gpu_support::ui_text::diagnostics::host_comparison::VM_MISSING);
     };
     if inventory.discovery.issues.iter().any(|issue| {
         issue.stage != "Preparation record"
             && (issue.target.is_none() || issue.target.as_deref() == Some(id))
     }) {
-        return unknown("latest host observations are incomplete; inspect diagnostics");
+        return unknown(
+            hyper_gpu_support::ui_text::diagnostics::host_comparison::OBSERVATIONS_INCOMPLETE,
+        );
     }
 
     let mut differences = Vec::new();
@@ -37,7 +41,7 @@ pub(super) fn comparison(state: &State, id: &str) -> String {
     if vm.gpus != expected {
         let attachments = |gpus: &[String]| {
             if gpus.is_empty() {
-                "none".into()
+                hyper_gpu_support::ui_text::diagnostics::host_comparison::attachments::NONE.into()
             } else {
                 gpus.join(", ")
             }
@@ -59,14 +63,23 @@ pub(super) fn comparison(state: &State, id: &str) -> String {
                 (Some(request), None) => unknowns.push(format!(
                     "{}: expected {}; observed Unknown",
                     resource.name(),
-                    super::live_state::allocation_description(Some(request), "Unknown")
+                    super::live_state::allocation_description(
+                        Some(request),
+                        hyper_gpu_support::ui_text::common::state::UNKNOWN
+                    )
                 )),
                 (Some(request), Some(observed)) if request != observed => {
                     differences.push(format!(
                         "{}: expected {}; observed {}",
                         resource.name(),
-                        super::live_state::allocation_description(Some(request), "Unknown"),
-                        super::live_state::allocation_description(Some(observed), "Unknown")
+                        super::live_state::allocation_description(
+                            Some(request),
+                            hyper_gpu_support::ui_text::common::state::UNKNOWN
+                        ),
+                        super::live_state::allocation_description(
+                            Some(observed),
+                            hyper_gpu_support::ui_text::common::state::UNKNOWN
+                        )
                     ))
                 }
                 _ => {}
@@ -89,22 +102,22 @@ pub(super) fn comparison(state: &State, id: &str) -> String {
             let observed = &vm.settings;
             for (name, expected, observed) in [
                 (
-                    "Low MMIO (MiB)",
+                    hyper_gpu_support::ui_text::common::compatibility::LOW_MMIO,
                     expected.low_mmio.to_string(),
                     observed.low_mmio.to_string(),
                 ),
                 (
-                    "High MMIO (MiB)",
+                    hyper_gpu_support::ui_text::common::compatibility::HIGH_MMIO,
                     expected.high_mmio.to_string(),
                     observed.high_mmio.to_string(),
                 ),
                 (
-                    "Guest cache types",
+                    hyper_gpu_support::ui_text::common::compatibility::CACHE_TYPES,
                     expected.cache_types.to_string(),
                     observed.cache_types.to_string(),
                 ),
                 (
-                    "Automatic checkpoints",
+                    hyper_gpu_support::ui_text::common::compatibility::CHECKPOINTS,
                     expected.automatic_checkpoints.to_string(),
                     observed.automatic_checkpoints.to_string(),
                 ),
@@ -116,11 +129,14 @@ pub(super) fn comparison(state: &State, id: &str) -> String {
                 }
             }
         } else {
-            unknowns.push("managed compatibility baseline is unavailable or not applicable".into());
+            unknowns.push(
+                hyper_gpu_support::ui_text::diagnostics::host_comparison::BASELINE_UNAVAILABLE
+                    .into(),
+            );
         }
     }
     let mut text = if differences.is_empty() {
-        "Host configuration: compared values match the saved intent.".to_owned()
+        hyper_gpu_support::ui_text::diagnostics::host_comparison::MATCHES.to_owned()
     } else {
         format!(
             "Host configuration differences (saved intent / latest Hyper-V read): {}. Review changes before repair or GPU removal.",

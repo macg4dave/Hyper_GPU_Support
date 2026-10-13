@@ -68,7 +68,7 @@ All accessors return `UiMessage`: fixed text borrows a static decoded literal; p
 
 The `text` type does not itself certify safe input. Each contract parameter records its exact source and preparation rule; developers must preserve existing sanitisation/redaction at that boundary. Safe native codes come from typed numeric facts. Do not add passwords, vault contents, raw Windows/driver/process/parser errors or arbitrary adapter output as any parameter type. No validator can prove truthful consequences or detect secrets introduced by an unsafe caller.
 
-Booleans, power/availability/resource display choices and singular/plural wording are selected by typed Rust state and catalogue submessages. Resource/WMI identities and enum wire/debug names stay immutable. Code retains numeric rounding, unit conversion and requested-byte semantics. Move only the minimum shared formatting needed for library callers into a reusable presenter; do not duplicate the memory or transfer arithmetic. Fixed text and dynamic templates use the same catalogue; Slint performs no catalogue placeholder formatting.
+Booleans, power/availability/resource display choices and singular/plural wording are selected by typed Rust state and catalogue submessages. Resource/WMI identities and enum wire/debug names stay immutable. Code retains numeric rounding, unit conversion and requested-byte semantics. Move only the minimum shared formatting needed for library callers into a reusable presenter; do not duplicate the memory or transfer arithmetic. Fixed text and dynamic templates use the same catalogue; Slint never parses resources or expands placeholders at runtime. The four existing Slint compositions use generated pure concatenation functions from the validated segments. Their arguments remain existing field/default/range strings or the existing nonnegative Slint model length; no Rust `usize` or `u64` is narrowed for formatting. Rust keeps its typed accessors for these keys. Other numeric values remain Rust-prepared; the validator rejects `u64` Slint function arguments.
 
 ## Independent code contract
 
@@ -199,8 +199,8 @@ The isolated tool accepts the nine-key baseline under `tests/fixtures/ui-text/va
 
 ```powershell
 cargo test --locked --manifest-path tools/ui-text/standalone/Cargo.toml
-cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- tests/fixtures/ui-text/validator/baseline
-cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- tests/fixtures/ui-text/validator/baseline --generate local/evidence/ui-text-generated
+cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- resources/i18n/en-GB
+cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- resources/i18n/en-GB --generate local/evidence/ui-text-generated
 python -B scripts/testing/test_check_ui_copy.py
 python -B scripts/testing/check-ui-copy.py --json
 ```
@@ -228,3 +228,33 @@ powershell -NoProfile -File scripts/testing/check.ps1
 The rebuild script is an explicit contributor proof: run it alone. It temporarily edits only prepared resource text, tests generated Rust output against current resource bytes and Slint defaults in two headless instances, proves unknown-file addition and required-file deletion invalidate builds, and rejects malformed templates. It restores the original resource bytes in `finally`, then rebuilds/verifies the verbatim baseline. Adversarial quotes, backslashes, literal braces, Unicode and newlines remain data. No live application, renderer, native prompt or backend is launched.
 
 The non-hardware gate now runs the isolated validator tests, active resource validation and copy scan before its existing stages. Its evidence hashes include resources, tool contracts/manifests/lockfiles and tests. Rendered fit, focus/interaction and live native prompts remain separately authorized later acceptance; a headless getter check does not prove appearance.
+
+
+LANG-004 final automated results, 13 October 2026: `cargo fmt --all -- --check`, `cargo test --locked --all-targets`, strict `cargo clippy --locked --all-targets -- -D warnings`, product binary builds and API documentation generation all passed against the completed source. The final generator revision also passed the restored baseline and resource-only rebuild proof. The standalone validator's nine tests and two copy-scan tests passed through the gate. The complete `check.ps1` run still failed at Documentation with the existing 22 links to deleted handbook pages; its later stages remained Not run in that gate report and were executed separately. This does not close L2 or establish rendered/native/live behavior.
+
+## Editor handoff
+
+LANG-008: use the active entries in all ten TOML feature files under `resources/i18n/en-GB/`. Historical paragraphs above describe earlier checkpoints. The validator now requires the expanded product catalogue, so the old nine-key fixture alone is not valid standalone CLI input. Generated fixed accessors also expose static constants for existing borrowed-string presenters; both forms derive from the same validated text. Independent fixed/dynamic contracts are developer-owned files beside `contract.rs`, included at tool compilation time; they contain no fallback wording.
+
+Until LANG-009 passes, preserve the original English. An editor receives the catalogue and this guide, then changes only `text` fields in those feature files. Preserve every other field, key, placeholder name/type, effect, uncertainty, consent fact, final-power condition and next action. Screens/state/intent/consequences describe the consuming branch. `space_hint` flags a layout concern; it is not proof that a sentence fits. For each changed entry, record its key, reason for editing, and any unresolved meaning or length question. Put review notes outside the resource directory.
+
+Use British English consistently during the later editorial pass. Use **VM** for the existing virtual machine, **GPU support** for the reviewed attachment/settings workflow, **VRAM request** for requested provider values, **Verify GPU setup** for the current reviewed guest check, and **saved settings** for committed intent. A previous check is historical; copied files are not verified setup; saved intent is not an observation or authorization. Do not describe a request as reserved or isolated VRAM. Preserve named actions where the sentence directs the operator to a specific button.
+
+Walkthrough: `operations.verify.title` is fixed heading/button copy and cannot select Verify. `credentials.guest_sign_in.message` inserts the filtered VM name once as data and explains separate, optional local remembering; keep `{vm_name}` intact and respect its native bound. `operations.apply.power_consent` is a warning with exactly one `{final_power}` selected from the reviewed plan; retain the condition of successful completion. Reordering placeholders is allowed within the independent occurrence contract, but neither removing a consequence nor changing severity is editorial work. Escaped `{{literal}}` remains literal text, and inserted braces never trigger another substitution.
+
+Example editorial request: “After the verbatim gate, improve clarity and British English in the selected `text` fields. Preserve placeholders and all operation/uncertainty/consent facts. Return a resource-only diff plus key-specific ambiguity and length notes. Leave uncertain entries unchanged for semantic review.” This does not authorize another agent or live effects.
+
+Validate and review from the repository root:
+
+```powershell
+git diff -- resources/i18n/en-GB
+cargo run --locked --manifest-path tools/ui-text/standalone/Cargo.toml -- resources/i18n/en-GB
+python -B scripts/testing/check-ui-copy.py
+powershell -NoProfile -File scripts/testing/check.ps1
+```
+
+Codex reviews the diff against actual operation branches, validates, rebuilds, and arranges separately authorized affected-surface checks. During migration, executable golden tests intentionally reject changes from the historical baseline. After explicit editorial approval, update only expectations for the deliberately changed keys while retaining semantic/control regressions and the historical extraction artifacts. A passing validator or build does not approve changed meaning or prove wrapping, clipping, focus, scrolling or native appearance.
+
+Future features follow the same handoff: the developer adds a semantic key, independent contract, safe typed binding, context and inventory disposition; the editor changes text; Codex reviews meaning and automated checks; affected surfaces receive visual/interaction review at the milestone. Existing features do not acquire authority from edited text. Keep new in-scope wording in the catalogue and record specific exceptions without blocking unrelated development on an editorial pass.
+
+Current extraction checkpoint, 13 October 2026: the full non-hardware gate and restored resource-only rebuild proof passed against the expanded 408-key catalogue. The 381 fixed bindings and 18 data-only dynamic keys execute against frozen historical fixtures; two headless windows exercise the four Slint compositions and edited inserted data. The guide walkthrough and all documentation links pass. Full dynamic/reporting extraction, full clean-build migration and rendered/native acceptance remain pending; the editorial phase has not started. `dashboard.memory.capacity_button` retains its historical key name: its current input is the labelled range-start endpoint used by the existing button, not a new maximum-capacity action.
