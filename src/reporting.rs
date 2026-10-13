@@ -370,6 +370,61 @@ pub fn technical_error(stage: &str, error: &str) -> String {
             operator_error(stage, error)
         );
     }
+    let facts = raw_technical_facts(error);
+    format!(
+        "Operation: {stage}\nBackend result: {}\nComponent message: {}\nNative error codes: {}\nOther untrusted adapter text is omitted to protect credentials.",
+        operator_error(stage, error),
+        facts
+            .component_message
+            .unwrap_or("not available as a safe structured message"),
+        if facts.native_codes.is_empty() {
+            "not available".into()
+        } else {
+            facts.native_codes.join(", ")
+        },
+    )
+}
+
+/// Collected safe facts, independent of rendered diagnostic headings or absence copy.
+#[derive(Default)]
+pub struct TechnicalFacts {
+    /// A valid typed terminal component envelope was collected.
+    pub component: Option<ComponentFailure>,
+    /// Permitted hexadecimal native codes; untrusted prose is never included.
+    pub native_codes: Vec<String>,
+    /// Exact application-owned allowlisted input, before editable presentation.
+    pub component_message: Option<&'static str>,
+}
+
+impl TechnicalFacts {
+    /// Whether diagnostics contain collected facts beyond generic guidance.
+    pub fn is_available(&self) -> bool {
+        self.component.is_some()
+            || !self.native_codes.is_empty()
+            || self.component_message.is_some()
+    }
+}
+
+/// Classify raw failure facts without consulting any rendered text.
+pub fn technical_facts(error: &str) -> TechnicalFacts {
+    if let Some(component) = ComponentFailure::decode(error) {
+        return TechnicalFacts {
+            component: Some(component),
+            ..TechnicalFacts::default()
+        };
+    }
+    raw_technical_facts(error)
+}
+
+/// Check input safety before an editable stage label/status is composed.
+pub fn safe_progress_input(stage: &str) -> bool {
+    let lower = stage.to_ascii_lowercase();
+    !["password", "token", "secret", "credential", "bearer"]
+        .iter()
+        .any(|word| lower.contains(word))
+}
+
+fn raw_technical_facts(error: &str) -> TechnicalFacts {
     let mut codes = Vec::new();
     let lower = error.to_ascii_lowercase();
     if !["password", "token", "secret", "credential", "bearer"]
@@ -397,16 +452,11 @@ pub fn technical_error(stage: &str, error: &str) -> String {
         "operation journal does not prove the reviewed preparation and power intent",
         "reconciliation independent readback changed",
     ].into_iter().find(|message| *message == error);
-    format!(
-        "Operation: {stage}\nBackend result: {}\nComponent message: {}\nNative error codes: {}\nOther untrusted adapter text is omitted to protect credentials.",
-        operator_error(stage, error),
-        component_message.unwrap_or("not available as a safe structured message"),
-        if codes.is_empty() {
-            "not available".into()
-        } else {
-            codes.join(", ")
-        },
-    )
+    TechnicalFacts {
+        component: None,
+        native_codes: codes,
+        component_message,
+    }
 }
 
 // A bounded application-owned combination retains its terminal typed primary.
@@ -458,6 +508,30 @@ pub fn collect_observations<T>(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn fact_availability_is_typed_and_redacts_original_inputs() {
+        use super::*;
+        assert!(!technical_facts("").is_available());
+        let code = format!("0x{:08X}", 0x80070005u32);
+        let facts = technical_facts(&code);
+        assert!(facts.is_available());
+        assert_eq!(facts.native_codes, vec![code.clone()]);
+        let unsafe_input = format!("{}={code}", String::from_iter(['t', 'o', 'k', 'e', 'n']));
+        assert!(!technical_facts(&unsafe_input).is_available());
+        let failure = ComponentFailure {
+            stage: Some(FailureStage::Verification),
+            component: Component::GuestTransport,
+            cause: FailureCause::Unclassified,
+            code: None,
+        };
+        let facts = technical_facts(&failure.into_error());
+        let collected = facts.component.as_ref().unwrap();
+        assert!(matches!(collected.stage, Some(FailureStage::Verification)));
+        assert!(matches!(collected.component, Component::GuestTransport));
+        assert!(matches!(collected.cause, FailureCause::Unclassified));
+        assert!(facts.is_available());
+    }
+
     use super::*;
 
     #[test]

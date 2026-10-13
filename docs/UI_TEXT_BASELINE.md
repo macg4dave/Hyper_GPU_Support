@@ -104,4 +104,23 @@ The controller/state/worker/reporting tests identified in the inventory remain s
 
 Targeted baseline review passed (`python -B -X utf8 local/evidence/lang-003/review.py`): source hashes/literal locations, all 1,404 occurrence dispositions, 696 unique/schema-valid final keys, Rust/Slint symbol collisions, complete named parameter bindings, optional-branch coverage, 841 output hashes, exact old-to-new template equivalence for the prepared examples, all required journeys and CD1–CD12 coverage. `git diff --check` passed. Local planning scripts create/check the historical fixtures; they are not product presenters or a passing test suite. `python scripts/testing/check-docs.py` failed on the same 22 links to deleted handbook pages; unrelated deletions were preserved.
 
-Actual Rust evaluation, generated code compilation, TOML-only incremental rebuild, real catalogue validation, full non-hardware tests and rendered/interaction acceptance are not run by this card. They remain the specific later gates. L1 inventory/design/baseline deliverables are recorded; no compiled/runtime or visual milestone is claimed. Next source card: LANG-013, then LANG-007 before LANG-004.
+Actual Rust evaluation, generated code compilation, TOML-only incremental rebuild, real catalogue validation, full non-hardware tests and rendered/interaction acceptance are not run by this card. They remain the specific later gates. L1 inventory/design/baseline deliverables are recorded; no compiled/runtime or visual milestone is claimed. LANG-013 is now implemented as recorded below. Next source card: LANG-007 before LANG-004.
+
+
+## LANG-013 source separation
+
+Implemented 13 October 2026. These historical occurrence hashes/output fixtures remain the pre-extraction baseline; they are not regenerated to bless source changes. Focused Rust regressions test control semantics and synthetic edited labels, not catalogue English. Bulk presenter/output comparison remains LANG-009.
+
+| Risk | Current source boundary and proof |
+|---|---|
+| CD1 | `operation::Kind` selects silent refresh and guest/non-guest purpose independently of `Operation::title`. Edited-title tests cover every kind. Delete app profile retains the existing generic read branch; the former inactive-pair title branch was unreachable and is removed. |
+| CD2/CD3 | `progress_state::Event` consumes original worker stage/status before formatting. Local identities/slots govern coalescing and step updates; counters and safety metadata are separate from rows. Synthetic rows, acknowledged fractions and failure/done/phase boundaries are tested; the VecModel remains in place. |
+| CD4 | Original native cancellation sentinel/status mapping is unchanged. Isolated cancellation tests reject an edited label and establish that no guest work starts. Existing state tests cover retained draft/recovery holds. |
+| CD5/CD6 | VM rows carry power categories and unsupported flags from typed observations. Historical/updating categories remain unknown; the hidden setup panel has an explicit flag with no invented live producer. Edited power/status labels cannot select categories. |
+| CD7/CD9 | `reporting::technical_facts` collects typed envelopes, permitted codes and exact safe messages from original input. Diagnostic visibility uses facts rather than rendered headings. Original classification needles, limits and redaction remain unchanged. Stage safety is captured before aliases/status text and preserved across completion reads. |
+| CD8 | `memory::decimal_gb` formats numeric input directly from bytes. Display units are never stripped back into input. Tests roundtrip exact byte values including physical capacity and integer limits. |
+| CD10 | Cached action Results supply separate allowed flags; draft Results supply `draft-valid`. Rust admission and Slint buttons use those flags. Empty/edited reasons cannot enable blocked actions. Fresh protected reviews still govern effects. |
+| CD11 | The original `Preparation record` discriminator remains protocol input in inventory/host comparison, outside editable labels. Existing inventory and recovery tests exercise unreadable/mismatched records. |
+| CD12 | Reviewed `additional_details`/dialog duplicate suppression remains presentation-only: it suppresses summary repetition, never controls operation selection, result classification, approval or recovery. Additional facts remain available under edited summaries. Required nonblank copy validation belongs to LANG-007; rendered details interaction remains LANG-009. |
+
+Focused checks compile the current Rust/Slint bindings and exercise only local helpers/state and credential status handling. They do not open native prompts, launch/render the GUI, access guests, perform protected writes or affect VMs. The full L2 gate is still pending. Repository docs checking continues to report the existing deleted-handbook links.

@@ -1046,9 +1046,9 @@ mod tests {
         for power in [Power::Off, Power::Running] {
             s.view.inventory.as_mut().unwrap().discovery.vms[0].power = power;
             let actions = s.selected_actions(0, &values);
-            assert!(actions.verify.is_empty());
-            assert!(actions.repair.is_empty());
-            assert!(actions.remove.is_empty());
+            assert!(actions.verify_allowed);
+            assert!(actions.repair_allowed);
+            assert!(actions.remove_allowed);
             assert!(actions.forget.contains("Remove GPU support"));
             assert!(!actions.recovery);
         }
@@ -1058,12 +1058,12 @@ mod tests {
             .clear();
         let actions = s.selected_actions(0, &values);
         assert!(actions.verify.contains("not attached"));
-        assert!(actions.repair.is_empty());
-        assert!(actions.remove.is_empty());
-        assert!(actions.forget.is_empty());
+        assert!(actions.repair_allowed);
+        assert!(actions.remove_allowed);
+        assert!(actions.forget_allowed);
         // Inactive profile cleanup does not require the physical GPU to be available.
         s.view.inventory.as_mut().unwrap().discovery.gpus.clear();
-        assert!(s.selected_actions(-1, &values).forget.is_empty());
+        assert!(s.selected_actions(-1, &values).forget_allowed);
     }
 
     #[test]
@@ -1079,8 +1079,8 @@ mod tests {
         let actions = s.selected_actions(0, &values);
         assert!(actions.verify.contains("pending edits"));
         assert!(actions.forget.contains("pending edits"));
-        assert!(!actions.repair.is_empty());
-        assert!(!actions.remove.is_empty());
+        assert!(!actions.repair_allowed);
+        assert!(!actions.remove_allowed);
         assert_eq!(s.view.draft, Some(target));
         assert_eq!(s.view.configuration.targets, vec![other]);
         assert!(s.approved_plan.is_none());
@@ -1089,7 +1089,7 @@ mod tests {
         assert_eq!(values[0], "invalid");
         s.discard();
         let values = allocation_values(&s.target(id(&s)).unwrap());
-        assert!(s.selected_actions(0, &values).verify.is_empty());
+        assert!(s.selected_actions(0, &values).verify_allowed);
     }
 
     #[test]
@@ -1132,15 +1132,15 @@ mod tests {
         );
         let fresh = s.view.inventory.clone().unwrap();
         s.refresh(fresh);
-        assert!(s.selected_actions(0, &values).verify.is_empty());
+        assert!(s.selected_actions(0, &values).verify_allowed);
         s.committed
             .errors
             .insert(format!("{vm_id}.toml"), "fixture read denied".into());
         let actions = s.selected_actions(0, &values);
-        assert!(!actions.verify.is_empty());
-        assert!(!actions.repair.is_empty());
-        assert!(!actions.remove.is_empty());
-        assert!(!actions.forget.is_empty());
+        assert!(!actions.verify_allowed);
+        assert!(!actions.repair_allowed);
+        assert!(!actions.remove_allowed);
+        assert!(!actions.forget_allowed);
     }
 
     #[test]
@@ -1193,7 +1193,7 @@ mod tests {
         for reason in [&actions.verify, &actions.repair, &actions.remove] {
             assert!(reason.contains("first-time setup"));
         }
-        assert!(!actions.forget.is_empty());
+        assert!(!actions.forget_allowed);
         assert!(!actions.recovery);
         assert_eq!(s.fixed_gpu_index(), None);
         assert!(s.view.inventory.as_ref().unwrap().enrolled.is_empty());
@@ -1216,10 +1216,10 @@ mod tests {
         assert_eq!(s.fixed_gpu_index(), Some(1));
         let values = allocation_values(&target);
         assert!(s.draft(id(&s), true, 0, &values).is_err());
-        assert!(s.selected_actions(1, &values).repair.is_empty());
+        assert!(s.selected_actions(1, &values).repair_allowed);
         s.view.inventory.as_mut().unwrap().discovery.gpus.remove(1);
         assert_eq!(s.fixed_gpu_index(), Some(-1));
-        assert!(!s.selected_actions(0, &values).repair.is_empty());
+        assert!(!s.selected_actions(0, &values).repair_allowed);
         assert_eq!(s.target(id(&s)).unwrap(), target);
         assert!(s.view.draft.is_none());
     }
@@ -1231,16 +1231,16 @@ mod tests {
         s.view.inventory.as_mut().unwrap().discovery.gpus[0].preparation_supported = false;
         let actions = s.selected_actions(0, &values);
         assert!(actions.repair.contains("not supported"));
-        assert!(actions.remove.is_empty());
+        assert!(actions.remove_allowed);
         s.view.inventory.as_mut().unwrap().discovery.vms[0]
             .gpus
             .clear();
-        assert!(s.selected_actions(0, &values).forget.is_empty());
+        assert!(s.selected_actions(0, &values).forget_allowed);
         let vm_id = id(&s).to_owned();
         s.committed_conflict = Some(vm_id);
         let actions = s.selected_actions(0, &values);
         assert!(actions.remove.contains("Draft preserved"));
-        assert!(!actions.forget.is_empty());
+        assert!(!actions.forget_allowed);
         assert!(s.committed_conflict.is_some());
     }
 
@@ -1261,7 +1261,7 @@ mod tests {
                 Some("other-vm".into()),
                 "access denied",
             ));
-        assert!(s.selected_actions(0, &values).verify.is_empty());
+        assert!(s.selected_actions(0, &values).verify_allowed);
         s.view
             .inventory
             .as_mut()

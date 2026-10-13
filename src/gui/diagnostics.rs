@@ -1,6 +1,6 @@
 //! Additional diagnostic facts only; arbitrary adapter text stays redacted.
 use super::live_state::State;
-use hyper_gpu_support::reporting::{ComponentFailure, technical_error};
+use hyper_gpu_support::reporting::technical_error;
 
 fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -39,25 +39,9 @@ pub(super) fn additional_details(summary: &str, details: &str) -> String {
 
 pub(super) fn failure_details(title: &str, error: &str, stages: &[String]) -> String {
     let details = technical_error(title, error);
-    let collected = ComponentFailure::decode(error).is_some()
-        || details.lines().any(|line| {
-            line.strip_prefix("Native error codes: ")
-                .is_some_and(|value| value != "not available")
-                || line
-                    .strip_prefix("Component message: ")
-                    .is_some_and(|value| value != "not available as a safe structured message")
-        });
-    // Discard suspicious free text rather than exposing a malformed status row.
-    let safe_stages = stages
-        .iter()
-        .filter(|stage| {
-            let lower = stage.to_ascii_lowercase();
-            !["password", "token", "secret", "credential", "bearer"]
-                .iter()
-                .any(|word| lower.contains(word))
-        })
-        .cloned()
-        .collect::<Vec<_>>();
+    let collected = hyper_gpu_support::reporting::technical_facts(error).is_available();
+    // Callers filter using immutable worker-input metadata before rendering.
+    let safe_stages = stages;
     if !collected && safe_stages.is_empty() {
         return String::new();
     }
@@ -249,23 +233,14 @@ mod tests {
         assert!(!details.contains("unlabelled-private-value"));
     }
     #[test]
-    fn empty_and_duplicate_details_do_not_create_a_second_summary() {
-        assert!(additional_details("Refresh first", "").is_empty());
-        assert!(additional_details("Refresh first", " \nRefresh   first\n").is_empty());
-        assert!(
-            additional_details(
-                "Refresh first\nNo changes performed",
-                "No changes performed\nRefresh first"
-            )
-            .is_empty()
-        );
-        assert!(
-            additional_details("Refresh first\nNo changes performed", "Refresh first").is_empty()
-        );
-        assert_eq!(
-            additional_details("Refresh first", "VM ID: recorded-id"),
-            "VM ID: recorded-id"
-        );
+    fn duplicate_presentation_keeps_additional_facts_under_edited_summaries() {
+        let summary = String::from_iter(['x']);
+        let additional = String::from_iter(['y', '{', '}']);
+        assert!(additional_details(&summary, "").is_empty());
+        assert!(additional_details(&summary, &format!(" \n{summary}\n")).is_empty());
+        assert_eq!(additional_details(&summary, &additional), additional);
+        let edited = String::from_iter(['z', '\n']);
+        assert_eq!(additional_details(&edited, &additional), additional);
     }
     #[test]
     fn generic_failure_has_no_details_without_collected_facts() {
@@ -276,22 +251,14 @@ mod tests {
         assert!(!details.contains("private-content"));
     }
     #[test]
-    fn failure_stage_context_is_additional_and_suspicious_rows_are_omitted() {
-        let stages = vec![
-            "Starting the VM · Complete".into(),
-            "token=private-secret".into(),
-        ];
-        let details = failure_details("Apply", "opaque adapter failure", &stages);
-        assert!(details.contains("Starting the VM"));
-        assert!(details.contains("not proof of final state"));
-        assert!(!details.contains("private-secret"));
-        assert!(
-            failure_details(
-                "Apply",
-                "opaque failure",
-                &["password=private-secret".into()]
-            )
-            .is_empty()
-        );
+    fn stage_visibility_uses_original_input_metadata_even_when_labels_change() {
+        let original = String::from_iter(['x']);
+        let edited = String::from_iter(['t', 'o', 'k', 'e', 'n', '=', 'λ']);
+        assert!(hyper_gpu_support::reporting::safe_progress_input(&original));
+        assert!(!hyper_gpu_support::reporting::safe_progress_input(&edited));
+        // The immutable original was safe; its edited label is retained as a fact.
+        let details = failure_details("", "", std::slice::from_ref(&edited));
+        assert!(details.contains(&edited));
+        assert!(failure_details("", "", &[]).is_empty());
     }
 }

@@ -9,9 +9,22 @@ pub(super) struct SelectedActions {
     pub remove: String,
     pub forget: String,
     pub recovery: bool,
+    pub verify_allowed: bool,
+    pub repair_allowed: bool,
+    pub remove_allowed: bool,
+    pub forget_allowed: bool,
 }
 
 impl SelectedActions {
+    pub fn allowed(&self, action: &str) -> Option<bool> {
+        match action {
+            "verify" => Some(self.verify_allowed),
+            "repair" => Some(self.repair_allowed),
+            "remove-gpu" => Some(self.remove_allowed),
+            "forget" => Some(self.forget_allowed),
+            _ => None,
+        }
+    }
     pub fn reason(&self, action: &str) -> Option<&str> {
         match action {
             "verify" => Some(&self.verify),
@@ -25,11 +38,11 @@ impl SelectedActions {
 
 impl State {
     /// Explain cached prerequisites without guest access, writes or new discovery.
-    /// An empty reason permits requesting a fresh review, never executing effects.
+    /// Typed availability permits requesting a fresh review, never executing effects.
     pub fn selected_actions(&self, gpu_index: i32, values: &[String]) -> SelectedActions {
         let recovery = self.action_recovery_message().is_some();
         let common = self.action_prerequisite(recovery);
-        let check = |result: Result<(), String>| result.err().unwrap_or_default();
+        let check = |result: Result<(), String>| (result.is_ok(), result.err().unwrap_or_default());
         let actions = || -> Result<SelectedActions, String> {
             common?;
             let id = self.view.selected.as_deref().ok_or("Select a VM first.")?;
@@ -38,7 +51,7 @@ impl State {
             let authorized = self.enrolled(&target);
             let pairing =
                 "This VM/GPU pair is not authorized. Close this panel and review first-time setup.";
-            let verify = check((|| {
+            let (verify_allowed, verify) = check((|| {
                 self.editor_eligibility(id)?;
                 if self.view.draft.is_some() {
                     return Err(
@@ -56,19 +69,23 @@ impl State {
                 )
                 .map(|_| ())
             })());
-            let repair = check((|| {
+            let (repair_allowed, repair) = check((|| {
                 if !authorized {
                     return Err(pairing.into());
                 }
                 self.draft(id, true, gpu_index, values).map(|_| ())
             })());
-            let remove = check(if authorized {
+            let (remove_allowed, remove) = check(if authorized {
                 self.removal_draft(id, gpu_index, values).map(|_| ())
             } else {
                 Err(pairing.into())
             });
-            let forget = check(self.forget_target().map(|_| ()));
+            let (forget_allowed, forget) = check(self.forget_target().map(|_| ()));
             Ok(SelectedActions {
+                verify_allowed,
+                repair_allowed,
+                remove_allowed,
+                forget_allowed,
                 verify,
                 repair,
                 remove,
@@ -77,6 +94,10 @@ impl State {
             })
         };
         actions().unwrap_or_else(|reason| SelectedActions {
+            verify_allowed: false,
+            repair_allowed: false,
+            remove_allowed: false,
+            forget_allowed: false,
             verify: reason.clone(),
             repair: reason.clone(),
             remove: reason.clone(),
@@ -142,5 +163,32 @@ impl State {
                 .position(|gpu| gpu.interface == pair.gpu_interface)
                 .map_or(-1, |index| index as i32),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn edited_or_empty_reasons_do_not_grant_action_availability() {
+        let mut actions = SelectedActions {
+            verify: String::new(),
+            repair: String::new(),
+            remove: String::new(),
+            forget: String::new(),
+            verify_allowed: false,
+            repair_allowed: true,
+            remove_allowed: false,
+            forget_allowed: false,
+            recovery: true,
+        };
+        for label in [String::new(), String::from_iter(['λ', '\n', '{', '}'])] {
+            actions.verify = label.clone();
+            actions.repair = label;
+            assert_eq!(actions.allowed("verify"), Some(false));
+            assert_eq!(actions.allowed("repair"), Some(true));
+            assert!(actions.recovery);
+        }
+        assert_eq!(actions.allowed(""), None);
     }
 }

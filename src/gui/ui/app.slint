@@ -23,10 +23,15 @@ export component AppWindow inherits Window {
             if root.page != 0 || root.selected-id == "" { dashboard.focus(); }
         }
     }
+    in property <bool> verify-allowed: false;
     in property <string> verify-unavailable: "Select a VM first.";
+    in property <bool> repair-allowed: false;
     in property <string> repair-unavailable: "Select a VM first.";
+    in property <bool> remove-allowed: false;
     in property <string> remove-unavailable: "Select a VM first.";
+    in property <bool> reset-allowed: false;
     in property <string> reset-unavailable;
+    in property <bool> forget-allowed: false;
     in property <string> forget-unavailable: "Select a VM first.";
     in property <bool> action-recovery: false;
     in property <bool> gpu-selection-fixed: false;
@@ -38,6 +43,9 @@ export component AppWindow inherits Window {
     in-out property <string> vm-name: "";
     in-out property <string> power: "Unknown";
     in-out property <string> status: "Unknown";
+    in property <bool> vm-unsupported;
+    in property <bool> setup-required;
+    in property <bool> draft-valid;
     in-out property <string> observed: "Not read";
     in-out property <string> desired: "No saved configuration";
     in property <string> pending: "No unapplied edits";
@@ -72,6 +80,7 @@ export component AppWindow inherits Window {
     in-out property <string> dialog-body;
     in-out property <string> dialog-details;
     in-out property <[string]> stages;
+    in-out property <[bool]> stage-reportable;
     in-out property <[string]> progress-steps;
     in-out property <string> current-stage;
     in-out property <float> transfer-fraction: -1;
@@ -155,13 +164,14 @@ export component AppWindow inherits Window {
                             min-width: 610px;
                             gpu-options: root.gpu-options;
                             name: root.vm-name; identity: root.selected-id; power: root.updating ? "Updating VM status" : root.power; status: root.updating ? "" : root.status;
+                            vm-unsupported: !root.updating && root.vm-unsupported; setup-required: !root.updating && root.setup-required; draft-valid: root.draft-valid;
                             observed: root.observed; desired: root.desired; verification: root.verification;
                             pending: root.pending; applied: root.applied;
                             support-summary: root.updating ? "Updating VM status..." : root.support-summary;
                             inventory-details: root.inventory-details;
                             technical-details: root.vm-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
-                            execution-ready: root.execution-ready; updating: root.updating; verify-unavailable: root.verify-unavailable;
+                            execution-ready: root.execution-ready; updating: root.updating; verify-unavailable: root.verify-unavailable; verify-allowed: root.verify-allowed;
                             gpu-selection-fixed: root.gpu-selection-fixed;
                             presenting: root.presenting; resource-defaults: root.resource-defaults;
                             gpu-enabled <=> root.gpu-enabled; gpu-index <=> root.gpu-index; values <=> root.values;
@@ -184,14 +194,14 @@ export component AppWindow inherits Window {
             }
         }
         Rectangle { height: 30px; background: Theme.surface;
-            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.recovery || root.action-recovery ? "Review recovery before new changes" : root.updating ? "Updating VM information" : root.selected-id == "" ? "Select a VM" : !root.execution-ready || !root.eligible || root.validation != "" ? "Check the selected VM's status; setup or Refresh may be required" : root.dirty ? "Pending edits; review required before changes" : "No pending edits"; } Hint { text: root.running ? "Operation in progress" : "No operation running"; horizontal-alignment: right; } }
+            HorizontalLayout { padding-left: 18px; padding-right: 18px; Hint { text: root.recovery || root.action-recovery ? "Review recovery before new changes" : root.updating ? "Updating VM information" : root.selected-id == "" ? "Select a VM" : !root.execution-ready || !root.eligible || !root.draft-valid ? "Check the selected VM's status; setup or Refresh may be required" : root.dirty ? "Pending edits; review required before changes" : "No pending edits"; } Hint { text: root.running ? "Operation in progress" : "No operation running"; horizontal-alignment: right; } }
         }
     }
     if root.dialog-kind != "" : OperationDialog {
         execution-ready: root.execution-ready; updating: root.updating;
-        verify-unavailable: root.verify-unavailable; repair-unavailable: root.repair-unavailable;
-        remove-unavailable: root.remove-unavailable; forget-unavailable: root.forget-unavailable;
-        reset-unavailable: root.reset-unavailable; action-recovery: root.action-recovery; dirty: root.dirty;
+        verify-unavailable: root.verify-unavailable; verify-allowed: root.verify-allowed; repair-unavailable: root.repair-unavailable; repair-allowed: root.repair-allowed;
+        remove-unavailable: root.remove-unavailable; remove-allowed: root.remove-allowed; forget-unavailable: root.forget-unavailable; forget-allowed: root.forget-allowed;
+        reset-unavailable: root.reset-unavailable; reset-allowed: root.reset-allowed; action-recovery: root.action-recovery; dirty: root.dirty;
         kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body;
         details: root.dialog-details; stages: root.progress-steps; running: root.running;
         current-stage: root.current-stage; transfer-fraction: root.transfer-fraction;

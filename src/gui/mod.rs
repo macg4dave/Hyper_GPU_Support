@@ -5,6 +5,7 @@ mod host_configuration;
 mod live;
 mod live_state;
 mod memory;
+mod operation;
 mod result_notice;
 mod wording;
 use slint::{Model, ModelRc, VecModel};
@@ -15,12 +16,16 @@ fn model<T: Clone + 'static>(rows: Vec<T>) -> ModelRc<T> {
     Rc::new(VecModel::from(rows)).into()
 }
 fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
+    let reportable = ui.get_stage_reportable();
     let previous_stages: Vec<_> = ui
         .get_stages()
         .iter()
-        .map(|stage| stage.to_string())
+        .enumerate()
+        .filter(|(index, _)| reportable.row_data(*index).unwrap_or(false))
+        .map(|(_, stage)| stage.to_string())
         .collect();
     ui.set_stages(model(Vec::new()));
+    ui.set_stage_reportable(model(Vec::new()));
     ui.set_progress_steps(model(Vec::new()));
     ui.set_current_stage("".into());
     ui.set_transfer_fraction(-1.0);

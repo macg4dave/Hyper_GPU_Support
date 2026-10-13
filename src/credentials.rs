@@ -333,6 +333,9 @@ mod prompt_tests {
             let result = result.map(|()| guest_work = true);
             assert_eq!(result.unwrap_err(), error);
             assert!(!guest_work);
+            let edited_label = String::from_iter(['λ', '\n', '{', '}']);
+            assert!(!is_prompt_cancelled(&edited_label));
+            assert!(is_prompt_cancelled(PROMPT_CANCELLED));
         }
     }
 

@@ -13,7 +13,7 @@ export component VmDetails inherits Rectangle {
     }
     callback restore-action-focus(string);
     restore-action-focus(action) => {
-        if action == "verify" && root.verify-unavailable == "" && !root.recovery && verify-button.enabled { verify-button.focus(); }
+        if action == "verify" && root.verify-allowed && !root.recovery && verify-button.enabled { verify-button.focus(); }
         else if action == "review" && review.enabled { review.focus(); }
         else { more-button.focus(); }
     }
@@ -22,6 +22,9 @@ export component VmDetails inherits Rectangle {
     in property <string> identity;
     in property <string> power;
     in property <string> status;
+    in property <bool> vm-unsupported;
+    in property <bool> setup-required;
+    in property <bool> draft-valid;
     in property <string> observed;
     in property <string> desired;
     in property <string> pending;
@@ -34,6 +37,7 @@ export component VmDetails inherits Rectangle {
     in property <bool> eligible;
     in property <bool> execution-ready;
     in property <bool> updating;
+    in property <bool> verify-allowed: false;
     in property <string> verify-unavailable;
     in property <bool> recovery;
     in property <bool> gpu-selection-fixed;
@@ -96,7 +100,7 @@ export component VmDetails inherits Rectangle {
                         Label { text: "GPU support"; font-weight: 600; }
                         Hint { text: root.support-summary; }
                         verify-button := Button {
-                            visible: root.verify-unavailable == "" && !root.recovery;
+                            visible: root.verify-allowed && !root.recovery;
                             text: "Verify GPU setup";
                             primary: !root.dirty;
                             enabled: !Theme.modal-active && root.execution-ready && !root.updating;
@@ -149,7 +153,7 @@ export component VmDetails inherits Rectangle {
                         Hint { visible: Theme.show-help; text: "Changes take effect only after review and approval. GPU sharing is not qualified."; }
                     }
                 }
-                if root.status == "Setup required" : Surface {
+                if root.setup-required : Surface {
                     VerticalLayout {
                         padding: 16px; spacing: 10px;
                         Label { text: "First-time setup"; font-weight: 600; }
@@ -159,8 +163,8 @@ export component VmDetails inherits Rectangle {
                 }
                 if !root.eligible : Surface {
                     VerticalLayout { padding: 16px; spacing: 8px;
-                        Label { text: root.status == "Unsupported" ? "This VM is not eligible" : ("Configuration is unavailable"); font-weight: 600; }
-                        Hint { text: root.status == "Unsupported" ? "Non-Generation 2 guests are outside the GPU-P workflow." : (root.validation); }
+                        Label { text: root.vm-unsupported ? "This VM is not eligible" : ("Configuration is unavailable"); font-weight: 600; }
+                        Hint { text: root.vm-unsupported ? "Non-Generation 2 guests are outside the GPU-P workflow." : (root.validation); }
                         Button { enabled: !Theme.modal-active; text: "Inspect diagnostics"; clicked => { root.action("diagnostics"); } }
                     }
                 }
@@ -182,7 +186,7 @@ export component VmDetails inherits Rectangle {
             }
         }
         HorizontalLayout { spacing: 8px;
-            review := Button { enabled: !Theme.modal-active && (root.dirty && root.eligible && !root.recovery && root.validation == ""); text: "Apply"; primary: true;  clicked => { root.action("review"); } }
+            review := Button { enabled: !Theme.modal-active && (root.dirty && root.eligible && !root.recovery && root.draft-valid); text: "Apply"; primary: true;  clicked => { root.action("review"); } }
             Button { enabled: !Theme.modal-active && (root.dirty); text: "Discard draft";  clicked => { root.action("discard"); } }
             more-button := Button { enabled: !Theme.modal-active; text: "More actions…"; clicked => { root.action("more"); } }
         }

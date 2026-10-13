@@ -1,6 +1,6 @@
 # UI text development backlog
 
-Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory, LANG-002 design and LANG-003 baseline are complete; no catalogue/integration exists yet. Open cards do not authorize automatic execution.
+Tasks implement the [roadmap](roadmap.md). [Engineering](ENGINEERING.md) defines separate implementation/validation status. LANG-001 inventory, LANG-002 design and LANG-003 baseline and LANG-013 control separation are complete; no catalogue/integration exists yet. Open cards do not authorize automatic execution.
 
 ## Completed legacy work
 
@@ -8,7 +8,7 @@ The previous APP backlog is complete by user confirmation on 13 October 2026. AP
 
 ## Next implementation action
 
-**LANG-013: separate control data from editable copy.** Use the [baseline and batches](UI_TEXT_BASELINE.md), its [control contract](../tests/fixtures/ui-text/control-contract.json), and the inventory's CD1–CD12 register to preserve original output/worker formats while removing display-string decisions. LANG-007 is also ready, after this source separation in the chosen sequence. Complete one requested card at a time.
+**LANG-007: implement catalogue validation.** Use the independent contract in the [UI text guide](UI_TEXT_GUIDE.md) and the historical [baseline/batches](UI_TEXT_BASELINE.md). LANG-013 control separation is implemented; LANG-004 remains blocked on validator delivery. Complete one requested card at a time.
 
 ## Task register
 
@@ -26,7 +26,7 @@ The previous APP backlog is complete by user confirmation on 13 October 2026. AP
 | LANG-010 | Blocked | Not run | LANG-009 | L4 |
 | LANG-011 | Blocked | Not run | LANG-010 | L4 |
 | LANG-012 | Blocked | Not run | LANG-011 | L4 |
-| LANG-013 | Ready | Not run | LANG-003 | L2 |
+| LANG-013 | Done | Passed: focused semantic checks; pending L2 gate | LANG-003 | L2 |
 
 Blocked refers only to outstanding new LANG dependencies. No legacy APP gate applies. Future validator commands must be documented when implemented; the existing non-hardware gate is `powershell -NoProfile -File scripts/testing/check.ps1`.
 
@@ -159,3 +159,8 @@ Replace displayed-title dispatch in `wording::guest_progress` and callers with s
 Preserve cancellation sentinels and classification inputs, mapping to copy only after decisions. Audit availability/result helpers for other display-string comparisons. Add regressions with deliberately edited titles/prefixes/status: operation selection, percentage, in-place updates, failure/completion boundaries, cancellation and recovery decisions remain the same.
 
 Acceptance: audited paths have no control dependency on editable copy; original protocol and verbatim output remain intact. Validation: meaningful isolated regressions/focused contract checks, included in L2 checkpoint; no guest/protected/VM effects.
+
+
+Delivered 13 October 2026: local operation identities, immutable worker progress metadata and row slots, typed power/status/action/draft flags, numeric VRAM editor formatting, and collected diagnostic facts. Worker strings, cancellation sentinel, envelopes, classification inputs and preparation-record discriminator are unchanged. Existing live wording is preserved; the unused title branch for inactive-pair removal had no caller and was removed. The actual Delete app profile operation retains its existing generic read explanation. Copy-only wording assertions were replaced with semantic checks rather than duplicated catalogue English. See the [control audit](UI_TEXT_BASELINE.md#lang-013-source-separation).
+
+Focused validation: 100 GUI helper/state tests, 11 reporting tests, 7 credential tests and 16 inventory-state tests passed; Rust/Slint compiled through the test target. Formatting and diff checks passed. Repository docs checking still fails on the existing 22 links to deleted handbook pages. Full L2 gate, live/rendered GUI and guest/VM/protected behavior remain untested by this card.

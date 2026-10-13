@@ -6,23 +6,29 @@ component ActionChoice inherits Rectangle {
     min-width: 0px;
     in property <string> label;
     in property <string> reason;
+    in property <bool> allowed;
     in property <bool> ready;
     in property <bool> updating;
     callback activate();
     VerticalLayout {
         spacing: 4px;
-        Button { text: root.label; enabled: root.reason == "" && root.ready && !root.updating; clicked => { root.activate(); } }
-        Hint { min-width: 0px; text: root.updating ? "VM information is updating. Wait for the update to finish." : root.reason != "" ? root.reason : !root.ready ? "Use Refresh to check application setup and worker availability." : "Opens a fresh review. Changes require separate confirmation."; }
+        Button { text: root.label; enabled: root.allowed && root.ready && !root.updating; clicked => { root.activate(); } }
+        Hint { min-width: 0px; text: root.updating ? "VM information is updating. Wait for the update to finish." : !root.allowed ? root.reason : !root.ready ? "Use Refresh to check application setup and worker availability." : "Opens a fresh review. Changes require separate confirmation."; }
     }
 }
 
 export component OperationDialog inherits Rectangle {
     in property <bool> execution-ready: false;
     in property <bool> updating: false;
+    in property <bool> verify-allowed: false;
     in property <string> verify-unavailable;
+    in property <bool> repair-allowed: false;
     in property <string> repair-unavailable;
+    in property <bool> remove-allowed: false;
     in property <string> remove-unavailable;
+    in property <bool> forget-allowed: false;
     in property <string> forget-unavailable;
+    in property <bool> reset-allowed: false;
     in property <string> reset-unavailable;
     in property <bool> action-recovery;
     in property <bool> dirty;
@@ -87,10 +93,10 @@ export component OperationDialog inherits Rectangle {
                             }
                             if root.kind == "more" : VerticalLayout {
                                 spacing: 12px;
-                                ActionChoice { label: "Verify GPU setup"; reason: root.verify-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
-                                ActionChoice { label: "Repair / Reinstall"; reason: root.repair-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
-                                ActionChoice { label: "Remove GPU support"; reason: root.remove-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
-                                ActionChoice { label: "Delete profile"; reason: root.forget-unavailable; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
+                                ActionChoice { label: "Verify GPU setup"; reason: root.verify-unavailable; allowed: root.verify-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
+                                ActionChoice { label: "Repair / Reinstall"; reason: root.repair-unavailable; allowed: root.repair-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
+                                ActionChoice { label: "Remove GPU support"; reason: root.remove-unavailable; allowed: root.remove-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
+                                ActionChoice { label: "Delete profile"; reason: root.forget-unavailable; allowed: root.forget-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
                             }
                         }
                     }
@@ -157,12 +163,12 @@ export component OperationDialog inherits Rectangle {
                         if root.kind == "verify-review" : Button { text: "Verify GPU setup"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
                         if root.kind == "save" : Button { text: "Retry configuration save only"; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
                         if root.kind == "recovery" : Button { text: "Check recorded outcome"; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
-                        if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { text: "Remove partial GPU setup…"; enabled: root.execution-ready && !root.updating && root.reset-unavailable == ""; clicked => { root.action("review-reset"); } }
+                        if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { text: "Remove partial GPU setup…"; enabled: root.execution-ready && !root.updating && root.reset-allowed; clicked => { root.action("review-reset"); } }
                         if root.kind == "reset-review" : Button { text: "Remove partial GPU setup"; primary: true; enabled: root.execution-ready && !root.updating; clicked => { root.action("confirm-reset"); } }
                         if root.kind == "recovery-needed" : Button { text: "Review recovery"; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
                     }
                     if root.kind == "recovery" || root.kind == "recovery-blocked" : Hint {
-                        text: root.updating ? "Checking whether partial removal is safe..." : root.reset-unavailable != "" ? root.reset-unavailable : "Partial removal can be reviewed. Nothing changes until you confirm that review.";
+                        text: root.updating ? "Checking whether partial removal is safe..." : !root.reset-allowed ? root.reset-unavailable : "Partial removal can be reviewed. Nothing changes until you confirm that review.";
                         vertical-stretch: 0;
                     }
                     if root.kind == "status-error" || root.kind == "recovery-blocked" : Button {
@@ -176,7 +182,7 @@ export component OperationDialog inherits Rectangle {
                     }
                     if root.kind == "reset-complete" || root.kind == "recovery-ended" : Button {
                         text: "Review Repair / Reinstall";
-                        enabled: root.execution-ready && !root.updating && root.repair-unavailable == "";
+                        enabled: root.execution-ready && !root.updating && root.repair-allowed;
                         clicked => { root.action("repair"); }
                     }
                     if root.kind == "error" && root.action-recovery : Button {
@@ -184,12 +190,12 @@ export component OperationDialog inherits Rectangle {
                         clicked => { root.action("recovery"); }
                     }
                     if root.kind == "reset-complete" : Hint {
-                        text: root.updating ? "Updating VM status..." : root.forget-unavailable != "" && !root.dirty ? root.forget-unavailable : "Fresh enrollment requires a separate profile deletion review. Repair / Reinstall can reuse the existing permission.";
+                        text: root.updating ? "Updating VM status..." : !root.forget-allowed && !root.dirty ? root.forget-unavailable : "Fresh enrollment requires a separate profile deletion review. Repair / Reinstall can reuse the existing permission.";
                         vertical-stretch: 0;
                     }
                     if root.kind == "reset-complete" : Button {
                         text: root.dirty ? "Discard draft and review Delete profile" : "Review Delete profile";
-                        enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-unavailable == "");
+                        enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-allowed);
                         clicked => { root.action(root.dirty ? "discard-review-forget" : "forget"); }
                     }
                     if root.kind == "more" : FlexboxLayout {

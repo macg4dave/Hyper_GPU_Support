@@ -1,6 +1,6 @@
 import { Theme, Label, Hint, Surface } from "theme.slint";
 
-export struct VmRow { id: string, name: string, power: string, status: string, gpu: string, os: string }
+export struct VmRow { id: string, name: string, power: string, status: string, gpu: string, os: string, power-running: bool, power-stopped: bool, unsupported: bool }
 
 component GuestOsIcon inherits Rectangle {
     in property <string> os;
@@ -52,7 +52,7 @@ export component VmCard inherits Surface {
                 width: Theme.status-dot-size;
                 Rectangle {
                     width: Theme.status-dot-size; height: Theme.status-dot-size; border-radius: Theme.status-dot-size / 2;
-                    background: root.updating ? Theme.unknown : root.vm.power == "Running" ? Theme.running : root.vm.power == "Stopped" || root.vm.power == "Off" ? Theme.stopped : Theme.unknown;
+                    background: root.updating ? Theme.unknown : root.vm.power-running ? Theme.running : root.vm.power-stopped ? Theme.stopped : Theme.unknown;
                 }
             }
             Label { text: root.updating ? "Updating VM status" : root.vm.power; font-size: 12px; }

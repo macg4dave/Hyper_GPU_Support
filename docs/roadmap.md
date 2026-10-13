@@ -1,6 +1,6 @@
 # UI text development roadmap
 
-Status: L1 deliverables recorded; LANG-001 inventory, LANG-002 design and LANG-003 source-derived baseline complete. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
+Status: L1 deliverables recorded; LANG-001 inventory, LANG-002 design and LANG-003 source-derived baseline complete; LANG-013 source separation implemented with focused semantic checks. L2 remains open. Source assessment: 13 October 2026. This page owns scope, sequence and milestone gates; [backlog](backlog.md) owns tasks. The previous APP backlog is complete by user confirmation and is not a prerequisite for this work.
 
 ## Outcome and viability
 
@@ -13,8 +13,8 @@ Make application-owned English GUI text editable in UTF-8 TOML resources without
 | Source | Development consequence |
 |---|---|
 | [Slint UI](../src/gui/ui/app.slint) embeds labels, hints, defaults, consent and accessibility text | Include hidden/disabled states and composed labels, not just `text:` literals |
-| [Operation wording](../src/gui/wording.rs) selects guest explanations by displayed title | Introduce a stable operation identity before extracting titles |
-| [Progress UI](../src/gui/live/progress.rs) parses percentages and coalesces rows using English prefixes/status suffixes; [reporting](../src/reporting.rs) defines the transfer format | Preserve wire formats. Derive identity/counters from immutable input before formatting editable rows; never parse edited display text |
+| [Operation wording](../src/gui/wording.rs) now selects guest explanations by local operation identity | Introduce a stable operation identity before extracting titles |
+| [Progress UI](../src/gui/live/progress.rs) now derives counters and row identity from immutable worker input before rendering; [reporting](../src/reporting.rs) defines the transfer format | Preserve wire formats. Derive identity/counters from immutable input before formatting editable rows; never parse edited display text |
 | [Credentials](../src/credentials.rs) detects cancellation by an exact error string | Preserve the sentinel and map cancellation to separate editable presentation; preserve local prompts and opt-in storage |
 | Reporting uses structured failure envelopes and some text-based classification | Catalogue copy belongs after classification/redaction. Preserve envelope tokens, allowed numeric facts, limits and secret filtering |
 | [Dialog host](../src/gui/mod.rs) separates operator summaries and diagnostics | Reuse that boundary; do not expose arbitrary adapter output as catalogue parameters |

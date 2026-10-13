@@ -15,7 +15,7 @@ pub(super) fn review_forget_live(
     background(
         ui,
         busy,
-        "Review app profile deletion",
+        Operation::new(Kind::Read, "Review app profile deletion"),
         move || {
             Ok((
                 hyper_gpu_support::runner::review_removal(&target)?,
@@ -78,7 +78,7 @@ pub(super) fn forget_live(
     background(
         ui,
         busy,
-        "Delete app profile",
+        Operation::new(Kind::Read, "Delete app profile"),
         move || hyper_gpu_support::worker::forget_pair(approved, progress).map(|_| ()),
         move |ui, result| {
             let mut failure = None;

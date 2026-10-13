@@ -50,6 +50,9 @@ fn vm_row(vm: &VmState, discovery: &Discovery) -> VmRow {
             .join(", ")
     };
     VmRow {
+        power_running: vm.power == Power::Running,
+        power_stopped: vm.power == Power::Off,
+        unsupported: vm.generation != 2,
         id: vm.vm_id.clone().into(),
         name: vm.name.clone().into(),
         power: match vm.power {
@@ -80,6 +83,9 @@ pub(super) fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool
         .into();
     }
     if historical {
+        row.power_running = false;
+        row.power_stopped = false;
+        row.unsupported = false;
         row.power = "Status unavailable".into();
         row.status = "Refresh needed".into();
         row.gpu = "Status unavailable".into();
@@ -113,20 +119,26 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
         .map(|value| value.to_string())
         .collect::<Vec<_>>();
     let actions = state.selected_actions(ui.get_gpu_index(), &values);
+    ui.set_verify_allowed(actions.verify_allowed);
+    ui.set_repair_allowed(actions.repair_allowed);
+    ui.set_remove_allowed(actions.remove_allowed);
+    ui.set_forget_allowed(actions.forget_allowed);
     ui.set_verify_unavailable(actions.verify.into());
     ui.set_repair_unavailable(actions.repair.into());
     ui.set_remove_unavailable(actions.remove.into());
     ui.set_forget_unavailable(actions.forget.into());
     ui.set_action_recovery(actions.recovery);
     #[cfg(windows)]
-    ui.set_reset_unavailable(
-        super::partial_removal_candidate(state)
-            .err()
-            .unwrap_or_default()
-            .into(),
-    );
+    {
+        let result = super::partial_removal_candidate(state);
+        ui.set_reset_allowed(result.is_ok());
+        ui.set_reset_unavailable(result.err().unwrap_or_default().into());
+    }
     #[cfg(not(windows))]
-    ui.set_reset_unavailable("Partial GPU removal requires Windows.".into());
+    {
+        ui.set_reset_allowed(false);
+        ui.set_reset_unavailable("Partial GPU removal requires Windows.".into());
+    }
     ui.set_gpu_selection_fixed(state.fixed_gpu_index().is_some());
 }
 
@@ -154,6 +166,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         ui.set_vm_name("No VM selected".into());
         ui.set_power("Unknown".into());
         ui.set_status("Unknown".into());
+        ui.set_vm_unsupported(false);
         ui.set_observed("No VM selected".into());
         ui.set_desired("No VM selected".into());
         ui.set_applied("No VM selected".into());
@@ -167,6 +180,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
                 || state.enrollment_recovery.is_some(),
         );
         ui.set_dirty(false);
+        ui.set_draft_valid(false);
         ui.set_validation("".into());
         return;
     };
@@ -176,6 +190,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         ui.set_vm_name("Selected VM unavailable".into());
         ui.set_power("Unknown".into());
         ui.set_status("Unavailable".into());
+        ui.set_vm_unsupported(false);
         ui.set_support_summary(state.host_configuration_text(id).into());
         ui.set_observed("Selected VM was not returned by the latest inventory read".into());
         ui.set_verification("Unknown; the selected VM is unavailable".into());
@@ -194,6 +209,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
                 || state.import_recovery.is_some()
                 || state.enrollment_recovery.is_some(),
         );
+        ui.set_draft_valid(false);
         ui.set_validation(
             "The draft VM is no longer present. Discard the draft and Refresh.".into(),
         );
@@ -206,6 +222,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_vm_name(row.name);
     ui.set_power(row.power);
     let enrolled = state.target(id).ok();
+    ui.set_vm_unsupported(row.unsupported);
     ui.set_status(row.status);
     let recorded = inventory.recorded_state(id);
     ui.set_recovery(
@@ -302,11 +319,14 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     }
     resource_controls(ui, state);
     if let Err(error) = eligibility {
+        ui.set_draft_valid(false);
         ui.set_validation(
             hyper_gpu_support::reporting::operator_error("Configuration validation", &error).into(),
         );
     } else if !ui.get_dirty() {
-        ui.set_validation(draft_target(ui, state).err().unwrap_or_default().into());
+        let validation = draft_target(ui, state);
+        ui.set_draft_valid(validation.is_ok());
+        ui.set_validation(validation.err().unwrap_or_default().into());
     }
 }
 
@@ -375,11 +395,7 @@ pub(super) fn resource_controls(ui: &AppWindow, state: &State) {
                 memory::request(&values[..3])
                     .ok()
                     .flatten()
-                    .map_or_else(String::new, |a| {
-                        memory::format_gb(a.optimal)
-                            .trim_end_matches(" GB")
-                            .to_owned()
-                    })
+                    .map_or_else(String::new, |a| memory::decimal_gb(a.optimal))
                     .into(),
             );
             ui.set_memory_minimum(slider.minimum);
@@ -472,10 +488,26 @@ mod tests {
         );
         assert_eq!(row.id, vm.vm_id);
         assert_eq!(row.name, vm.name);
-        assert_eq!(row.gpu, "Attached GPU (identity unavailable)");
-        assert_eq!(row.status, "Unsupported");
-        assert_eq!(row.power, "Unknown");
-        assert_eq!(row.os, "unknown");
+        assert!(row.unsupported);
+        assert!(!row.power_running);
+        assert!(!row.power_stopped);
+        for power in [Power::Running, Power::Off, Power::Other(42)] {
+            let mut changed = vm.clone();
+            changed.power = power.clone();
+            let mut row = vm_row(
+                &changed,
+                &Discovery {
+                    issues: vec![],
+                    vms: vec![],
+                    gpus: vec![],
+                },
+            );
+            row.power = String::from_iter(['λ', '\n', '}']).into();
+            row.status = row.power.clone();
+            assert_eq!(row.power_running, power == Power::Running);
+            assert_eq!(row.power_stopped, power == Power::Off);
+            assert!(row.unsupported);
+        }
     }
 
     #[test]
@@ -516,14 +548,15 @@ mod tests {
             enrolled: vec![target.clone()],
         };
         let current = observed_row(&vm, &inventory, false);
-        assert_eq!(current.power, "Running");
-        assert_eq!(current.status, "Authorized");
+        assert!(current.power_running);
+        assert!(!current.power_stopped);
+        assert!(!current.unsupported);
         let historical = observed_row(&vm, &inventory, true);
         assert_eq!(historical.id, current.id);
         assert_eq!(historical.name, current.name);
-        assert_eq!(historical.power, "Status unavailable");
-        assert_eq!(historical.status, "Refresh needed");
-        assert_eq!(historical.gpu, "Status unavailable");
+        assert!(!historical.power_running);
+        assert!(!historical.power_stopped);
+        assert!(!historical.unsupported);
         inventory.managed.insert(
             vm.vm_id.clone(),
             Some(hyper_gpu_support::workflow::Journal {
@@ -543,10 +576,7 @@ mod tests {
                 settings_released: false,
             }),
         );
-        assert_eq!(
-            observed_row(&vm, &inventory, false).status,
-            "Recovery required"
-        );
+        assert!(inventory.recorded_state(&vm.vm_id).recovery_required);
         assert!(inventory.managed[&vm.vm_id].as_ref().unwrap().pending);
     }
 }

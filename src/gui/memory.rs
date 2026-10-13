@@ -20,13 +20,17 @@ pub(super) struct MemorySlider {
 }
 
 pub(super) fn format_gb(bytes: u64) -> String {
+    format!("{} GB", decimal_gb(bytes))
+}
+
+pub(super) fn decimal_gb(bytes: u64) -> String {
     let whole = bytes / BYTES_PER_GB;
     let fraction = bytes % BYTES_PER_GB;
     if fraction == 0 {
-        format!("{whole} GB")
+        format!("{whole}")
     } else {
         let digits = format!("{fraction:09}");
-        format!("{whole}.{} GB", digits.trim_end_matches('0'))
+        format!("{whole}.{}", digits.trim_end_matches('0'))
     }
 }
 
@@ -179,6 +183,19 @@ impl MemorySlider {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn numeric_editor_input_roundtrips_exact_bytes_without_a_display_unit() {
+        for bytes in [0, 1, 6_000_000_001, 8_278_507_520, u64::MAX] {
+            let number = super::decimal_gb(bytes);
+            let (whole, fraction) = number.split_once('.').unwrap_or((&number, ""));
+            let fraction = format!("{fraction:0<9}").parse::<u64>().unwrap();
+            assert_eq!(
+                whole.parse::<u64>().unwrap() * super::BYTES_PER_GB + fraction,
+                bytes
+            );
+        }
+    }
+
     use super::*;
 
     fn limits() -> Allocation {
