@@ -773,7 +773,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dashboard.support.recovery_hold"]
-text = "Setup interrupted - review recovery before changing GPU support."
+text = "This VM has an unresolved operation. Review recovery before changing GPU support."
 screen = "present_inner presentation (src/gui/live/presentation.rs)"
 state = "Selected branch: dashboard.support.recovery_hold"
 audience = "operator"

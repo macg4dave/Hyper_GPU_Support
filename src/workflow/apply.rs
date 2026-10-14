@@ -45,8 +45,12 @@ pub(crate) fn admit_approved(
     let target = &approved.desired;
     let d = decision_for_operation(backend, target, approved.reinstall)?;
     let actual = plan_from_decision(d.clone(), target);
+    let mut reviewed = approved.clone();
+    // Only this presentation marker differs. Every reviewed host, journal,
+    // payload and effect fact must still match the freshly authenticated plan.
+    reviewed.authentication_deferred = false;
     if serde_json::to_value(&actual).map_err(|e| e.to_string())?
-        != serde_json::to_value(approved).map_err(|e| e.to_string())?
+        != serde_json::to_value(&reviewed).map_err(|e| e.to_string())?
     {
         return Err("approved plan is stale; refresh and review before effects".into());
     }

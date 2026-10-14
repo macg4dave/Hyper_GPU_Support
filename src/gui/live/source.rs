@@ -72,8 +72,13 @@ impl Source {
     pub(super) fn discover(&self) -> Result<InventoryRead, String> {
         discover()
     }
-    pub(super) fn plan(&self, target: Target, reinstall: bool) -> Result<Plan, String> {
-        plan(target, reinstall)
+    pub(super) fn plan(
+        &self,
+        target: Target,
+        reinstall: bool,
+        authenticate: bool,
+    ) -> Result<Plan, String> {
+        plan(target, reinstall, authenticate)
     }
     pub(super) fn credentials(&self, id: &str, name: &str) -> Result<bool, String> {
         credential_dialog(id, name)
@@ -148,18 +153,20 @@ pub(super) fn discover_status() -> Result<InventoryRead, String> {
 }
 
 #[cfg(windows)]
-fn plan(target: Target, reinstall: bool) -> Result<Plan, String> {
+fn plan(target: Target, reinstall: bool, authenticate: bool) -> Result<Plan, String> {
     use hyper_gpu_support::runner::{self, Operation};
     let operation = if reinstall {
         Operation::ReinstallPlan
-    } else {
+    } else if authenticate {
         Operation::Plan
+    } else {
+        Operation::PreliminaryPlan
     };
     let value = runner::submit(runner::request(operation, Some(target), None))?;
     serde_json::from_value(value).map_err(|e| format!("Invalid plan reply: {e}"))
 }
 #[cfg(not(windows))]
-fn plan(_: Target, _: bool) -> Result<Plan, String> {
+fn plan(_: Target, _: bool, _: bool) -> Result<Plan, String> {
     Err("Planning requires Windows x64".into())
 }
 

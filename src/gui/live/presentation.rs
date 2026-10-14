@@ -114,7 +114,46 @@ pub(super) fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_presenting(false);
 }
 
+pub(in crate::gui) fn recovery_summary(state: &State, selected: &str) -> Option<String> {
+    let (id, fallback, operation) = if let Some(record) = &state.recovery {
+        (
+            record.target.vm_id.as_str(),
+            record.initial.name.as_str(),
+            if record.publication_required {
+                "GPU change"
+            } else {
+                "GPU verification"
+            },
+        )
+    } else if let Some(record) = &state.enrollment_recovery {
+        (
+            record.review.vm_id.as_str(),
+            record.review.vm_id.as_str(),
+            "permission change",
+        )
+    } else if state.import_recovery.is_some() {
+        return Some(
+            "A configuration import requires recovery. Review recovery before new changes.".into(),
+        );
+    } else {
+        return None;
+    };
+    let name = state.view.vm(id).map_or(fallback, |vm| vm.name.as_str());
+    Some(if id == selected {
+        format!("{name}: {operation} requires recovery. Review recovery before new changes.")
+    } else {
+        format!(
+            "Changes are blocked by {operation} recovery for {name} ({id}). Review recovery for that VM."
+        )
+    })
+}
+
 pub(super) fn present_actions(ui: &AppWindow, state: &State) {
+    ui.set_recovery_summary(
+        recovery_summary(state, ui.get_selected_id().as_str())
+            .unwrap_or_else(|| hyper_gpu_support::ui_text::dashboard::recovery::BANNER.to_owned())
+            .into(),
+    );
     ui.set_vm_details(diagnostics::selected_vm_details(state).into());
     let values = ui
         .get_values()
@@ -148,18 +187,19 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
     ui.set_gpu_selection_fixed(state.fixed_gpu_index().is_some());
 }
 
-pub(super) fn pending_summary(enabled: bool, values: &[String]) -> String {
+pub(super) fn pending_summary(enabled: bool, baseline: Option<bool>, values: &[String]) -> String {
     let request = values
         .get(..3)
         .ok_or_else(|| "VRAM fields unavailable".to_owned())
         .and_then(memory::request);
     match request {
         Ok(request) => format!(
-            "Pending: {} GPU support. VRAM request: {}. Review before applying.",
-            if enabled {
-                hyper_gpu_support::ui_text::common::support::ENABLE_ACTION
-            } else {
-                hyper_gpu_support::ui_text::common::support::DISABLE_ACTION
+            "Pending: {}. VRAM request: {}. Review before applying.",
+            match (baseline, enabled) {
+                (Some(true), true) => "GPU support stays enabled",
+                (Some(false), false) => "GPU support stays disabled",
+                (_, true) => "enable GPU support",
+                (_, false) => "disable GPU support",
             },
             request.map_or_else(
                 || hyper_gpu_support::ui_text::common::allocation::PROVIDER_DEFAULT.to_owned(),
@@ -280,6 +320,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         if !reset_draft && ui.get_dirty() {
             pending_summary(
                 ui.get_gpu_enabled(),
+                enrolled.as_ref().map(|target| target.enabled),
                 &ui.get_values()
                     .iter()
                     .map(|v| v.to_string())
@@ -294,10 +335,9 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_support_summary(
         if state.view.needs_readback {
             hyper_gpu_support::ui_text::dashboard::support::HOST_UNAVAILABLE.to_owned()
-        } else if recorded.recovery_required
-            || state.recovery.is_some()
-            || state.enrollment_recovery.is_some()
-        {
+        } else if let Some(summary) = recovery_summary(state, id) {
+            summary
+        } else if recorded.recovery_required {
             hyper_gpu_support::ui_text::dashboard::support::RECOVERY_HOLD.to_owned()
         } else if state.committed.revision(id).is_err() {
             hyper_gpu_support::ui_text::dashboard::support::SAVED_UNAVAILABLE.to_owned()
@@ -471,12 +511,14 @@ mod tests {
             "8278507520".to_owned(),
         ];
         assert!(
-            pending_summary(true, &values)
+            pending_summary(true, Some(false), &values)
                 .contains("enable GPU support. VRAM request: 6.000000001 GB")
         );
-        assert!(pending_summary(false, &values).contains("disable GPU support"));
+        assert!(pending_summary(false, Some(true), &values).contains("disable GPU support"));
+        assert!(pending_summary(true, Some(true), &values).contains("stays enabled"));
+        assert!(pending_summary(false, Some(false), &values).contains("stays disabled"));
         assert!(
-            pending_summary(true, &["invalid".into(), "".into(), "".into()])
+            pending_summary(true, Some(true), &["invalid".into(), "".into(), "".into()])
                 .contains("Correct the VRAM fields")
         );
     }

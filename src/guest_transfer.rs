@@ -205,7 +205,49 @@ impl Monitor {
 
 impl StderrMonitor for Monitor {
     fn line(&self, line: &[u8]) -> Result<bool, String> {
+        self.control_line(line)
+            .map_err(|_| transport_failure(crate::reporting::FailureCause::InvalidReply))
+    }
+    fn check(&self, now: Instant) -> Result<(), String> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| transport_failure(crate::reporting::FailureCause::Unavailable))?;
+        Self::check_state(&state, now)
+            .map_err(|_| transport_failure(crate::reporting::FailureCause::TimedOut))
+    }
+    fn finish(&self) -> Result<(), String> {
+        if !self
+            .state
+            .lock()
+            .map_err(|_| transport_failure(crate::reporting::FailureCause::Unavailable))?
+            .done
+        {
+            return Err(transport_failure(
+                crate::reporting::FailureCause::InvalidReply,
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn transport_failure(cause: crate::reporting::FailureCause) -> String {
+    crate::reporting::ComponentFailure {
+        stage: None,
+        component: crate::reporting::Component::GuestTransport,
+        cause,
+        code: None,
+    }
+    .into_error()
+}
+
+impl Monitor {
+    fn control_line(&self, line: &[u8]) -> Result<bool, String> {
         if let Some(code) = line.strip_prefix(PHASE_PREFIX.as_bytes()) {
+            // The process reader passes complete lines, including PowerShell's
+            // CRLF. Strip only the framing, keeping extra spaces invalid.
+            let code = code.strip_suffix(b"\n").unwrap_or(code);
+            let code = code.strip_suffix(b"\r").unwrap_or(code);
             self.accept_phase(
                 std::str::from_utf8(code).map_err(|_| "invalid guest phase encoding")?,
             )?;
@@ -219,26 +261,69 @@ impl StderrMonitor for Monitor {
         self.accept(text, Instant::now())?;
         Ok(true)
     }
-    fn check(&self, now: Instant) -> Result<(), String> {
-        let state = self.state.lock().map_err(|_| "transfer monitor poisoned")?;
-        Self::check_state(&state, now)
-    }
-    fn finish(&self) -> Result<(), String> {
-        if !self
-            .state
-            .lock()
-            .map_err(|_| "transfer monitor poisoned")?
-            .done
-        {
-            return Err("guest transfer ended without complete acknowledgements".into());
-        }
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn malformed_records_and_deadlines_retain_safe_transport_diagnostics() {
+        use crate::reporting::{ComponentFailure, FailureCause};
+        let now = Instant::now();
+        let monitor = Monitor::new(vec![], now).unwrap();
+        let error = monitor
+            .line(b"HGPREPARATION private-value\r\n")
+            .unwrap_err();
+        assert!(!error.contains("private-value"));
+        assert!(matches!(
+            ComponentFailure::decode(&error).unwrap().cause,
+            FailureCause::InvalidReply
+        ));
+        let error = monitor.check(now + GAP_LIMIT).unwrap_err();
+        assert!(matches!(
+            ComponentFailure::decode(&error).unwrap().cause,
+            FailureCause::TimedOut
+        ));
+        assert!(matches!(
+            ComponentFailure::decode(&monitor.finish().unwrap_err())
+                .unwrap()
+                .cause,
+            FailureCause::InvalidReply
+        ));
+    }
+
+    #[test]
+    fn transport_phase_lines_accept_crlf_and_lf_without_relaxing_order_or_tokens() {
+        for ending in ["\r\n", "\n"] {
+            for verification in [false, true] {
+                let monitor = Monitor::for_operation(vec![], Instant::now(), verification).unwrap();
+                monitor.line(b"HGTRANSFER done 0 0\r\n").unwrap();
+                let codes: &[&str] = if verification {
+                    &["checking-guest", "graphics"]
+                } else {
+                    &["checking-copied", "installing", "checking-installed"]
+                };
+                assert!(
+                    monitor
+                        .line(format!("HGPREPARATION {} {ending}", codes[0]).as_bytes())
+                        .is_err()
+                );
+                for code in codes {
+                    monitor
+                        .line(format!("HGPREPARATION {code}{ending}").as_bytes())
+                        .unwrap();
+                }
+                monitor.require_worker_phases().unwrap();
+                assert_eq!(monitor.take_phases().unwrap().len(), codes.len());
+                assert!(
+                    monitor
+                        .line(format!("HGPREPARATION {}{ending}", codes[0]).as_bytes())
+                        .is_err()
+                );
+            }
+        }
+    }
     #[test]
     fn worker_phases_are_ordered_mode_bound_and_never_inferred_from_copy_counters() {
         let now = Instant::now();

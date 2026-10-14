@@ -6,6 +6,13 @@ fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+pub(super) fn failure_summary(title: &str, error: &str, context: &str) -> String {
+    format!(
+        "{}\n\n{context}",
+        hyper_gpu_support::reporting::operator_error(title, error)
+    )
+}
+
 /// Preserve two independently redacted failures when completion reads also fail.
 #[cfg(any(windows, test))]
 pub(super) fn completion_failure(summary: &str, details: &str, primary: &str) -> (String, String) {
@@ -127,6 +134,26 @@ pub(super) fn selected_vm_details(state: &State) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn failure_context_does_not_corrupt_the_typed_envelope_or_echo_adapter_output() {
+        use hyper_gpu_support::reporting::{Component, ComponentFailure, FailureCause};
+        let error = ComponentFailure {
+            stage: None,
+            component: Component::GuestPayload,
+            cause: FailureCause::FileMissing,
+            code: None,
+        }
+        .into_error();
+        let body = failure_summary("Verify", &error, "VM1: prior checks are historical.");
+        assert!(body.contains("driver files are missing"));
+        assert!(body.contains("prior checks are historical"));
+        assert!(failure_details("Verify", &error, &[]).contains("GuestPayload"));
+        assert!(
+            !failure_summary("Verify", "unlabelled-private-value", "VM1")
+                .contains("unlabelled-private-value")
+        );
+    }
     #[test]
     fn inventory_details_scope_failures_and_preserve_stale_gpu_facts_without_adapter_text() {
         use hyper_gpu_support::{

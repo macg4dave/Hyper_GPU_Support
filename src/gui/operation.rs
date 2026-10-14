@@ -4,6 +4,7 @@ pub(super) enum Kind {
     Read,
     StatusRefresh,
     Plan,
+    VerifyPlan,
     Apply,
     Verify,
     Reconcile,
@@ -33,6 +34,9 @@ impl<'a> Operation<'a> {
 }
 
 impl Kind {
+    pub fn review_preparation(self) -> bool {
+        matches!(self, Self::Plan | Self::VerifyPlan)
+    }
     pub fn silent(self) -> bool {
         self == Self::StatusRefresh
     }
@@ -62,12 +66,17 @@ mod tests {
             (Kind::Credentials, GuestPurpose::Credentials),
             (Kind::Read, GuestPurpose::Reviewed),
             (Kind::Plan, GuestPurpose::Reviewed),
+            (Kind::VerifyPlan, GuestPurpose::Reviewed),
             (Kind::SaveOnly, GuestPurpose::Reviewed),
             (Kind::StatusRefresh, GuestPurpose::Reviewed),
         ] {
             let operation = Operation::new(kind, &title);
             assert_eq!(operation.kind.guest_purpose(), purpose);
             assert_eq!(operation.kind.silent(), kind == Kind::StatusRefresh);
+            assert_eq!(
+                operation.kind.review_preparation(),
+                matches!(kind, Kind::Plan | Kind::VerifyPlan)
+            );
         }
     }
 }

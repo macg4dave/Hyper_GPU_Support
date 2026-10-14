@@ -983,23 +983,39 @@ fn execute(
                 },
                 admitted,
             )?;
-            if serde_json::to_value(backend.inspect(&record.target)?).map_err(|e| e.to_string())?
-                != serde_json::to_value(&result.effective).map_err(|e| e.to_string())?
-            {
-                return Err(
-                    "final independent readback changed; manual reconciliation required".into(),
-                );
+            ObservedBackend {
+                backend: &mut backend,
+                notify: &mut notify,
+                before_effect: None,
             }
-            if backend.gpu(&record.target)?.driver_version != driver_version {
-                return Err("driver changed during effects; manual reconciliation required".into());
-            }
-            if let Some(digest) = &record.payload_digest
-                && backend.payload(&record.target)? != *digest
-            {
-                return Err(
-                    "signed payload changed during effects; manual reconciliation required".into(),
-                );
-            }
+            .stage(
+                "Confirm final VM state and signed driver files",
+                |backend| {
+                    if serde_json::to_value(backend.inspect(&record.target)?)
+                        .map_err(|e| e.to_string())?
+                        != serde_json::to_value(&result.effective).map_err(|e| e.to_string())?
+                    {
+                        return Err(
+                            "final independent readback changed; manual reconciliation required"
+                                .into(),
+                        );
+                    }
+                    if backend.gpu(&record.target)?.driver_version != driver_version {
+                        return Err(
+                            "driver changed during effects; manual reconciliation required".into(),
+                        );
+                    }
+                    if let Some(digest) = &record.payload_digest
+                        && backend.payload(&record.target)? != *digest
+                    {
+                        return Err(
+                            "signed payload changed during effects; manual reconciliation required"
+                                .into(),
+                        );
+                    }
+                    Ok(())
+                },
+            )?;
             record.phase = SavePhase::Verified(result.effective.clone());
             runner::atomic_json(&runner::recovery_path()?, &record)?;
             notify(Progress {
@@ -1211,7 +1227,7 @@ fn execute(
                     save_error: None,
                 });
             }
-            if matches!(record.phase, SavePhase::EffectsStarted) && shutdown_approved {
+            if matches!(record.phase, SavePhase::EffectsStarted) {
                 crate::windows_wmi::require_no_pending_operation()?;
                 let journal = backend.journal(&record.target)?;
                 if record
@@ -1320,6 +1336,12 @@ fn execute(
                 return Err("current payload differs from the recorded operation".into());
             }
             let check_graphics = record.requires_graphics();
+            // A reviewed record-only completion supplies no credentials. If its
+            // restoration proof drifted, refuse a fallback guest check before
+            // starting the VM; return to a fresh recovery review instead.
+            if check_graphics && backend.credential.is_none() {
+                return Err("Guest verification now requires credentials and a fresh recovery review; no guest lifecycle work was started.".into());
+            }
             if check_graphics
                 && (before.power == Power::Off || final_power == Power::Off)
                 && !shutdown_approved
@@ -1921,6 +1943,7 @@ mod tests {
             decode: None,
         };
         Plan {
+            authentication_deferred: false,
             reinstall: false,
             initial_setup: false,
             desired: target.clone(),

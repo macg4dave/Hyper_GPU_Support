@@ -59,6 +59,7 @@ export component AppWindow inherits Window {
     in-out property <bool> eligible: false;
     in-out property <bool> dirty: false;
     in-out property <bool> recovery: false;
+    in property <string> recovery-summary;
     in-out property <bool> gpu-enabled: false;
     in-out property <int> gpu-index: 0;
     in property <bool> memory-available: false;
@@ -87,6 +88,7 @@ export component AppWindow inherits Window {
     in-out property <string> current-stage;
     in-out property <float> transfer-fraction: -1;
     in-out property <bool> running: false;
+    in-out property <bool> review-preparing: false;
     in-out property <bool> needs-shutdown: false;
     in-out property <string> power-consent;
     private property <bool> modal-active: root.dialog-kind != "" || root.running;
@@ -124,7 +126,7 @@ export component AppWindow inherits Window {
                 spacing: 0px;
                 Rectangle { height: root.recovery ? 72px : 42px; background: Theme.tint;
                     HorizontalLayout { padding-left: 18px; padding-right: 18px; spacing: 12px;
-                        Hint { text: root.recovery ? (UiText.dashboard-recovery-banner) : root.notice; }
+                        Hint { text: root.recovery ? root.recovery-summary : root.notice; }
                         if root.recovery : Button {
                             property <int> restore-request: root.focus-return-serial;
                             changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
@@ -206,6 +208,7 @@ export component AppWindow inherits Window {
         reset-unavailable: root.reset-unavailable; reset-allowed: root.reset-allowed; action-recovery: root.action-recovery; dirty: root.dirty;
         kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body;
         details: root.dialog-details; stages: root.progress-steps; running: root.running;
+        review-preparing: root.review-preparing;
         current-stage: root.current-stage; transfer-fraction: root.transfer-fraction;
         needs-shutdown: root.needs-shutdown; power-consent: root.power-consent; action(a) => { root.action(a); }
     }

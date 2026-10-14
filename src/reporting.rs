@@ -286,6 +286,18 @@ pub fn operator_error(stage: &str, error: &str) -> String {
     }
     if let Some(failure) = ComponentFailure::decode(error) {
         let description = match (failure.component, failure.cause) {
+            (Component::GuestTransport, FailureCause::InvalidReply) => Some(
+                "The guest check returned incomplete or invalid progress records. Its outcome is unknown; inspect recovery before another check.",
+            ),
+            (Component::GuestTransport, FailureCause::TimedOut) => Some(
+                "Communication with the guest timed out. The guest check did not complete; inspect recovery and the recorded final power state.",
+            ),
+            (Component::GuestTransport, FailureCause::AccessDenied) => Some(
+                "Access to the guest check transport was denied. Check local permissions and inspect recovery before retrying.",
+            ),
+            (Component::GuestTransport, FailureCause::Unavailable) => Some(
+                "Communication with the guest was unavailable. The guest check did not complete; inspect recovery before retrying.",
+            ),
             (Component::GuestPayload, FailureCause::FileMissing) => Some(
                 "Required guest driver files are missing. Current preparation does not match the host payload.",
             ),
@@ -508,6 +520,27 @@ pub fn collect_observations<T>(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn transport_failure_explains_missing_records_without_echoing_private_output() {
+        use super::*;
+        for (cause, expected) in [
+            (FailureCause::InvalidReply, "invalid progress records"),
+            (FailureCause::TimedOut, "timed out"),
+            (FailureCause::Unavailable, "unavailable"),
+        ] {
+            let error = ComponentFailure {
+                stage: Some(FailureStage::Verification),
+                component: Component::GuestTransport,
+                cause,
+                code: None,
+            }
+            .into_error();
+            let message = operator_error("Verify", &error);
+            assert!(message.contains(expected));
+            assert!(message.contains("recovery"));
+            assert!(!message.contains("HGFAIL1"));
+        }
+    }
     #[test]
     fn fact_availability_is_typed_and_redacts_original_inputs() {
         use super::*;

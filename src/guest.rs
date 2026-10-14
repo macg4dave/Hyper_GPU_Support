@@ -82,6 +82,35 @@ fn transport_script(module_literal: &str) -> String {
         )
 }
 
+fn supervision_failure(error: process::BoundedProcessError) -> String {
+    use crate::reporting::{Component, ComponentFailure, FailureCause, FailureCode};
+    let (cause, code) = match error {
+        process::BoundedProcessError::Timeout => (FailureCause::TimedOut, None),
+        process::BoundedProcessError::Launch { kind, code } => (
+            if kind == std::io::ErrorKind::PermissionDenied {
+                FailureCause::AccessDenied
+            } else {
+                FailureCause::Unavailable
+            },
+            code.map(|code| FailureCode::HResult(0x80070000 | (code as u32 & 0xffff))),
+        ),
+        process::BoundedProcessError::OutputTooLarge => (FailureCause::InvalidReply, None),
+        process::BoundedProcessError::Execution(error) => {
+            if let Some(failure) = ComponentFailure::decode(&error) {
+                return failure.into_error();
+            }
+            (FailureCause::Unavailable, None)
+        }
+    };
+    ComponentFailure {
+        stage: None,
+        component: Component::GuestTransport,
+        cause,
+        code,
+    }
+    .into_error()
+}
+
 fn bridge(
     t: &Target,
     credential: &Credential,
@@ -201,9 +230,7 @@ fn bridge(
                     Ok(())
                 },
             )
-            .map_err(|error| {
-                format!("guest transport supervision failed: {error}; preparation may be partial")
-            })?;
+            .map_err(supervision_failure)?;
             if result.exit_code != Some(0) {
                 if let Ok(reply) = serde_json::from_str::<BridgeResult>(result.stdout.trim())
                     && let Some(code) = reply.transport_hresult
@@ -256,7 +283,15 @@ fn bridge(
                 }
                 .into_error());
             }
-            monitor.require_worker_phases()?;
+            monitor.require_worker_phases().map_err(|_| {
+                crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestTransport,
+                    cause: crate::reporting::FailureCause::InvalidReply,
+                    code: None,
+                }
+                .into_error()
+            })?;
             Ok(reply.output)
         },
     )
@@ -722,6 +757,23 @@ fn health() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn supervision_diagnostics_retain_typed_facts_without_adapter_text() {
+        use crate::reporting::{ComponentFailure, FailureCause};
+        let timeout =
+            ComponentFailure::decode(&supervision_failure(process::BoundedProcessError::Timeout))
+                .unwrap();
+        assert!(matches!(timeout.cause, FailureCause::TimedOut));
+        let error = supervision_failure(process::BoundedProcessError::Execution(
+            "private adapter output".into(),
+        ));
+        assert!(!error.contains("private adapter output"));
+        assert!(matches!(
+            ComponentFailure::decode(&error).unwrap().cause,
+            FailureCause::Unavailable
+        ));
+    }
 
     #[test]
     fn fixed_transport_refuses_malformed_input_before_guest_effects() {

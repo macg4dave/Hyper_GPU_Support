@@ -9,6 +9,7 @@ mod live_state;
 mod memory;
 mod operation;
 mod result_notice;
+mod selection;
 mod wording;
 use slint::{Model, ModelRc, VecModel};
 use std::rc::Rc;
@@ -43,6 +44,12 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
     } else {
         body.into()
     });
+}
+
+// Keep the typed backend envelope intact until both diagnostic views are built.
+fn failure_dialog(ui: &AppWindow, title: &str, error: &str, context: &str) {
+    dialog(ui, "error", title, error);
+    ui.set_dialog_body(diagnostics::failure_summary(title, error, context).into());
 }
 pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     live::run(AppWindow::new()?, live::Source)

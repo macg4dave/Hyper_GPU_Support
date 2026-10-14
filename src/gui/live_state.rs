@@ -12,6 +12,8 @@ pub(super) struct State {
     pub pending_selection: Option<String>,
     pub draft_gpu: Option<String>,
     pub approved_plan: Option<ReviewedPlan>,
+    /// A rejected Apply needs a full fresh review rather than repeating a prediction.
+    pub require_authenticated_review: bool,
     pub removal_review: Option<hyper_gpu_support::enrollment::RemovalReview>,
     pub reset_review: Option<(
         hyper_gpu_support::configuration_store::Revision,
@@ -55,6 +57,7 @@ impl Default for State {
             pending_selection: None,
             draft_gpu: None,
             approved_plan: None,
+            require_authenticated_review: false,
             removal_review: None,
             reset_review: None,
             verification_plan: None,
@@ -72,6 +75,51 @@ impl Default for State {
 }
 
 impl State {
+    /// Match the recovery path shown in review to the credential decision.
+    /// These cached facts only choose presentation; the worker checks them fresh.
+    pub fn recovery_without_guest(
+        &self,
+        record: &hyper_gpu_support::configuration_store::SaveRecord,
+    ) -> Result<bool, String> {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        if matches!(
+            record.phase,
+            SavePhase::Verified(_) | SavePhase::Published(_)
+        ) {
+            return Ok(true);
+        }
+        if self.view.needs_readback {
+            return Ok(false);
+        }
+        let vm = self
+            .view
+            .vm(&record.target.vm_id)
+            .ok_or("Recovery VM unavailable")?;
+        let inventory = self
+            .view
+            .inventory
+            .as_ref()
+            .ok_or("Recovery inventory unavailable")?;
+        let journal = inventory
+            .managed
+            .get(&record.target.vm_id)
+            .and_then(Option::as_ref);
+        let driver = inventory
+            .discovery
+            .gpus
+            .iter()
+            .find(|gpu| gpu.interface == record.target.gpu_interface)
+            .map(|gpu| gpu.driver_version.as_str())
+            .unwrap_or_default();
+        let revision = self.committed.revision(&record.target.vm_id)?;
+        Ok(record
+            .validate_restored_baseline(vm, driver, &revision, journal)
+            .is_ok()
+            || record
+                .negative_completion(vm, driver, &revision, journal)
+                .is_ok_and(|candidate| candidate.is_some()))
+    }
+
     /// First-install discovery is explicit; it has no protected enrollment to poll.
     pub fn can_poll(&self) -> bool {
         self.view
@@ -89,6 +137,7 @@ impl State {
         saved: bool,
         readback: Result<OperationReadback, String>,
     ) -> Result<(), String> {
+        self.require_authenticated_review = false;
         self.view.needs_readback = true;
         self.approved_plan = None;
         self.view.applied(target)?;
@@ -771,27 +820,35 @@ pub(super) fn allocation_values(target: &Target) -> Vec<String> {
     values
 }
 
-/// Review exact VRAM byte requests, separately from allocation enforcement.
+/// Show readable VRAM requests; exact bytes remain in Technical Details.
 pub(super) fn memory_review(plan: &Plan) -> String {
+    let readable = |allocation: Option<&Allocation>| {
+        allocation.map_or_else(
+            || hyper_gpu_support::ui_text::common::state::UNKNOWN.to_owned(),
+            |value| {
+                if value.minimum == value.optimal && value.optimal == value.maximum {
+                    super::memory::format_gb(value.optimal)
+                } else {
+                    format!(
+                        "{} / {} / {} (minimum / optimal / maximum)",
+                        super::memory::format_gb(value.minimum),
+                        super::memory::format_gb(value.optimal),
+                        super::memory::format_gb(value.maximum)
+                    )
+                }
+            },
+        )
+    };
     if let Some(write) = &plan.preview.allocation {
         format!(
-            "GPU memory (bytes: minimum / optimal / maximum): {} → {}\n",
-            allocation_description(
-                plan.observed.vram.as_ref(),
-                hyper_gpu_support::ui_text::common::state::UNKNOWN
-            ),
-            allocation_description(
-                Some(write),
-                hyper_gpu_support::ui_text::common::state::UNKNOWN
-            ),
+            "GPU memory request: {} → {}. Exact bytes are in Technical Details.\n",
+            readable(plan.observed.vram.as_ref()),
+            readable(Some(write)),
         )
     } else if let Some(request) = &plan.desired.vram {
         format!(
-            "GPU memory request (bytes: minimum / optimal / maximum): {}. No VRAM write is planned.\n",
-            allocation_description(
-                Some(request),
-                hyper_gpu_support::ui_text::common::state::UNKNOWN
-            ),
+            "GPU memory request: {}. No VRAM write is planned.\n",
+            readable(Some(request)),
         )
     } else {
         hyper_gpu_support::ui_text::operations::apply::review::MEMORY_ABSENT.into()
@@ -903,12 +960,23 @@ pub(super) fn review_summary(plan: &Plan) -> String {
             hyper_gpu_support::ui_text::operations::apply::ordinary_review::BODY.into(),
         );
     }
+    if plan.authentication_deferred {
+        lines.insert(
+            1,
+            hyper_gpu_support::ui_text::operations::plan::PRELIMINARY_NOTICE.into(),
+        );
+    }
     for (resource, write) in [
         (Resource::Vram, plan.preview.allocation.as_ref()),
         (Resource::Compute, plan.preview.compute.as_ref()),
         (Resource::Encode, plan.preview.encode.as_ref()),
         (Resource::Decode, plan.preview.decode.as_ref()),
     ] {
+        // VRAM is summarised once in GB by memory_review; retain raw triples
+        // for the other provider categories and in Technical Details.
+        if resource == Resource::Vram {
+            continue;
+        }
         if let Some(write) = write {
             lines.push(format!(
                 "{} (Minimum / Optimal / Maximum, raw provider values): {} → {}",
@@ -1846,8 +1914,14 @@ mod tests {
         let draft = s.target(id(&s)).unwrap();
         s.view.draft = Some(draft.clone());
         let mut record = save_record(&s);
+        record.publication_required = false;
+        assert!(s.recovery_without_guest(&record).unwrap());
         record.phase = SavePhase::EffectsStarted;
+        assert!(!s.recovery_without_guest(&record).unwrap());
         s.recovery = Some(record);
+        let summary = super::super::live::presentation::recovery_summary(&s, id(&s)).unwrap();
+        assert!(summary.contains("GPU verification"));
+        assert!(!summary.contains("Setup interrupted"));
         let body = s.action_recovery_message().unwrap();
         assert!(body.contains("Renamable VM"));
         assert!(body.contains("Review recovery"));
@@ -1860,6 +1934,8 @@ mod tests {
         assert!(s.editor_eligibility(id(&s)).is_err());
         // A host-wide hold still needs an explanation when another VM is selected.
         s.view.selected = Some("another-vm".into());
+        let summary = super::super::live::presentation::recovery_summary(&s, "another-vm").unwrap();
+        assert!(summary.contains("blocked") && summary.contains("Renamable VM"));
         assert!(
             s.action_recovery_message()
                 .unwrap()
@@ -1867,6 +1943,64 @@ mod tests {
         );
         s.recovery = None;
         assert!(s.action_recovery_message().is_none());
+    }
+
+    #[test]
+    fn verification_recovery_requires_restoration_proof_and_rejects_changed_facts() {
+        use hyper_gpu_support::{
+            configuration_store::SavePhase,
+            workflow::{GuestCheck, Journal},
+        };
+        let mut s = state();
+        let mut record = save_record(&s);
+        record.publication_required = false;
+        record.phase = SavePhase::EffectsStarted;
+        record.driver_version = "fixture".into();
+        record.expected = s.committed.revision(&record.target.vm_id).unwrap();
+        let vm_id = record.target.vm_id.clone();
+        let journal = Journal {
+            schema: 1,
+            vm_id: vm_id.clone(),
+            gpu_interface: record.target.gpu_interface.clone(),
+            original: record.initial.settings.clone(),
+            applied: record.initial.settings.clone(),
+            prepared: Some("historical-payload".into()),
+            pending: true,
+            restore_power: record.initial.power.clone(),
+            verification_only: true,
+            last_verified: Some(1),
+            latest_check: Some(GuestCheck::Failed),
+            preparation_started: None,
+            check_restored: false,
+            settings_released: false,
+        };
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .managed
+            .insert(vm_id.clone(), Some(journal));
+        assert!(!s.recovery_without_guest(&record).unwrap());
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .managed
+            .get_mut(&vm_id)
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .check_restored = true;
+        assert!(s.recovery_without_guest(&record).unwrap());
+        let body = super::super::wording::verification_recovery(&record, "Renamable VM", true);
+        assert!(body.contains("does not retry the guest check"));
+        s.view.inventory.as_mut().unwrap().discovery.vms[0]
+            .settings
+            .high_mmio += 1;
+        assert!(!s.recovery_without_guest(&record).unwrap());
+        s.view.inventory.as_mut().unwrap().discovery.vms[0] = record.initial.clone();
+        s.view.needs_readback = true;
+        assert!(!s.recovery_without_guest(&record).unwrap());
     }
 
     #[test]
@@ -2466,6 +2600,7 @@ mod tests {
             .draft(id(&s), true, 0, &values("10", "50", "100"))
             .unwrap();
         Plan {
+            authentication_deferred: false,
             reinstall: false,
             initial_setup: false,
             desired: target.clone(),
@@ -2515,7 +2650,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_review_preserves_exact_observed_and_requested_bytes() {
+    fn memory_review_shows_readable_values_and_retains_exact_bytes_in_details() {
         let mut plan = review_plan();
         plan.observed.vram = Some(Allocation {
             minimum: 0,
@@ -2528,13 +2663,19 @@ mod tests {
             maximum: 900_000_003,
         });
         let text = memory_review(&plan);
-        assert!(text.contains("0 / 1000000000 / 1000000000 → 1 / 500000001 / 900000003"));
-        assert!(text.contains("bytes: minimum / optimal / maximum"));
-        assert!(!text.contains("1 GB"));
-        assert!(!text.contains("0.500000001 GB"));
+        assert!(text.contains("0 GB / 1 GB / 1 GB"));
+        assert!(text.contains("0.500000001 GB"));
+        assert!(!text.contains("1000000000"));
+        assert!(review_text(&plan).contains("1 / 500000001 / 900000003"));
         // Unknown readback cannot become a default or zero observation.
         plan.observed.vram = None;
-        assert!(memory_review(&plan).contains("Unknown → 1 / 500000001 / 900000003"));
+        assert!(memory_review(&plan).contains("Unknown → 0.000000001 GB"));
+        plan.preview.allocation = Some(Allocation {
+            minimum: 4_000_000_000,
+            optimal: 4_000_000_000,
+            maximum: 4_000_000_000,
+        });
+        assert!(memory_review(&plan).contains("Unknown → 4 GB"));
     }
 
     #[test]
@@ -2542,7 +2683,7 @@ mod tests {
         let mut plan = review_plan();
         plan.preview.allocation = None;
         let text = memory_review(&plan);
-        assert!(text.contains("10 / 50 / 100"));
+        assert!(text.contains("0.00000001 GB / 0.00000005 GB / 0.0000001 GB"));
         assert!(text.contains("No VRAM write is planned"));
         assert!(!text.contains('→'));
         plan.desired.vram = None;
@@ -3018,6 +3159,11 @@ mod tests {
         assert!(!summary.contains("several minutes"));
         assert!(!summary.contains("graphics check may take additional time"));
         assert!(!summary.contains("Start the VM."));
+        plan.authentication_deferred = true;
+        let summary = review_summary(&plan);
+        assert!(summary.contains("Preliminary review"));
+        assert!(summary.contains("requires a full review"));
+        assert!(summary.contains("before any changes"));
     }
 
     #[test]

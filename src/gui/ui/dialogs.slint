@@ -41,6 +41,7 @@ export component OperationDialog inherits Rectangle {
     in property <string> current-stage;
     in property <float> transfer-fraction: -1;
     in property <bool> running;
+    in property <bool> review-preparing;
     in property <bool> needs-shutdown;
     in property <string> power-consent;
     private property <bool> consent: false;
@@ -52,8 +53,10 @@ export component OperationDialog inherits Rectangle {
     changed details => { if !root.running { root.technical = false; } }
     changed power-consent => { root.consent = false; }
     changed running => { root.focus-safe(); }
+    changed review-preparing => { root.focus-safe(); }
     function focus-safe() {
-        if root.running { dialog-focus.focus(); }
+        if root.review-preparing { dismiss-button.focus(); }
+        else if root.running { dialog-focus.focus(); }
         else { dismiss-button.focus(); }
     }
     init => { root.focus-safe(); }
@@ -63,7 +66,7 @@ export component OperationDialog inherits Rectangle {
     dialog-focus := FocusScope {
         capture-key-pressed(event) => {
             if event.text == Key.Escape {
-                if !root.running && !root.updating { root.action("close"); }
+                if root.review-preparing || (!root.running && !root.updating) { root.action("close"); }
                 accept
             } else { reject }
         }
@@ -150,8 +153,8 @@ export component OperationDialog inherits Rectangle {
                         spacing: 8px;
                         vertical-stretch: 0;
                         dismiss-button := Button {
-                            text: root.running ? UiText.dialogs-busy-label : root.kind == "switch" ? UiText.dialogs-switch-stay-label : root.kind == "exit" || root.kind == "enroll-review" ? UiText.dialogs-draft-keep-label : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? UiText.dialogs-cancel-label : UiText.dialogs-close-label;
-                            enabled: !root.running && !root.updating;
+                            text: root.review-preparing ? UiText.dialogs-cancel-label : root.running ? UiText.dialogs-busy-label : root.kind == "switch" ? UiText.dialogs-switch-stay-label : root.kind == "exit" || root.kind == "enroll-review" ? UiText.dialogs-draft-keep-label : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? UiText.dialogs-cancel-label : UiText.dialogs-close-label;
+                            enabled: root.review-preparing || (!root.running && !root.updating);
                             clicked => { root.action("close"); }
                         }
                         if root.kind == "switch" : Button { text: UiText.dialogs-switch-discard-label; clicked => { root.action("switch"); } }

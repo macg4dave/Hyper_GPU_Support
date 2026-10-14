@@ -13,7 +13,8 @@ mod verification;
 pub use apply::{apply, apply_approved};
 pub use journal::{GuestCheck, Journal};
 pub use planning::{
-    EffectPreview, Plan, PreparationPreview, PreviewAction, SettingsPreview, plan, plan_reinstall,
+    EffectPreview, Plan, PreparationPreview, PreviewAction, SettingsPreview, plan,
+    plan_preliminary, plan_reinstall,
 };
 pub use reconciliation::reconcile_observed;
 pub use reset::ResetReview;
