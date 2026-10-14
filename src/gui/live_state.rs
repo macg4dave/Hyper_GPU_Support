@@ -2766,7 +2766,7 @@ mod tests {
         let first = review_text(&plan);
         let summary = review_summary(&plan);
         assert!(summary.contains("GPU support: Disabled → Enabled"));
-        assert!(summary.contains("Unknown → 10 / 50 / 100"));
+        assert!(!summary.contains("10 / 50 / 100"));
         assert!(!summary.contains("GPU interface"));
         assert!(first.contains("VRAM draft (Minimum / Optimal / Maximum): 10 / 50 / 100"));
         assert!(first.contains("Planned allocation write: 10 / 50 / 100"));

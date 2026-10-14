@@ -135,12 +135,25 @@ export component VmDetails inherits Rectangle {
                         memory-slider := Slider {
                             visible: root.memory-minimum != root.memory-maximum;
                             accessible-label: UiText.dashboard-memory-slider-accessible;
-                            accessible-value-step: 1;
+                            // Internal positions are tenths of a GB. Assistive controls
+                            // read and write GB, while pointer/keyboard edits keep exact steps.
+                            accessible-value: root.memory-position / 10;
+                            accessible-description: root.memory-label;
+                            accessible-value-minimum: root.memory-minimum / 10;
+                            accessible-value-maximum: root.memory-maximum / 10;
+                            accessible-value-step: 0.1;
+                            accessible-action-set-value(v) => {
+                                if v.is-float() && v.to-float() >= root.memory-minimum / 10 && v.to-float() <= root.memory-maximum / 10 {
+                                    self.changed(round(v.to-float() * 10));
+                                }
+                            }
+                            accessible-action-increment => { self.changed(min(root.memory-position + 1, root.memory-maximum)); }
+                            accessible-action-decrement => { self.changed(max(root.memory-position - 1, root.memory-minimum)); }
                             minimum: root.memory-minimum; maximum: root.memory-maximum; step: 1;
                             value: root.memory-position;
                             enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery;
                             changed(value) => {
-                                if !root.presenting && round(value) != root.memory-position { root.memory-edited(round(value)); self.value = root.memory-position; }
+                                if self.enabled && !root.presenting && round(value) != root.memory-position { root.memory-edited(round(value)); self.value = root.memory-position; }
                             }
                         }
                         if root.memory-available && root.memory-minimum == root.memory-maximum : Button {

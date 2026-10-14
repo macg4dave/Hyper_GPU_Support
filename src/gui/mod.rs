@@ -1,4 +1,6 @@
 //! Approved Slint presentation over the protected live backend.
+#[cfg(test)]
+mod accessibility_tests;
 mod actions;
 #[cfg(test)]
 mod catalogue_tests;

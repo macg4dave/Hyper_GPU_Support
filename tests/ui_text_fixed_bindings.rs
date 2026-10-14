@@ -1,12 +1,14 @@
-//! Execute every fixed accessor against the independent pre-migration mapping.
+//! Execute fixed accessors against historical mapping and deliberate wording revisions.
 use ::ui_text as ui_text_tool;
 use hyper_gpu_support::ui_text;
 
 #[test]
-fn fixed_bindings_preserve_all_historical_bytes() {
+fn fixed_bindings_preserve_historical_bytes_and_deliberate_revisions() {
     let mapping: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/ui-text/mapping.json")).unwrap();
     let entries = mapping["entries"].as_array().unwrap();
+    let mut revisions: std::collections::BTreeMap<String, String> =
+        serde_json::from_str(include_str!("fixtures/ui-text/revised-fixed.json")).unwrap();
     for (key, actual) in [
         (
             "common.allocation.provider_default",
@@ -1447,7 +1449,10 @@ fn fixed_bindings_preserve_all_historical_bytes() {
                 entry["key"] == historical_key && entry["disposition"] == "extract_display"
             })
             .unwrap();
-        let template = entry["template"].as_str().unwrap();
+        let revised = revisions.remove(key);
+        let template = revised
+            .as_deref()
+            .unwrap_or_else(|| entry["template"].as_str().unwrap());
         let expected: String = ui_text_tool::template::parse(template)
             .unwrap()
             .into_iter()
@@ -1458,4 +1463,8 @@ fn fixed_bindings_preserve_all_historical_bytes() {
             .collect();
         assert_eq!(actual.as_str(), expected, "{key}");
     }
+    assert!(
+        revisions.is_empty(),
+        "unused wording revisions: {revisions:?}"
+    );
 }

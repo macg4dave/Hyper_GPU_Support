@@ -1,0 +1,4 @@
+{
+  "dashboard.support.recovery_hold": "This VM has an unresolved operation. Review recovery before changing GPU support.",
+  "operations.plan.progress_body": "Checking the selected VM, GPU and recorded setup. Ordinary changes use a preliminary review; Apply authenticates the current driver files before any effects. Setup, repair and full reviews read and authenticate the files now, which can take several minutes. Cancel keeps your draft; the read-only check finishes in the background."
+}

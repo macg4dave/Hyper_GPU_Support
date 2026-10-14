@@ -465,7 +465,7 @@ mod tests {
         assert!(details.contains("FileMissing"));
         assert!(details.contains("Power restoration failed"));
         assert!(reporting::technical_facts(&error).is_available());
-        assert_eq!(backend.events, ["start", "graphics", "shutdown"]);
+        assert_eq!(backend.events, ["start", "payload-check", "shutdown"]);
         assert_eq!(backend.state.power, Power::Running);
         let pending = backend.journal.as_ref().unwrap();
         assert!(pending.pending && pending.verification_only && !pending.check_restored);

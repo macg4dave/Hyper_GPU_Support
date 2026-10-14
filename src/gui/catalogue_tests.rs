@@ -9,7 +9,7 @@ use slint::{
 };
 use std::{path::Path, rc::Rc};
 
-struct Headless;
+pub(super) struct Headless;
 impl Platform for Headless {
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
         Ok(MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer))
