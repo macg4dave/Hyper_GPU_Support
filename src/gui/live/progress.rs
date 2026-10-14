@@ -28,6 +28,13 @@ pub(super) fn progress_to_ui(
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             let stage = match progress.stage.as_str() {
+                "Read current VM state" => hyper_gpu_support::ui_text::progress::stage::READ_VM,
+                "Read selected GPU and driver version" => {
+                    hyper_gpu_support::ui_text::progress::stage::READ_GPU
+                }
+                "Authenticate current signed driver files" => {
+                    hyper_gpu_support::ui_text::progress::stage::AUTHENTICATE
+                }
                 "Persist operation recovery" => {
                     hyper_gpu_support::ui_text::progress::stage::PERSIST
                 }
@@ -74,8 +81,6 @@ pub(super) fn progress_to_ui(
             );
             ui.set_stages(stages);
             if !event.persistence {
-                ui.set_current_stage(row.clone());
-                ui.set_transfer_fraction(event.fraction.unwrap_or(-1.0));
                 let mut steps = ui.get_progress_steps();
                 if event.copy_complete {
                     steps = write_row(
@@ -84,7 +89,17 @@ pub(super) fn progress_to_ui(
                         hyper_gpu_support::ui_text::progress::copy::COMPLETE.into(),
                     );
                 }
-                ui.set_progress_steps(write_row(steps, state.step(&event.identity), row));
+                let steps = write_row(steps, state.step(&event.identity), row);
+                let current = state.active_step().and_then(|slot| steps.row_data(slot));
+                ui.set_current_stage(current.unwrap_or_else(|| {
+                    hyper_gpu_support::ui_text::progress::status::WAITING_RESULT.into()
+                }));
+                ui.set_transfer_fraction(if event.status == Status::Running {
+                    event.fraction.unwrap_or(-1.0)
+                } else {
+                    -1.0
+                });
+                ui.set_progress_steps(steps);
             }
         });
     }

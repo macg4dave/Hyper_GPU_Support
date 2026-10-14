@@ -504,7 +504,36 @@ mod tests {
     use hyper_gpu_support::model::Settings;
 
     #[test]
-    fn pending_summary_uses_exact_draft_memory_and_does_not_guess_invalid_edits() {
+    fn memory_only_pending_summary_preserves_saved_support_state() {
+        let values = vec!["0".into(), "4000000000".into(), "8000000000".into()];
+        for (enabled, support) in [
+            (true, "GPU support stays enabled"),
+            (false, "GPU support stays disabled"),
+        ] {
+            assert_eq!(
+                pending_summary(enabled, Some(enabled), &values),
+                format!("Pending: {support}. VRAM request: 4 GB. Review before applying.")
+            );
+            // Returning the toggle to its saved state leaves only the memory edit.
+            let changed = pending_summary(!enabled, Some(enabled), &values);
+            assert!(changed.contains(if enabled {
+                "disable GPU support"
+            } else {
+                "enable GPU support"
+            }));
+            assert!(!changed.contains("stays"));
+            assert_eq!(
+                pending_summary(enabled, Some(enabled), &["".into(), "".into(), "".into()]),
+                format!(
+                    "Pending: {support}. VRAM request: {}. Review before applying.",
+                    hyper_gpu_support::ui_text::common::allocation::PROVIDER_DEFAULT
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn pending_summary_uses_exact_draft_memory() {
         let values = vec![
             "0".to_owned(),
             "6000000001".to_owned(),
@@ -515,12 +544,22 @@ mod tests {
                 .contains("enable GPU support. VRAM request: 6.000000001 GB")
         );
         assert!(pending_summary(false, Some(true), &values).contains("disable GPU support"));
-        assert!(pending_summary(true, Some(true), &values).contains("stays enabled"));
-        assert!(pending_summary(false, Some(false), &values).contains("stays disabled"));
-        assert!(
-            pending_summary(true, Some(true), &["invalid".into(), "".into(), "".into()])
-                .contains("Correct the VRAM fields")
-        );
+    }
+
+    #[test]
+    fn invalid_pending_memory_does_not_claim_an_enable_or_disable_action() {
+        for values in [
+            vec!["invalid".into(), "".into(), "".into()],
+            vec!["0".into(), "4000000000".into()],
+            vec!["0".into(), "4000000000".into(), "".into()],
+        ] {
+            for enabled in [true, false] {
+                assert_eq!(
+                    pending_summary(enabled, Some(enabled), &values),
+                    "Pending edits retained. Correct the VRAM fields before reviewing."
+                );
+            }
+        }
     }
 
     #[test]

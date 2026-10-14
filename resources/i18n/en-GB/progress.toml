@@ -2,6 +2,50 @@ schema = 1
 locale = "en-GB"
 feature = "progress"
 
+[messages."progress.stage.read_vm"]
+text = "Reading current VM state"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.read_vm"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."progress.stage.read_gpu"]
+text = "Reading selected GPU and driver version"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.read_gpu"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."progress.stage.authenticate"]
+text = "Authenticating current signed driver files"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.authenticate"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."progress.status.waiting_result"]
+text = "Waiting for final result; completion is not yet confirmed"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.status.waiting_result"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
 [messages."progress.copy.complete"]
 text = "Copying files · Complete"
 screen = "progress_to_ui presentation (src/gui/live/progress.rs)"

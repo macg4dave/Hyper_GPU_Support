@@ -2,6 +2,39 @@ schema = 1
 locale = "en-GB"
 feature = "operations"
 
+[messages."operations.plan.read_history"]
+text = "Reading current VM, GPU and preparation history"
+screen = "review_operation presentation (src/gui/live.rs)"
+state = "Selected branch: operations.plan.read_history"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.plan.authenticate"]
+text = "Reading current VM and authenticating signed driver files"
+screen = "review_operation presentation (src/gui/live.rs)"
+state = "Selected branch: operations.plan.authenticate"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.plan.check_worker"]
+text = "Checking protected worker availability"
+screen = "review_operation presentation (src/gui/live.rs)"
+state = "Selected branch: operations.plan.check_worker"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
 [messages."operations.action.menu_title"]
 text = "VM actions"
 screen = "run presentation (src/gui/live.rs)"

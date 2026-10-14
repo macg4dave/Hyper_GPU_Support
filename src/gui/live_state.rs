@@ -1169,6 +1169,72 @@ mod tests {
         s
     }
 
+    #[test]
+    fn reopened_selection_survives_discovery_order_and_rename_with_or_without_recovery() {
+        for held in [false, true] {
+            let original = state();
+            let selected = original.view.selected.clone().unwrap();
+            let record = save_record(&original);
+            let mut next = inventory();
+            next.discovery.vms[0].name = "Renamed selected VM".into();
+            let mut first = next.discovery.vms[0].clone();
+            first.vm_id = "87654321-4321-4321-4321-cba987654321".into();
+            first.name = "First listed VM".into();
+            next.discovery.vms.insert(0, first);
+
+            // Startup restores the preference before accepting first discovery.
+            let mut reopened = State::default();
+            reopened.view.selected = Some(selected.clone());
+            reopened.recovery = held.then_some(record);
+            let recovery_before = serde_json::to_value(&reopened.recovery).unwrap();
+            let inventory_before = serde_json::to_value(&next).unwrap();
+            reopened.refresh(next.clone());
+            assert_eq!(reopened.view.selected.as_deref(), Some(selected.as_str()));
+            assert_eq!(
+                reopened.view.vm(&selected).unwrap().name,
+                "Renamed selected VM"
+            );
+            assert_eq!(
+                serde_json::to_value(&reopened.recovery).unwrap(),
+                recovery_before
+            );
+            assert_eq!(
+                serde_json::to_value(reopened.view.inventory.as_ref().unwrap()).unwrap(),
+                inventory_before
+            );
+            assert!(reopened.view.draft.is_none());
+            assert!(reopened.approved_plan.is_none());
+            if held {
+                assert!(reopened.editor_eligibility(&selected).is_err());
+                assert!(
+                    super::super::live::presentation::recovery_summary(&reopened, &selected)
+                        .is_some()
+                );
+            }
+
+            next.discovery.vms.reverse();
+            reopened.refresh(next.clone());
+            assert_eq!(reopened.view.selected.as_deref(), Some(selected.as_str()));
+            next.discovery.vms.retain(|vm| vm.vm_id != selected);
+            reopened.refresh(next.clone());
+            assert_eq!(
+                reopened.view.selected.as_deref(),
+                Some(next.discovery.vms[0].vm_id.as_str())
+            );
+            assert_eq!(
+                serde_json::to_value(&reopened.recovery).unwrap(),
+                recovery_before
+            );
+            next.discovery.vms.clear();
+            reopened.refresh(next);
+            assert!(reopened.view.selected.is_none());
+            assert_eq!(
+                serde_json::to_value(&reopened.recovery).unwrap(),
+                recovery_before
+            );
+        }
+    }
+
     fn action_state() -> State {
         let mut s = state();
         let vm_id = id(&s).to_owned();
@@ -1943,6 +2009,74 @@ mod tests {
         );
         s.recovery = None;
         assert!(s.action_recovery_message().is_none());
+    }
+
+    #[test]
+    fn recovery_identity_follows_the_record_when_an_unconfigured_vm_is_selected() {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        let mut s = state();
+        let mut record = save_record(&s);
+        record.publication_required = false;
+        record.phase = SavePhase::EffectsStarted;
+        record.initial.name = "Recorded VM name".into();
+        let affected_id = record.target.vm_id.clone();
+        let mut unrelated = s.view.vm(&affected_id).unwrap().clone();
+        unrelated.vm_id = "another-vm".into();
+        unrelated.name = "Untouched VM".into();
+        unrelated.gpus.clear();
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .discovery
+            .vms
+            .push(unrelated.clone());
+        s.view.selected = Some(unrelated.vm_id.clone());
+        s.recovery = Some(record);
+
+        let summary =
+            super::super::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
+        assert!(summary.contains("GPU verification recovery for Renamable VM"));
+        assert!(summary.contains(&affected_id));
+        assert!(!summary.contains("Untouched VM"));
+        assert!(!summary.contains("setup"));
+        assert!(s.editor_eligibility(&unrelated.vm_id).is_err());
+        assert_eq!(
+            serde_json::to_value(s.view.vm(&unrelated.vm_id).unwrap()).unwrap(),
+            serde_json::to_value(&unrelated).unwrap()
+        );
+
+        // Discovery can lose the affected VM; never borrow the selected VM's name.
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .discovery
+            .vms
+            .retain(|vm| vm.vm_id != affected_id);
+        let summary =
+            super::super::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
+        assert!(summary.contains("GPU verification recovery for Recorded VM name"));
+        assert!(
+            s.action_recovery_message()
+                .unwrap()
+                .contains("Recorded VM name")
+        );
+        assert!(s.editor_eligibility(&unrelated.vm_id).is_err());
+
+        s.recovery.as_mut().unwrap().publication_required = true;
+        let summary =
+            super::super::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
+        assert!(summary.contains("GPU change recovery for Recorded VM name"));
+        assert!(!summary.contains("verification"));
+        assert!(matches!(
+            s.recovery.as_ref().unwrap().phase,
+            SavePhase::EffectsStarted
+        ));
+        assert_eq!(
+            serde_json::to_value(s.view.vm(&unrelated.vm_id).unwrap()).unwrap(),
+            serde_json::to_value(&unrelated).unwrap()
+        );
     }
 
     #[test]

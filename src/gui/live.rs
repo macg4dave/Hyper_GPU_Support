@@ -244,13 +244,13 @@ fn background_for_vm<T: Send + 'static>(
             if weak
                 .upgrade_in_event_loop(move |ui| {
                     completion_busy.store(false, Ordering::Release);
+                    ui.set_updating(false);
                     // Cancel abandons this read's result, including failures. It
                     // never terminates a protected effect or publishes a late plan.
                     if preparing && !ui.get_review_preparing() {
                         return;
                     }
                     ui.set_review_preparing(false);
-                    ui.set_updating(false);
                     if !silent {
                         ui.set_running(false);
                         ui.set_dialog_kind("".into());
@@ -644,6 +644,7 @@ fn review_operation(
     let planning_revision = committed_revision.clone();
     let source = source.clone();
     let review_state = state.clone();
+    let review_ui = ui.as_weak();
     background(
         ui,
         busy,
@@ -659,9 +660,20 @@ fn review_operation(
                     "Committed configuration changed externally. Draft preserved; discard and Refresh.".into(),
                 );
             }
-            source
-                .plan(target, reinstall, authenticate)
-                .map(|plan| (plan, protected_worker_available()))
+            review_stage(
+                &review_ui,
+                if reinstall || authenticate {
+                    hyper_gpu_support::ui_text::operations::plan::AUTHENTICATE
+                } else {
+                    hyper_gpu_support::ui_text::operations::plan::READ_HISTORY
+                },
+            );
+            let plan = source.plan(target, reinstall, authenticate)?;
+            review_stage(
+                &review_ui,
+                hyper_gpu_support::ui_text::operations::plan::CHECK_WORKER,
+            );
+            Ok((plan, protected_worker_available()))
         },
         move |ui, result| match result {
             Ok((plan, worker_available))
@@ -733,6 +745,16 @@ fn review_operation(
             ),
         },
     )
+}
+
+fn review_stage(weak: &slint::Weak<AppWindow>, stage: &'static str) {
+    let _ = weak.upgrade_in_event_loop(move |ui| {
+        // Queued updates from an abandoned read must not touch a newer dialog.
+        if ui.get_review_preparing() {
+            ui.set_current_stage(stage.into());
+            ui.set_transfer_fraction(-1.0);
+        }
+    });
 }
 
 #[cfg(windows)]
@@ -1704,14 +1726,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 ui.set_dirty(changed);
                 ui.set_pending(
                     if changed {
-                        pending_summary(
-                            ui.get_gpu_enabled(),
-                            state
-                                .target(ui.get_selected_id().as_str())
-                                .ok()
-                                .map(|target| target.enabled),
-                            &raw_values,
-                        )
+                        pending_summary(ui.get_gpu_enabled(), Some(baseline.enabled), &raw_values)
                     } else {
                         hyper_gpu_support::ui_text::dashboard::draft::ABSENT.to_owned()
                     }
@@ -1939,7 +1954,8 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 if ui.get_review_preparing() {
                     ui.set_review_preparing(false);
                     ui.set_running(false);
-                    ui.set_updating(false);
+                    // Retain visible admission until the abandoned read finishes.
+                    // Editing remains available; operations must not look ready.
                     ui.set_notice("Review cancelled. Your draft is kept. The read-only check will finish in the background before another operation can start.".into());
                 }
                 with_state(&ui, &action_state, |state| {

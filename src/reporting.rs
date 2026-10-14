@@ -76,6 +76,8 @@ pub enum FailureCause {
     ReadbackMismatch,
     /// The checked probe did not establish hardware rendering.
     RenderingFailed,
+    /// The guest display device reported a nonzero Configuration Manager status.
+    DeviceUnhealthy,
     /// A required driver payload file is absent.
     FileMissing,
     /// A required driver payload file has a different length or hash.
@@ -97,6 +99,8 @@ pub enum FailureCode {
     Provider(u64),
     /// Guest bridge process exit code.
     Exit(i32),
+    /// Observed guest Configuration Manager device status.
+    DeviceStatus(u32),
 }
 
 /// Fixed operation stages; labels cannot carry arbitrary adapter output.
@@ -171,6 +175,7 @@ impl ComponentFailure {
             Some(FailureCode::HResult(code)) => format!("HRESULT 0x{code:08X}"),
             Some(FailureCode::Provider(code)) => format!("provider code {code}"),
             Some(FailureCode::Exit(code)) => format!("process exit {code}"),
+            Some(FailureCode::DeviceStatus(code)) => format!("device status {code}"),
             None => "no terminal numeric code available".into(),
         };
         format!(
@@ -278,6 +283,13 @@ impl Diagnostic {
 }
 /// Present arbitrary failure text safely at the frontend boundary.
 pub fn operator_error(stage: &str, error: &str) -> String {
+    if let Some((primary, restoration)) = verification_failure_parts(error) {
+        return format!(
+            "{} Power restoration also failed; recovery remains required. {}",
+            operator_error(stage, primary),
+            operator_error("Power restoration", restoration)
+        );
+    }
     if let Some((_, primary)) = restored_failure_parts(error) {
         return format!(
             "{} The restoration proof could not be saved or independently confirmed; recovery remains required.",
@@ -297,6 +309,20 @@ pub fn operator_error(stage: &str, error: &str) -> String {
             ),
             (Component::GuestTransport, FailureCause::Unavailable) => Some(
                 "Communication with the guest was unavailable. The guest check did not complete; inspect recovery before retrying.",
+            ),
+            (Component::GuestGraphics, FailureCause::AccessDenied) => Some(
+                "Access to guest graphics health information was denied; hardware rendering was not established.",
+            ),
+            (Component::GuestGraphics, FailureCause::DeviceUnhealthy) => Some(
+                "The guest display device reported an unhealthy device status; hardware rendering was not checked.",
+            ),
+            (Component::GuestGraphics, FailureCause::Unavailable | FailureCause::InvalidReply) => {
+                Some(
+                    "Guest graphics health could not be established; this does not establish a rendering failure.",
+                )
+            }
+            (Component::GuestGraphics, FailureCause::TimedOut) => Some(
+                "The guest graphics health check timed out; hardware rendering was not established.",
             ),
             (Component::GuestPayload, FailureCause::FileMissing) => Some(
                 "Required guest driver files are missing. Current preparation does not match the host payload.",
@@ -368,6 +394,13 @@ pub fn operator_error(stage: &str, error: &str) -> String {
 /// Preserve native error codes and classified context without echoing untrusted
 /// adapter text, which can contain credential material even without key labels.
 pub fn technical_error(stage: &str, error: &str) -> String {
+    if let Some((primary, restoration)) = verification_failure_parts(error) {
+        return format!(
+            "{}\n\nPower restoration failed; recovery remains required.\n{}",
+            technical_error(stage, primary),
+            technical_error("Power restoration", restoration)
+        );
+    }
     if let Some((persistence, primary)) = restored_failure_parts(error) {
         return format!(
             "{}\n\nRestoration-proof persistence failed; recovery remains required.\n{}",
@@ -419,6 +452,14 @@ impl TechnicalFacts {
 
 /// Classify raw failure facts without consulting any rendered text.
 pub fn technical_facts(error: &str) -> TechnicalFacts {
+    if let Some((primary, restoration)) = verification_failure_parts(error) {
+        let primary = technical_facts(primary);
+        return if primary.is_available() {
+            primary
+        } else {
+            technical_facts(restoration)
+        };
+    }
     if let Some(component) = ComponentFailure::decode(error) {
         return TechnicalFacts {
             component: Some(component),
@@ -471,6 +512,17 @@ fn raw_technical_facts(error: &str) -> TechnicalFacts {
     }
 }
 
+// Only split the fixed Verify lifecycle combination. Each part is redacted
+// independently; never relax the component envelope's whole-input decoder.
+fn verification_failure_parts(error: &str) -> Option<(&str, &str)> {
+    if error.len() > 8192 {
+        return None;
+    }
+    error
+        .strip_prefix("GPU-PV verification failed: ")?
+        .split_once("; power restoration failed: ")
+}
+
 // A bounded application-owned combination retains its terminal typed primary.
 // Both parts are independently redacted; no free-form adapter output is echoed.
 fn restored_failure_parts(error: &str) -> Option<(&str, &str)> {
@@ -520,6 +572,45 @@ pub fn collect_observations<T>(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn verification_and_restoration_failures_keep_both_safe_component_facts() {
+        let primary = ComponentFailure {
+            stage: Some(FailureStage::Verification),
+            component: Component::GuestGraphics,
+            cause: FailureCause::DeviceUnhealthy,
+            code: Some(FailureCode::DeviceStatus(43)),
+        }
+        .into_error();
+        let restoration = ComponentFailure {
+            stage: Some(FailureStage::GuestPower),
+            component: Component::HyperV,
+            cause: FailureCause::NativeCall,
+            code: Some(FailureCode::HResult(0x80070005)),
+        }
+        .into_error();
+        let combined = format!(
+            "GPU-PV verification failed: {primary}; power restoration failed: {restoration}"
+        );
+        assert!(ComponentFailure::decode(&combined).is_none());
+        let details = technical_error("Verify", &combined);
+        assert!(details.contains("device status 43"));
+        assert!(details.contains("HRESULT 0x80070005"));
+        assert!(details.contains("recovery remains required"));
+        assert!(matches!(
+            technical_facts(&combined).component.unwrap().cause,
+            FailureCause::DeviceUnhealthy
+        ));
+        let public = operator_error("Verify", &combined);
+        assert!(public.contains("unhealthy device status"));
+        assert!(public.contains("Power restoration also failed"));
+        let private = format!(
+            "GPU-PV verification failed: private-user-input; power restoration failed: {restoration}"
+        );
+        assert!(!technical_error("Verify", &private).contains("private-user-input"));
+        assert!(!operator_error("Verify", &private).contains("private-user-input"));
+        assert!(technical_facts(&private).is_available());
+    }
+
     #[test]
     fn transport_failure_explains_missing_records_without_echoing_private_output() {
         use super::*;

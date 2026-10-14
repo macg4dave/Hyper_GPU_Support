@@ -552,6 +552,33 @@ mod tests {
     }
 
     #[test]
+    fn abandoned_and_reopened_ordinary_reviews_remain_read_only_without_payload_passes() {
+        let mut f = fake();
+        let mut t = target();
+        apply(&mut f, &t).unwrap();
+        t.vram = Some(Allocation {
+            minimum: 0,
+            optimal: 25,
+            maximum: 100,
+        });
+        let original_state = serde_json::to_value(&f.state).unwrap();
+        let original_journal = serde_json::to_value(&f.journal).unwrap();
+        let reads = f.payload_reads;
+        let writes = f.journal_writes;
+        f.events.clear();
+        // Abandon the first result, then reopen review for the same draft.
+        let _ = super::plan_preliminary(&mut f, &t).unwrap();
+        let reopened = super::plan_preliminary(&mut f, &t).unwrap();
+        assert!(reopened.authentication_deferred);
+        assert_eq!(reopened.desired, t);
+        assert_eq!(f.payload_reads, reads);
+        assert_eq!(f.journal_writes, writes);
+        assert_eq!(serde_json::to_value(&f.state).unwrap(), original_state);
+        assert_eq!(serde_json::to_value(&f.journal).unwrap(), original_journal);
+        assert!(f.events.is_empty());
+    }
+
+    #[test]
     fn preliminary_review_authenticates_when_setup_history_is_missing_or_adverse() {
         for adverse in [false, true] {
             let mut f = fake();

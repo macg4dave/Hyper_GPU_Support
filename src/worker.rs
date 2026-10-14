@@ -926,7 +926,7 @@ fn execute(
                 notify: &mut notify,
                 before_effect: None,
             }
-            .stage("Checking reviewed VM and driver files", |backend| {
+            .stage_observed("Checking reviewed VM and driver files", |backend| {
                 workflow::admit_approved(backend, &approved)
             })?;
             let driver_version = admitted.driver_version().to_owned();
@@ -988,7 +988,7 @@ fn execute(
                 notify: &mut notify,
                 before_effect: None,
             }
-            .stage(
+            .stage_observed(
                 "Confirm final VM state and signed driver files",
                 |backend| {
                     if serde_json::to_value(backend.inspect(&record.target)?)
@@ -1660,11 +1660,19 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B
         name: &str,
         action: impl FnOnce(&mut B) -> Result<T, String>,
     ) -> Result<T, String> {
+        self.stage_observed(name, |observed| action(observed.backend))
+    }
+    // Orchestration stages retain this wrapper so nested reads remain observable.
+    fn stage_observed<T>(
+        &mut self,
+        name: &str,
+        action: impl FnOnce(&mut Self) -> Result<T, String>,
+    ) -> Result<T, String> {
         (self.notify)(Progress {
             stage: name.into(),
             status: StageStatus::Running,
         })?;
-        let result = crate::diagnostics::run(name, "approved-worker", || action(self.backend));
+        let result = crate::diagnostics::run(name, "approved-worker", || action(self));
         let delivery = (self.notify)(Progress {
             stage: name.into(),
             status: if result.is_ok() {
@@ -1681,13 +1689,13 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B
 }
 impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedBackend<'_, B, F> {
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
-        self.backend.inspect(t)
+        self.stage("Read current VM state", |b| b.inspect(t))
     }
     fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
-        self.backend.gpu(t)
+        self.stage("Read selected GPU and driver version", |b| b.gpu(t))
     }
     fn payload(&mut self, t: &Target) -> Result<String, String> {
-        self.backend.payload(t)
+        self.stage("Authenticate current signed driver files", |b| b.payload(t))
     }
     fn journal(&mut self, t: &Target) -> Result<Option<Journal>, String> {
         self.backend.journal(t)
@@ -1863,6 +1871,96 @@ mod tests {
                     vec![StageStatus::Running, StageStatus::Failed]
                 }
             );
+        }
+    }
+
+    #[test]
+    fn read_progress_delivery_failure_prevents_native_reads_and_reports_the_read_identity() {
+        let target = ordinary_disabled_plan().desired;
+        for (read, stage) in [
+            (0, "Read current VM state"),
+            (1, "Read selected GPU and driver version"),
+            (2, "Authenticate current signed driver files"),
+        ] {
+            // No native read may run: the progress sink refuses the start event.
+            let mut backend = NativeBackend {
+                credential: None,
+                manifest: None,
+                data: std::path::PathBuf::new(),
+            };
+            let mut updates = Vec::new();
+            let mut notify = |update: Progress| {
+                updates.push((update.stage, update.status));
+                Err("disconnected before read".into())
+            };
+            let mut observed = ObservedBackend {
+                backend: &mut backend,
+                notify: &mut notify,
+                before_effect: None,
+            };
+            let result = match read {
+                0 => observed.inspect(&target).map(|_| ()),
+                1 => observed.gpu(&target).map(|_| ()),
+                _ => observed.payload(&target).map(|_| ()),
+            };
+            assert_eq!(result.unwrap_err(), "disconnected before read");
+            assert_eq!(updates.len(), 1);
+            assert_eq!(updates[0].0, stage);
+            assert!(matches!(updates[0].1, StageStatus::Running));
+            assert!(backend.manifest.is_none());
+        }
+    }
+
+    #[test]
+    fn parent_check_contains_nested_read_outcomes_in_order_and_preserves_failure() {
+        for fail_read in [false, true] {
+            let mut backend = NativeBackend {
+                credential: None,
+                manifest: None,
+                data: std::path::PathBuf::new(),
+            };
+            let mut updates = Vec::new();
+            let mut notify = |update: Progress| {
+                updates.push((update.stage, update.status));
+                Ok(())
+            };
+            let result = ObservedBackend {
+                backend: &mut backend,
+                notify: &mut notify,
+                before_effect: None,
+            }
+            .stage_observed(
+                "Confirm final VM state and signed driver files",
+                |observed| {
+                    observed.stage("Authenticate current signed driver files", |_| {
+                        if fail_read {
+                            Err("driver file changed".into())
+                        } else {
+                            Ok(())
+                        }
+                    })
+                },
+            );
+            assert_eq!(result.is_err(), fail_read);
+            if let Err(error) = result {
+                assert!(error.contains("driver file changed"));
+            }
+            assert_eq!(updates.len(), 4);
+            assert_eq!(
+                updates[0].0,
+                "Confirm final VM state and signed driver files"
+            );
+            assert_eq!(updates[1].0, "Authenticate current signed driver files");
+            assert_eq!(updates[2].0, updates[1].0);
+            assert_eq!(updates[3].0, updates[0].0);
+            assert!(matches!(updates[0].1, StageStatus::Running));
+            assert!(matches!(updates[1].1, StageStatus::Running));
+            for (_, status) in &updates[2..] {
+                assert!(matches!(
+                    (status, fail_read),
+                    (StageStatus::Failed, true) | (StageStatus::Done, false)
+                ));
+            }
         }
     }
 

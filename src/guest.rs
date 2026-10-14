@@ -479,15 +479,7 @@ pub fn worker_with_progress(
             },
         )?;
         progress(crate::workflow::PreparationProgress::CheckingGraphics)?;
-        crate::diagnostics::run("guest-pnp-health", "selected GPU", health).map_err(|_| {
-            crate::reporting::ComponentFailure {
-                stage: None,
-                component: crate::reporting::Component::GuestGraphics,
-                cause: crate::reporting::FailureCause::RenderingFailed,
-                code: None,
-            }
-            .into_error()
-        })?;
+        crate::diagnostics::run("guest-pnp-health", "selected GPU", health)?;
         let mut command = Command::new(root.join("d3d11-probe.exe"));
         command.args([vendor.to_string(), device.to_string()]);
         let out = crate::diagnostics::run(
@@ -721,14 +713,62 @@ fn machine_guid() -> Result<String, String> {
         .cloned()
         .ok_or("guest machine identity missing".into())
 }
+fn health_failure(
+    cause: crate::reporting::FailureCause,
+    code: Option<crate::reporting::FailureCode>,
+) -> String {
+    crate::reporting::ComponentFailure {
+        stage: None,
+        component: crate::reporting::Component::GuestGraphics,
+        cause,
+        code,
+    }
+    .into_error()
+}
+fn health_query_failure(error: crate::windows_com::DriverDiscoveryError) -> String {
+    use crate::reporting::{FailureCause, FailureCode};
+    use crate::windows_com::DriverDiscoveryError;
+    let (cause, code) = match error {
+        DriverDiscoveryError::Native { source, .. } => (
+            if matches!(source.code().0 as u32, 0x80070005 | 0x80041003) {
+                FailureCause::AccessDenied
+            } else {
+                FailureCause::Unavailable
+            },
+            Some(FailureCode::HResult(source.code().0 as u32)),
+        ),
+        DriverDiscoveryError::Timeout => (FailureCause::TimedOut, None),
+        _ => (FailureCause::InvalidReply, None),
+    };
+    health_failure(cause, code)
+}
+fn health_status(status: Option<u32>) -> Result<bool, String> {
+    use crate::reporting::{FailureCause, FailureCode};
+    match status {
+        Some(0) => Ok(true),
+        Some(code) => Err(health_failure(
+            FailureCause::DeviceUnhealthy,
+            Some(FailureCode::DeviceStatus(code)),
+        )),
+        None => Err(health_failure(FailureCause::TimedOut, None)),
+    }
+}
 fn health() -> Result<(), String> {
-    let _a = crate::windows_com::Apartment::initialize().map_err(|e| e.to_string())?;
-    let cim = crate::windows_com::connect(r"ROOT\cimv2").map_err(|e| e.to_string())?;
+    let _a = crate::windows_com::Apartment::initialize().map_err(health_query_failure)?;
+    let cim = crate::windows_com::connect(r"ROOT\cimv2").map_err(health_query_failure)?;
     let deadline = std::time::Instant::now() + Duration::from_secs(120);
     loop {
-        let rows=crate::windows_com::query(&cim,"SELECT DeviceID FROM Win32_PnPSignedDriver WHERE InfName='vrd.inf' AND DeviceClass='DISPLAY'",&["DeviceID"],deadline).map_err(|e|e.to_string())?;
+        let mut last_status = None;
+        let rows = crate::windows_com::query(
+            &cim,
+            "SELECT DeviceID FROM Win32_PnPSignedDriver WHERE InfName='vrd.inf' AND DeviceClass='DISPLAY'",
+            &["DeviceID"],
+            deadline,
+        ).map_err(health_query_failure)?;
         if rows.len() == 1 {
-            let id = rows[0].get("DeviceID").ok_or("guest device ID missing")?;
+            let id = rows[0].get("DeviceID").ok_or_else(|| {
+                health_failure(crate::reporting::FailureCause::InvalidReply, None)
+            })?;
             let pnp = crate::windows_com::query(
                 &cim,
                 &format!(
@@ -738,17 +778,25 @@ fn health() -> Result<(), String> {
                 &["ConfigManagerErrorCode"],
                 deadline,
             )
-            .map_err(|e| e.to_string())?;
-            if pnp.len() == 1
-                && pnp[0]
+            .map_err(health_query_failure)?;
+            if pnp.len() == 1 {
+                let status = pnp[0]
                     .get("ConfigManagerErrorCode")
-                    .is_some_and(|s| s == "0")
-            {
-                return Ok(());
+                    .and_then(|value| value.parse::<u32>().ok());
+                last_status = status;
+                if status == Some(0) {
+                    return Ok(());
+                }
+                if status.is_none() {
+                    return Err(health_failure(
+                        crate::reporting::FailureCause::InvalidReply,
+                        None,
+                    ));
+                }
             }
         }
         if std::time::Instant::now() >= deadline {
-            return Err("guest GPU did not reach Code 0".into());
+            return health_status(last_status).map(|_| ());
         }
         std::thread::sleep(Duration::from_secs(1));
     }
@@ -757,6 +805,43 @@ fn health() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn device_health_preserves_status_and_query_failure_without_private_text() {
+        use crate::reporting::{ComponentFailure, FailureCause, FailureCode};
+        assert!(health_status(Some(0)).unwrap());
+        let unhealthy = ComponentFailure::decode(&health_status(Some(43)).unwrap_err()).unwrap();
+        assert!(matches!(unhealthy.cause, FailureCause::DeviceUnhealthy));
+        assert!(matches!(
+            unhealthy.code,
+            Some(FailureCode::DeviceStatus(43))
+        ));
+        let missing = ComponentFailure::decode(&health_status(None).unwrap_err()).unwrap();
+        assert!(matches!(missing.cause, FailureCause::TimedOut));
+        let unavailable = health_query_failure(crate::windows_com::DriverDiscoveryError::Invalid(
+            "private adapter output",
+        ));
+        assert!(!unavailable.contains("private adapter output"));
+        assert!(matches!(
+            ComponentFailure::decode(&unavailable).unwrap().cause,
+            FailureCause::InvalidReply
+        ));
+        let denied = health_query_failure(crate::windows_com::native(
+            "private operation context",
+            windows::core::Error::from_hresult(windows::core::HRESULT(0x80070005u32 as i32)),
+        ));
+        let denied = ComponentFailure::decode(&denied).unwrap();
+        assert!(matches!(denied.cause, FailureCause::AccessDenied));
+        assert!(matches!(
+            denied.code,
+            Some(FailureCode::HResult(0x80070005))
+        ));
+        let timeout = health_query_failure(crate::windows_com::DriverDiscoveryError::Timeout);
+        assert!(matches!(
+            ComponentFailure::decode(&timeout).unwrap().cause,
+            FailureCause::TimedOut
+        ));
+    }
 
     #[test]
     fn supervision_diagnostics_retain_typed_facts_without_adapter_text() {

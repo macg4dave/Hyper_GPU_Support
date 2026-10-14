@@ -451,6 +451,33 @@ mod tests {
     }
 
     #[test]
+    fn failed_payload_check_and_shutdown_keep_diagnostics_and_uncertain_recovery() {
+        use crate::reporting::{self, FailureCause};
+        let mut backend = fake();
+        apply(&mut backend, &target()).unwrap();
+        let history = backend.journal.as_ref().unwrap().last_verified;
+        backend.events.clear();
+        backend.payload_check_failure = Some(FailureCause::FileMissing);
+        backend.fail_shutdown = true;
+        let error = verify(&mut backend, &target()).unwrap_err();
+        let details = reporting::technical_error("Verify", &error);
+        assert!(details.contains("GuestPayload"));
+        assert!(details.contains("FileMissing"));
+        assert!(details.contains("Power restoration failed"));
+        assert!(reporting::technical_facts(&error).is_available());
+        assert_eq!(backend.events, ["start", "graphics", "shutdown"]);
+        assert_eq!(backend.state.power, Power::Running);
+        let pending = backend.journal.as_ref().unwrap();
+        assert!(pending.pending && pending.verification_only && !pending.check_restored);
+        assert_eq!(pending.last_verified, history);
+        assert_eq!(
+            pending.latest_check,
+            Some(crate::workflow::GuestCheck::PayloadMismatch)
+        );
+        assert!(pending.prepared.is_none());
+    }
+
+    #[test]
     fn uncertain_start_restores_off_and_retains_verification_intent() {
         let mut f = fake();
         f.state.power = Power::Off;

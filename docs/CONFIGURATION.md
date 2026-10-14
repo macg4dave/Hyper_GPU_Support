@@ -48,6 +48,12 @@ Protected operation receipts also record `expected_power` independently of `init
 
 Explicit CLI `import` is distinct from effects. It imports an approved bundle into absent per-VM destinations, does not enroll pairs, and does not apply GPU state. A multi-file import has per-file receipts rather than an all-or-nothing transaction. `import-reconcile --operation ID` can resume only the recorded destination set under its conflict checks. The GUI currently reports pending import for CLI resolution.
 
+## Per-user GUI preference
+
+On graceful close, the GUI saves the selected VM GUID to `%LOCALAPPDATA%/HyperGpuSupport/selected-vm.txt` and restores it before initial discovery. The bounded reader accepts only a 36-character GUID and normalises it to lowercase; missing, malformed or unreadable preferences use normal discovery selection. Selection follows the GUID across list reordering and VM renaming. If that VM is absent, discovery selects the first available VM, or no VM when the list is empty.
+
+This preference stores no drafts, GPU settings, credentials or operation authority. Saved intent and recovery records continue to come from their existing protected readers. Restoring selection does not resume operations or clear recovery. A failed preference write is returned as an application shutdown error; abrupt termination does not save a new selection.
+
 ## Development configuration
 
 `config/project.toml`, `config/artifact-pins.toml`, and `config/runner-policy-v1.json` are retained development context, not runtime intent. Their former scripts were deleted. Assess individual files only when required for the current task; APP-009 selects the actual qualification environment.
