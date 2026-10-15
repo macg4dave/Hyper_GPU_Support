@@ -808,6 +808,13 @@ fn review_enrollment(
     target: Target,
 ) -> Result<(), String> {
     let reviewed_state = state.clone();
+    let values = ui
+        .get_values()
+        .iter()
+        .take(3)
+        .map(|v| v.to_string())
+        .collect::<Vec<_>>();
+    let allocation = super::memory::review_allocation(&values)?;
     background(
         ui,
         busy,
@@ -843,13 +850,15 @@ fn review_enrollment(
         move |ui, result| match result {
             Ok((approved, artifacts, worker_available)) => {
                 let setup = artifacts.is_some();
-                let mut summary = hyper_gpu_support::ui_text::operations::enrollment::review::body(
+                let heading = hyper_gpu_support::ui_text::operations::enrollment::review::body(
                     &(ui.get_vm_name()),
                     &(ui.get_gpu_options()
                         .row_data(usize::try_from(ui.get_gpu_index()).unwrap_or(usize::MAX))
                         .unwrap_or_default()),
                 )
                 .into_string();
+                let mut summary =
+                    hyper_gpu_support::ui_text::operations::enrollment::review::STEPS.to_owned();
                 if setup {
                     summary.push_str(
                         hyper_gpu_support::ui_text::operations::enrollment::INSTALL_NOTICE,
@@ -887,6 +896,8 @@ fn review_enrollment(
                     return;
                 }
                 ui.set_execution_ready(worker_available);
+                ui.set_enrollment_heading(heading.into());
+                ui.set_enrollment_allocation(allocation.into());
                 ui.set_needs_shutdown(false);
                 dialog(
                     ui,

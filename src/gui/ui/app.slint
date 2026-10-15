@@ -87,6 +87,8 @@ export component AppWindow inherits Window {
     in-out property <string> dialog-kind;
     in-out property <string> dialog-title;
     in-out property <string> dialog-body;
+    in-out property <string> enrollment-heading;
+    in-out property <string> enrollment-allocation;
     in-out property <string> dialog-details;
     in-out property <[string]> stages;
     in-out property <[bool]> stage-reportable;
@@ -227,6 +229,7 @@ export component AppWindow inherits Window {
         remove-unavailable: root.remove-unavailable; remove-allowed: root.remove-allowed; forget-unavailable: root.forget-unavailable; forget-allowed: root.forget-allowed;
         reset-unavailable: root.reset-unavailable; reset-allowed: root.reset-allowed; action-recovery: root.action-recovery; dirty: root.dirty;
         kind: root.dialog-kind; title: root.dialog-title; body: root.dialog-body;
+        enrollment-heading: root.enrollment-heading; enrollment-allocation: root.enrollment-allocation;
         details: root.dialog-details; stages: root.progress-steps; running: root.running;
         review-preparing: root.review-preparing;
         current-stage: root.current-stage; transfer-fraction: root.transfer-fraction;

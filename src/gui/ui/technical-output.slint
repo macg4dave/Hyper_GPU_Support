@@ -17,41 +17,54 @@ export component TechnicalOutput inherits Rectangle {
     border-width: 1px;
     border-color: output.has-focus ? Theme.accent : #c8c8c8;
     forward-focus: output;
-    VerticalLayout {
-        padding: 12px;
-        viewport := ScrollView {
-            content-width: self.visible-width;
-            content-height: max(self.visible-height, output.preferred-height);
-            output := TextInput {
-                enabled: root.enabled;
-                accessible-label: UiText.diagnostics-read-only-accessible;
-                text: root.text;
-                read-only: true;
-                single-line: false;
-                width: viewport.visible-width;
-                wrap: word-wrap;
-                horizontal-alignment: left;
-                vertical-alignment: top;
-                font-family: "Consolas";
-                font-size: 13px;
-                color: #000000;
-                selection-background-color: #005fb8;
-                selection-foreground-color: #ffffff;
-                page-height: viewport.visible-height;
-                cursor-position-changed(position) => {
-                    // Keep keyboard navigation/selection in view on both axes.
-                    if position.x + viewport.content-x < 0px {
-                        viewport.content-x = -position.x;
-                    } else if position.x + viewport.content-x > viewport.visible-width - 2px {
-                        viewport.content-x = viewport.visible-width - position.x - 2px;
+    ContextMenuArea {
+        enabled: root.enabled;
+        Menu {
+            MenuItem {
+                title: UiText.diagnostics-copy;
+                activated => { output.copy(); output.focus(); }
+            }
+            MenuItem {
+                title: UiText.diagnostics-select-all;
+                activated => { output.focus(); output.select-all(); }
+            }
+        }
+        VerticalLayout {
+            padding: 12px;
+            viewport := ScrollView {
+                content-width: self.visible-width;
+                content-height: max(self.visible-height, output.preferred-height);
+                output := TextInput {
+                    enabled: root.enabled;
+                    accessible-label: UiText.diagnostics-read-only-accessible;
+                    text: root.text;
+                    read-only: true;
+                    single-line: false;
+                    width: viewport.visible-width;
+                    wrap: word-wrap;
+                    horizontal-alignment: left;
+                    vertical-alignment: top;
+                    font-family: "Consolas";
+                    font-size: 13px;
+                    color: #000000;
+                    selection-background-color: #005fb8;
+                    selection-foreground-color: #ffffff;
+                    page-height: viewport.visible-height;
+                    cursor-position-changed(position) => {
+                        // Keep keyboard navigation/selection in view on both axes.
+                        if position.x + viewport.content-x < 0px {
+                            viewport.content-x = -position.x;
+                        } else if position.x + viewport.content-x > viewport.visible-width - 2px {
+                            viewport.content-x = viewport.visible-width - position.x - 2px;
+                        }
+                        if position.y + viewport.content-y < 0px {
+                            viewport.content-y = -position.y;
+                        } else if position.y + viewport.content-y > viewport.visible-height - self.font-size * 1.5 {
+                            viewport.content-y = viewport.visible-height - position.y - self.font-size * 1.5;
+                        }
+                        viewport.content-x = max(min(0px, viewport.content-x), viewport.visible-width - viewport.content-width);
+                        viewport.content-y = max(min(0px, viewport.content-y), viewport.visible-height - viewport.content-height);
                     }
-                    if position.y + viewport.content-y < 0px {
-                        viewport.content-y = -position.y;
-                    } else if position.y + viewport.content-y > viewport.visible-height - self.font-size * 1.5 {
-                        viewport.content-y = viewport.visible-height - position.y - self.font-size * 1.5;
-                    }
-                    viewport.content-x = max(min(0px, viewport.content-x), viewport.visible-width - viewport.content-width);
-                    viewport.content-y = max(min(0px, viewport.content-y), viewport.visible-height - viewport.content-height);
                 }
             }
         }

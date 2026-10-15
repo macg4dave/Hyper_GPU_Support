@@ -31,6 +31,14 @@ pub(super) fn format_gb(bytes: u64) -> String {
     format!("{} GB", decimal_gb(bytes))
 }
 
+/// Review the exact selected optimal request, without the slider endpoint rounding.
+pub(super) fn review_allocation(values: &[String]) -> Result<String, String> {
+    Ok(request(values)?.map_or_else(
+        || hyper_gpu_support::ui_text::common::allocation::PROVIDER_DEFAULT.to_owned(),
+        |allocation| format_gb(allocation.optimal),
+    ))
+}
+
 pub(super) fn decimal_gb(bytes: u64) -> String {
     let whole = bytes / BYTES_PER_GB;
     let fraction = bytes % BYTES_PER_GB;
@@ -204,6 +212,30 @@ impl MemorySlider {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn permission_review_preserves_exact_selected_capacity_and_custom_request() {
+        for (optimal, expected) in [
+            (8_278_507_520_u64, "8.27850752 GB"),
+            (5_900_000_000, "5.9 GB"),
+            (4_000_000_001, "4.000000001 GB"),
+        ] {
+            let values = ["1".to_owned(), optimal.to_string(), "8278507520".to_owned()];
+            assert_eq!(super::review_allocation(&values).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn permission_review_distinguishes_default_from_incomplete_allocation() {
+        assert_eq!(
+            super::review_allocation(&[String::new(), String::new(), String::new()]).unwrap(),
+            hyper_gpu_support::ui_text::common::allocation::PROVIDER_DEFAULT
+        );
+        assert!(
+            super::review_allocation(&["1".into(), String::new(), "8000000000".into()]).is_err()
+        );
+        assert!(super::review_allocation(&[]).is_err());
+    }
+
     #[test]
     fn typing_and_paste_reject_non_decimal_text_and_bounds_disable_submission() {
         for text in ["", ".", "7.", "7.0", "8.278507520"] {

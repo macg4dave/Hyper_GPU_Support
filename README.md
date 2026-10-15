@@ -18,6 +18,8 @@ The VRAM range does not establish enforced isolation. Automatic balancing and fu
 
 The previous APP backlog is complete by user confirmation on 13 October 2026. Current work follows the consolidated [QA roadmap](docs/roadmap.md). Fixed GUI copy and the [editor handoff](docs/UI_TEXT_GUIDE.md#editor-handoff) are implemented; the catalogue contains 408 of 696 planned keys with generated Rust/Slint bindings. LANG-006 dynamic/progress/failure extraction was recorded as in progress before the QA planning transition. Full migration, rendered acceptance and the later editorial pass remain pending. Earlier check summaries are historical context and do not establish new test results; [backlog](docs/backlog.md) now tracks QA tasks and their actual results.
 
+The permission review presents VM/GPU headings and the exact selected VRAM request, with its actions on one row. VM OS icons use transparent monochrome SVGs that follow the current theme. Technical Details supports selecting text, Copy and Select All from its context menu, and the existing keyboard shortcuts. Headless regression checks cover the exact VRAM display and the single action row in both themes at supported sizes. Installed visual and context-menu interaction validation remains pending.
+
 Legacy mock/snapshot GUI tooling has been removed under APP-001 and passed the M1 automated gate. Its flags are unsupported; backend unit test doubles remain.
 
 Running the executable without arguments opens the live GUI and can request elevated first-install discovery. CLI and fixed internal modes share the backend; source entrypoints are not authorization to perform live operations.

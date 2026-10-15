@@ -7,13 +7,12 @@ component GuestOsIcon inherits Rectangle {
     in property <string> os;
     width: Theme.os-icon-size;
     height: Theme.button-height;
-    background: #ffffff;
-    border-radius: 4px;
     accessible-role: image;
     accessible-label: root.os == "windows" ? UiText.dashboard-os-windows-accessible : root.os == "linux" ? UiText.dashboard-os-linux-accessible : UiText.dashboard-os-unknown-accessible;
     Image {
         source: root.os == "windows" ? @image-url("icons/windows.svg") : root.os == "linux" ? @image-url("icons/linux.svg") : @image-url("icons/monitor.svg");
-        // A fixed light plate keeps all bundled asset colours readable in both themes.
+        colorize: Theme.dark ? #ffffff : #000000;
+        image-fit: contain;
         width: Theme.os-icon-size; height: Theme.os-icon-size;
     }
 }

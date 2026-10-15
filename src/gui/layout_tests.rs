@@ -205,3 +205,77 @@ fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_res
     }
     ui.hide().unwrap();
 }
+
+#[test]
+fn permission_review_actions_stay_on_one_row_at_supported_sizes_in_both_themes() {
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_execution_ready(true);
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(1240., 860.));
+    for (theme, label) in [
+        (
+            "light",
+            hyper_gpu_support::ui_text::settings::appearance::LIGHT,
+        ),
+        (
+            "dark",
+            hyper_gpu_support::ui_text::settings::appearance::DARK,
+        ),
+    ] {
+        ui.set_dialog_kind("".into());
+        ui.set_page(2);
+        draw(&window);
+        control(&ui, label).accessible_action(&AccessibilityAction::Default);
+        ui.set_page(0);
+        ui.set_dialog_title(
+            hyper_gpu_support::ui_text::operations::enrollment::review::TITLE.into(),
+        );
+        ui.set_enrollment_heading("Virtual machine: VM1\nPhysical GPU: NVIDIA GPU".into());
+        ui.set_enrollment_allocation("8.27850752 GB".into());
+        ui.set_dialog_body(
+            hyper_gpu_support::ui_text::operations::enrollment::review::STEPS.into(),
+        );
+        ui.set_dialog_details("Diagnostic section\n".repeat(30).into());
+        ui.set_dialog_kind("enroll-review".into());
+        for (width, height) in [(1240., 860.), (1000., 620.), (700., 520.)] {
+            window.set_size(LogicalSize::new(width, height));
+            draw(&window);
+            for expanded in [false, true] {
+                let labels = [
+                    hyper_gpu_support::ui_text::dialogs::draft::KEEP_LABEL,
+                    hyper_gpu_support::ui_text::dialogs::enrollment::CONFIRM_LABEL,
+                    if expanded {
+                        hyper_gpu_support::ui_text::diagnostics::HIDE_LABEL
+                    } else {
+                        hyper_gpu_support::ui_text::diagnostics::SHOW_LABEL
+                    },
+                ];
+                let mut row_y: Option<f32> = None;
+                let mut previous_right = 0.;
+                for label in labels {
+                    let button = control(&ui, label);
+                    let geometry = button.geometry();
+                    let origin = button.map_to_window(geometry.origin);
+                    assert!(button.is_visible(), "visible action: {label}");
+                    assert!(origin.x >= previous_right && origin.x + geometry.width() <= width);
+                    assert!(origin.y >= 0. && origin.y + geometry.height() <= height);
+                    if let Some(y) = row_y {
+                        assert!(
+                            (origin.y - y).abs() < 1.,
+                            "actions share one row at {width}x{height}"
+                        );
+                    }
+                    row_y = Some(origin.y);
+                    previous_right = origin.x + geometry.width();
+                }
+                retain_render(&format!("permission-{theme}-{width}x{height}-{expanded}"));
+                control(&ui, labels[2]).accessible_action(&AccessibilityAction::Default);
+                draw(&window);
+            }
+        }
+    }
+    ui.hide().unwrap();
+}

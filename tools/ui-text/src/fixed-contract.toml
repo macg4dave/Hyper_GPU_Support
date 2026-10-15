@@ -4231,3 +4231,47 @@ intent = "Name the diagnostic region for accessibility."
 consequences = "Read only presentation."
 severity = "information"
 space_hint = "Accessible label."
+
+[[messages]]
+key = "operations.enrollment.review.steps"
+[messages.metadata]
+screen = "review_enrollment presentation (src/gui/live.rs)"
+state = "Selected branch: operations.enrollment.review.steps"
+audience = "operator"
+intent = "Present the selected UI label or explanation."
+consequences = "No effects; presentation only."
+severity = "neutral"
+space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."
+
+[[messages]]
+key = "operations.enrollment.review.allocation_label"
+[messages.metadata]
+screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
+state = "Selected branch: operations.enrollment.review.allocation_label"
+audience = "operator"
+intent = "Present the selected UI label or explanation."
+consequences = "No effects; presentation only."
+severity = "neutral"
+space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."
+
+[[messages]]
+key = "diagnostics.copy"
+[messages.metadata]
+screen = "TechnicalOutput presentation (src/gui/ui/technical-output.slint)"
+state = "Selected branch: diagnostics.copy"
+audience = "operator"
+intent = "Present the selected UI label or explanation."
+consequences = "No effects; presentation only."
+severity = "neutral"
+space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."
+
+[[messages]]
+key = "diagnostics.select_all"
+[messages.metadata]
+screen = "TechnicalOutput presentation (src/gui/ui/technical-output.slint)"
+state = "Selected branch: diagnostics.select_all"
+audience = "operator"
+intent = "Present the selected UI label or explanation."
+consequences = "No effects; presentation only."
+severity = "neutral"
+space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."

@@ -37,6 +37,8 @@ export component OperationDialog inherits Rectangle {
     in property <string> kind;
     in property <string> title;
     in property <string> body;
+    in property <string> enrollment-heading;
+    in property <string> enrollment-allocation;
     in property <string> details;
     in property <[string]> stages;
     in property <string> current-stage;
@@ -93,6 +95,12 @@ export component OperationDialog inherits Rectangle {
                         content-width: self.visible-width;
                         VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
                             width: body-scroll.visible-width;
+                            if root.kind == "enroll-review" : VerticalLayout {
+                                width: max(0px, body-scroll.visible-width - 8px);
+                                spacing: 8px;
+                                Label { text: root.enrollment-heading; font-size: 18px; font-weight: 600; min-width: 0px; wrap: word-wrap; overflow: clip; }
+                                Label { text: UiText.operations-enrollment-review-allocation-label + " " + root.enrollment-allocation; font-size: 18px; font-weight: 600; min-width: 0px; wrap: word-wrap; overflow: clip; }
+                            }
                             if root.kind == "more" : Label { text: root.body; font-size: 18px; font-weight: 600; width: max(0px, body-scroll.visible-width - 8px); wrap: word-wrap; overflow: clip; }
                             if root.kind != "more" : Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
                             if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery" || root.kind == "reset-review") && root.needs-shutdown : Hint {
@@ -161,6 +169,7 @@ export component OperationDialog inherits Rectangle {
                         if root.dirty : Button { text: UiText.dialogs-draft-discard-label; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
                     }
                     FlexboxLayout {
+                        flex-wrap: root.kind == "enroll-review" ? no-wrap : wrap;
                         spacing: 8px;
                         alignment: root.kind == "more" ? end : stretch;
                         vertical-stretch: 0;
@@ -173,6 +182,7 @@ export component OperationDialog inherits Rectangle {
                         if root.kind == "switch" : Button { text: UiText.dialogs-switch-review-label; primary: true; clicked => { root.action("review"); } }
                         if root.kind == "exit" : Button { text: UiText.dialogs-exit-discard-label; clicked => { root.action("exit"); } }
                         if root.kind == "enroll-review" : Button { text: UiText.dialogs-enrollment-confirm-label; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-enroll"); } }
+                        if root.kind == "enroll-review" && root.details != "" && root.details != root.body : TechnicalDetailsButton { expanded <=> root.technical; }
                         if root.kind == "enrollment-recovery" : Button { text: UiText.dialogs-enrollment-reconcile-label; primary: true; enabled: root.execution-ready; clicked => { root.action("reconcile-enrollment"); } }
                         if root.kind == "forget-review" : Button { text: UiText.dialogs-profile-deletion-label; primary: true; enabled: root.execution-ready; clicked => { root.action("confirm-forget"); } }
                         if root.kind == "review" : Button { text: root.execution-ready ? UiText.dialogs-apply-label : UiText.dialogs-apply-unavailable-label; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
@@ -214,7 +224,7 @@ export component OperationDialog inherits Rectangle {
                         enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-allowed);
                         clicked => { root.action(root.dirty ? "discard-review-forget" : "forget"); }
                     }
-                    if root.details != "" && root.details != root.body : HorizontalLayout {
+                    if root.kind != "enroll-review" && root.details != "" && root.details != root.body : HorizontalLayout {
                         vertical-stretch: 0;
                         detail-button := TechnicalDetailsButton { expanded <=> root.technical; }
                         Rectangle { horizontal-stretch: 1; }
