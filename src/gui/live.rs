@@ -234,6 +234,10 @@ fn background_for_vm<T: Send + 'static>(
             },
         );
     }
+    #[cfg(windows)]
+    if operation.kind == Kind::Reconcile {
+        progress::recovery_preparation(ui, guest_access);
+    }
     let weak = ui.as_weak();
     let worker_busy = busy.clone();
     if let Err(error) = std::thread::Builder::new()
@@ -365,9 +369,6 @@ fn refresh_with_result(
             None
         }
     };
-    if !automatic {
-        ui.set_notice(hyper_gpu_support::ui_text::dashboard::inventory::UPDATING_NOTICE.into());
-    }
     let state = state.clone();
     let source = source.clone();
     background_refresh(
@@ -485,9 +486,7 @@ fn refresh_with_result(
                             .discovery
                             .issues;
                         let mut notice = if issues.is_empty() {
-                            warning.unwrap_or_else(|| {
-                                hyper_gpu_support::ui_text::operations::inventory::REFRESHED.into()
-                            })
+                            warning.unwrap_or_default()
                         } else {
                             format!(
                                 "Partial inventory: {}. Other successful observations remain available.",
@@ -1694,7 +1693,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     && ui.get_gpu_index() != index
                 {
                     ui.set_gpu_index(index);
-                    ui.set_notice(hyper_gpu_support::ui_text::operations::draft::GPU_FIXED.into());
+
                     return Ok(());
                 }
                 state.approved_plan = None;
@@ -1804,6 +1803,13 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         }
     });
     let weak = ui.as_weak();
+    ui.on_memory_text_acceptable(super::memory::acceptable_input);
+    let validation_weak = ui.as_weak();
+    ui.on_memory_text_valid(move |text| {
+        validation_weak
+            .upgrade()
+            .is_some_and(|ui| super::memory::valid_input(&text, &ui.get_memory_capacity()))
+    });
     let numeric_weak = ui.as_weak();
     let numeric_state = state.clone();
     ui.on_memory_text_edited(move |text| {
@@ -1854,7 +1860,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         if action_busy.load(Ordering::Acquire)
             && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "remove-gpu" | "forget" | "confirm-forget" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "review-reset" | "confirm-reset" | "reconcile-enrollment" | "save-only" | "credentials" | "discard-review-forget")
         {
-            ui.set_notice(hyper_gpu_support::ui_text::operations::action::UPDATING.into());
+
             return;
         }
         if matches!(action.as_str(), "verify" | "repair" | "remove-gpu" | "forget") {
@@ -1954,9 +1960,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 if ui.get_review_preparing() {
                     ui.set_review_preparing(false);
                     ui.set_running(false);
-                    // Retain visible admission until the abandoned read finishes.
-                    // Editing remains available; operations must not look ready.
-                    ui.set_notice("Review cancelled. Your draft is kept. The read-only check will finish in the background before another operation can start.".into());
+                    // The background admission remains held until the abandoned read finishes.
                 }
                 with_state(&ui, &action_state, |state| {
                     state.cancel_review();
@@ -1971,7 +1975,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     state.discard();
                     if action == "switch" { state.view.selected = state.pending_selection.take(); }
                     present(&ui, state, true); ui.set_dirty(false); ui.set_dialog_kind("".into());
-                    ui.set_notice(hyper_gpu_support::ui_text::operations::draft::DISCARDED_NOTICE.into()); Ok(())
+                     Ok(())
                 }); Ok(())
             }
             "more" => {

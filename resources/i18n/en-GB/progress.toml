@@ -166,3 +166,58 @@ consequences = "Preserve the reviewed effect, uncertainty and next-step facts of
 severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
+
+[messages."progress.stage.recovery_credentials"]
+text = "Preparing recovery: reading saved sign-in or waiting for local administrator sign-in; no guest check has started"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.recovery_credentials"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."progress.stage.recovery_preparation"]
+text = "Preparing recovery: waiting for protected worker startup; the recorded outcome is not yet confirmed"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.recovery_preparation"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."progress.stage.worker_connection"]
+text = "Preparing protected worker: checking enrollment, waiting for Windows approval or connecting securely"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.worker_connection"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."progress.stage.worker_admission"]
+text = "Checking protected worker admission: waiting for the operation lock and authenticating installed files"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.worker_admission"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []
+
+[messages."progress.stage.recovery_outcome"]
+text = "Checking the recorded recovery outcome; guest checks and final power restoration are not yet confirmed"
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.recovery_outcome"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+placeholders = []

@@ -25,6 +25,7 @@ export component AppWindow inherits Window {
             if root.page != 0 || root.selected-id == "" { dashboard.focus(); }
         }
     }
+    in property <bool> gpu-problem: false;
     in property <bool> verify-allowed: false;
     in property <string> verify-unavailable: UiText.dashboard-selection-required;
     in property <bool> repair-allowed: false;
@@ -67,6 +68,7 @@ export component AppWindow inherits Window {
     in property <int> memory-maximum: 2;
     in property <int> memory-position: 1;
     in property <string> memory-input;
+    in property <string> memory-capacity;
     in property <string> memory-label: UiText.common-state-unavailable;
     in property <string> memory-hint;
     in property <string> memory-range-start;
@@ -77,7 +79,7 @@ export component AppWindow inherits Window {
     in property <[string]> resource-defaults: ["", "", "", "", "", "", "", "", "", "", "", ""];
     in property <bool> presenting: false;
     in-out property <string> validation;
-    in-out property <string> notice: UiText.dashboard-inventory-reading;
+    in-out property <string> notice;
     in-out property <string> dialog-kind;
     in-out property <string> dialog-title;
     in-out property <string> dialog-body;
@@ -96,6 +98,8 @@ export component AppWindow inherits Window {
     private property <length> split: 310px;
     callback select-vm(string);
     callback edited();
+    pure callback memory-text-valid(string) -> bool;
+    pure callback memory-text-acceptable(string) -> bool;
     callback memory-edited(int);
     callback memory-text-edited(string);
     callback action(string);
@@ -124,16 +128,6 @@ export component AppWindow inherits Window {
             Rectangle { width: 1px; background: Theme.line; }
             VerticalLayout {
                 spacing: 0px;
-                Rectangle { height: root.recovery ? 72px : 42px; background: Theme.tint;
-                    HorizontalLayout { padding-left: 18px; padding-right: 18px; spacing: 12px;
-                        Hint { text: root.recovery ? root.recovery-summary : root.notice; }
-                        if root.recovery : Button {
-                            property <int> restore-request: root.focus-return-serial;
-                            changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
-                            enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { root.action("recovery"); }
-                        }
-                    }
-                }
                 if root.page == 0 : ScrollView {
                     vertical-scrollbar-policy: always-off;
                     content-width: max(self.width - 16px, root.split + 630px);
@@ -148,6 +142,15 @@ export component AppWindow inherits Window {
                                     enabled: !Theme.modal-active; text: UiText.dashboard-inventory-refresh; clicked => { root.action("refresh"); }
                                 } }
                                 Hint { text: UiText.dashboard-vm-list-count(root.vms.length); }
+                                if root.recovery : VerticalLayout {
+                                    Hint { text: root.recovery-summary; color: Theme.accent; }
+                                    Button {
+                                        property <int> restore-request: root.focus-return-serial;
+                                        changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
+                                        enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { root.action("recovery"); }
+                                    }
+                                }
+                                if root.notice != "" : Hint { text: root.notice; color: Theme.accent; }
                                 if root.vms.length == 0 : Hint { text: UiText.dashboard-vm-list-empty; }
                                 vm-list := ScrollView {
                                     accessible-role: list;
@@ -175,13 +178,15 @@ export component AppWindow inherits Window {
                             inventory-details: root.inventory-details;
                             technical-details: root.vm-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
-                            execution-ready: root.execution-ready; updating: root.updating; verify-unavailable: root.verify-unavailable; verify-allowed: root.verify-allowed;
+                            execution-ready: root.execution-ready; updating: root.updating; gpu-problem: root.gpu-problem; verify-unavailable: root.verify-unavailable; verify-allowed: root.verify-allowed;
                             gpu-selection-fixed: root.gpu-selection-fixed;
                             presenting: root.presenting; resource-defaults: root.resource-defaults;
                             gpu-enabled <=> root.gpu-enabled; gpu-index <=> root.gpu-index; values <=> root.values;
                             resource-available: root.resource-available; resource-hints: root.resource-hints;
                             memory-available: root.memory-available; memory-minimum: root.memory-minimum; memory-maximum: root.memory-maximum; memory-position: root.memory-position;
                             memory-input: root.memory-input; memory-label: root.memory-label; memory-hint: root.memory-hint; memory-range-start: root.memory-range-start; memory-range-end: root.memory-range-end;
+                            memory-text-valid(text) => { root.memory-text-valid(text); }
+                            memory-text-acceptable(text) => { root.memory-text-acceptable(text); }
                             memory-text-edited(text) => { root.memory-text-edited(text); }
                             memory-edited(position) => { root.memory-edited(position); }
                             validation: root.validation;

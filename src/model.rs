@@ -467,6 +467,10 @@ impl Gpu {
 /// Discovery data used identically by CLI and GUI.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Discovery {
+    /// Guest-reported OS names from host KVP inventory, for presentation only.
+    /// Missing/unreadable metadata stays unknown and never affects authorisation.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub guest_os: std::collections::BTreeMap<String, String>,
     /// Isolated failures; omitted observations are unknown, never detached/off.
     #[serde(default)]
     pub issues: Vec<crate::reporting::Diagnostic>,

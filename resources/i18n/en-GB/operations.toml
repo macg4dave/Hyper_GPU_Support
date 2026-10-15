@@ -90,17 +90,6 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
 
-[messages."operations.action.updating"]
-text = "VM information is updating. You can keep editing; try this action when the update finishes."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.action.updating"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
 [messages."operations.apply.completed.body"]
 text = "{vm_name}: GPU assignment, requested settings and final-off state were confirmed; your settings were saved. No guest graphics check was run. Start the VM through Hyper-V when ready."
 screen = "apply_live presentation (src/gui/live.rs)"
@@ -651,17 +640,6 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
 
-[messages."operations.draft.discarded_notice"]
-text = "Draft discarded. No configuration was saved or VM state changed."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.draft.discarded_notice"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
 [messages."operations.draft.exit.body"]
 text = "Keep editing or discard the in-memory draft and close. Nothing has been applied."
 screen = "run presentation (src/gui/live.rs)"
@@ -677,17 +655,6 @@ placeholders = []
 text = "Unapplied draft"
 screen = "run presentation (src/gui/live.rs)"
 state = "Selected branch: operations.draft.exit.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.draft.gpu_fixed"]
-text = "The recorded GPU pairing is fixed. GPU replacement is unavailable; your edits are kept."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.draft.gpu_fixed"
 audience = "operator"
 intent = "Present the existing selected state or action without changing its meaning."
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
@@ -1040,17 +1007,6 @@ placeholders = []
 text = "Refreshing inventory"
 screen = "refresh_with_result presentation (src/gui/live.rs)"
 state = "Selected branch: operations.inventory.refresh_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.inventory.refreshed"]
-text = "VM status updated. Graphics results reflect previous checks."
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.refreshed"
 audience = "operator"
 intent = "Present the existing selected state or action without changing its meaning."
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."

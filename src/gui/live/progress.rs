@@ -1,12 +1,29 @@
 //! Ordered worker progress and in-place transfer counter updates on the UI thread.
 #[cfg(windows)]
 use super::progress_state::{Event, Identity, State, Status};
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 use crate::gui::AppWindow;
 #[cfg(any(windows, test))]
 use crate::gui::model;
 #[cfg(any(windows, test))]
 use slint::Model;
+
+/// Publish before spawning the credential/worker task, including its first repaint.
+#[cfg(any(windows, test))]
+pub(super) fn recovery_preparation(ui: &AppWindow, guest_access: bool) {
+    let stage = if guest_access {
+        hyper_gpu_support::ui_text::progress::stage::RECOVERY_CREDENTIALS
+    } else {
+        hyper_gpu_support::ui_text::progress::stage::RECOVERY_PREPARATION
+    };
+    ui.set_current_stage(stage.into());
+    ui.set_progress_steps(model(vec![stage.into()]));
+    ui.set_stages(model(vec![stage.into()]));
+    // Local waiting feedback is not an authenticated worker event.
+    ui.set_stage_reportable(model(vec![false]));
+    ui.set_dialog_details(stage.into());
+    ui.set_transfer_fraction(-1.0);
+}
 
 #[cfg(windows)]
 pub(super) fn progress_to_ui(
@@ -28,6 +45,15 @@ pub(super) fn progress_to_ui(
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             let stage = match progress.stage.as_str() {
+                "Check recorded recovery outcome" => {
+                    hyper_gpu_support::ui_text::progress::stage::RECOVERY_OUTCOME
+                }
+                "Prepare protected worker connection" => {
+                    hyper_gpu_support::ui_text::progress::stage::WORKER_CONNECTION
+                }
+                "Check protected worker admission" => {
+                    hyper_gpu_support::ui_text::progress::stage::WORKER_ADMISSION
+                }
                 "Read current VM state" => hyper_gpu_support::ui_text::progress::stage::READ_VM,
                 "Read selected GPU and driver version" => {
                     hyper_gpu_support::ui_text::progress::stage::READ_GPU
@@ -135,6 +161,36 @@ fn write_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recovery_has_named_feedback_and_details_before_any_worker_event() {
+        slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+        let ui = AppWindow::new().unwrap();
+        for guest_access in [true, false] {
+            crate::gui::dialog(&ui, "progress", "Recovery", "Progress appears below");
+            recovery_preparation(&ui, guest_access);
+            let expected = if guest_access {
+                hyper_gpu_support::ui_text::progress::stage::RECOVERY_CREDENTIALS
+            } else {
+                hyper_gpu_support::ui_text::progress::stage::RECOVERY_PREPARATION
+            };
+            assert_eq!(ui.get_current_stage(), expected);
+            assert_eq!(ui.get_progress_steps().row_data(0).unwrap(), expected);
+            assert_eq!(ui.get_dialog_details(), expected);
+            assert_eq!(ui.get_stage_reportable().row_data(0), Some(false));
+            assert_eq!(ui.get_transfer_fraction(), -1.0);
+            // A cancelled/failed credential request replaces waiting feedback.
+            crate::gui::dialog(
+                &ui,
+                "error",
+                "Recovery blocked",
+                "Credential request failed",
+            );
+            assert!(ui.get_current_stage().is_empty());
+            assert_eq!(ui.get_progress_steps().row_count(), 0);
+            assert!(!ui.get_dialog_details().contains(expected));
+        }
+    }
+
     #[test]
     fn edited_rows_use_identity_slots_and_retain_the_model() {
         let first: slint::SharedString = ['λ', '\n', '{'].iter().collect::<String>().into();

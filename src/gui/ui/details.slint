@@ -14,7 +14,7 @@ export component VmDetails inherits Rectangle {
     }
     callback restore-action-focus(string);
     restore-action-focus(action) => {
-        if action == "verify" && root.verify-allowed && !root.recovery && verify-button.enabled { verify-button.focus(); }
+        if action == "verify" && root.gpu-problem && root.verify-allowed && !root.recovery && verify-button.enabled { verify-button.focus(); }
         else if action == "review" && review.enabled { review.focus(); }
         else { more-button.focus(); }
     }
@@ -38,6 +38,7 @@ export component VmDetails inherits Rectangle {
     in property <bool> eligible;
     in property <bool> execution-ready;
     in property <bool> updating;
+    in property <bool> gpu-problem: false;
     in property <bool> verify-allowed: false;
     in property <string> verify-unavailable;
     in property <bool> recovery;
@@ -66,8 +67,12 @@ export component VmDetails inherits Rectangle {
     changed memory-position => { memory-slider.value = root.memory-position; }
     callback edited();
     callback memory-edited(int);
+    pure callback memory-text-valid(string) -> bool;
+    pure callback memory-text-acceptable(string) -> bool;
     callback memory-text-edited(string);
-    changed memory-input => { numeric-memory.text = root.memory-input; }
+    private property <string> accepted-memory-text: root.memory-input;
+    private property <bool> valid-memory-text: root.memory-text-valid(numeric-memory.text);
+    changed memory-input => { numeric-memory.text = root.memory-input; root.accepted-memory-text = root.memory-input; }
     callback action(string);
     function edit-allocation(index: int, value: string) {
         // Defaults are suggestions until the user edits an omitted triple.
@@ -100,11 +105,12 @@ export component VmDetails inherits Rectangle {
                         padding: 16px; spacing: 10px;
                         Label { text: UiText.dashboard-support-label; font-weight: 600; }
                         Hint { text: root.support-summary; }
+                        if root.gpu-problem : Hint { text: UiText.dashboard-support-configuration-warning; color: Theme.accent; }
                         verify-button := Button {
-                            visible: root.verify-allowed && !root.recovery;
+                            visible: root.gpu-problem && !root.recovery;
                             text: UiText.operations-verify-title;
                             primary: !root.dirty;
-                            enabled: !Theme.modal-active && root.execution-ready && !root.updating;
+                            enabled: !Theme.modal-active && root.verify-allowed && root.execution-ready && !root.updating;
                             clicked => { root.action("verify"); }
                         }
                         if root.recovery : Button { text: UiText.dashboard-recovery-review-label; primary: true; enabled: !Theme.modal-active; clicked => { root.action("recovery"); } }
@@ -112,59 +118,61 @@ export component VmDetails inherits Rectangle {
                         Hint { text: UiText.dashboard-gpu-label; }
                         ComboBox { enabled: !Theme.modal-active && root.eligible && !root.recovery && !root.gpu-selection-fixed; model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
                         if root.gpu-selection-fixed : Hint { text: UiText.dashboard-gpu-fixed-hint; }
-                        HorizontalLayout {
-                            Label { text: UiText.dashboard-memory-label; font-weight: 600; }
-                            Label { text: root.memory-label; font-weight: 600; horizontal-alignment: right; }
-                        }
+                        Label { text: UiText.dashboard-memory-label; font-weight: 600; }
                         HorizontalLayout {
                             spacing: 8px;
+                            memory-slider := Slider {
+                                min-width: 80px; horizontal-stretch: 1;
+                                accessible-label: UiText.dashboard-memory-slider-accessible;
+                                // Internal positions are tenths of a GB. Assistive controls
+                                // read and write GB, while pointer/keyboard edits keep exact steps.
+                                accessible-value: root.memory-position / 10;
+                                accessible-description: root.memory-label;
+                                accessible-value-minimum: root.memory-minimum / 10;
+                                accessible-value-maximum: root.memory-maximum / 10;
+                                accessible-value-step: 0.1;
+                                accessible-action-set-value(v) => {
+                                    if v.is-float() && v.to-float() >= root.memory-minimum / 10 && v.to-float() <= root.memory-maximum / 10 {
+                                        self.changed(round(v.to-float() * 10));
+                                    }
+                                }
+                                accessible-action-increment => { self.changed(min(root.memory-position + 1, root.memory-maximum)); }
+                                accessible-action-decrement => { self.changed(max(root.memory-position - 1, root.memory-minimum)); }
+                                minimum: root.memory-minimum; maximum: root.memory-maximum; step: 1;
+                                value: root.memory-position;
+                                enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery;
+                                changed(value) => {
+                                    if self.enabled && !root.presenting && round(value) != root.memory-position { root.memory-edited(round(value)); self.value = root.memory-position; }
+                                }
+                            }
                             numeric-memory := LineEdit {
+                                min-width: 86px; preferred-width: 100px; max-width: 130px;
+                                horizontal-stretch: 0;
                                 accessible-label: UiText.dashboard-memory-input-accessible;
                                 placeholder-text: UiText.dashboard-memory-unit;
                                 text: root.memory-input;
                                 enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery;
-                                accepted => { root.memory-text-edited(self.text); }
+                                edited(text) => {
+                                    if root.memory-text-acceptable(text) {
+                                        root.accepted-memory-text = text;
+                                        memory-slider.value = root.valid-memory-text ? round(text.to-float() * 10) : root.memory-position;
+                                    } else {
+                                        self.text = root.accepted-memory-text;
+                                    }
+                                }
+                                accepted => { if self.enabled && root.valid-memory-text { root.memory-text-edited(self.text); } }
                             }
+                            Label { text: UiText.dashboard-memory-unit; }
                             Button {
                                 text: UiText.dashboard-memory-submit;
-                                enabled: numeric-memory.enabled;
-                                clicked => { root.memory-text-edited(numeric-memory.text); }
+                                horizontal-stretch: 0;
+                                enabled: numeric-memory.enabled && root.valid-memory-text;
+                                clicked => { if self.enabled { root.memory-text-edited(numeric-memory.text); } }
                             }
-                        }
-                        Hint { text: UiText.dashboard-memory-keyboard-hint; }
-                        memory-slider := Slider {
-                            visible: root.memory-minimum != root.memory-maximum;
-                            accessible-label: UiText.dashboard-memory-slider-accessible;
-                            // Internal positions are tenths of a GB. Assistive controls
-                            // read and write GB, while pointer/keyboard edits keep exact steps.
-                            accessible-value: root.memory-position / 10;
-                            accessible-description: root.memory-label;
-                            accessible-value-minimum: root.memory-minimum / 10;
-                            accessible-value-maximum: root.memory-maximum / 10;
-                            accessible-value-step: 0.1;
-                            accessible-action-set-value(v) => {
-                                if v.is-float() && v.to-float() >= root.memory-minimum / 10 && v.to-float() <= root.memory-maximum / 10 {
-                                    self.changed(round(v.to-float() * 10));
-                                }
-                            }
-                            accessible-action-increment => { self.changed(min(root.memory-position + 1, root.memory-maximum)); }
-                            accessible-action-decrement => { self.changed(max(root.memory-position - 1, root.memory-minimum)); }
-                            minimum: root.memory-minimum; maximum: root.memory-maximum; step: 1;
-                            value: root.memory-position;
-                            enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery;
-                            changed(value) => {
-                                if self.enabled && !root.presenting && round(value) != root.memory-position { root.memory-edited(round(value)); self.value = root.memory-position; }
-                            }
-                        }
-                        if root.memory-available && root.memory-minimum == root.memory-maximum : Button {
-                            text: UiText.dashboard-memory-capacity-button(root.memory-range-start);
-                            enabled: !Theme.modal-active && root.eligible && !root.recovery;
-                            clicked => { root.memory-edited(root.memory-minimum); }
                         }
                         HorizontalLayout { Hint { text: root.memory-range-start; } Hint { text: root.memory-range-end; horizontal-alignment: right; } }
-                        Hint { text: root.memory-hint; }
+                        if root.memory-hint != "" : Hint { text: root.memory-hint; color: Theme.accent; }
                         if root.dirty : Hint { text: root.pending; color: Theme.accent; }
-                        Hint { visible: Theme.show-help; text: UiText.dashboard-support-approval-hint; }
                     }
                 }
                 if root.setup-required : Surface {

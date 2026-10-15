@@ -102,7 +102,16 @@ pub(super) fn selected_vm_details(state: &State) -> String {
             })
             .collect::<Vec<_>>()
     });
+    let memory_notes = gpu.and_then(|gpu| {
+        let capacity = gpu.physical_vram_bytes?;
+        let limits = gpu.limits(hyper_gpu_support::model::Resource::Vram)?;
+        let current = state.view.vm(id).and_then(|vm| vm.vram.as_ref());
+        super::memory::MemorySlider::new(limits, current, capacity)
+            .ok()?
+            .range_note
+    });
     let facts = serde_json::json!({
+        "memory_display_notes": memory_notes,
         "vm_id": id,
         "observed_host_state": state.view.vm(id),
         "saved_intent_revision": saved.as_ref().ok(),
@@ -172,6 +181,7 @@ mod tests {
         .expect("isolated GPU fixture");
         state.view.inventory = Some(Inventory {
             discovery: Discovery {
+                guest_os: Default::default(),
                 vms: vec![],
                 gpus: vec![gpu],
                 issues: vec![

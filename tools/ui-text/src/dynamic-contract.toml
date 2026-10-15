@@ -476,25 +476,6 @@ name = "count"
 type = "usize"
 
 [[messages]]
-key = "dashboard.memory.capacity_button"
-slint = true
-[messages.metadata]
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.capacity_button"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-[[messages.parameters]]
-minimum = 1
-maximum = 1
-source = "Reviewed VmDetails binding: capacity; retain original classification, redaction and numeric preparation before insertion."
-[messages.parameters.declaration]
-name = "capacity"
-type = "formatted"
-
-[[messages]]
 key = "resources.field.accessible"
 slint = true
 [messages.metadata]

@@ -69,11 +69,6 @@ fn catalogue_globals_initialize_in_two_independent_headless_windows() {
         let data = "λ \" \\{field_label}\n😀";
         for (key, actual, parameter) in [
             (
-                "dashboard.memory.capacity_button",
-                global.invoke_dashboard_memory_capacity_button(data.into()),
-                "capacity",
-            ),
-            (
                 "resources.field.accessible",
                 global.invoke_resources_field_accessible(data.into()),
                 "field_label",

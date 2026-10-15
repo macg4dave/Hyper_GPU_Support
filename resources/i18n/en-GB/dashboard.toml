@@ -200,17 +200,6 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
 
-[messages."dashboard.inventory.reading"]
-text = "Reading virtual machine information."
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.inventory.reading"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
 [messages."dashboard.inventory.refresh"]
 text = "Refresh"
 screen = "AppWindow presentation (src/gui/ui/app.slint)"
@@ -255,17 +244,6 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
 
-[messages."dashboard.memory.capacity_button"]
-text = "Use {capacity}"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.capacity_button"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "capacity", type = "formatted" }]
-
 [messages."dashboard.memory.input_accessible"]
 text = "GPU memory request in decimal GB"
 screen = "VmDetails presentation (src/gui/ui/details.slint)"
@@ -277,19 +255,8 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
 
-[messages."dashboard.memory.keyboard_hint"]
-text = "Enter GB and press Enter or Set request. Use the slider's arrow keys for 0.1 GB steps."
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.keyboard_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
 [messages."dashboard.memory.label"]
-text = "GPU Memory request"
+text = "GPU Memory Request"
 screen = "VmDetails presentation (src/gui/ui/details.slint)"
 state = "Selected branch: dashboard.memory.label"
 audience = "operator"
@@ -311,7 +278,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dashboard.memory.submit"]
-text = "Set request"
+text = "Set"
 screen = "VmDetails presentation (src/gui/ui/details.slint)"
 state = "Selected branch: dashboard.memory.submit"
 audience = "operator"
@@ -728,19 +695,8 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
 
-[messages."dashboard.support.approval_hint"]
-text = "Changes take effect only after review and approval. GPU sharing is not qualified."
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.support.approval_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
 [messages."dashboard.support.attached"]
-text = "GPU attached. Use Verify GPU setup to check current guest files and rendering. Earlier results remain history."
+text = "GPU support is enabled."
 screen = "present_inner presentation (src/gui/live/presentation.rs)"
 state = "Selected branch: dashboard.support.attached"
 audience = "operator"
@@ -912,5 +868,16 @@ audience = "operator"
 intent = "Present the existing selected state or action without changing its meaning."
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
 severity = "information"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+placeholders = []
+
+[messages."dashboard.support.configuration_warning"]
+text = "GPU configuration differs from saved settings. Verify the setup and review Technical Details before making changes."
+screen = "present_inner presentation (src/gui/live/presentation.rs)"
+state = "Selected branch: dashboard.support.configuration_warning"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "warning"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []

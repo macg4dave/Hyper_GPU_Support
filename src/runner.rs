@@ -1212,7 +1212,7 @@ fn execute_operation(
                 Err(error) => issues.push(crate::reporting::Diagnostic::observation("Preparation record", Some(target.vm_id.clone()), &error)),
             }
             let inventory = crate::gui_model::Inventory {
-                discovery: crate::model::Discovery { vms: vec![observed.clone()], gpus: vec![], issues: issues.clone() },
+                discovery: crate::model::Discovery { guest_os: Default::default(), vms: vec![observed.clone()], gpus: vec![], issues: issues.clone() },
                 managed,
                 enrolled: e.targets.clone(),
             };
@@ -1601,6 +1601,7 @@ mod tests {
                 targets: vec![target],
             },
             Discovery {
+                guest_os: Default::default(),
                 issues: vec![],
                 vms: vec![vm],
                 gpus: vec![gpu],

@@ -4,7 +4,16 @@ use hyper_gpu_support::model::Resource;
 
 /// Never use enrollment or an editing draft as expected applied configuration.
 pub(super) fn comparison(state: &State, id: &str) -> String {
-    let unknown = |reason: &str| format!("Host configuration: Unknown; {reason}.");
+    assessment(state, id).0
+}
+
+/// Only fresh observed differences are problems; unknowns and history are not failures.
+pub(super) fn has_current_problem(state: &State, id: &str) -> bool {
+    assessment(state, id).1
+}
+
+fn assessment(state: &State, id: &str) -> (String, bool) {
+    let unknown = |reason: &str| (format!("Host configuration: Unknown; {reason}."), false);
     if state.committed.revision(id).is_err() {
         return unknown(hyper_gpu_support::ui_text::diagnostics::host_comparison::SAVED_UNREADABLE);
     }
@@ -146,5 +155,5 @@ pub(super) fn comparison(state: &State, id: &str) -> String {
     if !unknowns.is_empty() {
         text.push_str(&format!(" Unknown: {}.", unknowns.join("; ")));
     }
-    text
+    (text, !differences.is_empty())
 }

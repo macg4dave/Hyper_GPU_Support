@@ -7,6 +7,14 @@ const BYTES_PER_STEP: u64 = BYTES_PER_GB / 10;
 // Every selectable integer must survive Slint's f32 Slider representation.
 const MAX_EXACT_STEP: u64 = 1 << 24;
 
+/// Permit incomplete decimal edits, but reject invalid keystrokes/pastes as a whole.
+pub(super) fn acceptable_input(text: slint::SharedString) -> bool {
+    let (whole, fraction) = text.split_once('.').unwrap_or((&text, ""));
+    whole.bytes().all(|b| b.is_ascii_digit())
+        && fraction.len() <= 9
+        && fraction.bytes().all(|b| b.is_ascii_digit())
+}
+
 pub(super) struct MemorySlider {
     pub minimum: i32,
     pub maximum: i32,
@@ -16,7 +24,7 @@ pub(super) struct MemorySlider {
     pub range_end: String,
     pub range_note: Option<String>,
     bounds: Allocation,
-    physical_capacity: u64,
+    pub physical_capacity: u64,
 }
 
 pub(super) fn format_gb(bytes: u64) -> String {
@@ -63,6 +71,37 @@ pub(super) fn request(values: &[String]) -> Result<Option<Allocation>, String> {
         optimal: parsed[1],
         maximum: parsed[2],
     }))
+}
+
+fn parse_gb(text: &str) -> Result<u64, String> {
+    let text = text.trim();
+    let (whole, fraction) = text.split_once('.').unwrap_or((text, ""));
+    if whole.is_empty()
+        || !whole.bytes().all(|b| b.is_ascii_digit())
+        || fraction.len() > 9
+        || !fraction.bytes().all(|b| b.is_ascii_digit())
+    {
+        return Err("Enter a decimal GB value with at most nine decimal places. The previous request is kept.".into());
+    }
+    let whole = whole
+        .parse::<u64>()
+        .map_err(|_| "Memory value is too large")?;
+    let fraction = format!("{fraction:0<9}")
+        .parse::<u64>()
+        .map_err(|_| "Invalid decimal memory value")?;
+    let bytes = whole
+        .checked_mul(BYTES_PER_GB)
+        .and_then(|b| b.checked_add(fraction))
+        .ok_or("Memory value is too large")?;
+    Ok(bytes)
+}
+
+pub(super) fn valid_input(text: &str, capacity: &str) -> bool {
+    acceptable_input(text.into())
+        && parse_gb(text)
+            .ok()
+            .zip(parse_gb(capacity).ok())
+            .is_some_and(|(value, maximum)| (BYTES_PER_GB..=maximum).contains(&value))
 }
 
 impl MemorySlider {
@@ -141,25 +180,7 @@ impl MemorySlider {
 
     /// Parse decimal GB without floating-point rounding or silently clamping input.
     pub fn select_gb(&self, text: &str) -> Result<Allocation, String> {
-        let text = text.trim();
-        let (whole, fraction) = text.split_once('.').unwrap_or((text, ""));
-        if whole.is_empty()
-            || !whole.bytes().all(|b| b.is_ascii_digit())
-            || fraction.len() > 9
-            || !fraction.bytes().all(|b| b.is_ascii_digit())
-        {
-            return Err("Enter a decimal GB value with at most nine decimal places. The previous request is kept.".into());
-        }
-        let whole = whole
-            .parse::<u64>()
-            .map_err(|_| "Memory value is too large")?;
-        let fraction = format!("{fraction:0<9}")
-            .parse::<u64>()
-            .map_err(|_| "Invalid decimal memory value")?;
-        let bytes = whole
-            .checked_mul(BYTES_PER_GB)
-            .and_then(|b| b.checked_add(fraction))
-            .ok_or("Memory value is too large")?;
+        let bytes = parse_gb(text)?;
         if bytes < BYTES_PER_GB || bytes > self.physical_capacity {
             return Err(format!(
                 "Enter a request from 1 GB to {}. The previous request is kept.",
@@ -183,6 +204,40 @@ impl MemorySlider {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn typing_and_paste_reject_non_decimal_text_and_bounds_disable_submission() {
+        for text in ["", ".", "7.", "7.0", "8.278507520"] {
+            assert!(super::acceptable_input(text.into()), "{text}");
+        }
+        for text in [
+            "7 GB",
+            "7x",
+            "1e1",
+            "-7",
+            "+7",
+            "7,0",
+            "7..0",
+            " 7",
+            "7\n",
+            "７",
+            "7.1234567890",
+        ] {
+            assert!(!super::acceptable_input(text.into()), "{text}");
+            assert!(!super::valid_input(text, "8.27850752"));
+        }
+        for text in ["", ".", "0.9", "8.278507521", "999999999999999999999"] {
+            assert!(!super::valid_input(text, "8.27850752"), "{text}");
+        }
+        for text in ["1", "7.0", "7.1", "8.278507520"] {
+            assert!(super::valid_input(text, "8.27850752"), "{text}");
+        }
+        assert!(
+            !super::valid_input("7.1", "4"),
+            "selected GPU capacity changes validation"
+        );
+        assert!(!super::valid_input("1", ""));
+    }
+
     #[test]
     fn numeric_editor_input_roundtrips_exact_bytes_without_a_display_unit() {
         for bytes in [0, 1, 6_000_000_001, 8_278_507_520, u64::MAX] {

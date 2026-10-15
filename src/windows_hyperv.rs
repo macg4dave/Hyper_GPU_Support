@@ -7,6 +7,8 @@ use crate::{
 };
 use std::time::{Duration, Instant};
 use windows::{Win32::System::Variant::VARIANT, core::BSTR};
+mod guest_os;
+
 const TIMEOUT: Duration = Duration::from_secs(120);
 fn settings(s: &Session, id: &str) -> Result<Object, String> {
     s.one(&format!("SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemType='Microsoft:Hyper-V:System:Realized' AND VirtualSystemIdentifier='{}'",quoted(id)))
@@ -157,7 +159,28 @@ pub fn discover() -> Result<Discovery, String> {
             Vec::new()
         }
     };
-    Ok(Discovery { issues, vms, gpus })
+    // Optional host inventory only: never enter/start a guest to obtain an icon.
+    // Integration-service metadata may be absent (including for stopped guests).
+    let guest_os = vms
+        .iter()
+        .filter_map(|vm| {
+            let component = s
+                .one(&format!(
+                    "SELECT * FROM Msvm_KvpExchangeComponent WHERE SystemName='{}'",
+                    quoted(&vm.vm_id)
+                ))
+                .ok()?;
+            let items = component.strings("GuestIntrinsicExchangeItems").ok()?;
+            let name = guest_os::name(&items)?;
+            Some((vm.vm_id.clone(), name))
+        })
+        .collect();
+    Ok(Discovery {
+        issues,
+        vms,
+        gpus,
+        guest_os,
+    })
 }
 pub(crate) fn selected_gpu(t: &Target) -> Result<Gpu, String> {
     t.validate()?;

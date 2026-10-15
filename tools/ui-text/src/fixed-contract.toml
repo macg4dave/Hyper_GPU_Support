@@ -384,17 +384,6 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 
 [[messages]]
-key = "dashboard.inventory.reading"
-[messages.metadata]
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.inventory.reading"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-
-[[messages]]
 key = "dashboard.inventory.refresh"
 [messages.metadata]
 screen = "AppWindow presentation (src/gui/ui/app.slint)"
@@ -443,17 +432,6 @@ key = "dashboard.memory.input_accessible"
 [messages.metadata]
 screen = "VmDetails presentation (src/gui/ui/details.slint)"
 state = "Selected branch: dashboard.memory.input_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-
-[[messages]]
-key = "dashboard.memory.keyboard_hint"
-[messages.metadata]
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.keyboard_hint"
 audience = "operator"
 intent = "Present the existing selected state or action without changing its meaning."
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
@@ -894,17 +872,6 @@ key = "dashboard.status.updating"
 [messages.metadata]
 screen = "AppWindow presentation (src/gui/ui/app.slint)"
 state = "Selected branch: dashboard.status.updating"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-
-[[messages]]
-key = "dashboard.support.approval_hint"
-[messages.metadata]
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.support.approval_hint"
 audience = "operator"
 intent = "Present the existing selected state or action without changing its meaning."
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
@@ -1880,17 +1847,6 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 
 [[messages]]
-key = "operations.action.updating"
-[messages.metadata]
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.action.updating"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-
-[[messages]]
 key = "operations.apply.completed.title"
 [messages.metadata]
 screen = "apply_live presentation (src/gui/live.rs)"
@@ -2364,17 +2320,6 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 
 [[messages]]
-key = "operations.draft.discarded_notice"
-[messages.metadata]
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.draft.discarded_notice"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-
-[[messages]]
 key = "operations.draft.exit.body"
 [messages.metadata]
 screen = "run presentation (src/gui/live.rs)"
@@ -2390,17 +2335,6 @@ key = "operations.draft.exit.title"
 [messages.metadata]
 screen = "run presentation (src/gui/live.rs)"
 state = "Selected branch: operations.draft.exit.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-
-[[messages]]
-key = "operations.draft.gpu_fixed"
-[messages.metadata]
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.draft.gpu_fixed"
 audience = "operator"
 intent = "Present the existing selected state or action without changing its meaning."
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
@@ -2738,17 +2672,6 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 
 [[messages]]
-key = "operations.inventory.refreshed"
-[messages.metadata]
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.refreshed"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-
-[[messages]]
 key = "operations.inventory.saved_unreadable"
 [messages.metadata]
 screen = "refresh_with_result presentation (src/gui/live.rs)"
@@ -2879,7 +2802,6 @@ intent = "Present the existing selected state or action without changing its mea
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
 severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-
 
 [[messages]]
 key = "operations.plan.read_history"
@@ -4210,3 +4132,69 @@ intent = "Explain preliminary review and fresh admission without implying curren
 consequences = "A changed payload or effect scope requires another review before effects."
 severity = "information"
 space_hint = "Wrapped review paragraph; inspect long content and reachable approval actions."
+
+[[messages]]
+key = "progress.stage.recovery_credentials"
+[messages.metadata]
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.recovery_credentials"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+
+[[messages]]
+key = "progress.stage.recovery_preparation"
+[messages.metadata]
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.recovery_preparation"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+
+[[messages]]
+key = "progress.stage.worker_connection"
+[messages.metadata]
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.worker_connection"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+
+[[messages]]
+key = "progress.stage.worker_admission"
+[messages.metadata]
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.worker_admission"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+
+[[messages]]
+key = "progress.stage.recovery_outcome"
+[messages.metadata]
+screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
+state = "Selected branch: progress.stage.recovery_outcome"
+audience = "operator"
+intent = "Explain the active read or wait without claiming a final outcome."
+consequences = "Read progress does not grant authority or prove successful completion."
+severity = "information"
+space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
+
+[[messages]]
+key = "dashboard.support.configuration_warning"
+[messages.metadata]
+screen = "present_inner presentation (src/gui/live/presentation.rs)"
+state = "Selected branch: dashboard.support.configuration_warning"
+audience = "operator"
+intent = "Present the existing selected state or action without changing its meaning."
+consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
+severity = "warning"
+space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."

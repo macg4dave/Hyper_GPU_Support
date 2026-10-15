@@ -30,6 +30,31 @@ pub(super) fn update_model<T: Clone + PartialEq + 'static>(
     }
 }
 
+// OS metadata is untrusted display information, never a VM-name heuristic.
+fn guest_os_icon(name: Option<&str>) -> &'static str {
+    let name = name.unwrap_or_default().trim().to_ascii_lowercase();
+    if name.starts_with("microsoft windows") || name.starts_with("windows ") || name == "windows" {
+        "windows"
+    } else if name.contains("linux")
+        || [
+            "ubuntu",
+            "debian",
+            "fedora",
+            "centos",
+            "rocky",
+            "almalinux",
+            "suse",
+            "opensuse",
+        ]
+        .iter()
+        .any(|d| name == *d || name.starts_with(&format!("{d} ")))
+    {
+        "linux"
+    } else {
+        "unknown"
+    }
+}
+
 fn vm_row(vm: &VmState, discovery: &Discovery) -> VmRow {
     let gpu = if vm.gpus.is_empty() {
         hyper_gpu_support::ui_text::dashboard::attachment::ABSENT.to_owned()
@@ -71,7 +96,7 @@ fn vm_row(vm: &VmState, discovery: &Discovery) -> VmRow {
         }
         .into(),
         gpu: gpu.into(),
-        os: "unknown".into(),
+        os: guest_os_icon(discovery.guest_os.get(&vm.vm_id).map(String::as_str)).into(),
     }
 }
 
@@ -162,6 +187,13 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
         .collect::<Vec<_>>();
     let actions = state.selected_actions(ui.get_gpu_index(), &values);
     ui.set_verify_allowed(actions.verify_allowed);
+    ui.set_gpu_problem(
+        state
+            .view
+            .selected
+            .as_deref()
+            .is_some_and(|id| super::super::host_configuration::has_current_problem(state, id)),
+    );
     ui.set_repair_allowed(actions.repair_allowed);
     ui.set_remove_allowed(actions.remove_allowed);
     ui.set_forget_allowed(actions.forget_allowed);
@@ -453,6 +485,7 @@ pub(super) fn resource_controls(ui: &AppWindow, state: &State) {
     match state.memory_slider(ui.get_gpu_index(), &values) {
         Ok(slider) => {
             ui.set_memory_available(true);
+            ui.set_memory_capacity(memory::decimal_gb(slider.physical_capacity).into());
             ui.set_memory_input(
                 memory::request(&values[..3])
                     .ok()
@@ -466,13 +499,11 @@ pub(super) fn resource_controls(ui: &AppWindow, state: &State) {
             ui.set_memory_label(slider.label.into());
             ui.set_memory_range_start(slider.range_start.into());
             ui.set_memory_range_end(slider.range_end.into());
-            let note = slider
-                .range_note
-                .map_or_else(String::new, |note| format!("\n{note}"));
-            ui.set_memory_hint(format!("Choose a request from 1 GB to the card's detected capacity. Hyper-V validates the requested bytes; actual allocation behavior awaits live qualification.{note}").into());
+            ui.set_memory_hint("".into());
         }
         Err(reason) => {
             ui.set_memory_available(false);
+            ui.set_memory_capacity("".into());
             ui.set_memory_input("".into());
             ui.set_memory_minimum(1);
             ui.set_memory_maximum(2);
@@ -502,6 +533,25 @@ pub(super) fn draft_target(ui: &AppWindow, state: &State) -> Result<Target, Stri
 mod tests {
     use super::*;
     use hyper_gpu_support::model::Settings;
+
+    #[test]
+    fn os_icons_classify_guest_metadata_and_preserve_unknowns() {
+        for name in ["Microsoft Windows 11 Pro", "Windows Server 2025", "windows"] {
+            assert_eq!(guest_os_icon(Some(name)), "windows");
+        }
+        for name in [
+            "Ubuntu 24.04 LTS",
+            "Debian GNU/Linux",
+            "Red Hat Enterprise Linux",
+            "Fedora Linux 43",
+            "SUSE Linux Enterprise Server",
+        ] {
+            assert_eq!(guest_os_icon(Some(name)), "linux");
+        }
+        for name in [None, Some(""), Some("FreeBSD"), Some("my Windows VM")] {
+            assert_eq!(guest_os_icon(name), "unknown");
+        }
+    }
 
     #[test]
     fn memory_only_pending_summary_preserves_saved_support_state() {
@@ -584,6 +634,7 @@ mod tests {
         let row = vm_row(
             &vm,
             &Discovery {
+                guest_os: Default::default(),
                 issues: vec![],
                 vms: vec![],
                 gpus: vec![],
@@ -591,6 +642,19 @@ mod tests {
         );
         assert_eq!(row.id, vm.vm_id);
         assert_eq!(row.name, vm.name);
+        assert_eq!(row.os, "unknown");
+        let mut discovery = Discovery {
+            guest_os: Default::default(),
+            issues: vec![],
+            vms: vec![],
+            gpus: vec![],
+        };
+        discovery
+            .guest_os
+            .insert(vm.vm_id.clone(), "Ubuntu 24.04".into());
+        let mut renamed = vm.clone();
+        renamed.name = "Windows VM".into();
+        assert_eq!(vm_row(&renamed, &discovery).os, "linux");
         assert!(row.unsupported);
         assert!(!row.power_running);
         assert!(!row.power_stopped);
@@ -600,6 +664,7 @@ mod tests {
             let mut row = vm_row(
                 &changed,
                 &Discovery {
+                    guest_os: Default::default(),
                     issues: vec![],
                     vms: vec![],
                     gpus: vec![],
@@ -643,6 +708,7 @@ mod tests {
         };
         let mut inventory = Inventory {
             discovery: Discovery {
+                guest_os: Default::default(),
                 issues: vec![],
                 vms: vec![vm.clone()],
                 gpus: vec![],

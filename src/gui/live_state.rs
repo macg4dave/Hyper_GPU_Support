@@ -1121,6 +1121,7 @@ mod tests {
         };
         Inventory {
             discovery: Discovery {
+                guest_os: Default::default(),
                 issues: vec![],
                 vms: vec![VmState {
                     compute: None,
@@ -1749,6 +1750,56 @@ mod tests {
         s.load_committed(committed(vec![saved.clone()], "comparison"))
             .unwrap();
         (s, vm_id, saved)
+    }
+
+    #[test]
+    fn dashboard_problem_requires_fresh_difference_not_missing_or_old_guest_results() {
+        let (mut s, vm_id, saved) = comparison_state(true);
+        let problem = |s: &State| super::super::host_configuration::has_current_problem(s, &vm_id);
+        assert!(
+            problem(&s),
+            "fresh missing expected attachment is a problem"
+        );
+        s.view.needs_readback = true;
+        assert!(!problem(&s), "retained inventory is not a current failure");
+        s.view.needs_readback = false;
+        let inventory = s.view.inventory.as_mut().unwrap();
+        inventory.discovery.vms[0].gpus = vec![saved.gpu_interface.clone()];
+        inventory.discovery.vms[0].vram = saved.vram.clone();
+        assert!(
+            !problem(&s),
+            "absent guest history is not a detected problem"
+        );
+        let vm = &s.view.inventory.as_ref().unwrap().discovery.vms[0];
+        let record = hyper_gpu_support::workflow::Journal {
+            schema: 1,
+            vm_id: vm_id.clone(),
+            gpu_interface: saved.gpu_interface,
+            original: vm.settings.clone(),
+            applied: vm.settings.clone(),
+            prepared: Some("old".into()),
+            pending: false,
+            restore_power: Power::Off,
+            verification_only: false,
+            last_verified: Some(1),
+            latest_check: Some(hyper_gpu_support::workflow::GuestCheck::Failed),
+            preparation_started: None,
+            check_restored: false,
+            settings_released: false,
+        };
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .managed
+            .insert(vm_id.clone(), Some(record));
+        assert!(!problem(&s), "old failed checks remain history");
+        s.view.inventory.as_mut().unwrap().discovery.vms[0]
+            .vram
+            .as_mut()
+            .unwrap()
+            .optimal += 1;
+        assert!(problem(&s), "fresh invalid allocation is a problem");
     }
 
     #[test]

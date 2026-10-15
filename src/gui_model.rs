@@ -527,6 +527,7 @@ mod tests {
     fn inventory() -> Inventory {
         Inventory {
             discovery: Discovery {
+                guest_os: Default::default(),
                 issues: vec![],
                 vms: vec![vm(1), vm(2)],
                 gpus: vec![Gpu {

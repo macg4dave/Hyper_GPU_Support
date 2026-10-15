@@ -456,20 +456,32 @@ fn submit(
     credential: Option<Credential>,
     mut progress: impl FnMut(Progress),
 ) -> Result<Outcome, String> {
-    let enrollment = runner::enrollment()?;
-    if windows_pipe::current_user_sid_string().map_err(|e| e.to_string())? != enrollment.client_sid
-    {
-        return Err("current user is not the enrolled operator".into());
-    }
     let session = random_session()?;
-    let process = launch(&session)?;
-    // Retained handle prevents PID reuse until the exchange completes.
-    let pid = unsafe { GetProcessId(process.0) };
-    if pid == 0 {
-        return Err("worker process identity unavailable".into());
-    }
-    let pipe = Pipe::connect(&pipe_name(&session)?, "S-1-5-32-544", pid)
-        .map_err(|e| format!("worker connection failed; inspect recovery before retry: {e}"))?;
+    let (pipe, _process) = preparation_stage(
+        "Prepare protected worker connection",
+        &mut |update| {
+            progress(update);
+            Ok(())
+        },
+        || {
+            let enrollment = runner::enrollment()?;
+            if windows_pipe::current_user_sid_string().map_err(|e| e.to_string())?
+                != enrollment.client_sid
+            {
+                return Err("current user is not the enrolled operator".into());
+            }
+            let process = launch(&session)?;
+            // Retained handle prevents PID reuse until the exchange completes.
+            let pid = unsafe { GetProcessId(process.0) };
+            if pid == 0 {
+                return Err("worker process identity unavailable".into());
+            }
+            let pipe = Pipe::connect(&pipe_name(&session)?, "S-1-5-32-544", pid).map_err(|e| {
+                format!("worker connection failed; inspect recovery before retry: {e}")
+            })?;
+            Ok((pipe, process))
+        },
+    )?;
     let request = Request {
         schema: 1,
         session: session.clone(),
@@ -583,19 +595,23 @@ fn execute(
     request: Request,
     mut notify: impl FnMut(Progress) -> Result<(), String>,
 ) -> Result<Outcome, String> {
-    let data = runner::data_directory()?;
-    crate::security::verify(&data)?;
-    let _lock = runner::operation_lock()?;
-    let current = runner::enrollment()?;
-    if serde_json::to_value(enrollment).map_err(|e| e.to_string())?
-        != serde_json::to_value(&current).map_err(|e| e.to_string())?
-    {
-        return Err("enrollment changed before admission; Refresh".into());
-    }
-    runner::verify_artifacts(&current)?;
-    if windows_pipe::current_user_sid_string().map_err(|e| e.to_string())? != current.client_sid {
-        return Err("operator enrollment changed before admission".into());
-    }
+    let (data, _lock) = preparation_stage("Check protected worker admission", &mut notify, || {
+        let data = runner::data_directory()?;
+        crate::security::verify(&data)?;
+        let _lock = runner::operation_lock()?;
+        let current = runner::enrollment()?;
+        if serde_json::to_value(enrollment).map_err(|e| e.to_string())?
+            != serde_json::to_value(&current).map_err(|e| e.to_string())?
+        {
+            return Err("enrollment changed before admission; Refresh".into());
+        }
+        runner::verify_artifacts(&current)?;
+        if windows_pipe::current_user_sid_string().map_err(|e| e.to_string())? != current.client_sid
+        {
+            return Err("operator enrollment changed before admission".into());
+        }
+        Ok((data, _lock))
+    })?;
     let audit_directory = data.join("audit");
     crate::security::verify(&audit_directory)?;
     let audit = audit_directory.join(format!("worker-{session}.json"));
@@ -1169,6 +1185,12 @@ fn execute(
                 manifest: None,
                 data: data.clone(),
             };
+            let mut backend = ObservedBackend {
+                backend: &mut backend,
+                notify: &mut notify,
+                before_effect: None,
+            };
+            backend.stage_observed("Check recorded recovery outcome", |backend| {
             let before = backend.inspect(&record.target)?;
             let negative = record.negative_completion(
                 &before,
@@ -1339,7 +1361,7 @@ fn execute(
             // A reviewed record-only completion supplies no credentials. If its
             // restoration proof drifted, refuse a fallback guest check before
             // starting the VM; return to a fresh recovery review instead.
-            if check_graphics && backend.credential.is_none() {
+            if check_graphics && backend.backend.credential.is_none() {
                 return Err("Guest verification now requires credentials and a fresh recovery review; no guest lifecycle work was started.".into());
             }
             if check_graphics
@@ -1354,11 +1376,7 @@ fn execute(
                 checked_target.clear_allocations();
             }
             let result = workflow::reconcile_with_graphics(
-                &mut ObservedBackend {
-                    backend: &mut backend,
-                    notify: &mut notify,
-                    before_effect: None,
-                },
+                backend,
                 &checked_target,
                 &before,
                 final_power,
@@ -1385,7 +1403,7 @@ fn execute(
                 &backend.gpu(&record.target)?.driver_version,
                 &configuration_store::protected::revision(&record.target.vm_id)?,
             )?;
-            notify(Progress {
+            (backend.notify)(Progress {
                 stage: "Publish checked VM configuration".into(),
                 status: StageStatus::Running,
             })?;
@@ -1394,7 +1412,7 @@ fn execute(
                 record.phase = SavePhase::Published(result.effective.clone());
                 runner::atomic_json(&runner::recovery_path()?, &record)?;
             }
-            let delivery = notify(Progress {
+            let delivery = (backend.notify)(Progress {
                 stage: "Publish checked VM configuration".into(),
                 status: if saved.is_ok() {
                     StageStatus::Done
@@ -1414,6 +1432,7 @@ fn execute(
                 finished: saved.is_ok(),
                 operation_id,
                 save_error: saved.err(),
+            })
             })
         }
         Command::SaveOnly { operation_id } => {
@@ -1629,6 +1648,28 @@ fn finish_guest_progress(
     Ok(())
 }
 
+/// Report preparation before blocking reads/elevation; never imply a final outcome.
+fn preparation_stage<T>(
+    name: &str,
+    notify: &mut impl FnMut(Progress) -> Result<(), String>,
+    action: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    notify(Progress {
+        stage: name.into(),
+        status: StageStatus::Running,
+    })?;
+    let result = action();
+    let delivery = notify(Progress {
+        stage: name.into(),
+        status: if result.is_ok() {
+            StageStatus::Done
+        } else {
+            StageStatus::Failed
+        },
+    });
+    finish_progress(result, delivery)
+}
+
 fn finish_progress<T>(
     result: Result<T, String>,
     delivery: Result<(), String>,
@@ -1793,6 +1834,58 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worker_preparation_reports_order_failure_and_stops_on_lost_progress() {
+        use std::cell::RefCell;
+        for action_fails in [false, true] {
+            for fail_delivery in [None, Some(0), Some(1)] {
+                let trace = RefCell::new(Vec::new());
+                let mut delivered = 0;
+                let result = preparation_stage(
+                    "Check protected worker admission",
+                    &mut |event| {
+                        trace.borrow_mut().push(match event.status {
+                            StageStatus::Running => "running",
+                            StageStatus::Done => "done",
+                            StageStatus::Failed => "failed",
+                        });
+                        let fail = fail_delivery == Some(delivered);
+                        delivered += 1;
+                        if fail {
+                            Err("progress disconnected".into())
+                        } else {
+                            Ok(())
+                        }
+                    },
+                    || {
+                        trace.borrow_mut().push("work");
+                        if action_fails {
+                            Err("artifact check failed".into())
+                        } else {
+                            Ok(())
+                        }
+                    },
+                );
+                if fail_delivery == Some(0) {
+                    assert_eq!(*trace.borrow(), ["running"]);
+                } else {
+                    assert_eq!(
+                        *trace.borrow(),
+                        [
+                            "running",
+                            "work",
+                            if action_fails { "failed" } else { "done" }
+                        ]
+                    );
+                }
+                assert_eq!(result.is_ok(), !action_fails && fail_delivery.is_none());
+                if action_fails && fail_delivery != Some(0) {
+                    assert!(result.unwrap_err().contains("artifact check failed"));
+                }
+            }
+        }
+    }
 
     #[test]
     fn guest_phase_failures_retain_the_actual_stage_and_delivery_failure_prevents_next_stage_notification()
