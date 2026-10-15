@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $session = $null
 $diagnostic = $null
+$checkingCompatibility = $false
 function Write-Stage([string]$stage, [string]$status, [string]$context, [long]$duration = 0) {
     if (!$diagnostic) { return }
     $line = @{utc=[DateTime]::UtcNow.ToString('o');pid=$PID;vm_id=[string]$r.vm_id;mode=[string]$r.mode;stage=$stage;status=$status;context=$context;duration_ms=$duration;significant_delay=($duration -ge 5000)} | ConvertTo-Json -Compress
@@ -95,6 +96,29 @@ try {
         }
     }
     Write-Stage 'session-connect' 'done' 'PowerShell Direct' $timer.ElapsedMilliseconds
+    if ($r.mode -cin @('compatibility', 'prepare')) {
+        $checkingCompatibility = $true
+        $identity = Invoke-Command -Session $session -ScriptBlock {
+            $os = @(Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop)
+            if ($os.Count -ne 1) { throw 'Ambiguous OS identity' }
+            $version = [version]$os[0].Version
+            $kind = Get-ItemPropertyValue -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name InstallationType -ErrorAction Stop
+            @{ major = $version.Major; minor = $version.Minor; build = [uint32]$os[0].BuildNumber; workstation = ($os[0].ProductType -eq 1 -and $kind -ceq 'Client') } | ConvertTo-Json -Compress
+        }
+        if ($r.mode -ceq 'compatibility') {
+            @{ output = [string]$identity; worker_exit = 0 } | ConvertTo-Json -Compress
+            return
+        }
+        # Rust supplies the explicit release list used by offline and live checks.
+        # Check in this very session, before creating guest directories or files.
+        $os = $identity | ConvertFrom-Json
+        if ($os.major -ne 10 -or $os.minor -ne 0 -or $os.workstation -ne $true -or $os.build -notin $r.windows_11_builds) {
+            $failure = @{ stage=$null; component='GuestCompatibility'; cause='UnsupportedGuest'; code=$null } | ConvertTo-Json -Compress
+            @{ output=('HGFAIL1:' + $failure); worker_exit=1 } | ConvertTo-Json -Compress
+            exit 1
+        }
+        $checkingCompatibility = $false
+    }
     $timer.Restart()
     Write-Stage 'bootstrap-path' 'start' 'protect guest root'
     $root = Invoke-Command -Session $session -ScriptBlock {
@@ -307,6 +331,11 @@ try {
     Write-Stage 'guest-integrity-and-worker' 'done' $r.mode $timer.ElapsedMilliseconds
     @{ output = [string]$output.output; worker_exit = $output.worker_exit } | ConvertTo-Json -Compress
 } catch {
+    if ($checkingCompatibility) {
+        $failure = @{ stage=$null; component='GuestCompatibility'; cause='Unavailable'; code=$null } | ConvertTo-Json -Compress
+        @{ output=('HGFAIL1:' + $failure); worker_exit=1 } | ConvertTo-Json -Compress
+        exit 1
+    }
     Write-Stage 'transport' 'failed' "HRESULT=$($_.Exception.HResult); type=$($_.Exception.GetType().FullName)"
     [Console]::Error.WriteLine('Fixed guest transport failed; reconcile before retry.')
     @{ output = ''; transport_hresult = $_.Exception.HResult } | ConvertTo-Json -Compress

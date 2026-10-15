@@ -117,6 +117,13 @@ fn execute_decision(
     } = d;
     let mut facts = ApplyFacts::new(initial.clone(), gpu.clone(), managed);
     facts.check(backend, target)?;
+    // All preparation (first install, host-driver refresh and explicit repair)
+    // converges here. Refusal precedes journaling, power and GPU/guest effects.
+    // Ordinary management and verification-only operations do not inspect OS.
+    if stale {
+        backend.check_installation_os(target)?;
+        facts.check(backend, target)?;
+    }
     // Record power-only ordinary operations too, before graceful shutdown.
     if needs_changes || setup_required || initial.power != restore_power {
         journal.pending = true;
@@ -266,6 +273,69 @@ mod tests {
         GuestCheck, PreviewAction, admit_approved, apply, apply_admitted, apply_approved, plan,
         plan_reinstall,
     };
+
+    #[test]
+    fn installation_os_refusal_blocks_first_install_refresh_and_repair_before_effects() {
+        for path in 0..3 {
+            for failure in [
+                crate::guest_compatibility::unknown(),
+                crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestCompatibility,
+                    cause: crate::reporting::FailureCause::UnsupportedGuest,
+                    code: None,
+                }
+                .into_error(),
+            ] {
+                let mut backend = fake();
+                let target = target();
+                if path != 0 {
+                    apply(&mut backend, &target).unwrap();
+                }
+                if path == 1 {
+                    backend.driver = "changed";
+                }
+                backend.os_checks = 0;
+                backend.events.clear();
+                backend.os_failure = Some(failure.clone());
+                let before = serde_json::to_value(&backend.journal).unwrap();
+                let writes = backend.journal_writes;
+                let reviewed = if path == 2 {
+                    plan_reinstall(&mut backend, &target).unwrap()
+                } else {
+                    plan(&mut backend, &target).unwrap()
+                };
+                assert_eq!(backend.os_checks, 0, "review must not query the OS");
+                let error = apply_approved(&mut backend, &reviewed).unwrap_err();
+                assert_eq!(error, failure);
+                assert_eq!(backend.os_checks, 1);
+                assert!(
+                    backend.events.is_empty(),
+                    "no power, preparation or GPU effects"
+                );
+                assert_eq!(backend.journal_writes, writes);
+                assert_eq!(serde_json::to_value(&backend.journal).unwrap(), before);
+            }
+        }
+    }
+
+    #[test]
+    fn ordinary_management_and_verification_do_not_require_an_os_query() {
+        let mut backend = fake();
+        let mut requested = extended_target();
+        apply(&mut backend, &requested).unwrap();
+        assert_eq!(backend.os_checks, 1);
+        backend.os_checks = 0;
+        backend.os_failure = Some(crate::guest_compatibility::unknown());
+        let reviewed = plan(&mut backend, &requested).unwrap();
+        apply_approved(&mut backend, &reviewed).unwrap();
+        requested.compute.as_mut().unwrap().optimal -= 1;
+        apply(&mut backend, &requested).unwrap();
+        crate::workflow::verify(&mut backend, &requested).unwrap();
+        requested.enabled = false;
+        apply(&mut backend, &requested).unwrap();
+        assert_eq!(backend.os_checks, 0);
+    }
 
     #[test]
     fn preparation_drift_blocks_later_shutdown_settings_and_attachment() {

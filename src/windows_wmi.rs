@@ -330,8 +330,11 @@ pub(crate) struct Session {
 #[allow(unsafe_code)]
 impl Session {
     pub(crate) fn new(timeout: Duration) -> Result<Self> {
+        Self::in_namespace(r"ROOT\virtualization\v2", timeout)
+    }
+    pub(crate) fn in_namespace(namespace: &str, timeout: Duration) -> Result<Self> {
         let apartment = Apartment::initialize().map_err(|e| e.to_string())?;
-        let services = connect(r"ROOT\virtualization\v2").map_err(|e| e.to_string())?;
+        let services = connect(namespace).map_err(|e| e.to_string())?;
         Ok(Self {
             services,
             deadline: Instant::now() + timeout,

@@ -4,6 +4,8 @@ A Windows GUI for turning GPU support on or off for supported existing Hyper-V V
 
 The initial target is NVIDIA hardware and existing Generation 2 Windows 11 guests, including multiple VMs sharing one GPU. Keep the existing Slint design and shared Rust backend.
 
+GPU support installation, driver refresh and Repair / Reinstall require a Windows 11 compatibility check immediately before effects. Stopped guests use conservative read-only disk inspection; already running guests use an authenticated read-only session. If the primary check is unavailable, including for a locked BitLocker disk, complete and consistent Hyper-V guest-reported OS metadata can establish eligibility as a fallback. A positively unsupported OS cannot be overridden, and missing or conflicting fallback data blocks installation. Detection never unlocks a disk or boots a VM solely to identify it. Normal discovery and management are unaffected. See [guest OS eligibility](docs/SECURITY.md#guest-os-eligibility-before-installation) for evidence rules and limits. This new safety boundary awaits automated and installed-product validation.
+
 ## Agreed workflow
 
 - Select a VM, set GPU support on/off, and choose VRAM from 1 GB to the selected card's capacity.

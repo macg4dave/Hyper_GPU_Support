@@ -74,6 +74,12 @@ pub enum PreparationProgress {
 
 /// The concrete management boundary, also used for meaningful workflow tests.
 pub trait Backend {
+    /// Positively identify Windows 11 immediately before driver installation.
+    /// Must not boot, unlock, or modify a guest to obtain evidence. Missing
+    /// implementations deny installation; discovery/planning never call this.
+    fn check_installation_os(&mut self, _target: &Target) -> Result<(), String> {
+        Err(crate::guest_compatibility::unknown())
+    }
     /// Read fresh selected VM state.
     fn inspect(&mut self, target: &Target) -> Result<VmState, String>;
     /// Read the selected host GPU and its current driver.

@@ -3,6 +3,8 @@ use super::{Backend, EffectPreview, Journal, PreviewAction};
 use crate::model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState};
 
 pub(super) struct Fake {
+    pub(super) os_checks: usize,
+    pub(super) os_failure: Option<String>,
     pub(super) drift_at: Option<(&'static str, Drift)>,
     pub(super) inspect_unavailable: bool,
     pub(super) state: VmState,
@@ -92,6 +94,8 @@ pub(super) fn target() -> Target {
 
 pub(super) fn fake() -> Fake {
     Fake {
+        os_checks: 0,
+        os_failure: None,
         drift_at: None,
         inspect_unavailable: false,
         state: VmState {
@@ -177,6 +181,10 @@ pub(super) fn recovery_record(
 }
 
 impl Backend for Fake {
+    fn check_installation_os(&mut self, _: &Target) -> Result<(), String> {
+        self.os_checks += 1;
+        self.os_failure.clone().map_or(Ok(()), Err)
+    }
     fn inspect(&mut self, _: &Target) -> Result<VmState, String> {
         if self.inspect_unavailable {
             return Err("host readback unavailable".into());

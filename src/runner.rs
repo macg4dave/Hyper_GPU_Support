@@ -1319,6 +1319,21 @@ pub(crate) fn require_no_recovery() -> Result<(), String> {
     Ok(())
 }
 impl Backend for NativeBackend {
+    fn check_installation_os(&mut self, t: &Target) -> Result<(), String> {
+        let primary = (|| match windows_hyperv::inspect(&t.vm_id)?.power {
+            Power::Off => windows_hyperv::check_offline(t),
+            Power::Running => crate::guest::check_installation_os(
+                t,
+                self.credential
+                    .as_ref()
+                    .ok_or_else(crate::guest_compatibility::unknown)?,
+            ),
+            _ => Err(crate::guest_compatibility::unknown()),
+        })();
+        crate::guest_compatibility::with_metadata_fallback(primary, || {
+            windows_hyperv::check_reported_os(t)
+        })
+    }
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
         crate::diagnostics::run("inspect-vm", &t.vm_id, || windows_hyperv::inspect(&t.vm_id))
     }

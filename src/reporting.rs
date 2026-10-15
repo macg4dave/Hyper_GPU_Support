@@ -47,6 +47,8 @@ fn transfer_size(bytes: u64) -> String {
 /// carried across the authenticated worker boundary.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Component {
+    /// Installation-only guest OS eligibility.
+    GuestCompatibility,
     /// Native Hyper-V management provider.
     HyperV,
     /// Bounded PowerShell Direct transport/guest worker.
@@ -62,6 +64,8 @@ pub enum Component {
 /// A cause established at its adapter source, rather than inferred from text.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum FailureCause {
+    /// Positive OS facts do not match the supported guest release policy.
+    UnsupportedGuest,
     /// The source has not established a more specific safe cause.
     Unclassified,
     /// Windows returned a failing HRESULT.
@@ -300,6 +304,15 @@ pub fn operator_error(stage: &str, error: &str) -> String {
     }
     if let Some(failure) = ComponentFailure::decode(error) {
         let description = match (failure.component, failure.cause) {
+            (Component::GuestCompatibility, FailureCause::UnsupportedGuest) => Some(
+                "GPU support installation is blocked: only recognised Windows 11 client releases are supported. Windows Server, older Windows and unrecognised releases are not eligible.",
+            ),
+            (Component::GuestCompatibility, FailureCause::ReadbackMismatch) => Some(
+                "GPU support installation is blocked because the selected VM power or disk binding changed during OS inspection. Refresh and review the selected target again; guest-reported metadata cannot override this change.",
+            ),
+            (Component::GuestCompatibility, _) => Some(
+                "GPU support installation is blocked because Windows 11 could not be identified from the primary check or Hyper-V guest-reported metadata. A locked BitLocker disk alone cannot establish compatibility; the metadata fallback requires complete, consistent Windows version, build and client-type fields. An already running VM can also be queried through an authenticated read-only session. The application will not unlock a disk to identify it.",
+            ),
             (Component::HyperV, FailureCause::NativeRecoveryRequired) => Some(
                 "Native completion is unresolved. An administrator must correlate a terminal Hyper-V job with the exact VM and stage, run native-review --job LOCAL_JOB_REFERENCE, inspect its before/after facts, then approve native-reconcile --review TOKEN. If completion evidence is unavailable, preserve provider-operation.json, workflow recovery and Hyper-V event logs for administrator/provider support. Do not delete the marker or replay Apply.",
             ),

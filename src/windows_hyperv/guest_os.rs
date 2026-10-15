@@ -1,4 +1,5 @@
-//! Optional, untrusted guest OS metadata; never used for operation admission.
+//! Guest-reported OS metadata: optional display and installation-only fallback.
+use crate::guest_compatibility::{WindowsIdentity, unknown};
 use windows::{
     Data::Xml::Dom::{XmlDocument, XmlLoadSettings},
     core::HSTRING,
@@ -94,6 +95,93 @@ pub(super) fn name(items: &[String]) -> Option<String> {
     found
 }
 
+/// Admission uses complete, internally consistent intrinsic version/client data,
+/// never a VM name, frontend cache or OSName alone. Reports can be historical;
+/// the current running OS is still rechecked before guest installation writes.
+pub(super) fn installation_identity(items: &[String]) -> Result<WindowsIdentity, String> {
+    if items.len() > 256 {
+        return Err(unknown());
+    }
+    let settings = XmlLoadSettings::new().map_err(|_| unknown())?;
+    settings.SetProhibitDtd(true).map_err(|_| unknown())?;
+    settings.SetResolveExternals(false).map_err(|_| unknown())?;
+    settings.SetMaxElementDepth(16).map_err(|_| unknown())?;
+    let mut values = std::collections::BTreeMap::new();
+    for xml in items {
+        if xml.len() > 65536 {
+            return Err(unknown());
+        }
+        let document = XmlDocument::new().map_err(|_| unknown())?;
+        document
+            .LoadXmlWithSettings(&HSTRING::from(xml), &settings)
+            .map_err(|_| unknown())?;
+        let key = property(&document, "Name")
+            .ok_or_else(unknown)?
+            .to_ascii_lowercase();
+        if !matches!(
+            key.as_str(),
+            "osname"
+                | "osversion"
+                | "osbuildnumber"
+                | "osmajorversion"
+                | "osminorversion"
+                | "osplatformid"
+                | "producttype"
+        ) {
+            continue;
+        }
+        let data = property(&document, "Data").ok_or_else(unknown)?;
+        if data.is_empty() || data.len() > 1024 || values.insert(key, data).is_some() {
+            return Err(unknown());
+        }
+    }
+    let get = |key: &str| values.get(key).map(String::as_str).ok_or_else(unknown);
+    let number = |text: &str| {
+        if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(unknown());
+        }
+        text.parse::<u32>().map_err(|_| unknown())
+    };
+    let version: Vec<_> = get("osversion")?
+        .split('.')
+        .map(number)
+        .collect::<Result<_, _>>()?;
+    let [major, minor, build] = version.as_slice() else {
+        return Err(unknown());
+    };
+    if number(get("osbuildnumber")?)? != *build {
+        return Err(unknown());
+    }
+    for (key, expected) in [
+        ("osmajorversion", *major),
+        ("osminorversion", *minor),
+        ("osplatformid", 2),
+    ] {
+        if let Some(value) = values.get(key)
+            && number(value)? != expected
+        {
+            return Err(unknown());
+        }
+    }
+    // OSName is registry ProductName on Windows and can still say Windows 10
+    // on Windows 11. The numeric release policy makes the actual distinction.
+    let name = get("osname")?.to_ascii_lowercase();
+    let product = name
+        .strip_prefix("microsoft windows ")
+        .ok_or_else(unknown)?;
+    let windows_client_name = ["10", "11"]
+        .iter()
+        .any(|version| product == *version || product.starts_with(&format!("{version} ")));
+    Ok(WindowsIdentity {
+        major: *major,
+        minor: *minor,
+        build: *build,
+        workstation: number(get("producttype")?)? == 1
+            && windows_client_name
+            && !name.contains("server"),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,6 +190,67 @@ mod tests {
         format!(
             r#"<INSTANCE CLASSNAME="Msvm_KvpExchangeDataItem"><PROPERTY NAME="Name" TYPE="string"><VALUE>{key}</VALUE></PROPERTY><PROPERTY NAME="Data" TYPE="string"><VALUE>{value}</VALUE></PROPERTY></INSTANCE>"#
         )
+    }
+
+    fn reported_windows(build: &str, product_type: &str) -> Vec<String> {
+        vec![
+            entry("OSName", "Microsoft Windows 11 Pro"),
+            entry("OSVersion", &format!("10.0.{build}")),
+            entry("OSBuildNumber", build),
+            entry("ProductType", product_type),
+        ]
+    }
+
+    #[test]
+    fn installation_fallback_requires_consistent_windows_11_client_facts() {
+        let _apartment = crate::windows_com::Apartment::initialize().unwrap();
+        for name in ["Microsoft Windows 11 Pro", "Microsoft Windows 10 Pro"] {
+            let mut items = reported_windows("26100", "1");
+            items[0] = entry("OSName", name);
+            let identity = installation_identity(&items).unwrap();
+            assert!(crate::guest_compatibility::require_supported(&identity).is_ok());
+        }
+        for (build, product_type) in [
+            ("19045", "1"),
+            ("26100", "3"),
+            ("26100", "2"),
+            ("99999", "1"),
+        ] {
+            let identity = installation_identity(&reported_windows(build, product_type)).unwrap();
+            assert!(crate::guest_compatibility::require_supported(&identity).is_err());
+        }
+    }
+
+    #[test]
+    fn missing_conflicting_or_malformed_reports_cannot_approve_installation() {
+        let _apartment = crate::windows_com::Apartment::initialize().unwrap();
+        assert!(installation_identity(&[]).is_err());
+        assert!(installation_identity(&[entry("OSName", "Microsoft Windows 11 Pro")]).is_err());
+        for scenario in 0..10 {
+            let mut items = reported_windows("26100", "1");
+            match scenario {
+                0 => {
+                    items.pop();
+                }
+                1 => items.push(entry("producttype", "1")),
+                2 => items[2] = entry("OSBuildNumber", "19045"),
+                3 => items[1] = entry("OSVersion", "10.0.26100.1"),
+                4 => items.push(entry("OSMajorVersion", "6")),
+                5 => items.push(entry("OSPlatformId", "0")),
+                6 => items.push("invalid XML".into()),
+                7 => items[3] = entry("ProductType", "workstation"),
+                8 => items.push(entry("OSName", "Microsoft Windows 11 Pro")),
+                _ => items[1] = entry("OSVersion", "10.0.+26100"),
+            }
+            assert!(installation_identity(&items).is_err(), "report {scenario}");
+        }
+        let mut conflicting = reported_windows("26100", "1");
+        conflicting[0] = entry("OSName", "Ubuntu 24.04");
+        assert!(
+            installation_identity(&conflicting)
+                .and_then(|identity| crate::guest_compatibility::require_supported(&identity))
+                .is_err()
+        );
     }
 
     #[test]

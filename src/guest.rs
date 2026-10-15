@@ -58,6 +58,7 @@ struct BridgeRequest<'a> {
     artifacts: Vec<Artifact>,
     diagnostics: bool,
     verification: Option<String>,
+    windows_11_builds: &'static [u32],
 }
 
 #[derive(Serialize, Deserialize)]
@@ -141,6 +142,7 @@ fn bridge(
             let install = runner::install_directory()?;
             let artifacts = ["hyper-gpu-guest.exe", "d3d11-probe.exe"]
                 .into_iter()
+                .filter(|_| mode != "compatibility")
                 .map(|name| {
                     Ok(Artifact {
                         name: name.into(),
@@ -183,6 +185,7 @@ fn bridge(
                             digest
                         }
                     })
+                    .or_else(|| (mode == "compatibility").then(String::new))
                     .ok_or("current manifest required for guest operation")?,
                 vendor: gpu.map_or(0, |g| g.vendor),
                 device: gpu.map_or(0, |g| g.device),
@@ -201,6 +204,7 @@ fn bridge(
                 } else {
                     None
                 },
+                windows_11_builds: crate::guest_compatibility::WINDOWS_11_BUILDS,
             };
             let bytes =
                 zeroize::Zeroizing::new(serde_json::to_vec(&request).map_err(|e| e.to_string())?);
@@ -221,32 +225,46 @@ fn bridge(
                 "-Command",
                 &script,
             ]);
-            let result = process::bounded_process_with_monitor(
-                command,
-                Duration::from_secs(3600),
-                1024 * 1024,
-                &bytes,
-                monitor.clone(),
-                &mut || {
-                    if let Some(p) = monitor.take_progress(Instant::now())? {
-                        progress(crate::workflow::PreparationProgress::Copying {
-                            bytes: p.bytes,
-                            total: p.total,
-                            files: p.files,
-                            count: p.count,
-                        })?;
-                        if p.done {
-                            progress(crate::workflow::PreparationProgress::CopyComplete)?;
+            let result = if mode == "compatibility" {
+                process::bounded_process_with_limit(
+                    command,
+                    Duration::from_secs(210),
+                    16384,
+                    &bytes,
+                )
+            } else {
+                process::bounded_process_with_monitor(
+                    command,
+                    Duration::from_secs(3600),
+                    1024 * 1024,
+                    &bytes,
+                    monitor.clone(),
+                    &mut || {
+                        if let Some(p) = monitor.take_progress(Instant::now())? {
+                            progress(crate::workflow::PreparationProgress::Copying {
+                                bytes: p.bytes,
+                                total: p.total,
+                                files: p.files,
+                                count: p.count,
+                            })?;
+                            if p.done {
+                                progress(crate::workflow::PreparationProgress::CopyComplete)?;
+                            }
                         }
-                    }
-                    for phase in monitor.take_phases()? {
-                        progress(phase)?;
-                    }
-                    Ok(())
-                },
-            )
+                        for phase in monitor.take_phases()? {
+                            progress(phase)?;
+                        }
+                        Ok(())
+                    },
+                )
+            }
             .map_err(supervision_failure)?;
             if result.exit_code != Some(0) {
+                if let Ok(reply) = serde_json::from_str::<BridgeResult>(result.stdout.trim())
+                    && let Some(failure) = crate::reporting::ComponentFailure::decode(&reply.output)
+                {
+                    return Err(failure.into_error());
+                }
                 if let Ok(reply) = serde_json::from_str::<BridgeResult>(result.stdout.trim())
                     && let Some(code) = reply.transport_hresult
                 {
@@ -298,18 +316,56 @@ fn bridge(
                 }
                 .into_error());
             }
-            monitor.require_worker_phases().map_err(|_| {
-                crate::reporting::ComponentFailure {
-                    stage: None,
-                    component: crate::reporting::Component::GuestTransport,
-                    cause: crate::reporting::FailureCause::InvalidReply,
-                    code: None,
-                }
-                .into_error()
-            })?;
+            if mode != "compatibility" {
+                monitor.require_worker_phases().map_err(|_| {
+                    crate::reporting::ComponentFailure {
+                        stage: None,
+                        component: crate::reporting::Component::GuestTransport,
+                        cause: crate::reporting::FailureCause::InvalidReply,
+                        code: None,
+                    }
+                    .into_error()
+                })?;
+            }
             Ok(reply.output)
         },
     )
+}
+/// Read OS identity over an authenticated session to an already running VM.
+/// This transport mode returns before guest bootstrap, file transfer or launch.
+pub(crate) fn check_installation_os(t: &Target, credential: &Credential) -> Result<(), String> {
+    let text = bridge(t, credential, "compatibility", None, None, &mut |_| Ok(()))
+        .map_err(|_| crate::guest_compatibility::unknown())?;
+    let identity =
+        serde_json::from_str(&text).map_err(|_| crate::guest_compatibility::unknown())?;
+    crate::guest_compatibility::require_supported(&identity)
+}
+
+fn require_local_installation_os() -> Result<(), String> {
+    let observe = || {
+        let session =
+            crate::windows_wmi::Session::in_namespace(r"ROOT\cimv2", Duration::from_secs(30))?;
+        let os = session.one("SELECT * FROM Win32_OperatingSystem")?;
+        let version = os.string("Version")?;
+        let parts: Vec<_> = version.split('.').collect();
+        let [major, minor, build] = parts.as_slice() else {
+            return Err(crate::guest_compatibility::unknown());
+        };
+        let parse = |value: &str| {
+            value
+                .parse::<u32>()
+                .map_err(|_| crate::guest_compatibility::unknown())
+        };
+        Ok(crate::guest_compatibility::WindowsIdentity {
+            major: parse(major)?,
+            minor: parse(minor)?,
+            build: parse(build)?,
+            workstation: os.number("ProductType")? == 1
+                && crate::windows_hyperv::local_client_installation()?,
+        })
+    };
+    let identity = observe().map_err(|_: String| crate::guest_compatibility::unknown())?;
+    crate::guest_compatibility::require_supported(&identity)
 }
 /// Copy and independently verify the current complete payload.
 pub fn prepare(t: &Target, manifest: &Manifest, credential: &Credential) -> Result<String, String> {
@@ -323,6 +379,8 @@ pub fn prepare_with_progress(
     credential: &Credential,
     progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
 ) -> Result<String, String> {
+    // The prepare bridge rechecks the running OS in its own authenticated
+    // session before bootstrap writes, including for direct callers.
     let text = bridge(t, credential, "prepare", Some(manifest), None, progress)?;
     let receipt: Receipt =
         serde_json::from_str(text.trim()).map_err(|_| "invalid guest preparation receipt")?;
@@ -425,6 +483,9 @@ pub fn worker_with_progress(
     let _deadline = process::WorkerDeadline::start(Duration::from_secs(3500));
     if !process::is_elevated()? {
         return Err("guest worker requires administrator rights".into());
+    }
+    if mode == "prepare" {
+        require_local_installation_os()?;
     }
     let expected = crate::runner::folder(&windows::Win32::UI::Shell::FOLDERID_ProgramFiles)?
         .join("HyperGpuSupport/Guest");

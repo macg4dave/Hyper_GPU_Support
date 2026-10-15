@@ -1740,6 +1740,11 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B
     }
 }
 impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedBackend<'_, B, F> {
+    fn check_installation_os(&mut self, t: &Target) -> Result<(), String> {
+        self.stage("Check guest OS compatibility for installation", |b| {
+            b.check_installation_os(t)
+        })
+    }
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
         self.stage("Read current VM state", |b| b.inspect(t))
     }
