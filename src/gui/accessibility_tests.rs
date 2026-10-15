@@ -40,6 +40,7 @@ fn memory_accessibility_uses_gb_for_values_ranges_and_actions_and_obeys_editing_
     use AccessibleStringProperty::{Description, Value, ValueMaximum, ValueMinimum, ValueStep};
     slint::platform::set_platform(Box::new(Headless)).unwrap();
     let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
     ui.set_selected_id("12345678-1234-1234-1234-123456789abc".into());
     ui.set_memory_available(true);
     ui.set_eligible(true);

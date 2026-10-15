@@ -95,8 +95,13 @@ export component VmDetails inherits Rectangle {
             min-height: 0px;
             horizontal-scrollbar-policy: always-off;
             content-width: self.visible-width;
-            content-height: max(self.visible-height, details-content.preferred-height);
+            // Conditional sections can overflow the layout's reported preferred
+            // height. The trailing marker measures their actual laid-out extent.
+            content-height: max(self.visible-height, content-end.y + content-end.height + 18px);
+            changed content-height => { self.content-y = max(min(0px, self.content-y), self.visible-height - self.content-height); }
+            changed visible-height => { self.content-y = max(min(0px, self.content-y), self.visible-height - self.content-height); }
             details-content := VerticalLayout {
+                x: 0px; y: 0px;
                 spacing: 14px;
                 alignment: start;
                 width: details-scroll.visible-width;
@@ -207,6 +212,7 @@ export component VmDetails inherits Rectangle {
                     Rectangle { horizontal-stretch: 1; }
                 }
                 if root.technical && root.technical-details != "" : TechnicalOutput { enabled: !Theme.modal-active; text: root.technical-details; }
+                content-end := Rectangle { height: 0px; vertical-stretch: 0; }
             }
         }
         HorizontalLayout { spacing: 8px;

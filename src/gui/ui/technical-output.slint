@@ -5,9 +5,11 @@ import { Theme } from "theme.slint";
 // TextEdit's Fluent colours are not publicly configurable. Keep diagnostics
 // neutral with Slint's read-only TextInput and the standard scroll container.
 export component TechnicalOutput inherits Rectangle {
+    accessible-role: groupbox;
+    accessible-label: UiText.dashboard-diagnostics-output-label;
     in property <string> text;
     in property <bool> enabled: true;
-    min-height: 0px;
+    min-height: 160px;
     preferred-height: 160px;
     max-height: 220px;
     background: #ffffff;

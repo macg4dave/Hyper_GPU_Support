@@ -1,0 +1,38 @@
+import { Button, ProgressIndicator, ScrollView } from "std-widgets.slint";
+import { UiText } from "ui-text.slint";
+import { Theme, Heading, Label, Hint } from "theme.slint";
+
+export component StartupSplash inherits Rectangle {
+    in property <string> error;
+    in property <float> progress;
+    callback continue();
+    background: Theme.canvas;
+    VerticalLayout {
+        padding: 32px; spacing: 20px;
+        Heading { text: UiText.common-branding-title; horizontal-alignment: center; }
+        Rectangle { vertical-stretch: 1; }
+        HorizontalLayout {
+            Rectangle { horizontal-stretch: 1; }
+            Rectangle {
+                width: 140px; height: 140px; border-radius: 28px;
+                background: Theme.tint; border-color: Theme.line; border-width: 1px;
+                Text { text: UiText.common-branding-monogram; color: Theme.text; font-size: 88px; font-weight: 700; }
+            }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        Rectangle { vertical-stretch: 1; }
+        if root.error == "" : VerticalLayout {
+            spacing: 12px;
+            Label { text: UiText.dashboard-startup-loading; horizontal-alignment: center; }
+            // Six actual reads, not elapsed time or a guessed byte percentage.
+            ProgressIndicator { progress: root.progress; }
+        }
+        if root.error != "" : VerticalLayout {
+            spacing: 12px;
+            ScrollView { max-height: 100px; horizontal-scrollbar-policy: always-off;
+                VerticalLayout { Hint { text: root.error; } }
+            }
+            Button { text: UiText.dashboard-startup-continue-label; primary: true; clicked => { root.continue(); } }
+        }
+    }
+}

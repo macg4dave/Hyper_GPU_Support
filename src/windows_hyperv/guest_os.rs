@@ -5,16 +5,63 @@ use windows::{
 };
 
 fn property(document: &XmlDocument, name: &str) -> Option<String> {
-    // CIM class/property identifiers are case-insensitive, including XML
-    // serialised by integration services from different guest implementations.
-    let nodes = document.SelectNodes(&HSTRING::from(format!(
-        "/INSTANCE[translate(@CLASSNAME,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')='msvm_kvpexchangedataitem']/PROPERTY[translate(@NAME,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')='{name}' and @TYPE='string']/VALUE"
-        , name = name.to_ascii_lowercase()
-    ))).ok()?;
-    if nodes.Length().ok()? != 1 {
+    let instance = document.DocumentElement().ok()?;
+    if !instance
+        .GetAttribute(&HSTRING::from("CLASSNAME"))
+        .ok()?
+        .to_string()
+        .eq_ignore_ascii_case("Msvm_KvpExchangeDataItem")
+    {
         return None;
     }
-    Some(nodes.Item(0).ok()?.InnerText().ok()?.to_string())
+    let properties = instance.ChildNodes().ok()?;
+    let mut found = None;
+    for index in 0..properties.Length().ok()? {
+        let node = properties.Item(index).ok()?;
+        if !node
+            .NodeName()
+            .ok()?
+            .to_string()
+            .eq_ignore_ascii_case("PROPERTY")
+        {
+            continue;
+        }
+        let attributes = node.Attributes().ok()?;
+        let key = attributes
+            .GetNamedItem(&HSTRING::from("NAME"))
+            .ok()?
+            .InnerText()
+            .ok()?
+            .to_string();
+        if !key.eq_ignore_ascii_case(name) {
+            continue;
+        }
+        let kind = attributes
+            .GetNamedItem(&HSTRING::from("TYPE"))
+            .ok()?
+            .InnerText()
+            .ok()?
+            .to_string();
+        if !kind.eq_ignore_ascii_case("string") {
+            return None;
+        }
+        let children = node.ChildNodes().ok()?;
+        for child in 0..children.Length().ok()? {
+            let value = children.Item(child).ok()?;
+            if value
+                .NodeName()
+                .ok()?
+                .to_string()
+                .eq_ignore_ascii_case("VALUE")
+            {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(value.InnerText().ok()?.to_string());
+            }
+        }
+    }
+    found
 }
 
 /// Intrinsic KVP entries are CIM XML. Missing or ambiguous OSName stays unknown.
@@ -96,5 +143,17 @@ mod tests {
             assert_eq!(name(&items).as_deref(), Some("Ubuntu 24.04"));
         }
         assert!(name(&[os, entry("OSName", "Windows")]).is_none());
+        let serialised = entry("OSName", "Microsoft Windows 11 Pro")
+            .replace("TYPE=\"string\"", "TYPE=\"STRING\"")
+            .replace("<PROPERTY", "\n<PROPERTY");
+        assert_eq!(
+            name(&[serialised]).as_deref(),
+            Some("Microsoft Windows 11 Pro")
+        );
+        let duplicate = entry("OSName", "Linux").replace(
+            "</INSTANCE>",
+            "<PROPERTY NAME=\"Data\" TYPE=\"string\"><VALUE>Windows</VALUE></PROPERTY></INSTANCE>",
+        );
+        assert!(name(&[duplicate]).is_none());
     }
 }

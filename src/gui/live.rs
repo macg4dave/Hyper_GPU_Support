@@ -204,7 +204,8 @@ fn background_for_vm<T: Send + 'static>(
         return Err("Another GUI operation is still running.".into());
     }
     ui.set_updating(true);
-    let silent = operation.kind.silent();
+    let silent =
+        operation.kind.silent() || (ui.get_startup_loading() && operation.kind == Kind::Read);
     let preparing = operation.kind.review_preparation();
     ui.set_review_preparing(preparing);
     if !silent {
@@ -277,6 +278,17 @@ fn background_for_vm<T: Send + 'static>(
         return Err(format!("Cannot start backend task: {error}"));
     }
     Ok(())
+}
+
+/// Finish presentation only; failure leaves the splash available for continuation.
+pub(super) fn finish_startup(ui: &AppWindow, result: Result<(), String>) {
+    match result {
+        Ok(()) => ui.set_startup_loading(false),
+        Err(error) => {
+            ui.set_startup_error(error.into());
+            ui.set_dialog_kind("".into());
+        }
+    }
 }
 
 fn refresh(
@@ -371,6 +383,8 @@ fn refresh_with_result(
     };
     let state = state.clone();
     let source = source.clone();
+    let startup = ui.get_startup_loading();
+    let startup_ui = ui.as_weak();
     background_refresh(
         ui,
         busy,
@@ -392,19 +406,39 @@ fn refresh_with_result(
             } else {
                 source.discover()?
             };
+            let mut completed = 0;
+            let mut advance = || {
+                completed += 1;
+                if startup {
+                    let progress = completed as f32 / 6.0;
+                    let _ = startup_ui
+                        .upgrade_in_event_loop(move |ui| ui.set_startup_progress(progress));
+                }
+            };
+            advance();
+            let committed = source.committed();
+            advance();
+            let recovery = source.recovery()?;
+            advance();
+            let import_recovery = source.import_recovery()?;
+            advance();
+            let enrollment_recovery = source.enrollment_recovery()?;
+            advance();
+            let worker_available = protected_worker_available();
+            advance();
             Ok((
                 inventory,
                 warning,
-                source.committed(),
-                source.recovery()?,
-                source.import_recovery()?,
-                source.enrollment_recovery()?,
-                protected_worker_available(),
+                committed,
+                recovery,
+                import_recovery,
+                enrollment_recovery,
+                worker_available,
             ))
         },
         move |ui, result| {
             let result_notice = notice;
-            with_state(ui, &state, |state| {
+            let published = with_state(ui, &state, |state| {
                 match result {
                     Ok((
                         inventory,
@@ -588,6 +622,16 @@ fn refresh_with_result(
                     }
                 }
             });
+            if startup {
+                finish_startup(
+                    ui,
+                    if published {
+                        Ok(())
+                    } else {
+                        Err(ui.get_dialog_body().to_string())
+                    },
+                );
+            }
         },
     )
 }
@@ -2091,7 +2135,11 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         }
         slint::CloseRequestResponse::HideWindow
     });
-    refresh(&ui, &state, &busy, &source, false)?;
+    // Show the splash before scheduling discovery; all provider/file work stays off-thread.
+    ui.show()?;
+    if let Err(error) = refresh(&ui, &state, &busy, &source, false) {
+        finish_startup(&ui, Err(error));
+    }
     // Only the installed read path polls. First-install elevation remains explicit.
     let status_timer = slint::Timer::default();
     {
@@ -2102,6 +2150,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             std::time::Duration::from_secs(15),
             move || {
                 if let Some(ui) = weak.upgrade()
+                    && !ui.get_startup_loading()
                     && !busy.load(Ordering::Acquire)
                     && ui.get_dialog_kind().is_empty()
                     && let Err(error) = refresh(&ui, &state, &busy, &source, true)

@@ -55,9 +55,11 @@ Focused tests live inline with their owning module. [Shared doubles/fixtures](..
 
 ## State separation
 
-VM OS icons use optional host KVP `OSName` metadata, never the VM's display name or guest access. CIM identifiers are matched without case sensitivity; malformed unrelated entries do not suppress a valid OS entry. Missing, conflicting or unrecognised OS metadata uses the generic icon. Inventory refresh updates the existing row model, including OS changes and loss of detection.
+Startup displays the application name, a temporary monogram icon and the shared progress indicator while six background inventory/configuration reads complete. Progress counts completed reads, not estimated time. Success opens the dashboard; failure retains its error on the splash with a dashboard continuation and the normal Refresh retry. No artificial delay is used.
 
-The dashboard's outer viewport owns horizontal scrolling only; the VM list and details own vertical scrolling within the available height. The details content height follows expanded allocation and diagnostics, with actions kept outside that viewport. Operation dialogs share theme-specific neutral surfaces so standard Fluent control fills and states remain distinct. These source contracts do not establish installed visual or live VM acceptance.
+VM OS icons use optional host KVP `OSName` metadata, never the VM's display name or guest access. Direct XML element reads avoid XPath/type-spelling dependencies; CIM class/property identifiers are matched without case sensitivity; malformed unrelated entries do not suppress a valid OS entry. Missing, conflicting or unrecognised OS metadata uses the generic icon. Inventory refresh updates the existing row model, including OS changes and loss of detection. A single image binding selects bundled Windows, Tux or computer SVG assets; a neutral light plate keeps their colours visible in both themes.
+
+The dashboard's outer viewport owns horizontal scrolling only; the VM list and details own vertical scrolling within the available height. The details scroll extent follows a trailing layout marker rather than relying on the preferred-height report of conditional nested layouts, including expanded allocation, wrapped text and diagnostics. Diagnostics reserve a usable text viewport, scroll offsets clamp after resize/collapse, and actions stay outside the scroll viewport. Operation dialogs share theme-specific neutral surfaces so standard Fluent control fills and states remain distinct. These source contracts do not establish installed visual or live VM acceptance.
 
 | State | Meaning | Does not establish |
 |---|---|---|
