@@ -1524,7 +1524,7 @@ fn reconcile_live(
                     );
                     ui.set_dialog_kind("recovery-blocked".into());
                     ui.set_dialog_body(format!(
-                        "{}\nReview partial removal here. For an interrupted enable on a stopped VM, Remove partial GPU setup can restore its recorded starting host configuration. If that review cannot establish safe removal, recovery stays blocked and its explanation names the unavailable facts.",
+                        "{}\nReview partial removal here. For an interrupted first setup or partial enable, Remove partial GPU setup can restore its recorded starting host configuration. If that review cannot establish safe removal, recovery stays blocked and its explanation names the unavailable facts.",
                         hyper_gpu_support::reporting::operator_error(hyper_gpu_support::ui_text::operations::recovery::FAILURE_STAGE, &error),
                     ).into());
                 }
@@ -1592,17 +1592,27 @@ fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
     state.reset_review = None;
     let (revision, approved) = partial_removal_candidate(&state)?;
     let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
+    let host_action = if approved.observed.gpus.is_empty() {
+        "Keep this VM unattached and confirm its recorded starting host settings. No attachment removal is required."
+    } else {
+        "Remove the partial attachment and its allocations. Restore the compatibility settings recorded before the interrupted change."
+    };
     let body = format!(
-        "Virtual machine: {}\n\nRemove the partial {} attachment and its allocations. Restore the compatibility settings recorded before the interrupted change. The VM stays off; no guest connection or driver installation is performed.\n\nKeep the saved settings, guest files and archived failure evidence. Invalidate old setup eligibility so a later setup performs fresh checks. After removal, review the next step here. A fresh enrollment may require deleting the inactive app profile first; deletion has its own review and confirmation.\n\nStarting compatibility settings to restore: low MMIO {} MB, high MMIO {} MB, cache types {}, automatic checkpoints {}. This does not complete the interrupted allocation or save its requested settings.",
+        "Virtual machine: {}\nVM GUID: {}\nGPU: {}\nGPU interface: {}\n\n{host_action} A running VM will be gracefully shut down with your separate consent and left off. No guest sign-in or driver installation is performed.\n\nKeep the saved settings, guest files and archived failure evidence. Invalidate old setup eligibility so a later setup performs fresh checks. After removal, review the next step here. A fresh enrollment may require deleting the inactive app profile first; deletion has its own review and confirmation.\n\nStarting compatibility settings to restore: low MMIO {} MB, high MMIO {} MB, cache types {}, automatic checkpoints {}. This does not complete the interrupted allocation or save its requested settings.",
         approved.observed.name,
+        record.target.vm_id,
         approved.gpu.name,
+        record.target.gpu_interface,
         record.initial.settings.low_mmio,
         record.initial.settings.high_mmio,
         record.initial.settings.cache_types,
         record.initial.settings.automatic_checkpoints
     );
+    ui.set_needs_shutdown(approved.observed.power == hyper_gpu_support::model::Power::Running);
+    ui.set_power_consent(
+        "I approve graceful shutdown of this recovery VM and leaving it off.".into(),
+    );
     state.reset_review = Some((revision, approved));
-    ui.set_needs_shutdown(false);
     dialog(
         ui,
         "reset-review",
@@ -1630,6 +1640,7 @@ fn reset_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
         }
         (record.operation_id.clone(), revision, approved)
     };
+    let shutdown_approved = approved.observed.power == hyper_gpu_support::model::Power::Running;
     let name = approved.observed.name.clone();
     let progress = progress_to_ui(ui.as_weak());
     let finished = state.clone();
@@ -1643,7 +1654,15 @@ fn reset_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
         ),
         Some(&name),
         false,
-        move || hyper_gpu_support::worker::reset_partial(operation, revision, approved, progress),
+        move || {
+            hyper_gpu_support::worker::reset_partial(
+                operation,
+                revision,
+                approved,
+                shutdown_approved,
+                progress,
+            )
+        },
         move |ui, result, readback| {
             if !with_completion_state(ui, &finished, &result, |state| {
                 let status = state.finish_readback(readback);

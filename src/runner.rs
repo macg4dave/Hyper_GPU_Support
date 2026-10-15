@@ -109,7 +109,7 @@ pub struct Request {
     /// Ephemeral guest credential, obtained by the unprivileged client.
     pub credential: Option<Credential>,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Enrollment {
     schema: u32,
@@ -125,6 +125,7 @@ fn enrollment_revision(value: &Enrollment) -> Result<crate::configuration_store:
 }
 
 mod profile_removal;
+mod reinstall;
 pub(crate) use profile_removal::forget_pair;
 pub use profile_removal::review_removal;
 
@@ -488,6 +489,15 @@ fn validate_enrollment(configuration: &Configuration, discovery: &Discovery) -> 
     }
     Ok(())
 }
+/// Capture protected, VM/stage-bound terminal provider evidence for administrator review.
+pub fn review_native(job: &str) -> Result<serde_json::Value, String> {
+    crate::windows_wmi::recovery::review(job)
+}
+/// Approve only the previously captured provider retirement; workflow holds remain.
+pub fn reconcile_native(token: &crate::configuration_store::Revision) -> Result<(), String> {
+    crate::windows_wmi::recovery::reconcile(token)
+}
+
 /// Administrator-only native installation/enrollment of selected existing VMs.
 #[allow(unsafe_code)]
 pub fn install(configuration: &Configuration) -> Result<(), String> {
@@ -536,24 +546,15 @@ fn install_inner(
     let install = install_directory()?;
     let data = data_directory()?;
     for p in [&install, &data] {
-        if bootstrap.is_some() {
-            // An existing ancestor may belong to a concurrently installed product.
-            // Verify it without changing owner/operator ACLs before admission.
-            match fs::symlink_metadata(p) {
-                Ok(_) => crate::security::verify(p)?,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    crate::security::create_directory(p, &client)?
-                }
-                Err(e) => return Err(e.to_string()),
+        // An existing ancestor may belong to a concurrently installed product.
+        // Verify it without changing owner/operator ACLs before admission.
+        match fs::symlink_metadata(p) {
+            Ok(_) => crate::security::verify(p)?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                crate::security::create_directory(p, &client)?
             }
-            continue;
+            Err(e) => return Err(e.to_string()),
         }
-        if p.exists() {
-            crate::security::verify(p)?;
-        } else {
-            fs::create_dir(p).map_err(|e| e.to_string())?;
-        }
-        protect(p, &client)?;
     }
     let source = std::env::current_exe()
         .map_err(|e| e.to_string())?
@@ -562,8 +563,9 @@ fn install_inner(
         .to_path_buf();
     // First-install setup must not disable/update an existing task before its
     // no-replacement check. Hold admission across the scheduler and publication.
-    let bootstrap_lock = if bootstrap.is_some() {
-        let lock = operation_lock()?;
+    let install_lock = operation_lock()?;
+    let prior = reinstall::admit(configuration, &client, bootstrap.is_some())?;
+    if bootstrap.is_some() {
         match fs::symlink_metadata(data.join("enrollment.json")) {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e.to_string()),
@@ -603,10 +605,10 @@ fn install_inner(
                 );
             }
         }
-        Some(lock)
-    } else {
-        None
-    };
+    }
+    if bootstrap.is_none() {
+        reinstall::begin(prior.as_ref(), configuration, &client, &source)?;
+    }
     // Disable admission before publishing any installation changes. Existing work
     // is allowed to finish; installation never kills a guest operation.
     let (_apartment, service) = scheduler()?;
@@ -625,10 +627,7 @@ fn install_inner(
         Err(error) if error.code().0 == 0x80070002_u32 as i32 => {}
         Err(error) => return Err(error.to_string()),
     }
-    let _lock = match bootstrap_lock {
-        Some(lock) => lock,
-        None => operation_lock()?,
-    };
+    let _lock = install_lock;
     if let Some((expected, session)) = bootstrap {
         // Repeat the absence check under common admission, before publication.
         // Even a concurrent CLI installation cannot be replaced from one GUI pair.
@@ -688,11 +687,6 @@ fn install_inner(
                 artifacts: artifacts.clone(),
             },
         )?;
-    } else {
-        atomic_json(
-            &data.join("installation-pending.json"),
-            &serde_json::json!({"schema": 1}),
-        )?;
     }
     crate::configuration_store::protected::install(&client)?;
     let mut artifacts = std::collections::BTreeMap::new();
@@ -736,10 +730,16 @@ fn install_inner(
     let enrollment = Enrollment {
         schema: 2,
         client_sid: client.clone(),
-        targets: configuration.targets.clone(),
+        targets: prior
+            .as_ref()
+            .map_or_else(|| configuration.targets.clone(), |p| p.targets.clone()),
         artifacts,
     };
-    atomic_json(&data.join("enrollment.json"), &enrollment)?;
+    if bootstrap.is_none() {
+        reinstall::publish(&enrollment)?;
+    } else {
+        atomic_json(&data.join("enrollment.json"), &enrollment)?;
+    }
     protect(&data.join("enrollment.json"), &client)?;
     register_product_task(&service, &client)?;
     if let Some((expected, session)) = bootstrap {
@@ -754,6 +754,8 @@ fn install_inner(
             &data.join("audit").join(format!("setup-{session}.json")),
             &serde_json::json!({"schema":1,"operation":"FirstInstall","session":session,"operator_sid":client,"targets":configuration.targets,"artifacts":expected,"outcome":"Succeeded"}),
         )?;
+    } else {
+        reinstall::finish(&client)?;
     }
     fs::remove_file(data.join("installation-pending.json")).map_err(|e| e.to_string())?;
     Ok(())

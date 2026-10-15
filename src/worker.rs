@@ -60,6 +60,7 @@ enum Command {
         operation_id: String,
         record_revision: Revision,
         approved: workflow::ResetReview,
+        shutdown_approved: bool,
     },
     ForgetPair {
         approved: crate::enrollment::RemovalReview,
@@ -422,6 +423,7 @@ pub fn reset_partial(
     operation_id: String,
     record_revision: Revision,
     approved: workflow::ResetReview,
+    shutdown_approved: bool,
     progress: impl FnMut(Progress),
 ) -> Result<Outcome, String> {
     submit(
@@ -429,6 +431,7 @@ pub fn reset_partial(
             operation_id,
             record_revision,
             approved,
+            shutdown_approved,
         },
         None,
         progress,
@@ -635,8 +638,9 @@ fn execute(
             operation_id,
             record_revision,
             approved,
+            shutdown_approved,
         } => {
-            serde_json::json!({"original_operation_id":operation_id,"record_revision":record_revision,"review":approved})
+            serde_json::json!({"original_operation_id":operation_id,"record_revision":record_revision,"review":approved,"shutdown_approved":shutdown_approved})
         }
         Command::ForgetPair { approved } => {
             serde_json::to_value(approved).map_err(|e| e.to_string())?
@@ -686,6 +690,7 @@ fn execute(
             operation_id,
             record_revision,
             approved,
+            shutdown_approved,
         } => {
             if request.credential.is_some() {
                 return Err("Partial GPU removal does not accept credentials".into());
@@ -706,6 +711,11 @@ fn execute(
             crate::windows_wmi::reconcile_pending_operation()?;
             let revision = configuration_store::protected::revision(&record.target.vm_id)?;
             approved.validate(&record, &revision)?;
+            if approved.observed.power == Power::Running && !shutdown_approved {
+                return Err(
+                    "Separately approve graceful shutdown for this recovery disposition".into(),
+                );
+            }
             if record.reset.is_none() {
                 let mut fresh = NativeBackend {
                     credential: None,
@@ -762,6 +772,7 @@ fn execute(
                 },
                 &record,
                 &revision,
+                shutdown_approved,
             )?;
             if configuration_store::protected::revision(&record.target.vm_id)? != revision
                 || serde_json::to_value(runner::recovery_record()?).map_err(|e| e.to_string())?

@@ -66,6 +66,8 @@ pub enum FailureCause {
     Unclassified,
     /// Windows returned a failing HRESULT.
     NativeCall,
+    /// A native invocation lacks independently established terminal completion.
+    NativeRecoveryRequired,
     /// The provider returned a nonzero method/job result.
     ProviderRejected,
     /// A bounded guest process exited unsuccessfully or had no terminal exit.
@@ -298,6 +300,9 @@ pub fn operator_error(stage: &str, error: &str) -> String {
     }
     if let Some(failure) = ComponentFailure::decode(error) {
         let description = match (failure.component, failure.cause) {
+            (Component::HyperV, FailureCause::NativeRecoveryRequired) => Some(
+                "Native completion is unresolved. An administrator must correlate a terminal Hyper-V job with the exact VM and stage, run native-review --job LOCAL_JOB_REFERENCE, inspect its before/after facts, then approve native-reconcile --review TOKEN. If completion evidence is unavailable, preserve provider-operation.json, workflow recovery and Hyper-V event logs for administrator/provider support. Do not delete the marker or replay Apply.",
+            ),
             (Component::GuestTransport, FailureCause::InvalidReply) => Some(
                 "The guest check returned incomplete or invalid progress records. Its outcome is unknown; inspect recovery before another check.",
             ),

@@ -93,7 +93,7 @@ export component OperationDialog inherits Rectangle {
                         VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
                             width: body-scroll.visible-width;
                             Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
-                            if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : Hint {
+                            if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery" || root.kind == "reset-review") && root.needs-shutdown : Hint {
                                 text: root.power-consent; font-size: 14px;
                                 width: max(0px, body-scroll.visible-width - 8px);
                             }
@@ -144,7 +144,7 @@ export component OperationDialog inherits Rectangle {
                         vertical-stretch: 1;
                         text: root.details;
                     }
-                    if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery") && root.needs-shutdown : CheckBox {
+                    if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery" || root.kind == "reset-review") && root.needs-shutdown : CheckBox {
                         text: UiText.dialogs-power-consent-label;
                         accessible-label: root.power-consent;
                         enabled: !root.running;
@@ -170,7 +170,7 @@ export component OperationDialog inherits Rectangle {
                         if root.kind == "save" : Button { text: UiText.operations-save-only-progress-title; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
                         if root.kind == "recovery" : Button { text: UiText.operations-recovery-progress-title; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
                         if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { text: UiText.dialogs-partial-removal-review-label; enabled: root.execution-ready && !root.updating && root.reset-allowed; clicked => { root.action("review-reset"); } }
-                        if root.kind == "reset-review" : Button { text: UiText.dialogs-partial-removal-confirm-label; primary: true; enabled: root.execution-ready && !root.updating; clicked => { root.action("confirm-reset"); } }
+                        if root.kind == "reset-review" : Button { text: UiText.dialogs-partial-removal-confirm-label; primary: true; enabled: root.execution-ready && !root.updating && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-reset"); } }
                         if root.kind == "recovery-needed" : Button { text: UiText.dialogs-recovery-review-label; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
                     }
                     if root.kind == "recovery" || root.kind == "recovery-blocked" : Hint {

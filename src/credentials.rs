@@ -137,7 +137,11 @@ pub fn store(vm: &str, credential: &Credential) -> Result<(), String> {
 pub fn forget(vm: &str) -> Result<(), String> {
     let key = key(vm)?;
     // SAFETY: terminated target, fixed generic credential type.
-    unsafe { CredDeleteW(PCWSTR(key.as_ptr()), CRED_TYPE_GENERIC, None) }.map_err(|e| e.to_string())
+    match unsafe { CredDeleteW(PCWSTR(key.as_ptr()), CRED_TYPE_GENERIC, None) } {
+        Ok(()) => Ok(()),
+        Err(e) if e.code() == windows::Win32::Foundation::ERROR_NOT_FOUND.to_hresult() => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 fn prompt_wide(text: &str) -> Vec<u16> {
@@ -160,8 +164,46 @@ pub fn prompt_named(
     prompt_if_needed(
         read(vm),
         || explain_guest_sign_in(vm, name, parent),
-        || prompt_native(vm, name, parent),
+        || prompt_native(vm, name, parent, false),
     )
+}
+
+/// Manage the selected VM's opt-in vault entry without connecting to the guest.
+/// Cancel leaves the old entry intact; replacement always opens fresh input.
+#[allow(unsafe_code)]
+pub fn manage_named(
+    vm: &str,
+    name: &str,
+    parent: windows::Win32::Foundation::HWND,
+) -> Result<bool, String> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        IDCANCEL, IDNO, IDYES, MB_ICONQUESTION, MB_YESNOCANCEL, MessageBoxW,
+    };
+    key(vm)?;
+    // Surface vault failure before offering a mutation. Do not prefill passwords.
+    drop(read(vm)?);
+    let name: String = name.chars().filter(|c| !c.is_control()).take(256).collect();
+    let message = prompt_wide(&format!(
+        "Guest credentials for {name}\nVM: {vm}\n\nYes: enter replacement credentials for the guest Windows account, not the host account. Remember must be checked to save the replacement; leaving it unchecked removes the previous saved entry after successful input.\nNo: forget this VM's saved credentials.\nCancel: retain the existing entry.\n\nNo guest connection or VM changes will be performed."
+    ));
+    let caption = prompt_wide("Manage guest credentials");
+    // SAFETY: bounded, terminated strings and an optional native owner.
+    match unsafe {
+        MessageBoxW(
+            Some(parent),
+            PCWSTR(message.as_ptr()),
+            PCWSTR(caption.as_ptr()),
+            MB_YESNOCANCEL | MB_ICONQUESTION,
+        )
+    } {
+        IDYES => {
+            drop(prompt_native(vm, &name, parent, true)?);
+        }
+        IDNO => forget(vm)?,
+        IDCANCEL => return Err(PROMPT_CANCELLED.into()),
+        _ => return Err("Guest credential settings could not be opened.".into()),
+    }
+    Ok(read(vm)?.is_some())
 }
 
 #[allow(unsafe_code)]
@@ -207,6 +249,7 @@ fn prompt_native(
     vm: &str,
     name: &str,
     parent: windows::Win32::Foundation::HWND,
+    replacing: bool,
 ) -> Result<Credential, String> {
     let caption = prompt_wide(crate::ui_text::credentials::native::caption().as_str());
     let message = prompt_wide(guest_prompt_message(vm, name).as_str());
@@ -252,20 +295,36 @@ fn prompt_native(
         username: String::from_utf16(&username[..user_end]).map_err(|_| "invalid username")?,
         password: String::from_utf16(&password[..password_end]).map_err(|_| "invalid password")?,
     };
-    retain_if_requested(credential, remember.as_bool(), |credential| {
-        store(vm, credential)
-    })
+    finish_input(
+        Ok((credential, remember.as_bool())),
+        replacing,
+        |credential| store(vm, credential),
+        || forget(vm),
+    )
 }
 
+fn finish_input<T>(
+    input: Result<(T, bool), String>,
+    replacing: bool,
+    store: impl FnOnce(&T) -> Result<(), String>,
+    forget: impl FnOnce() -> Result<(), String>,
+) -> Result<T, String> {
+    let (credential, remember) = input?;
+    if remember {
+        store(&credential)?;
+    } else if replacing {
+        forget()?;
+    }
+    Ok(credential)
+}
+
+#[cfg(test)]
 fn retain_if_requested(
     credential: Credential,
     remember: bool,
     store: impl FnOnce(&Credential) -> Result<(), String>,
 ) -> Result<Credential, String> {
-    if remember {
-        store(&credential)?;
-    }
-    Ok(credential)
+    finish_input(Ok((credential, remember)), false, store, || Ok(()))
 }
 
 fn guest_prompt_message(_vm: &str, name: &str) -> crate::ui_text::UiMessage {
@@ -276,6 +335,59 @@ fn guest_prompt_message(_vm: &str, name: &str) -> crate::ui_text::UiMessage {
 #[cfg(test)]
 mod prompt_tests {
     use super::*;
+
+    #[test]
+    fn settings_input_replaces_or_forgets_only_after_successful_input() {
+        for remember in [false, true] {
+            let events = std::cell::RefCell::new(Vec::new());
+            finish_input(
+                Ok(("replacement", remember)),
+                true,
+                |value| {
+                    assert_eq!(*value, "replacement");
+                    events.borrow_mut().push("replace");
+                    Ok(())
+                },
+                || {
+                    events.borrow_mut().push("forget");
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                *events.borrow(),
+                [if remember { "replace" } else { "forget" }]
+            );
+        }
+        for error in [PROMPT_CANCELLED, "Vault unavailable"] {
+            assert_eq!(
+                finish_input::<()>(
+                    Err(error.into()),
+                    true,
+                    |_| panic!("Cancelled input must retain entry"),
+                    || panic!("Cancelled input must retain entry")
+                )
+                .unwrap_err(),
+                error
+            );
+        }
+        for remember in [false, true] {
+            let result = finish_input(
+                Ok(((), remember)),
+                true,
+                |_| Err("Vault write failed".into()),
+                || Err("Vault delete failed".into()),
+            );
+            assert_eq!(
+                result.unwrap_err(),
+                if remember {
+                    "Vault write failed"
+                } else {
+                    "Vault delete failed"
+                }
+            );
+        }
+    }
 
     #[test]
     fn native_name_bound_and_control_filter_precede_catalogue_insertion() {

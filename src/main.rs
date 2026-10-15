@@ -2,7 +2,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 mod gui;
 use std::process::ExitCode;
-const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  import          Import intent into absent per-VM configuration files\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n  save-only       Retry configuration publication for a recorded operation\n  reconcile       Check a recorded operation without replaying Apply\n  import-reconcile Resume an interrupted configuration import\n\nOptions:\n  --config FILE   Runtime TOML schema 2 or 3 (required for target commands and import)\n  --vm GUID       Select one target from the configuration\n  --operation ID  Recorded operation for save-only/reconcile/import-reconcile\n  --approve-shutdown Approve reviewed power changes for apply/enable/disable/verify/reconcile\n  --help          Show this help\n  --version       Show version\n\nRecovery usage: COMMAND --operation ID [--approve-shutdown for reconcile]\n\nGUI: hyper-gpu-support (live inventory; unconnected actions unavailable)\nResource values are raw provider units, without proven enforcement guarantees.\n";
+const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  import          Import intent into absent per-VM configuration files\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n  save-only       Retry configuration publication for a recorded operation\n  reconcile       Check a recorded operation without replaying Apply\n  import-reconcile Resume an interrupted configuration import\n  native-review   Review exact native terminal job evidence (administrator)\n  native-reconcile Approve reviewed native admission retirement (administrator)\n\nOptions:\n  --config FILE   Runtime TOML schema 2 or 3 (required for target commands and import)\n  --vm GUID       Select one target from the configuration\n  --operation ID  Recorded operation for save-only/reconcile/import-reconcile\n  --approve-shutdown Approve reviewed power changes for apply/enable/disable/verify/reconcile\n  --job REFERENCE Local terminal Hyper-V job for native-review\n  --review TOKEN  SHA256 token returned by native-review for native-reconcile\n  --help          Show this help\n  --version       Show version\n\nRecovery usage: COMMAND --operation ID [--approve-shutdown for reconcile]\n\nGUI: hyper-gpu-support (live inventory; unconnected actions unavailable)\nResource values are raw provider units, without proven enforcement guarantees.\n";
 fn main() -> ExitCode {
     #[cfg(windows)]
     {
@@ -83,6 +83,39 @@ fn execute(args: &[String]) -> Result<(), String> {
         runner::{self, Operation},
     };
     let command = args.first().ok_or("command required")?;
+    if command == "native-review" {
+        let [_, flag, job] = args else {
+            return Err("Use native-review --job LOCAL_JOB_REFERENCE".into());
+        };
+        if flag != "--job" {
+            return Err("Use native-review --job LOCAL_JOB_REFERENCE".into());
+        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&runner::review_native(job)?).map_err(|e| e.to_string())?
+        );
+        return Ok(());
+    }
+    if command == "native-reconcile" {
+        let [_, flag, token] = args else {
+            return Err("Use native-reconcile --review SHA256_TOKEN".into());
+        };
+        if flag != "--review"
+            || token.len() != 64
+            || !token
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        {
+            return Err("Use native-reconcile --review SHA256_TOKEN".into());
+        }
+        runner::reconcile_native(&hyper_gpu_support::configuration_store::Revision::Content(
+            token.clone(),
+        ))?;
+        println!(
+            "Provider admission retired; review the separate workflow recovery before further changes."
+        );
+        return Ok(());
+    }
     if ["save-only", "reconcile", "import-reconcile"].contains(&command.as_str()) {
         let (operation_id, shutdown) = match args {
             [_, option, id] if option == "--operation" => (id.clone(), false),

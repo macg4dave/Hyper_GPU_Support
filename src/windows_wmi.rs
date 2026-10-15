@@ -19,6 +19,7 @@ use windows::{
     core::{BSTR, PCWSTR},
 };
 
+pub(crate) mod recovery;
 type Result<T> = std::result::Result<T, String>;
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -27,6 +28,12 @@ struct PendingOperation {
     method: String,
     target: String,
     job: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scope: Option<recovery::Scope>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    jobs_before: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    failure: Option<crate::reporting::ComponentFailure>,
 }
 fn operation_path() -> Result<std::path::PathBuf> {
     Ok(crate::runner::data_directory()?.join("provider-operation.json"))
@@ -38,7 +45,7 @@ fn clear_operation() -> Result<()> {
 }
 pub(crate) fn require_no_pending_operation() -> Result<()> {
     match std::fs::symlink_metadata(operation_path()?) {
-        Ok(_) => Err("unfinished native operation requires explicit manual reconciliation".into()),
+        Ok(_) => Err(recovery_handoff()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.to_string()),
     }
@@ -57,18 +64,29 @@ pub(crate) fn reconcile_pending_operation() -> Result<()> {
     let pending: PendingOperation =
         serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
             .map_err(|_| "invalid pending provider operation")?;
-    if pending.schema != 1 {
+    if !matches!(pending.schema, 1 | 2) {
         return Err("unsupported pending provider operation".into());
     }
-    let job = pending.job_path()?;
+    let job = pending.job_path().map_err(|_| recovery_handoff())?;
     let s = Session::new(Duration::from_secs(30))?;
     let job = s
         .get(local_job_path(job)?)
-        .map_err(|e| format!("previous Hyper-V job cannot be reconciled: {e}"))?;
+        .map_err(|_| recovery_handoff())?;
     let state = job.number("JobState")?;
     require_terminal_operation(state)?;
+    recovery::validate_recorded(&pending, &s)?;
     clear_operation()
 }
+fn recovery_handoff() -> String {
+    crate::reporting::ComponentFailure {
+        stage: Some(crate::reporting::FailureStage::RecoveryPersistence),
+        component: crate::reporting::Component::HyperV,
+        cause: crate::reporting::FailureCause::NativeRecoveryRequired,
+        code: None,
+    }
+    .into_error()
+}
+
 impl PendingOperation {
     fn job_path(&self) -> Result<&str> {
         local_job_path(self.job.as_deref().ok_or("previous Hyper-V call has an unknown outcome; administrator reconciliation is required before another mutation")?)
@@ -367,10 +385,15 @@ impl Session {
         one(self.query(query)?)
     }
     pub(crate) fn get(&self, path: &str) -> Result<Object> {
+        self.get_optional(path)?
+            .ok_or_else(|| "missing WMI object".into())
+    }
+    /// Only provider WBEM_E_NOT_FOUND means absence; transport/access failures remain errors.
+    pub(crate) fn get_optional(&self, path: &str) -> Result<Option<Object>> {
         self.check_deadline()?;
         let mut object = None;
-        // SAFETY: writable interface output, live services; returned object owns ref.
-        unsafe {
+        // SAFETY: writable interface output, live secured services; output owns its reference.
+        match unsafe {
             self.services.GetObject(
                 &BSTR::from(path),
                 WBEM_GENERIC_FLAG_TYPE(0),
@@ -378,9 +401,11 @@ impl Session {
                 Some(&mut object),
                 None,
             )
+        } {
+            Ok(()) => Ok(Some(Object(object.ok_or("missing WMI object output")?))),
+            Err(e) if e.code().0 == 0x80041002u32 as i32 => Ok(None),
+            Err(e) => Err(win(e)),
         }
-        .map_err(win)?;
-        Ok(Object(object.ok_or("missing WMI object")?))
     }
     pub(crate) fn related(&self, object: &Object, class: &str) -> Result<Vec<Object>> {
         self.query(&format!(
@@ -393,6 +418,7 @@ impl Session {
         target: &Object,
         method: &str,
         values: Vec<(&str, OwnedVariant)>,
+        scope: recovery::Scope,
     ) -> Result<Object> {
         // Arguments own their native allocations before even entering this call.
         self.check_deadline()?;
@@ -424,14 +450,24 @@ impl Session {
         }
         let mut output = None;
         let mut pending = PendingOperation {
-            schema: 1,
+            schema: 2,
             method: method.into(),
             target: target.path()?,
             job: None,
+            scope: Some(scope),
+            jobs_before: recovery::job_paths(self)?,
+            failure: None,
         };
+        if serde_json::to_vec(&pending)
+            .map_err(|e| e.to_string())?
+            .len()
+            > 65536
+        {
+            return Err("Native invocation binding exceeds input limit".into());
+        }
         crate::runner::atomic_json(&operation_path()?, &pending)?;
         // SAFETY: secured services, live input, initialized output; fixed target method.
-        unsafe {
+        let invoked = unsafe {
             self.services.ExecMethod(
                 &BSTR::from(pending.target.as_str()),
                 &BSTR::from(method),
@@ -441,8 +477,13 @@ impl Session {
                 Some(&mut output),
                 None,
             )
+        };
+        if let Err(error) = invoked {
+            let error = win(error);
+            pending.failure = crate::reporting::ComponentFailure::decode(&error);
+            crate::runner::atomic_json(&operation_path()?, &pending)?;
+            return Err(format!("{method}: invoke method: {error}"));
         }
-        .map_err(|e| format!("{method}: invoke method: {}", win(e)))?;
         let output = Object(output.ok_or("missing WMI method output")?);
         let code = output.number("ReturnValue")?;
         if code == 4096 {
@@ -479,7 +520,13 @@ impl Session {
         }
         Ok(output)
     }
-    pub(crate) fn modify(&self, service: &Object, object: &Object, system: bool) -> Result<()> {
+    pub(crate) fn modify(
+        &self,
+        service: &Object,
+        object: &Object,
+        system: bool,
+        scope: recovery::Scope,
+    ) -> Result<()> {
         let xml = object.xml()?;
         let args = if system {
             vec![("SystemSettings", VARIANT::from(BSTR::from(xml)).into())]
@@ -494,6 +541,7 @@ impl Session {
                 "ModifyResourceSettings"
             },
             args,
+            scope,
         )?;
         Ok(())
     }
@@ -522,7 +570,7 @@ fn local_job_path(path: &str) -> Result<&str> {
         return Err("invalid Hyper-V job reference".into());
     }
     let key = &relative[prefix.len()..];
-    if key.len() < 3
+    if !(3..=256).contains(&key.len())
         || !key.starts_with('"')
         || !key.ends_with('"')
         || !key[1..key.len() - 1]
@@ -555,6 +603,9 @@ mod tests {
             method: "AddResourceSettings".into(),
             target: "fixed-vm".into(),
             job: None,
+            scope: None,
+            jobs_before: vec![],
+            failure: None,
         };
         assert!(operation.job_path().is_err());
         operation.job = Some("other.InstanceID=\"123\"".into());

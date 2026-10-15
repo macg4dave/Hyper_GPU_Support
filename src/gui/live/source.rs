@@ -172,14 +172,11 @@ fn plan(_: Target, _: bool, _: bool) -> Result<Plan, String> {
 
 #[cfg(windows)]
 fn credential_dialog(id: &str, name: &str) -> Result<bool, String> {
-    hyper_gpu_support::credentials::prompt_named(
+    hyper_gpu_support::credentials::manage_named(
         id,
         name,
         windows::Win32::Foundation::HWND::default(),
-    )?;
-    // This settings action has no guest operation to consume ephemeral input.
-    // Apply/Verify prompt separately; confirm actual opt-in vault storage here.
-    Ok(hyper_gpu_support::credentials::read(id)?.is_some())
+    )
 }
 #[cfg(not(windows))]
 fn credential_dialog(_: &str, _: &str) -> Result<bool, String> {

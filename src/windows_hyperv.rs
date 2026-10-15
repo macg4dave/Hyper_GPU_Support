@@ -3,7 +3,11 @@ use crate::{
     model::*,
     payload::physical_device_id,
     windows_com::{Apartment, connect, query, quoted},
-    windows_wmi::{Object, Session, one, string_array},
+    windows_wmi::{
+        Object, Session, one,
+        recovery::{Effect, Scope},
+        string_array,
+    },
 };
 use std::time::{Duration, Instant};
 use windows::{Win32::System::Variant::VARIANT, core::BSTR};
@@ -305,6 +309,7 @@ pub fn assign(t: &Target, enabled: bool) -> Result<(), String> {
                 ),
                 ("ResourceSettings", string_array(&[template.xml()?])?),
             ],
+            Scope::new(t, Effect::Assignment(true))?,
         )?;
     } else if !enabled && !adapters.is_empty() {
         let adapter = one(adapters)?;
@@ -324,6 +329,7 @@ pub fn assign(t: &Target, enabled: bool) -> Result<(), String> {
             &service,
             "RemoveResourceSettings",
             vec![("ResourceSettings", string_array(&[adapter.path()?])?)],
+            Scope::new(t, Effect::Assignment(false))?,
         )?;
     }
     let expected = if enabled {
@@ -355,7 +361,12 @@ pub fn configure(t: &Target, value: &Settings) -> Result<(), String> {
         "AutomaticSnapshotsEnabled",
         VARIANT::from(value.automatic_checkpoints),
     )?;
-    s.modify(&service, &cfg, true)?;
+    s.modify(
+        &service,
+        &cfg,
+        true,
+        Scope::new(t, Effect::Settings(value.clone()))?,
+    )?;
     if inspect(&t.vm_id)?.settings != *value {
         return Err("VM settings readback failed".into());
     }
@@ -395,6 +406,7 @@ pub fn allocation(t: &Target, resource: Resource, value: &Allocation) -> Result<
         &s.one("SELECT * FROM Msvm_VirtualSystemManagementService")?,
         &adapter,
         false,
+        Scope::new(t, Effect::Allocation(resource, value.clone()))?,
     )?;
     if inspect(&t.vm_id)?.allocation(resource) != Some(value) {
         return Err(format!("{name} allocation readback failed"));
@@ -423,6 +435,7 @@ pub fn power(t: &Target, desired: Power) -> Result<(), String> {
             &vm,
             "RequestStateChange",
             vec![("RequestedState", VARIANT::from(2i32).into())],
+            Scope::new(t, Effect::Power(desired.clone()))?,
         )?;
     } else {
         let shutdown = one(s.related(&vm, "Msvm_ShutdownComponent")?)?;
@@ -436,6 +449,7 @@ pub fn power(t: &Target, desired: Power) -> Result<(), String> {
                     VARIANT::from(BSTR::from("Hyper GPU Support configuration")).into(),
                 ),
             ],
+            Scope::new(t, Effect::Power(desired.clone()))?,
         )?;
     }
     let deadline = Instant::now() + TIMEOUT;
