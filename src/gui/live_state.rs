@@ -700,7 +700,7 @@ impl State {
         Ok(target)
     }
 
-    /// Profile deletion changes app records only; host support must already be inactive.
+    /// Profile deletion changes app records only, including when GPU support remains active.
     pub fn forget_target(&self) -> Result<Target, String> {
         let id = self.view.selected.as_deref().ok_or("Select a VM first.")?;
         if self.view.draft.is_some() || self.view.unsaved || self.view.needs_readback {
@@ -729,8 +729,7 @@ impl State {
         let vm = self.view.vm(id).ok_or("VM unavailable; Refresh first.")?;
         if inventory.recorded_state(id).recovery_required || !inventory.managed.contains_key(id) {
             return Err(
-                "Complete GPU removal and Refresh its managed history before Delete profile."
-                    .into(),
+                "Resolve recovery and Refresh managed history before Delete profile.".into(),
             );
         }
         target.enabled = false;
@@ -1247,16 +1246,16 @@ mod tests {
     }
 
     #[test]
-    fn selected_actions_distinguish_active_support_from_inactive_profile_removal() {
+    fn selected_actions_allow_profile_deletion_with_attached_support_when_off() {
         let mut s = action_state();
         let values = allocation_values(&s.target(id(&s)).unwrap());
         for power in [Power::Off, Power::Running] {
-            s.view.inventory.as_mut().unwrap().discovery.vms[0].power = power;
+            s.view.inventory.as_mut().unwrap().discovery.vms[0].power = power.clone();
             let actions = s.selected_actions(0, &values);
             assert!(actions.verify_allowed);
             assert!(actions.repair_allowed);
             assert!(actions.remove_allowed);
-            assert!(actions.forget.contains("Remove GPU support"));
+            assert_eq!(actions.forget_allowed, power == Power::Off);
             assert!(!actions.recovery);
         }
         s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Off;
@@ -2892,6 +2891,8 @@ mod tests {
             .managed
             .insert(vm_id.clone(), None);
         let target = s.forget_target().unwrap();
+        s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus =
+            vec![target.gpu_interface.clone()];
         let review = RemovalReview {
             pair: PairReview {
                 vm_id: vm_id.clone(),
@@ -3024,11 +3025,13 @@ mod tests {
         let (mut s, selected, _) = profiles_for_deletion();
         s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus =
             vec![selected.gpu_interface.clone()];
-        s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Running;
+        s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Off;
         let vm_before = s.view.vm(&selected.vm_id).unwrap().clone();
-        let reason = s.forget_target().unwrap_err();
-        assert!(reason.contains("app records only"));
-        assert!(reason.contains("cannot remove GPU support or change VM power"));
+        let target = s.forget_target().unwrap();
+        assert_eq!(target.vm_id, selected.vm_id);
+        assert_eq!(target.gpu_interface, selected.gpu_interface);
+        assert!(!target.enabled);
+        assert!(s.reviewed_forget().is_err());
         assert_eq!(
             serde_json::to_value(s.view.vm(&selected.vm_id).unwrap()).unwrap(),
             serde_json::to_value(&vm_before).unwrap()
@@ -3040,11 +3043,10 @@ mod tests {
     }
 
     #[test]
-    fn forget_pairing_refuses_active_unknown_recovery_or_absent_authority() {
+    fn forget_pairing_refuses_unstable_power_unknown_recovery_or_absent_authority() {
         for scenario in 0..6 {
             let mut s = state();
             let vm_id = id(&s).to_owned();
-            let gpu = s.target(&vm_id).unwrap().gpu_interface;
             s.view
                 .inventory
                 .as_mut()
@@ -3052,7 +3054,9 @@ mod tests {
                 .managed
                 .insert(vm_id.clone(), None);
             match scenario {
-                0 => s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus = vec![gpu],
+                0 => {
+                    s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Other(32769)
+                }
                 1 => s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Running,
                 2 => s.recovery = Some(save_record(&s)),
                 3 => {

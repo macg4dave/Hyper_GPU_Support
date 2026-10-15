@@ -10,11 +10,12 @@ component ActionChoice inherits Rectangle {
     in property <bool> allowed;
     in property <bool> ready;
     in property <bool> updating;
+    in property <bool> show-reason: true;
     callback activate();
     VerticalLayout {
         spacing: 4px;
         Button { text: root.label; enabled: root.allowed && root.ready && !root.updating; clicked => { root.activate(); } }
-        Hint { min-width: 0px; text: root.updating ? UiText.dialogs-availability-updating : !root.allowed ? root.reason : !root.ready ? UiText.dialogs-availability-setup-required : UiText.dialogs-availability-review-hint; }
+        if root.show-reason && (root.updating || !root.allowed || !root.ready) : Hint { min-width: 0px; text: root.updating ? UiText.dialogs-availability-updating : !root.allowed ? root.reason : UiText.dialogs-availability-setup-required; }
     }
 }
 
@@ -92,7 +93,8 @@ export component OperationDialog inherits Rectangle {
                         content-width: self.visible-width;
                         VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
                             width: body-scroll.visible-width;
-                            Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
+                            if root.kind == "more" : Label { text: root.body; font-size: 18px; font-weight: 600; width: max(0px, body-scroll.visible-width - 8px); wrap: word-wrap; overflow: clip; }
+                            if root.kind != "more" : Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
                             if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery" || root.kind == "reset-review") && root.needs-shutdown : Hint {
                                 text: root.power-consent; font-size: 14px;
                                 width: max(0px, body-scroll.visible-width - 8px);
@@ -102,7 +104,7 @@ export component OperationDialog inherits Rectangle {
                                 ActionChoice { label: UiText.operations-verify-title; reason: root.verify-unavailable; allowed: root.verify-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
                                 ActionChoice { label: UiText.dialogs-repair-label; reason: root.repair-unavailable; allowed: root.repair-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
                                 ActionChoice { label: UiText.dialogs-removal-label; reason: root.remove-unavailable; allowed: root.remove-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
-                                ActionChoice { label: UiText.dialogs-profile-deletion-label; reason: root.forget-unavailable; allowed: root.forget-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
+                                ActionChoice { label: UiText.dialogs-profile-deletion-label; show-reason: false; allowed: root.forget-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
                             }
                         }
                     }
@@ -151,8 +153,16 @@ export component OperationDialog inherits Rectangle {
                         checked <=> root.consent;
                     }
                     if root.kind == "review" && !root.execution-ready : Hint { text: UiText.dialogs-apply-unavailable-hint; color: Theme.accent; }
+                    if root.kind == "more" : FlexboxLayout {
+                        spacing: 8px;
+                        vertical-stretch: 0;
+                        if root.action-recovery : Button { text: UiText.dialogs-recovery-review-label; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
+                        if root.dirty && !root.action-recovery : Button { text: UiText.dialogs-apply-review-label; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
+                        if root.dirty : Button { text: UiText.dialogs-draft-discard-label; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
+                    }
                     FlexboxLayout {
                         spacing: 8px;
+                        alignment: root.kind == "more" ? end : stretch;
                         vertical-stretch: 0;
                         dismiss-button := Button {
                             text: root.review-preparing ? UiText.dialogs-cancel-label : root.running ? UiText.dialogs-busy-label : root.kind == "switch" ? UiText.dialogs-switch-stay-label : root.kind == "exit" || root.kind == "enroll-review" ? UiText.dialogs-draft-keep-label : root.kind == "review" || root.kind == "verify-review" || root.kind == "forget-review" ? UiText.dialogs-cancel-label : UiText.dialogs-close-label;
@@ -203,14 +213,6 @@ export component OperationDialog inherits Rectangle {
                         text: root.dirty ? UiText.dialogs-profile-deletion-discard-review-label : UiText.dialogs-profile-deletion-review-label;
                         enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-allowed);
                         clicked => { root.action(root.dirty ? "discard-review-forget" : "forget"); }
-                    }
-                    if root.kind == "more" : FlexboxLayout {
-                        spacing: 8px;
-                        vertical-stretch: 0;
-                        if root.action-recovery : Button { text: UiText.dialogs-recovery-review-label; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
-                        if root.dirty && !root.action-recovery : Button { text: UiText.dialogs-apply-review-label; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
-                        if root.dirty : Button { text: UiText.dialogs-draft-discard-label; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
-                        Button { text: UiText.dialogs-inventory-refresh-label; enabled: !root.running && !root.updating; clicked => { root.action("refresh"); } }
                     }
                     if root.details != "" && root.details != root.body : HorizontalLayout {
                         vertical-stretch: 0;

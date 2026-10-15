@@ -114,7 +114,7 @@ impl RemovalBackend for Fake {
 }
 
 #[test]
-fn inactive_admission_refuses_attachment_power_ownership_saved_intent_and_recovery() {
+fn profile_admission_allows_active_support_but_preserves_power_identity_and_recovery_checks() {
     use crate::{
         model::{Power, Settings, VmState},
         workflow::Journal,
@@ -156,16 +156,33 @@ fn inactive_admission_refuses_attachment_power_ownership_saved_intent_and_recove
     };
     assert!(validate_inactive_profile(&target, &vm, Some(&journal), Some(&target)).is_ok());
     assert!(validate_inactive_profile(&target, &vm, None, None).is_ok());
-    for change in 0..6 {
+    let mut active_vm = vm.clone();
+    active_vm.gpus.push(target.gpu_interface.clone());
+    let mut active_history = journal.clone();
+    active_history.settings_released = false;
+    let mut active_saved = target.clone();
+    active_saved.enabled = true;
+    assert!(
+        validate_inactive_profile(
+            &target,
+            &active_vm,
+            Some(&active_history),
+            Some(&active_saved)
+        )
+        .is_ok()
+    );
+    for change in 0..8 {
         let mut current = vm.clone();
         let mut history = journal.clone();
         let mut saved = target.clone();
         match change {
             0 => current.power = Power::Running,
-            1 => current.gpus.push(target.gpu_interface.clone()),
+            1 => current.power = Power::Other(32769),
             2 => history.pending = true,
-            3 => history.settings_released = false,
-            4 => saved.enabled = true,
+            3 => history.gpu_interface.push_str("changed"),
+            4 => saved.gpu_interface.push_str("changed"),
+            5 => history.schema = 2,
+            6 => history.vm_id = OTHER.into(),
             _ => current.vm_id = OTHER.into(),
         }
         assert!(

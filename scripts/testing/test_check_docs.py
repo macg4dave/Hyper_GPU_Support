@@ -133,10 +133,14 @@ class PlanChecks(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("same unique task IDs", output)
 
-    def test_empty_active_plan_fails(self):
+    def test_empty_plan_requires_explicit_status(self):
         result, output = self.check_plan({}, roadmap="No tasks")
         self.assertEqual(result, 1)
-        self.assertIn("same unique task IDs", output)
+        self.assertIn("Empty backlog must explicitly state", output)
+
+    def test_explicitly_empty_backlog_is_valid(self):
+        result, output = self.check_plan({}, extra="\nNo open tasks.\n")
+        self.assertEqual(result, 0, output)
 
 
 if __name__ == "__main__":

@@ -126,7 +126,7 @@ pub struct RemovalReview {
     pub journals: std::collections::BTreeMap<String, Revision>,
 }
 
-/// Inactive profile admission requires no guest health, but preserves unresolved host ownership.
+/// Record-only deletion permits active support but retains identity, power and recovery checks.
 pub fn validate_inactive_profile(
     target: &Target,
     vm: &crate::model::VmState,
@@ -137,23 +137,17 @@ pub fn validate_inactive_profile(
     if vm.vm_id != target.vm_id
         || vm.generation != 2
         || vm.power != crate::model::Power::Off
-        || !vm.gpus.is_empty()
-        || saved.is_some_and(|s| {
-            s.vm_id != target.vm_id || s.enabled || s.gpu_interface != target.gpu_interface
-        })
+        || saved.is_some_and(|s| s.vm_id != target.vm_id || s.gpu_interface != target.gpu_interface)
     {
-        return Err(
-            "Remove GPU support first and leave this exact VM off before Forget pairing.".into(),
-        );
+        return Err("Leave this exact VM off before deleting its app profile.".into());
     }
     if journal.is_some_and(|j| {
         j.schema != 1
             || j.pending
-            || !j.settings_released
             || j.vm_id != target.vm_id
             || j.gpu_interface != target.gpu_interface
     }) {
-        return Err("Complete reviewed GPU removal and recovery before forgetting history.".into());
+        return Err("Resolve managed recovery before deleting profile history.".into());
     }
     Ok(())
 }

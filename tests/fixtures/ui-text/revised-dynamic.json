@@ -1,0 +1,4 @@
+{
+  "operations.action.review_prompt": "Virtual machine: {vm_name}",
+  "operations.profile_deletion.review.body": "Virtual machine: {vm_name}\nVM ID: {vm_id}\nGPU: {gpu_interface}\n\nDelete only this VM's app profile: its saved GPU settings, authorized VM/GPU pairing and managed setup/verification history. Keep all other app profiles, the Hyper-V VM, disks, checkpoints, guest driver files and shared application artifacts.\n\nThis action does not remove GPU support, change VM power, uninstall drivers or request guest credentials. The VM must be off; GPU support may remain attached.\n\nDelete profile confirms this review; Windows requests approval to remove the protected app records. Cancel keeps all records. The VM stays discoverable and a new reviewed setup is required to enable GPU support through this app again."
+}

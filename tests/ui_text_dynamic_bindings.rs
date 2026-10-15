@@ -5,6 +5,8 @@ use hyper_gpu_support::ui_text;
 fn migrated_dynamic_bindings_preserve_historical_outputs() {
     let outputs: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/ui-text/outputs.json")).unwrap();
+    let revisions: std::collections::BTreeMap<String, String> =
+        serde_json::from_str(include_str!("fixtures/ui-text/revised-dynamic.json")).unwrap();
     let mut exercised = std::collections::BTreeSet::new();
     for case in outputs["cases"].as_array().unwrap() {
         let key = case["key"].as_str().unwrap_or("");
@@ -84,12 +86,22 @@ fn migrated_dynamic_bindings_preserve_historical_outputs() {
             }
             _ => continue,
         };
-        assert_eq!(
-            actual.as_str(),
-            case["expected"].as_str().unwrap(),
-            "{}",
-            case["id"]
+        let expected = revisions.get(key).map_or_else(
+            || case["expected"].as_str().unwrap().to_owned(),
+            |template| {
+                ::ui_text::template::parse(template)
+                    .unwrap()
+                    .into_iter()
+                    .map(|segment| match segment {
+                        ::ui_text::template::Segment::Literal(text) => text,
+                        ::ui_text::template::Segment::Parameter(name) => {
+                            inputs[&name].as_str().unwrap().to_owned()
+                        }
+                    })
+                    .collect::<String>()
+            },
         );
+        assert_eq!(actual.as_str(), expected, "{}", case["id"]);
         exercised.insert(key);
     }
     assert_eq!(exercised.len(), 18);

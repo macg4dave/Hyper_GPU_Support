@@ -47,12 +47,13 @@ def main():
     cards = re.findall(r"^### ((?:QA|LANG)-\d{3})\b", backlog, re.M)
     registered = re.findall(r"^\| ((?:QA|LANG)-\d{3}) \|", backlog, re.M)
     if (
-        not cards
-        or len(cards) != len(set(cards))
+        len(cards) != len(set(cards))
         or len(registered) != len(set(registered))
         or set(cards) != set(registered)
     ):
         errors.append("Backlog cards and register must contain the same unique task IDs")
+    if not cards and not registered and "No open tasks." not in backlog:
+        errors.append("Empty backlog must explicitly state No open tasks.")
     # Validate task families registered in the active plan; other IDs are historical.
     families = {task.split("-", 1)[0] for task in cards + registered}
     for name in ("roadmap.md", "backlog.md"):
@@ -64,7 +65,7 @@ def main():
     )
     columns = [column.strip() for column in header.split("|")]
     dependency_column = columns.index("Dependencies") if "Dependencies" in columns else None
-    if dependency_column is None:
+    if (cards or registered) and dependency_column is None:
         errors.append("Backlog register must declare a Dependencies column")
     graph = {}
     for row in re.findall(r"^\| (?:QA|LANG)-\d{3} \|.*$", backlog, re.M):

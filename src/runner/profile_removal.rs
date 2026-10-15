@@ -1,4 +1,4 @@
-//! Exact inactive profile removal through existing enrollment hold and protected store.
+//! Exact record-only profile removal through existing enrollment hold and protected store.
 use super::*;
 use crate::{
     configuration_store::{self, Revision},
@@ -104,7 +104,7 @@ fn records(target: &Target) -> Result<RemovalSnapshot, String> {
     })
 }
 
-/// Preview exact inactive pairing/profile records without elevation or writes.
+/// Preview exact pairing/profile records without elevation or writes.
 pub fn review_removal(target: &Target) -> Result<RemovalReview, String> {
     let value = submit(request(Operation::RemovalPlan, Some(target.clone()), None))?;
     serde_json::from_value(value).map_err(|e| format!("Invalid removal review reply: {e}"))
