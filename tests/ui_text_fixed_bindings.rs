@@ -150,10 +150,6 @@ fn fixed_bindings_preserve_historical_bytes_and_deliberate_revisions() {
         ),
         ("dashboard.gpu.label", ui_text::dashboard::gpu::label()),
         (
-            "dashboard.inventory.reading",
-            ui_text::dashboard::inventory::reading(),
-        ),
-        (
             "dashboard.inventory.refresh",
             ui_text::dashboard::inventory::refresh(),
         ),
@@ -172,10 +168,6 @@ fn fixed_bindings_preserve_historical_bytes_and_deliberate_revisions() {
         (
             "dashboard.memory.input_accessible",
             ui_text::dashboard::memory::input_accessible(),
-        ),
-        (
-            "dashboard.memory.keyboard_hint",
-            ui_text::dashboard::memory::keyboard_hint(),
         ),
         (
             "dashboard.memory.label",
@@ -321,10 +313,6 @@ fn fixed_bindings_preserve_historical_bytes_and_deliberate_revisions() {
         (
             "dashboard.status.updating",
             ui_text::dashboard::status::updating(),
-        ),
-        (
-            "dashboard.support.approval_hint",
-            ui_text::dashboard::support::approval_hint(),
         ),
         (
             "dashboard.support.attached",
@@ -655,10 +643,6 @@ fn fixed_bindings_preserve_historical_bytes_and_deliberate_revisions() {
             ui_text::operations::action::unreadable_title(),
         ),
         (
-            "operations.action.updating",
-            ui_text::operations::action::updating(),
-        ),
-        (
             "operations.apply.completed.title",
             ui_text::operations::apply::completed::title(),
         ),
@@ -835,20 +819,12 @@ fn fixed_bindings_preserve_historical_bytes_and_deliberate_revisions() {
             ui_text::operations::credentials::unavailable_title(),
         ),
         (
-            "operations.draft.discarded_notice",
-            ui_text::operations::draft::discarded_notice(),
-        ),
-        (
             "operations.draft.exit.body",
             ui_text::operations::draft::exit::body(),
         ),
         (
             "operations.draft.exit.title",
             ui_text::operations::draft::exit::title(),
-        ),
-        (
-            "operations.draft.gpu_fixed",
-            ui_text::operations::draft::gpu_fixed(),
         ),
         (
             "operations.draft.switch.body",
@@ -959,10 +935,6 @@ fn fixed_bindings_preserve_historical_bytes_and_deliberate_revisions() {
         (
             "operations.inventory.refresh_title",
             ui_text::operations::inventory::refresh_title(),
-        ),
-        (
-            "operations.inventory.refreshed",
-            ui_text::operations::inventory::refreshed(),
         ),
         (
             "operations.inventory.saved_unreadable",

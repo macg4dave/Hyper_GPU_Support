@@ -64,4 +64,4 @@ One improvement, missing action or confusing point:
 
 ---
 
-**For the AI:** Preserve this original report. Create or link separate `qa/cases/BUG-####-*.md` records for actionable defects. Do not mark a test passed solely because its source code or an automated test says it should work.
+**For the AI:** Treat this as a temporary user-owned input; leave it unchanged unless asked and respect deletion when the user is finished. Investigate actionable defects and summarise fixes/checks in chat. Create separate cases, reports or index entries only if explicitly requested. Do not mark a test passed solely because its source code or an automated test says it should work.

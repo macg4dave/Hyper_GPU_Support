@@ -44,4 +44,4 @@
 
 ---
 
-**For the AI:** Leave the original in `qa/inbox/` unchanged. Create/link a separate case using `qa/templates/CASE_CARD.md`, determine severity from evidence, investigate the real cause, and return short GUI-only user retest steps. Do not fabricate results or request secrets.
+**For the AI:** Treat this as a temporary user-owned input. Leave it unchanged unless asked; respect deletion when the user is finished. Investigate the real cause and return fix/check results and short GUI-only retest steps in chat. Do not create reports, separate cases or index entries unless explicitly requested. Do not fabricate results or request secrets.

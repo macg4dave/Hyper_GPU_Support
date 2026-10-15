@@ -4,7 +4,7 @@ Track remaining qualification work against the [roadmap](roadmap.md).
 
 ## Next action
 
-Prepare candidate-specific GUI qualification with explicit target/effect authorisation, local guest credentials, an evidence location and stop conditions. The [BUG-0002 recovery-preparation follow-up](../qa/inbox/2026-10-14-independent-recovery-progress-feedback.md#source-follow-up-15-october-2026) is source-complete with static checks; run its compilation/regressions and the non-hardware gate at the agreed checkpoint before installed retesting.
+Prepare candidate-specific GUI qualification with explicit target/effect authorisation, local guest credentials, an evidence location and stop conditions. The [BUG-0002 recovery-preparation follow-up](../qa/INDEX.md#intake-notes) is compiled and regression-tested; the 15 October non-hardware gate and protected installation passed. Candidate-specific installed retesting remains pending.
 
 ## Qualification tasks
 
@@ -52,7 +52,12 @@ XML parser test also passed without a provider connection. Copy scan, formatting
 checks passed. Source
 layout consistency was reviewed together; rendered resizing, keyboard/paste interaction,
 OS detection on actual guests and installed GUI/VM/GPU acceptance remain untested.
-The full non-hardware milestone gate was not run; QA-009/QA-010 remain open.
-
-Documentation check: failed on two existing links to the missing independent recovery
-QA report in this working tree. Those unrelated report changes/deletions were preserved.
+Build/install checkpoint, 15 October 2026: the full non-hardware gate passed (347 product
+tests, 12 catalogue tests, copy/docs/format checks, strict Clippy, binary builds and API
+documentation). Corrected stale fixed-accessor assertions and recorded three deliberate
+dashboard wording revisions in the test fixture; repaired two links without recreating
+the removed report. Protected installation verified all four artifact hashes/pins,
+preserved both enrolled targets and saved/configuration/managed/recovery state, and left
+the runner enabled and Ready. Evidence: `local/evidence/m1-gate-20261015T025600563Z/`
+and `local/evidence/install-20261015T025622Z/`. No live GUI/VM/GPU retest ran;
+QA-009/QA-010 remain open.

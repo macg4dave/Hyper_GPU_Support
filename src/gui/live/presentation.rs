@@ -45,6 +45,14 @@ fn guest_os_icon(name: Option<&str>) -> &'static str {
             "almalinux",
             "suse",
             "opensuse",
+            "arch",
+            "manjaro",
+            "red hat",
+            "rhel",
+            "kali",
+            "gentoo",
+            "alpine",
+            "nixos",
         ]
         .iter()
         .any(|d| name == *d || name.starts_with(&format!("{d} ")))
@@ -545,11 +553,62 @@ mod tests {
             "Red Hat Enterprise Linux",
             "Fedora Linux 43",
             "SUSE Linux Enterprise Server",
+            "Alpine v3.22",
+            "Arch",
         ] {
             assert_eq!(guest_os_icon(Some(name)), "linux");
         }
-        for name in [None, Some(""), Some("FreeBSD"), Some("my Windows VM")] {
+        for name in [
+            None,
+            Some(""),
+            Some("FreeBSD"),
+            Some("Oracle Solaris 11"),
+            Some("my Windows VM"),
+        ] {
             assert_eq!(guest_os_icon(name), "unknown");
+        }
+    }
+
+    #[test]
+    fn refresh_updates_os_icons_in_the_existing_model_and_removes_stale_detection() {
+        let vm = VmState {
+            vm_id: "12345678-1234-1234-1234-123456789abc".into(),
+            name: "Unchanged VM".into(),
+            power: Power::Off,
+            generation: 2,
+            gpus: vec![],
+            vram: None,
+            compute: None,
+            encode: None,
+            decode: None,
+            settings: Settings {
+                low_mmio: 0,
+                high_mmio: 0,
+                cache_types: false,
+                automatic_checkpoints: true,
+            },
+        };
+        let mut discovery = Discovery {
+            guest_os: Default::default(),
+            issues: vec![],
+            vms: vec![vm.clone()],
+            gpus: vec![],
+        };
+        let mut rows = model(vec![vm_row(&vm, &discovery)]);
+        let original = rows.clone();
+        for (name, expected) in [
+            (Some("Microsoft Windows 11 Pro"), "windows"),
+            (Some("Ubuntu 24.04"), "linux"),
+            (Some("FreeBSD"), "unknown"),
+            (None, "unknown"),
+        ] {
+            discovery.guest_os.clear();
+            if let Some(name) = name {
+                discovery.guest_os.insert(vm.vm_id.clone(), name.into());
+            }
+            rows = update_model(rows, vec![vm_row(&vm, &discovery)]);
+            assert_eq!(original.row_data(0).unwrap().os, expected);
+            assert_eq!(rows.row_data(0).unwrap().id, vm.vm_id);
         }
     }
 

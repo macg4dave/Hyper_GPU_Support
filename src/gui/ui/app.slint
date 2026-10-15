@@ -128,10 +128,14 @@ export component AppWindow inherits Window {
             Rectangle { width: 1px; background: Theme.line; }
             VerticalLayout {
                 spacing: 0px;
-                if root.page == 0 : ScrollView {
+                if root.page == 0 : dashboard-scroll := ScrollView {
                     vertical-scrollbar-policy: always-off;
+                    // This viewport scrolls horizontally only. Vertical scrolling
+                    // belongs to the VM list and details, above the fixed footer.
+                    content-height: self.visible-height;
                     content-width: max(self.width - 16px, root.split + 630px);
                     HorizontalLayout {
+                        height: dashboard-scroll.visible-height;
                         spacing: 0px;
                         Rectangle {
                             width: root.split; background: Theme.vm-panel;

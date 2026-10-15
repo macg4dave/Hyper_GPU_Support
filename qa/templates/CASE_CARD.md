@@ -1,6 +1,6 @@
 # BUG-0000 — Short issue title
 
-> AI working record only. Create a new `qa/cases/BUG-0001-short-title.md`; never overwrite an inbox report.
+> Optional AI working record: use only when the user explicitly requests a separate case file. Never overwrite an inbox report or recreate deleted reports; completed reports may be deleted by the user.
 
 **Status:** New  
 **Severity:** Unassessed (P0 / P1 / P2 / P3)  

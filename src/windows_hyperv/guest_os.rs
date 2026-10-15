@@ -5,8 +5,11 @@ use windows::{
 };
 
 fn property(document: &XmlDocument, name: &str) -> Option<String> {
+    // CIM class/property identifiers are case-insensitive, including XML
+    // serialised by integration services from different guest implementations.
     let nodes = document.SelectNodes(&HSTRING::from(format!(
-        "/INSTANCE[@CLASSNAME='Msvm_KvpExchangeDataItem']/PROPERTY[@NAME='{name}' and @TYPE='string']/VALUE"
+        "/INSTANCE[translate(@CLASSNAME,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')='msvm_kvpexchangedataitem']/PROPERTY[translate(@NAME,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')='{name}' and @TYPE='string']/VALUE"
+        , name = name.to_ascii_lowercase()
     ))).ok()?;
     if nodes.Length().ok()? != 1 {
         return None;
@@ -26,10 +29,14 @@ pub(super) fn name(items: &[String]) -> Option<String> {
             return None;
         }
         let document = XmlDocument::new().ok()?;
-        document
+        if document
             .LoadXmlWithSettings(&HSTRING::from(xml), &settings)
-            .ok()?;
-        if property(&document, "Name").as_deref() == Some("OSName") {
+            .is_err()
+        {
+            // One unrelated broken KVP entry must not hide a valid OSName.
+            continue;
+        }
+        if property(&document, "Name").is_some_and(|key| key.eq_ignore_ascii_case("OSName")) {
             let value = property(&document, "Data")?;
             if value.trim().is_empty() || value.len() > 1024 || found.is_some() {
                 return None;
@@ -73,5 +80,21 @@ mod tests {
             )])
             .is_none()
         );
+    }
+
+    #[test]
+    fn independent_kvp_entries_and_cim_identifier_case_do_not_hide_the_os() {
+        let _apartment = crate::windows_com::Apartment::initialize().unwrap();
+        let os = entry("osname", "Ubuntu 24.04")
+            .replace("Msvm_KvpExchangeDataItem", "Msvm_KVPExchangeDataItem")
+            .replace("NAME=\"Data\"", "NAME=\"data\"");
+        for items in [
+            vec!["invalid unrelated entry".into(), os.clone()],
+            vec![os.clone(), "invalid unrelated entry".into()],
+            vec![entry("ComputerName", "Windows VM"), os.clone()],
+        ] {
+            assert_eq!(name(&items).as_deref(), Some("Ubuntu 24.04"));
+        }
+        assert!(name(&[os, entry("OSName", "Windows")]).is_none());
     }
 }

@@ -6,6 +6,8 @@ mod actions;
 mod catalogue_tests;
 mod diagnostics;
 mod host_configuration;
+#[cfg(test)]
+mod layout_tests;
 mod live;
 mod live_state;
 mod memory;

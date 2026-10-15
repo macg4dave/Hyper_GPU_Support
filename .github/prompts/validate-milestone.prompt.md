@@ -6,4 +6,4 @@ For live Slint GUI journeys, load [Slint guidance](slint.prompt.md#control-the-r
 
 Identify the agreed milestone and actual gate. Verify prerequisites/tooling and inspect test effects. Run applicable authorized stages; stop on failure and mark skipped checks unrun. Live trials require a prepared target/effect/evidence/stop-condition sequence and explicit authorization.
 
-Record revision, commands, environment, results, and exclusions. Retain evidence/recovery after uncertain outcomes. Update milestone status only when its criteria pass; a task is not a milestone.
+Summarise revision, commands, environment, results and exclusions in chat; use existing automated/local evidence where needed. Do not create QA reports or update case/index records unless explicitly requested. Retain evidence/recovery after uncertain outcomes. Update milestone status only when its criteria pass; a task is not a milestone.

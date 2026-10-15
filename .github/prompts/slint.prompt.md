@@ -35,4 +35,4 @@ Prefer Slint's embedded MCP interface for this application's GUI journeys. Use i
 
 6. Capture `take_screenshot` before/after significant transitions, inspect the image, and save screenshots plus non-secret JSON observations under `local/evidence/qa/`. Record timings and repeated refresh samples. A Complete stage is not the final outcome; wait for the terminal result and required state readback. Gracefully close the app at the end to stop its inspection listener.
 
-This method exercised the real installed GUI on 13 October 2026. It does not cover native dialogs, every keyboard/accessibility path, or release acceptance automatically. Report the actual coverage and limitations through the QA workflow.
+This method exercised the real installed GUI on 13 October 2026. It does not cover native dialogs, every keyboard/accessibility path, or release acceptance automatically. Summarise actual coverage and limitations in chat. Create QA reports or update case/index records only when explicitly requested; follow the engineering QA-report lifecycle.

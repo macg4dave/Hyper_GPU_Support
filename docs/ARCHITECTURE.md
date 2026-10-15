@@ -55,6 +55,10 @@ Focused tests live inline with their owning module. [Shared doubles/fixtures](..
 
 ## State separation
 
+VM OS icons use optional host KVP `OSName` metadata, never the VM's display name or guest access. CIM identifiers are matched without case sensitivity; malformed unrelated entries do not suppress a valid OS entry. Missing, conflicting or unrecognised OS metadata uses the generic icon. Inventory refresh updates the existing row model, including OS changes and loss of detection.
+
+The dashboard's outer viewport owns horizontal scrolling only; the VM list and details own vertical scrolling within the available height. The details content height follows expanded allocation and diagnostics, with actions kept outside that viewport. Operation dialogs share theme-specific neutral surfaces so standard Fluent control fills and states remain distinct. These source contracts do not establish installed visual or live VM acceptance.
+
 | State | Meaning | Does not establish |
 |---|---|---|
 | Observed inventory | Last read VM/GPU/provider state | Saved intent or verified rendering |

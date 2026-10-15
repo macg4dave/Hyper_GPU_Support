@@ -15,7 +15,7 @@ This folder is the hand-off between **your GUI testing** and **Codex fixing defe
 4. Add a screenshot path if available, but do not include passwords, guest secrets, tokens or private log dumps in tracked reports.
 5. Tell Codex **"Process the QA inbox"**, using [the supplied prompt](prompts/PROCESS_QA_INBOX.md). Creating a file does not itself make Codex execute anything.
 
-If you find several faults in one session, submit a questionnaire and one separate bug report for each fault. An AI can also split a questionnaire into bug cases without requiring you to fill a second form.
+If you find several faults in one session, submit a questionnaire and one separate bug report for each fault. Codex can investigate each symptom directly without requiring separate case files.
 
 ## Folder layout
 
@@ -23,17 +23,17 @@ If you find several faults in one session, submit a questionnaire and one separa
 docs/roadmap.md                 Test stages and acceptance gates
 docs/backlog.md                 Planned test tasks and results
 qa/README.md                    This guide
-qa/INDEX.md                     AI-maintained status overview
+qa/INDEX.md                     Optional status overview, updated only on request
 qa/templates/USER_QUESTIONNAIRE.md  Your test-session report template
 qa/templates/BUG_REPORT_CARD.md    Your quick bug template
-qa/templates/CASE_CARD.md          AI's investigation/fix record
+qa/templates/CASE_CARD.md          Optional investigation template, used only on request
 qa/inbox/                       Your original submissions (unchanged)
-qa/cases/                       AI-managed BUG-0001-*.md files
+qa/cases/                       Optional case files, created only on request
 qa/prompts/PROCESS_QA_INBOX.md  Ready-to-use Codex instruction
 local/evidence/qa/              Local non-secret evidence, ignored by Git
 ```
 
-**Never erase or silently rewrite an original user report.** `qa/INDEX.md` points to stable cases; each case references all relevant source reports and follows the state machine in the roadmap. Codex should fix only user-authorised cases, not unrelated backlog items. It must return GUI retest instructions; user confirmation is required for verification/closure.
+**Reports are temporary inputs.** You may delete them when finished. Codex leaves current submissions unchanged unless asked, respects your deletions and does not recreate or archive removed reports. Processing reports does not require separate cases, index updates or permanent report history; those are optional and need an explicit request. Fix/check results and GUI retest instructions are returned in chat. See the [report lifecycle](../docs/ENGINEERING.md#status-and-evidence). User confirmation is still required for user acceptance.
 
 ### Quick acceptance reply
 

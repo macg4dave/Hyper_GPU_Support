@@ -95,10 +95,12 @@ export component VmDetails inherits Rectangle {
             min-height: 0px;
             horizontal-scrollbar-policy: always-off;
             content-width: self.visible-width;
-            VerticalLayout {
+            content-height: max(self.visible-height, details-content.preferred-height);
+            details-content := VerticalLayout {
                 spacing: 14px;
                 alignment: start;
                 width: details-scroll.visible-width;
+                height: self.preferred-height;
                 padding-bottom: 18px;
                 Surface {
                     VerticalLayout {
