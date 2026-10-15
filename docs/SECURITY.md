@@ -19,7 +19,7 @@ Credentials are obtained locally, retained only through explicit Windows Credent
 
 The shared native prompt path requires acknowledgement of a named-VM explanation before collecting input. Acknowledgement does not authorize remembering; the native Remember checkbox starts unchecked. Cancelling either panel returns before worker submission, so it starts no guest work and does not clear an existing recovery hold. Vault errors remain failures rather than silently falling back to a prompt. Existing explicit opt-in entries may be reused without prompting. Source implementation is complete under APP-005; runtime acceptance remains pending.
 
-Treat adapter error text as untrusted and potentially secret-bearing. Public outcomes use bounded application-owned failure context. Preserve component/stage/numeric-code evidence where safe rather than copy arbitrary stderr into UI/audit output. Diagnostic tracing is opt-in through trusted fixed product paths; local qualification records must exclude secrets.
+Treat adapter error text as untrusted and potentially secret-bearing. Public outcomes use bounded application-owned failure context. Preserve component/stage/numeric-code evidence where safe rather than copy arbitrary stderr into UI/audit output. Diagnostic tracing is opt-in through trusted fixed product paths and runs only in elevated processes; ordinary frontends skip trace-file creation so read-only artifact checks do not require protected write access. Local qualification records must exclude secrets.
 
 ## Operation recovery
 

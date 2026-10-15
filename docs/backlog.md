@@ -1,17 +1,21 @@
-# QA backlog
+# Release backlog
 
 Track remaining qualification work against the [roadmap](roadmap.md).
 
 ## Next action
 
-Prepare candidate-specific GUI qualification with explicit target/effect authorisation, local guest credentials, an evidence location and stop conditions. The [BUG-0002 recovery-preparation follow-up](../qa/INDEX.md#intake-notes) is compiled and regression-tested; the 15 October non-hardware gate and protected installation passed. Candidate-specific installed retesting remains pending.
+Address the P1 recovery and reinstall defects in QA-011 to QA-013 before final candidate qualification. QA-014 covers the existing guest-credential settings gap and needs a fix or an explicit deferral. These are source-review findings from 15 October 2026, not new live-test results. Prepare candidate-specific GUI qualification with explicit target/effect authorisation, local guest credentials, an evidence location and stop conditions; QA-009/QA-010 remain open.
 
-## Qualification tasks
+## Release tasks
 
-| ID | Task | Dependencies | Implementation | Validation |
-|---|---|---|---|---|
-| QA-009 | Candidate regression and automated gate | None | Ready: preparation only; live execution requires authorisation | Candidate-specific live regression pending |
-| QA-010 | Release decision and user acceptance | QA-009 | Blocked: candidate evidence required | Not run |
+| ID | Priority | Task | Dependencies | Implementation | Validation |
+|---|---|---|---|---|---|
+| QA-009 | P1 | Candidate regression and automated gate | None | Ready: preparation only; live execution requires authorisation | Candidate-specific live regression pending |
+| QA-010 | P1 | Release decision and user acceptance | QA-009, QA-011, QA-012, QA-013 | Blocked: candidate evidence and P1 fixes required | Not run |
+| QA-011 | P1 | Recover interrupted first setup from a running VM | None | Ready; not implemented | Source-confirmed gap; live reproduction not run |
+| QA-012 | P1 | Reconcile native operations without a usable job reference | None | Ready; not implemented | Source-confirmed gap; fault injection not run |
+| QA-013 | P1 | Preserve recovery authority during administrator reinstall | None | Ready; not implemented | Source-confirmed gap; protected execution not run |
+| QA-014 | P2 | Replace or remove saved guest credentials through Settings | None | Ready; not implemented | Source-confirmed gap; native-dialog testing not run |
 
 ### QA-009 ? Candidate regression and automated gate
 
@@ -23,9 +27,72 @@ At the agreed checkpoint run the existing non-hardware gate after reviewing its 
 
 ### QA-010 ? Acceptance decision
 
-Dependencies: QA-009
+Dependencies: QA-009, QA-011, QA-012, QA-013
 
 Summarise candidate evidence and deferred/untested scenarios. Successful core journeys, usable critical recovery, automated evidence and explicit user acceptance are required by the roadmap. Record the user's decision; documentation or automated checks alone cannot close this task.
+
+### QA-011 - Recover interrupted first setup from a running VM
+
+Dependencies: None
+
+Priority: P1; blocks release. Implementation: Ready, not implemented. Validation: source review only.
+
+Trigger: start first-time enable with an unattached running VM and fail guest preparation. [Apply](../src/workflow/apply.rs) retains a pending journal and can leave the guest running without a GPU or preparation receipt. Outcome reconciliation requires the completed attachment/settings; [baseline retirement](../src/configuration_store.rs) requires the original VM to have been Off; [partial removal](../src/workflow/reset.rs) also requires original Off and refuses operations requiring graphics. Even manually stopping this VM does not satisfy the original-Off restrictions. The host-wide hold has no supported completion for this failed setup. QA-009 describes exercising recovery, but does not implement this missing route.
+
+Acceptance criteria:
+
+- Provide a separately reviewed recovery disposition for this recorded first-setup failure, bound to its exact VM/GPU, journal, configuration revision and fresh provider facts.
+- Disclose and separately approve any graceful shutdown. Restore only attributable host state; retain unknown guest files and failed preparation evidence without publishing success or replaying Apply.
+- Cover preparation failure, interruption during the recovery disposition, changed host/journal facts and unavailable readback with focused backend regressions. Uncertain or conflicting facts keep the hold.
+- Qualify the installed route on an explicitly authorised resettable target before closing its live validation.
+
+### QA-012 - Reconcile native operations without a usable job reference
+
+Dependencies: None
+
+Priority: P1; blocks release. Implementation: Ready, not implemented. Validation: source review only.
+
+[Native invocation](../src/windows_wmi.rs) durably writes `PendingOperation { job: None }` before `ExecMethod`, then records a job only for an asynchronous reply. A COM failure, lost output or process interruption before that second write leaves no job reference. `reconcile_pending_operation` unconditionally requires a readable recorded job; a missing job object also fails before any outcome reconciliation. Every subsequent mutation remains blocked, and the GUI/CLI offers no scoped administrator reconciliation for this state. This is separate from QA-011's workflow-state restrictions.
+
+Acceptance criteria:
+
+- Bind native recovery to the exact VM, operation stage and reviewed before/after facts, rather than only the management-service object and method.
+- Provide an explicit supported disposition for a missing/expired job reference using sufficient independent provider-completion and state evidence. Never infer completion merely from a matching instantaneous state or remove an uncertain marker automatically.
+- Preserve the original failure and unresolved evidence when completion cannot be established; give a concrete supported administrator handoff instead of an action that can only fail on the same missing reference.
+- Cover missing job, lost reply, absent job object, active job, conflicting state and interrupted reconciliation with isolated failure tests, then perform scoped installed qualification.
+
+### QA-013 - Preserve recovery authority during administrator reinstall
+
+Dependencies: None
+
+Priority: P1; blocks release. Implementation: Ready, not implemented. Validation: source review only.
+
+The CLI `install --config FILE` calls [install_inner](../src/runner.rs) without bootstrap mode. Its recovery/authority checks are confined to bootstrap branches; the ordinary path publishes a new operator and `configuration.targets` as the entire enrollment. Reinstalling with a subset or different pair while a save/effect recovery record exists can remove that record's enrolled pair. The worker subsequently refuses reconciliation/save-only because the recorded pair is no longer enrolled. Pending enrollment/removal receipts can likewise lose both of their bound policy revisions. Protected records survive on disk but their supported recovery authority is stranded.
+
+Acceptance criteria:
+
+- Admit routine artifact reinstall under the common lock before changing operator permissions, task admission or enrollment; preserve the existing operator and exact pair identities needed by all pending recovery records.
+- Refuse incompatible configuration/operator replacement without altering existing authority, records or task availability. Keep additive enrollment, inactive-profile removal and recovery as their existing distinct reviewed operations.
+- Verify same-scope reinstall preserves saved intent, managed history and effect/save/import/enrollment/removal holds, including interrupted installation; test subset, GPU-change and operator-change rejection before publication.
+- Qualify accepted reinstall and rejected replacement through the supported protected installer on prepared targets; source tests alone do not establish installed acceptance.
+
+### QA-014 - Replace or remove saved guest credentials through Settings
+
+Dependencies: None
+
+Priority: P2; fix or explicitly defer before acceptance. Implementation: Ready, not implemented. Validation: source review only.
+
+The existing Settings action calls [credential_dialog](../src/gui/live/source.rs), which calls [prompt_named](../src/credentials.rs). `prompt_if_needed` immediately returns an existing vault entry, so selecting Guest credentials never opens a dialog once credentials are saved. Apply, Verify and recovery keep reusing the same entry after an incorrect remembered password or a later guest password change. There is no GUI credential-removal action; the supported CLI `forget --config FILE --vm GUID` is the current workaround. Profile deletion is a different operation and does not delete the vault entry.
+
+Acceptance criteria:
+
+- Let the existing selected-VM credential settings flow explicitly replace or forget that VM's opt-in entry; ordinary operation prompts may continue to reuse valid stored credentials.
+- Keep VM identity clear, replacement/retention explicit and passwords local. Cancellation preserves the previous entry and any recovery hold; vault failures remain visible.
+- Changing credentials performs no guest connection, enrollment, power or GPU work. Validate replacement, removal, cancellation and vault failure without using real credentials in tests, followed by authorised native-dialog testing.
+
+## Review fixes, 15 October 2026
+
+Implemented: bounded preparation-manifest and enrollment reads now enforce their existing limits while reading; ordinary frontends skip privileged diagnostic-file creation; CLI help exposes supported import/recovery commands and power-consent options. These are contained fixes from the release review. Validation: all three focused regressions passed (bounded preparation input, bounded enrollment input, ordinary-token diagnostic opt-in); strict Clippy for all targets, all binary builds, formatting, copy scanning, documentation checks (39 Markdown files, 6 cards) and `git diff --check` passed. The built CLI `--help` returned exit 0 and exposed all supported recovery commands/options; raw output is in `local/evidence/release-review-20261015-help.txt`. The full non-hardware gate, protected installation and live GUI/guest/VM/GPU qualification were not run. QA-011 to QA-014 remain unaddressed; the next implementation task is QA-011.
 
 ## Dashboard improvements (UI-001 to UI-005)
 

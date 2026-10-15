@@ -13,7 +13,7 @@ Codex only. Complete one requested task; current user instructions take preceden
 ## Load when relevant
 
 | Work | Guidance |
-|---|---|
+| --- | --- |
 | Rust implementation/review | [Rust](.github/prompts/rust.prompt.md) |
 | Slint, Rust UI wiring or live GUI testing | [Slint](.github/prompts/slint.prompt.md) |
 | Implementation | [Implement](.github/prompts/implement-task.prompt.md) |

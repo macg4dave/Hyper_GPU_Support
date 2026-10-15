@@ -3,6 +3,7 @@
 use std::{
     fs::File,
     io::Write,
+    path::Path,
     sync::{Mutex, OnceLock},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
@@ -23,24 +24,32 @@ fn logger() -> Result<Option<&'static Mutex<File>>, String> {
         } else {
             crate::runner::install_directory()?
         };
-        let marker = root.join("diagnostics.enabled");
-        if !marker.try_exists().map_err(|e| e.to_string())? {
-            return Ok(None);
-        }
-        crate::security::verify(&marker)?;
-        let directory = root.join("diagnostics");
-        crate::security::verify(&directory)?;
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| e.to_string())?
-            .as_nanos();
-        let path = directory.join(format!("trace-{now}-{}.jsonl", std::process::id()));
-        let file = crate::security::create_file(&path, "S-1-5-32-544")?;
-        Ok(Some(Mutex::new(file)))
+        open_logger(&root)
     })
     .as_ref()
     .map(|log| log.as_ref())
     .map_err(Clone::clone)
+}
+fn open_logger(root: &Path) -> Result<Option<Mutex<File>>, String> {
+    // Frontend artifact checks also use these spans. The enrolled ordinary token
+    // can read the installation but cannot create administrator-owned trace files.
+    if !crate::process::is_elevated()? {
+        return Ok(None);
+    }
+    let marker = root.join("diagnostics.enabled");
+    if !marker.try_exists().map_err(|e| e.to_string())? {
+        return Ok(None);
+    }
+    crate::security::verify(&marker)?;
+    let directory = root.join("diagnostics");
+    crate::security::verify(&directory)?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let path = directory.join(format!("trace-{now}-{}.jsonl", std::process::id()));
+    let file = crate::security::create_file(&path, "S-1-5-32-544")?;
+    Ok(Some(Mutex::new(file)))
 }
 fn event(
     stage: &str,
@@ -118,4 +127,28 @@ pub(crate) fn run<T>(
     let result = action();
     span.finish(&result)?;
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ordinary_frontend_ignores_diagnostic_opt_in_without_attempting_a_write() {
+        assert!(
+            !crate::process::is_elevated().unwrap(),
+            "run non-hardware tests without elevation"
+        );
+        let root =
+            std::env::temp_dir().join(format!("hypergpu-frontend-trace-{}", std::process::id()));
+        std::fs::create_dir(&root).unwrap();
+        let marker = root.join("diagnostics.enabled");
+        std::fs::write(&marker, b"").unwrap();
+        let result = open_logger(&root);
+        let entries = std::fs::read_dir(&root).unwrap().count();
+        std::fs::remove_file(marker).unwrap();
+        std::fs::remove_dir(root).unwrap();
+        assert!(result.unwrap().is_none());
+        assert_eq!(entries, 1, "ordinary frontend creates no diagnostic output");
+    }
 }

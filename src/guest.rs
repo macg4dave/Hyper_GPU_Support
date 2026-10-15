@@ -8,11 +8,26 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
+    io::Read,
     path::{Path, PathBuf},
     process::Command,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+const MANIFEST_LIMIT: u64 = 32 * 1024 * 1024;
+
+fn read_preparation_manifest(input: impl Read) -> Result<Manifest, String> {
+    let mut bytes = Vec::new();
+    input
+        .take(MANIFEST_LIMIT + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > MANIFEST_LIMIT {
+        return Err("preparation manifest exceeds safety limit".into());
+    }
+    serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+}
 
 /// Receipt from a fully verified guest preparation.
 #[derive(Serialize, Deserialize)]
@@ -527,11 +542,9 @@ pub fn worker_with_progress(
     if mode != "prepare" {
         return Err("unknown guest operation".into());
     }
-    let input = fs::read(bundle.join("manifest.json")).map_err(|e| e.to_string())?;
-    if input.len() > 32 * 1024 * 1024 {
-        return Err("preparation manifest exceeds safety limit".into());
-    }
-    let manifest: Manifest = serde_json::from_slice(&input).map_err(|e| e.to_string())?;
+    let manifest = read_preparation_manifest(
+        fs::File::open(bundle.join("manifest.json")).map_err(|e| e.to_string())?,
+    )?;
     if manifest.schema != 1 || manifest.files.is_empty() || manifest.files.len() > 65536 {
         return Err("invalid preparation manifest".into());
     }
@@ -805,6 +818,28 @@ fn health() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preparation_manifest_read_is_bounded_before_parsing() {
+        let source = br#"{"schema":1,"device_id":"device","driver_version":"version","catalogs":[],"files":[]}"#;
+        let manifest = read_preparation_manifest(source.as_slice()).unwrap();
+        assert_eq!(manifest.device_id, "device");
+        let exact_limit = source
+            .as_slice()
+            .chain(std::io::repeat(b' ').take(MANIFEST_LIMIT - source.len() as u64));
+        assert!(read_preparation_manifest(exact_limit).is_ok());
+        let mut oversized = std::io::repeat(b' ').take(MANIFEST_LIMIT + 4096);
+        assert_eq!(
+            read_preparation_manifest(&mut oversized).unwrap_err(),
+            "preparation manifest exceeds safety limit"
+        );
+        assert_eq!(
+            oversized.limit(),
+            4095,
+            "stop after one byte beyond the limit"
+        );
+        assert!(read_preparation_manifest(b"invalid JSON".as_slice()).is_err());
+    }
 
     #[test]
     fn device_health_preserves_status_and_query_failure_without_private_text() {

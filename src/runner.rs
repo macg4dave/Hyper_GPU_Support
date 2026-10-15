@@ -877,8 +877,18 @@ fn read_enrollment() -> Result<Enrollment, String> {
     crate::security::verify(&root)?;
     let path = root.join("enrollment.json");
     crate::security::verify(&path)?;
-    let b = fs::read(&path)
-        .map_err(|_| "product runner is not installed; use install with administrator rights")?;
+    parse_enrollment(
+        fs::File::open(&path).map_err(
+            |_| "product runner is not installed; use install with administrator rights",
+        )?,
+    )
+}
+fn parse_enrollment(input: impl Read) -> Result<Enrollment, String> {
+    let mut b = Vec::new();
+    input
+        .take(FRAME_LIMIT as u64 + 1)
+        .read_to_end(&mut b)
+        .map_err(|e| e.to_string())?;
     if b.len() > FRAME_LIMIT {
         return Err("invalid enrollment size".into());
     }
@@ -1445,6 +1455,17 @@ impl Backend for NativeBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn enrollment_read_stops_at_its_limit_before_parsing() {
+        let mut input = std::io::repeat(b' ').take(FRAME_LIMIT as u64 + 4096);
+        assert_eq!(
+            parse_enrollment(&mut input).err().unwrap(),
+            "invalid enrollment size"
+        );
+        assert_eq!(input.limit(), 4095, "do not read the whole oversized file");
+        assert!(parse_enrollment(b"invalid JSON".as_slice()).is_err());
+    }
 
     #[test]
     fn audit_admission_precedes_work_and_terminal_outcome_excludes_secrets() {

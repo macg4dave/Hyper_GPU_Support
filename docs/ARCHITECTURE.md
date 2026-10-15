@@ -5,7 +5,7 @@ This page owns component and data-flow boundaries. The [roadmap](roadmap.md) and
 ## Components
 
 | Layer | Responsibility | Source |
-|---|---|---|
+| --- | --- | --- |
 | Frontend dispatch | Select the live GUI for argument-free startup, CLI for explicit commands, or fixed internal modes; retired simulation entrypoints removed under APP-001 | [main](../src/main.rs) |
 | Slint presentation | Existing dashboard, VM details, System, Settings, About, dialogs, resource controls | [UI root](../src/gui/ui/app.slint), [GUI host](../src/gui/mod.rs) |
 | Live controller/state | Asynchronous reads, draft/review state, operation callbacks | [live](../src/gui/live.rs), [live state](../src/gui/live_state.rs), [GUI model](../src/gui_model.rs) |
@@ -29,7 +29,6 @@ The GUI keeps a VM-bound [result notice](../src/gui/result_notice.rs) during a c
 
 The fixed guest executable streams bounded `HGPREPARATION` phase labels at actual copied-file check, installation, installed-file check, current guest-file/receipt check and graphics boundaries. The authenticated transport relays those fixed events separately from the final JSON reply. The host [transfer monitor](../src/guest_transfer.rs) validates operation-specific ordering, bounds the phase queue and requires all expected phase boundaries for a successful worker reply. Coalesced byte acknowledgements remain independent. Phase delivery cannot certify success; worker exit, receipt/file readback, graphics and workflow lifecycle/publication checks remain authoritative.
 
-
 Read-only review preparation can be abandoned without publishing its late result or error. Its background read keeps foreground admission and the visible updating state until it finishes; drafts remain editable. Ordinary preliminary review uses eligible historical preparation evidence without a payload pass, while confirmed Apply independently authenticates the current payload and rejects drift before effects. Reopening an abandoned review does not cache authority or permit replay.
 
 Worker progress identifies VM readback, selected GPU/driver reads and signed-file authentication, including nested reads during admission and final checks. The headline returns to a still-running parent when a nested read ends; when no stage is active it waits for the final reply rather than showing a completed stage as the current work. Ordered event history and stage outcomes remain separate from final readback and publication. These source changes establish no measured performance guarantee.
@@ -39,7 +38,7 @@ Worker progress identifies VM readback, selected GPU/driver reads and signed-fil
 [Workflow root](../src/workflow.rs) retains the shared `Backend` trait and `OperationResult`, with explicit re-exports preserving public and crate-visible caller paths. Its private children own the operation stages:
 
 | Module | Responsibility |
-|---|---|
+| --- | --- |
 | [Journal](../src/workflow/journal.rs) | Durable state, setup eligibility, check persistence/readback and historical success timestamps |
 | [Planning](../src/workflow/planning.rs) | Read-only decision gathering, reviewed effects and per-setting restoration calculation |
 | [Apply](../src/workflow/apply.rs) | Consumed admission and ordered setup/update, ordinary change, reinstall and removal effects |
@@ -62,7 +61,7 @@ VM OS icons use optional host KVP `OSName` metadata, never the VM's display name
 The dashboard's outer viewport owns horizontal scrolling only; the VM list and details own vertical scrolling within the available height. The details scroll extent follows a trailing layout marker rather than relying on the preferred-height report of conditional nested layouts, including expanded allocation, wrapped text and diagnostics. Diagnostics reserve a usable text viewport, scroll offsets clamp after resize/collapse, and actions stay outside the scroll viewport. Operation dialogs share theme-specific neutral surfaces so standard Fluent control fills and states remain distinct. These source contracts do not establish installed visual or live VM acceptance.
 
 | State | Meaning | Does not establish |
-|---|---|---|
+| --- | --- | --- |
 | Observed inventory | Last read VM/GPU/provider state | Saved intent or verified rendering |
 | Saved intent | Valid production TOML committed for one VM | Current attachment or operation authority |
 | Draft | In-memory requested changes | Enrollment, publication, or effects |

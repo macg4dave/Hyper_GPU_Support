@@ -25,7 +25,7 @@ Running the executable without arguments opens the live GUI and can request elev
 ## Project guidance
 
 | Document | Purpose |
-|---|---|
+| --- | --- |
 | [Roadmap](docs/roadmap.md) | Agreed scope and milestone gates |
 | [Backlog](docs/backlog.md) | QA tasks, dependencies and next action |
 | [UI text inventory](docs/UI_TEXT_INVENTORY.md) | Presentation consumers and retained input exceptions |

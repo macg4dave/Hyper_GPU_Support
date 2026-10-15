@@ -23,7 +23,7 @@ Use the toggle or More actions > Remove GPU support to disable support. Reading 
 
 - CLI `--config FILE` accepts a production configuration bundle, including a single target. Selection options do not grant authority.
 - Committed intent uses lowercase `<vm-guid>.toml` files, each containing exactly one target with the matching canonical GUID.
-- The per-VM reader is bounded to 64 KiB of UTF-8 TOML; the CLI bundle reader uses the 1 MiB frame limit. A valid candidate file is still untrusted input, not a protected-store admission result.
+- The per-VM reader is bounded to 64 KiB of UTF-8 TOML; the CLI bundle and protected enrollment readers use the 1 MiB frame limit. The guest preparation manifest reader is bounded to 32 MiB. These limits apply while reading, before parsing the complete input. A valid candidate file is still untrusted input, not a protected-store admission result.
 - `Configuration::vm_documents` produces canonical documents without writing them. Schema 2 remains readable; current worker effect publication serializes schema 3.
 - The protected store is under the product's fixed Windows known-folder data root, in `config/vms`. Paths are derived by the product; callers do not choose privileged publication destinations.
 - Expected revisions detect external changes. Unreadable, malformed, untrusted, or conflicting committed state must be reported as unknown/blocked, not silently replaced by invented values.
