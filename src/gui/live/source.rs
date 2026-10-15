@@ -70,7 +70,7 @@ impl Source {
         }
     }
     pub(super) fn discover(&self) -> Result<InventoryRead, String> {
-        discover()
+        discover().map(remember_os)
     }
     pub(super) fn plan(
         &self,
@@ -91,6 +91,22 @@ impl Source {
                 .ok_or("Saved configuration requires Windows")?,
             recovery: self.recovery()?,
         })
+    }
+}
+
+fn remember_os(result: InventoryRead) -> InventoryRead {
+    #[cfg(windows)]
+    {
+        let (mut inventory, mut warning) = result;
+        if let Err(error) = crate::gui::os_metadata::remember(&mut inventory) {
+            let message = format!("Could not save VM icon metadata: {error}");
+            warning = Some(warning.map_or_else(|| message.clone(), |w| format!("{w}\n{message}")));
+        }
+        (inventory, warning)
+    }
+    #[cfg(not(windows))]
+    {
+        result
     }
 }
 
@@ -143,7 +159,7 @@ pub(super) fn discover_status() -> Result<InventoryRead, String> {
     }
     let value = runner::submit(runner::request(runner::Operation::Discover, None, None))?;
     serde_json::from_value(value)
-        .map(|inventory| (inventory, None))
+        .map(|inventory| remember_os((inventory, None)))
         .map_err(|e| format!("Invalid protected inventory reply: {e}"))
 }
 

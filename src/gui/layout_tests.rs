@@ -279,3 +279,101 @@ fn permission_review_actions_stay_on_one_row_at_supported_sizes_in_both_themes()
     }
     ui.hide().unwrap();
 }
+
+#[test]
+fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions() {
+    use hyper_gpu_support::ui_text::{diagnostics, dialogs};
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_execution_ready(true);
+    ui.set_repair_allowed(true);
+    ui.set_reset_allowed(true);
+    ui.set_forget_allowed(true);
+    ui.set_dirty(true);
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(1240., 860.));
+    for theme in [
+        hyper_gpu_support::ui_text::settings::appearance::LIGHT,
+        hyper_gpu_support::ui_text::settings::appearance::DARK,
+    ] {
+        ui.set_dialog_kind("".into());
+        ui.set_page(2);
+        draw(&window);
+        control(&ui, theme).accessible_action(&AccessibilityAction::Default);
+        ui.set_page(0);
+        for (kind, mut labels) in [
+            (
+                "review",
+                vec![dialogs::cancel::LABEL, dialogs::apply::LABEL],
+            ),
+            (
+                "status-error",
+                vec![dialogs::close::LABEL, dialogs::status::RETRY_LABEL],
+            ),
+            (
+                "permission-saved",
+                vec![dialogs::close::LABEL, dialogs::setup::CONTINUE_LABEL],
+            ),
+            (
+                "profile-deleted",
+                vec![dialogs::close::LABEL, dialogs::setup::NEW_REVIEW_LABEL],
+            ),
+            (
+                "reset-complete",
+                vec![
+                    dialogs::close::LABEL,
+                    dialogs::repair::REVIEW_LABEL,
+                    dialogs::profile_deletion::DISCARD_REVIEW_LABEL,
+                ],
+            ),
+            (
+                "recovery-blocked",
+                vec![
+                    dialogs::close::LABEL,
+                    dialogs::partial_removal::REVIEW_LABEL,
+                    dialogs::status::RETRY_LABEL,
+                ],
+            ),
+        ] {
+            ui.set_dialog_title(kind.into());
+            ui.set_dialog_body("Review the selected action.".into());
+            ui.set_dialog_details("Diagnostic section\n".repeat(30).into());
+            ui.set_dialog_kind(kind.into());
+            labels.push(diagnostics::SHOW_LABEL);
+            for (width, height) in [(1240., 860.), (700., 520.)] {
+                window.set_size(LogicalSize::new(width, height));
+                draw(&window);
+                let mut row_y: Option<f32> = None;
+                let mut previous_right = f32::NEG_INFINITY;
+                for label in &labels {
+                    let button = control(&ui, label);
+                    let geometry = button.geometry();
+                    let origin = button.map_to_window(geometry.origin);
+                    assert!(geometry.width() > 0. && geometry.height() > 0.);
+                    assert!(
+                        origin.x >= previous_right,
+                        "non-overlapping actions: {kind}"
+                    );
+                    assert!(origin.y >= 0. && origin.y + geometry.height() <= height);
+                    if let Some(y) = row_y {
+                        assert!((origin.y - y).abs() < 1., "single footer row: {kind}");
+                    }
+                    row_y = Some(origin.y);
+                    previous_right = origin.x + geometry.width();
+                }
+            }
+        }
+        ui.set_dialog_kind("more".into());
+        draw(&window);
+        let verify = control(&ui, hyper_gpu_support::ui_text::operations::verify::TITLE);
+        let repair = control(&ui, dialogs::repair::LABEL);
+        assert!(
+            repair.map_to_window(repair.geometry().origin).y
+                > verify.map_to_window(verify.geometry().origin).y,
+            "More Actions keeps its vertical choices"
+        );
+    }
+    ui.hide().unwrap();
+}

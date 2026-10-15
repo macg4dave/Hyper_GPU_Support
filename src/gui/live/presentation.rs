@@ -613,6 +613,71 @@ mod tests {
     }
 
     #[test]
+    fn saved_os_keeps_stopped_vm_icon_after_reopen_and_tracks_os_changes() {
+        let id = "12345678-1234-1234-1234-123456789abc";
+        let directory =
+            std::env::temp_dir().join(format!("hypergpu-os-icons-{}", std::process::id()));
+        let mut discovery = Discovery {
+            guest_os: Default::default(),
+            issues: vec![],
+            gpus: vec![],
+            vms: vec![VmState {
+                vm_id: id.into(),
+                name: "Linux name must not decide the icon".into(),
+                power: Power::Running,
+                generation: 2,
+                gpus: vec![],
+                vram: None,
+                compute: None,
+                encode: None,
+                decode: None,
+                settings: Settings {
+                    low_mmio: 0,
+                    high_mmio: 0,
+                    cache_types: false,
+                    automatic_checkpoints: true,
+                },
+            }],
+        };
+        let mut rows = model(vec![vm_row(&discovery.vms[0], &discovery)]);
+        let original = rows.clone();
+        for (fresh, expected) in [
+            (None, "unknown"),
+            (Some("Microsoft Windows 11 Pro"), "windows"),
+            (None, "windows"),
+            (Some("Ubuntu 24.04"), "linux"),
+            (None, "linux"),
+            (Some("FreeBSD"), "unknown"),
+            (None, "unknown"),
+            (Some("Microsoft Windows 11 Pro"), "windows"),
+            (None, "windows"),
+        ] {
+            discovery.guest_os.clear();
+            discovery.vms[0].power = if fresh.is_some() {
+                Power::Running
+            } else {
+                Power::Off
+            };
+            discovery.vms[0].name = "Renamed VM".into();
+            if let Some(name) = fresh {
+                discovery.guest_os.insert(id.into(), name.into());
+            }
+            // The disk reader has no session state, also covering an app reopen.
+            crate::gui::os_metadata::remember_in(&directory, &mut discovery).unwrap();
+            rows = update_model(rows, vec![vm_row(&discovery.vms[0], &discovery)]);
+            assert_eq!(original.row_data(0).unwrap().os, expected);
+            assert_eq!(rows.row_data(0).unwrap().id, id);
+        }
+        // Recreating a VM with the same name but a different GUID inherits nothing.
+        discovery.vms[0].vm_id = "87654321-4321-4321-4321-cba987654321".into();
+        discovery.guest_os.clear();
+        crate::gui::os_metadata::remember_in(&directory, &mut discovery).unwrap();
+        assert_eq!(vm_row(&discovery.vms[0], &discovery).os, "unknown");
+        std::fs::remove_file(directory.join(format!("{id}.txt"))).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
     fn memory_only_pending_summary_preserves_saved_support_state() {
         let values = vec!["0".into(), "4000000000".into(), "8000000000".into()];
         for (enabled, support) in [

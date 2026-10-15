@@ -19,7 +19,6 @@ export component Pages inherits Rectangle {
             Hint { text: root.page == 2 ? UiText.settings-preferences-notice : root.page == 1 ? UiText.system-subtitle : UiText.settings-about-subtitle; }
             if root.page == 1 : VerticalLayout {
                 spacing: 18px;
-                Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: UiText.system-host-label; font-weight: 600; } Hint { text: root.system-summary; } } }
                 for gpu in root.gpu-information : Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: gpu.name; font-weight: 600; } Hint { text: gpu.description; } } }
             }
 
@@ -35,12 +34,6 @@ export component Pages inherits Rectangle {
                     }
                     CheckBox { enabled: !Theme.modal-active; text: UiText.settings-appearance-help-label; checked <=> Theme.show-help; }
                     Hint { text: UiText.settings-appearance-palette-hint; }
-                } }
-
-                Surface { VerticalLayout { padding: 22px; spacing: 10px;
-                    Label { text: UiText.settings-credentials-title; font-weight: 600; }
-                    Hint { text: UiText.settings-credentials-body; }
-                    Button { enabled: !Theme.modal-active; text: UiText.settings-credentials-open-label; clicked => { root.action("credentials"); } }
                 } }
             }
             if root.page == 3 : VerticalLayout {

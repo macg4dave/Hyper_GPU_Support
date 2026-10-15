@@ -3,7 +3,7 @@
 use std::{fs, io::Read, path::Path};
 
 #[cfg(any(windows, test))]
-fn valid_id(id: &str) -> bool {
+pub(super) fn valid_id(id: &str) -> bool {
     id.len() == 36
         && id.bytes().enumerate().all(|(index, byte)| {
             if [8, 13, 18, 23].contains(&index) {

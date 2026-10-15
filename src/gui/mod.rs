@@ -12,6 +12,7 @@ mod live;
 mod live_state;
 mod memory;
 mod operation;
+mod os_metadata;
 mod result_notice;
 mod selection;
 mod wording;

@@ -54,6 +54,14 @@ On graceful close, the GUI saves the selected VM GUID to `%LOCALAPPDATA%/HyperGp
 
 This preference stores no drafts, GPU settings, credentials or operation authority. Saved intent and recovery records continue to come from their existing protected readers. Restoring selection does not resume operations or clear recovery. A failed preference write is returned as an application shutdown error; abrupt termination does not save a new selection.
 
+### Remembered guest OS icons
+
+GUI discovery, including setup discovery and automatic status refresh, saves each available guest-reported OS name in `%LOCALAPPDATA%/HyperGpuSupport/guest-os/<vm-guid>.txt`. These per-user display metadata files are separate from protected GPU intent. When live OS metadata is unavailable, including while a VM is off or after reopening the app, the icon uses its last saved OS name. A fresh OS name replaces it, including an unfamiliar OS that requires the generic icon. Names and renames never determine OS identity; a new VM GUID does not inherit another VM's icon. A VM never observed reporting its OS retains the generic icon. No guest is started or entered to populate this cache.
+
+Reads are bounded to 1024 bytes of UTF-8 OS text and filenames require canonical GUIDs. Missing, malformed or unreadable cache entries provide no fallback. Cache write failures appear as discovery warnings while fresh inventory remains usable. Cached OS information affects presentation only and grants no operation, enrollment or recovery authority. The CLI and protected runner continue to report live inventory without this GUI fallback.
+
+Implementation: source and regression coverage added. Validation: pending milestone gate and authorised installed-GUI checks.
+
 ## Development configuration
 
 `config/project.toml`, `config/artifact-pins.toml`, and `config/runner-policy-v1.json` are retained development context, not runtime intent. Their former scripts were deleted. Assess individual files only when required for the current task; APP-009 selects the actual qualification environment.
