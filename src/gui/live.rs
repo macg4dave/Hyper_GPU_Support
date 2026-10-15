@@ -849,7 +849,6 @@ fn review_enrollment(
         },
         move |ui, result| match result {
             Ok((approved, artifacts, worker_available)) => {
-                let setup = artifacts.is_some();
                 let heading = hyper_gpu_support::ui_text::operations::enrollment::review::body(
                     &(ui.get_vm_name()),
                     &(ui.get_gpu_options()
@@ -857,17 +856,7 @@ fn review_enrollment(
                         .unwrap_or_default()),
                 )
                 .into_string();
-                let mut summary =
-                    hyper_gpu_support::ui_text::operations::enrollment::review::STEPS.to_owned();
-                if setup {
-                    summary.push_str(
-                        hyper_gpu_support::ui_text::operations::enrollment::INSTALL_NOTICE,
-                    );
-                } else {
-                    summary.push_str(
-                        hyper_gpu_support::ui_text::operations::enrollment::ELEVATION_NOTICE,
-                    );
-                }
+                let summary = hyper_gpu_support::ui_text::operations::enrollment::ELEVATION_NOTICE;
                 let mut body = format!(
                     "VM ID: {}\nGPU interface: {}\nOperator: {}\nPolicy revision: {:?}\n\nAuthorize this exact VM/GPU pair through Windows elevation, preserving all other enrolled VMs. Enrollment does not enable GPU support, change guest power, prepare drivers or save desired configuration. Your draft is retained. After fresh authority readback, Apply obtains a separate GPU operation plan.",
                     approved.vm_id,
@@ -903,7 +892,7 @@ fn review_enrollment(
                     ui,
                     "enroll-review",
                     hyper_gpu_support::ui_text::operations::enrollment::review::TITLE,
-                    &summary,
+                    summary,
                 );
                 set_details(ui, &body);
             }

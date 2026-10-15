@@ -236,7 +236,7 @@ fn permission_review_actions_stay_on_one_row_at_supported_sizes_in_both_themes()
         ui.set_enrollment_heading("Virtual machine: VM1\nPhysical GPU: NVIDIA GPU".into());
         ui.set_enrollment_allocation("8.27850752 GB".into());
         ui.set_dialog_body(
-            hyper_gpu_support::ui_text::operations::enrollment::review::STEPS.into(),
+            hyper_gpu_support::ui_text::operations::enrollment::ELEVATION_NOTICE.into(),
         );
         ui.set_dialog_details("Diagnostic section\n".repeat(30).into());
         ui.set_dialog_kind("enroll-review".into());

@@ -81,6 +81,7 @@ export component OperationDialog inherits Rectangle {
                 border-color: Theme.dialog-border;
                 max-width: 620px; min-width: 0px; preferred-width: 620px;
                 min-height: 0px;
+                max-height: root.kind == "enroll-review" ? (root.technical ? 500px : 300px) : 10000px;
                 clip: true;
                 VerticalLayout {
                     padding: 20px; spacing: 12px;
@@ -88,21 +89,27 @@ export component OperationDialog inherits Rectangle {
                     Heading { text: root.title; wrap: word-wrap; overflow: clip; min-width: 0px; vertical-stretch: 0; }
                     body-scroll := ScrollView {
                         min-height: 0px;
-                        preferred-height: root.stages.length > 0 ? 90px : 240px;
+                        preferred-height: root.kind == "enroll-review" ? 120px : root.stages.length > 0 ? 90px : 240px;
                         max-height: root.stages.length > 0 ? 130px : 10000px;
                         vertical-stretch: 1;
                         horizontal-scrollbar-policy: always-off;
                         content-width: self.visible-width;
                         VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
                             width: body-scroll.visible-width;
-                            if root.kind == "enroll-review" : VerticalLayout {
+                            if root.kind == "enroll-review" : Label {
+                                // One text block gives all three facts identical line spacing.
+                                text: root.enrollment-heading + "\n" + UiText.operations-enrollment-review-allocation-label + " " + root.enrollment-allocation;
+                                font-size: 18px; font-weight: 600;
                                 width: max(0px, body-scroll.visible-width - 8px);
-                                spacing: 8px;
-                                Label { text: root.enrollment-heading; font-size: 18px; font-weight: 600; min-width: 0px; wrap: word-wrap; overflow: clip; }
-                                Label { text: UiText.operations-enrollment-review-allocation-label + " " + root.enrollment-allocation; font-size: 18px; font-weight: 600; min-width: 0px; wrap: word-wrap; overflow: clip; }
+                                min-width: 0px; wrap: word-wrap; overflow: clip;
+                            }
+                            if root.kind == "enroll-review" : Label {
+                                text: root.body; font-size: 14px; font-weight: 700;
+                                width: max(0px, body-scroll.visible-width - 8px);
+                                min-width: 0px; wrap: word-wrap; overflow: clip;
                             }
                             if root.kind == "more" : Label { text: root.body; font-size: 18px; font-weight: 600; width: max(0px, body-scroll.visible-width - 8px); wrap: word-wrap; overflow: clip; }
-                            if root.kind != "more" : Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
+                            if root.kind != "more" && root.kind != "enroll-review" : Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
                             if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery" || root.kind == "reset-review") && root.needs-shutdown : Hint {
                                 text: root.power-consent; font-size: 14px;
                                 width: max(0px, body-scroll.visible-width - 8px);

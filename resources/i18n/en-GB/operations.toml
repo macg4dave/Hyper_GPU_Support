@@ -718,7 +718,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."operations.enrollment.elevation_notice"]
-text = "\n\nWindows approval is required to save this permission."
+text = "Windows permissions are required"
 screen = "review_enrollment presentation (src/gui/live.rs)"
 state = "Selected branch: operations.enrollment.elevation_notice"
 audience = "operator"
@@ -872,7 +872,7 @@ space_hint = "Wrapped presentation; inspect long content at supported sizes and 
 placeholders = [{ name = "vm_name", type = "text" }, { name = "gpu_name", type = "text" }]
 
 [messages."operations.enrollment.review.title"]
-text = "Review permission before GPU setup"
+text = "Review GPU setup"
 screen = "review_enrollment presentation (src/gui/live.rs)"
 state = "Selected branch: operations.enrollment.review.title"
 audience = "operator"
@@ -1969,17 +1969,6 @@ intent = "Explain preliminary review and fresh admission without implying curren
 consequences = "A changed payload or effect scope requires another review before effects."
 severity = "information"
 space_hint = "Wrapped review paragraph; inspect long content and reachable approval actions."
-placeholders = []
-
-[messages."operations.enrollment.review.steps"]
-text = "Step 1: allow this app to manage this VM's selected GPU. This saves permission only; GPU support and VM power will not change.\n\nStep 2: after this permission is confirmed and refreshed, use Apply to review the actual GPU setup and power changes, then confirm that separate review. Your edits are kept. Other VMs' permissions are preserved."
-screen = "review_enrollment presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.review.steps"
-audience = "operator"
-intent = "Present the selected UI label or explanation."
-consequences = "No effects; presentation only."
-severity = "neutral"
-space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."
 placeholders = []
 
 [messages."operations.enrollment.review.allocation_label"]

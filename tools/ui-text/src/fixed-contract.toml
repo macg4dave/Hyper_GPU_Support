@@ -4233,17 +4233,6 @@ severity = "information"
 space_hint = "Accessible label."
 
 [[messages]]
-key = "operations.enrollment.review.steps"
-[messages.metadata]
-screen = "review_enrollment presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.review.steps"
-audience = "operator"
-intent = "Present the selected UI label or explanation."
-consequences = "No effects; presentation only."
-severity = "neutral"
-space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."
-
-[[messages]]
 key = "operations.enrollment.review.allocation_label"
 [messages.metadata]
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
