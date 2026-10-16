@@ -3,9 +3,8 @@ use super::{Backend, EffectPreview, Journal, PreviewAction};
 use crate::model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState};
 
 pub(super) struct Fake {
-    pub(super) os_preflights: usize,
-    pub(super) os_preflight_failure: Option<String>,
     pub(super) os_checks: usize,
+    pub(super) os_check_traces: Vec<Vec<&'static str>>,
     pub(super) os_failure: Option<String>,
     pub(super) drift_at: Option<(&'static str, Drift)>,
     pub(super) inspect_unavailable: bool,
@@ -96,9 +95,8 @@ pub(super) fn target() -> Target {
 
 pub(super) fn fake() -> Fake {
     Fake {
-        os_preflights: 0,
-        os_preflight_failure: None,
         os_checks: 0,
+        os_check_traces: vec![],
         os_failure: None,
         drift_at: None,
         inspect_unavailable: false,
@@ -185,12 +183,15 @@ pub(super) fn recovery_record(
 }
 
 impl Backend for Fake {
-    fn preflight_installation_os(&mut self, _: &Target) -> Result<(), String> {
-        self.os_preflights += 1;
-        crate::guest_compatibility::preflight(self.os_preflight_failure.clone().map_or(Ok(()), Err))
-    }
     fn check_installation_os(&mut self, _: &Target) -> Result<(), String> {
+        assert_eq!(
+            self.state.power,
+            Power::Running,
+            "OS check needs the running OS"
+        );
         self.os_checks += 1;
+        self.os_check_traces.push(self.events.clone());
+        self.drift("os-check");
         self.os_failure.clone().map_or(Ok(()), Err)
     }
     fn inspect(&mut self, _: &Target) -> Result<VmState, String> {
@@ -383,7 +384,7 @@ pub(super) fn trace(preview: &EffectPreview) -> Vec<&'static str> {
             PreviewAction::Prepare => Some("prepare"),
             PreviewAction::Attach => Some("attach"),
             PreviewAction::Verify => Some("graphics"),
-            PreviewAction::Settings | PreviewAction::Allocation => None,
+            PreviewAction::CheckOs | PreviewAction::Settings | PreviewAction::Allocation => None,
         })
         .collect()
 }

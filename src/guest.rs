@@ -16,6 +16,7 @@ use std::{
 };
 
 const MANIFEST_LIMIT: u64 = 32 * 1024 * 1024;
+mod os;
 
 fn read_preparation_manifest(input: impl Read) -> Result<Manifest, String> {
     let mut bytes = Vec::new();
@@ -341,32 +342,6 @@ pub(crate) fn check_installation_os(t: &Target, credential: &Credential) -> Resu
     crate::guest_compatibility::require_supported(&identity)
 }
 
-fn require_local_installation_os() -> Result<(), String> {
-    let observe = || {
-        let session =
-            crate::windows_wmi::Session::in_namespace(r"ROOT\cimv2", Duration::from_secs(30))?;
-        let os = session.one("SELECT * FROM Win32_OperatingSystem")?;
-        let version = os.string("Version")?;
-        let parts: Vec<_> = version.split('.').collect();
-        let [major, minor, build] = parts.as_slice() else {
-            return Err(crate::guest_compatibility::unknown());
-        };
-        let parse = |value: &str| {
-            value
-                .parse::<u32>()
-                .map_err(|_| crate::guest_compatibility::unknown())
-        };
-        Ok(crate::guest_compatibility::WindowsIdentity {
-            major: parse(major)?,
-            minor: parse(minor)?,
-            build: parse(build)?,
-            workstation: os.number("ProductType")? == 1
-                && crate::windows_hyperv::local_client_installation()?,
-        })
-    };
-    let identity = observe().map_err(|_: String| crate::guest_compatibility::unknown())?;
-    crate::guest_compatibility::require_supported(&identity)
-}
 /// Copy and independently verify the current complete payload.
 pub fn prepare(t: &Target, manifest: &Manifest, credential: &Credential) -> Result<String, String> {
     prepare_with_progress(t, manifest, credential, &mut |_| Ok(()))
@@ -485,7 +460,7 @@ pub fn worker_with_progress(
         return Err("guest worker requires administrator rights".into());
     }
     if mode == "prepare" {
-        require_local_installation_os()?;
+        os::require_local()?;
     }
     let expected = crate::runner::folder(&windows::Win32::UI::Shell::FOLDERID_ProgramFiles)?
         .join("HyperGpuSupport/Guest");
@@ -879,6 +854,121 @@ fn health() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn actual_transport_checks_current_os_before_bootstrap_without_metadata_or_disk_access() {
+        // Run the production bridge with all guest/Hyper-V entrypoints replaced.
+        // The second remoting invocation is stopped before executing bootstrap.
+        let mocks = r#"
+function Import-Module {}
+function New-PSSession { 'isolated-test-session' }
+function Remove-PSSession {}
+function Get-CimInstance { $r.facts }
+function Get-ItemPropertyValue { $r.kind }
+function Invoke-Command {
+    param($Session, [scriptblock]$ScriptBlock)
+    if ($script:queried) {
+        [Console]::Out.WriteLine('BOOTSTRAP_BOUNDARY')
+        throw 'Test stops before bootstrap'
+    }
+    $script:queried = $true
+    & $ScriptBlock
+}
+"#;
+        for (version, build, product_type, kind, expected) in [
+            ("10.0.26100", "26100", 1, "Client", None),
+            (
+                "10.0.19045",
+                "19045",
+                1,
+                "Client",
+                Some(crate::reporting::FailureCause::UnsupportedGuest),
+            ),
+            (
+                "10.0.26100",
+                "26100",
+                3,
+                "Server",
+                Some(crate::reporting::FailureCause::UnsupportedGuest),
+            ),
+            (
+                "10.0.26100",
+                "26100",
+                1,
+                "WindowsPE",
+                Some(crate::reporting::FailureCause::UnsupportedGuest),
+            ),
+            (
+                "10.0.26100",
+                "22631",
+                1,
+                "Client",
+                Some(crate::reporting::FailureCause::Unavailable),
+            ),
+            (
+                "10.0",
+                "26100",
+                1,
+                "Client",
+                Some(crate::reporting::FailureCause::Unavailable),
+            ),
+            (
+                "10.0.26100",
+                "26100",
+                0,
+                "Client",
+                Some(crate::reporting::FailureCause::Unavailable),
+            ),
+        ] {
+            let input = serde_json::to_vec(&serde_json::json!({
+                "vm_id": "11111111-1111-1111-1111-111111111111",
+                "username": "test-placeholder", "password": "test-placeholder",
+                "mode": "prepare", "diagnostics": false,
+                "windows_11_builds": crate::guest_compatibility::WINDOWS_11_BUILDS,
+                "kind": kind,
+                "facts": {"Version": version, "BuildNumber": build, "ProductType": product_type}
+            }))
+            .unwrap();
+            let mut command = Command::new(windows_paths::windows_powershell_executable().unwrap());
+            command.args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &format!("{mocks}\n{}", transport_script("unused")),
+            ]);
+            let result = process::bounded_process_with_limit(
+                command,
+                Duration::from_secs(20),
+                65536,
+                &input,
+            )
+            .unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(result.exit_code, Some(1));
+            if let Some(expected) = expected {
+                assert!(
+                    !result.stdout.contains("BOOTSTRAP_BOUNDARY"),
+                    "{version}/{kind}"
+                );
+                let reply: BridgeResult = serde_json::from_str(result.stdout.trim()).unwrap();
+                let failure = crate::reporting::ComponentFailure::decode(&reply.output).unwrap();
+                assert!(matches!(
+                    failure.component,
+                    crate::reporting::Component::GuestCompatibility
+                ));
+                assert_eq!(
+                    std::mem::discriminant(&failure.cause),
+                    std::mem::discriminant(&expected)
+                );
+            } else {
+                assert!(
+                    result.stdout.contains("BOOTSTRAP_BOUNDARY"),
+                    "{}",
+                    result.stdout
+                );
+            }
+        }
+    }
 
     #[test]
     fn preparation_manifest_read_is_bounded_before_parsing() {

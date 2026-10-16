@@ -4,6 +4,19 @@ $ProgressPreference = 'SilentlyContinue'
 $session = $null
 $diagnostic = $null
 $checkingCompatibility = $false
+# Transport this fixed read-only query into the actual preparation session.
+$readInstallationIdentity = {
+    $os = @(Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop)
+    if ($os.Count -ne 1) { throw 'Ambiguous OS identity' }
+    $version = [version]$os[0].Version
+    $build = [uint32]$os[0].BuildNumber
+    $productType = [uint32]$os[0].ProductType
+    $kind = Get-ItemPropertyValue -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name InstallationType -ErrorAction Stop
+    if ($null -eq $version -or $version.Build -lt 0 -or $version.Revision -ge 0 -or $version.Build -ne $build -or $productType -notin @(1,2,3) -or [string]::IsNullOrEmpty($kind)) {
+        throw 'Incomplete or inconsistent OS identity'
+    }
+    @{ major = $version.Major; minor = $version.Minor; build = $build; workstation = ($productType -eq 1 -and $kind -ceq 'Client') } | ConvertTo-Json -Compress
+}
 function Write-Stage([string]$stage, [string]$status, [string]$context, [long]$duration = 0) {
     if (!$diagnostic) { return }
     $line = @{utc=[DateTime]::UtcNow.ToString('o');pid=$PID;vm_id=[string]$r.vm_id;mode=[string]$r.mode;stage=$stage;status=$status;context=$context;duration_ms=$duration;significant_delay=($duration -ge 5000)} | ConvertTo-Json -Compress
@@ -98,18 +111,12 @@ try {
     Write-Stage 'session-connect' 'done' 'PowerShell Direct' $timer.ElapsedMilliseconds
     if ($r.mode -cin @('compatibility', 'prepare')) {
         $checkingCompatibility = $true
-        $identity = Invoke-Command -Session $session -ScriptBlock {
-            $os = @(Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop)
-            if ($os.Count -ne 1) { throw 'Ambiguous OS identity' }
-            $version = [version]$os[0].Version
-            $kind = Get-ItemPropertyValue -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name InstallationType -ErrorAction Stop
-            @{ major = $version.Major; minor = $version.Minor; build = [uint32]$os[0].BuildNumber; workstation = ($os[0].ProductType -eq 1 -and $kind -ceq 'Client') } | ConvertTo-Json -Compress
-        }
+        $identity = Invoke-Command -Session $session -ScriptBlock $readInstallationIdentity
         if ($r.mode -ceq 'compatibility') {
             @{ output = [string]$identity; worker_exit = 0 } | ConvertTo-Json -Compress
             return
         }
-        # Rust supplies the explicit release list used by offline and live checks.
+        # Rust supplies the release list used by admission and the guest worker.
         # Check in this very session, before creating guest directories or files.
         $os = $identity | ConvertFrom-Json
         if ($os.major -ne 10 -or $os.minor -ne 0 -or $os.workstation -ne $true -or $os.build -notin $r.windows_11_builds) {

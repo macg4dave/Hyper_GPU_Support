@@ -110,6 +110,25 @@ fn review_reports_ordered_power_steps_changed_settings_and_time_warnings() {
 }
 
 #[test]
+fn stopped_installation_review_shows_os_check_before_preparation() {
+    use hyper_gpu_support::workflow::PreviewAction;
+    let mut plan = review_plan();
+    plan.preview.actions = vec![
+        PreviewAction::Start,
+        PreviewAction::CheckOs,
+        PreviewAction::Shutdown,
+        PreviewAction::Start,
+        PreviewAction::Prepare,
+    ];
+    let text = review_summary(&plan);
+    assert!(text.contains("1. Start the VM."));
+    assert!(text.contains("2. Identify the running guest OS."));
+    assert!(text.contains("failed identification stops setup"));
+    assert!(text.contains("3. Gracefully stop the VM."));
+    assert!(text.contains("5. Prepare the guest"));
+}
+
+#[test]
 fn initial_setup_review_includes_graphics_and_successful_final_off() {
     use hyper_gpu_support::workflow::PreviewAction;
     let mut plan = review_plan();

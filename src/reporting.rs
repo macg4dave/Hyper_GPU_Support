@@ -112,7 +112,7 @@ pub enum FailureCode {
 /// Fixed operation stages; labels cannot carry arbitrary adapter output.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum FailureStage {
-    /// Credential-free installation compatibility refusal before effects.
+    /// Running-guest compatibility refusal before power/GPU/installation effects.
     GuestOsPreflight,
     /// Durable operation journaling.
     RecoveryPersistence,
@@ -289,7 +289,7 @@ impl Diagnostic {
         )
     }
 }
-/// A marked credential-free preflight failed before installation effects.
+/// A running-guest OS check failed before power/GPU/installation effects.
 /// This presentation fact never grants execution or recovery authority.
 pub fn installation_preflight_blocked(error: &str) -> bool {
     matches!(
@@ -323,10 +323,10 @@ pub fn operator_error(stage: &str, error: &str) -> String {
                 "GPU support installation is blocked: this guest OS is unsupported. Only recognised Windows 11 client releases are supported. Linux, Windows Server, older Windows and unrecognised releases are not eligible.",
             ),
             (Component::GuestCompatibility, FailureCause::ReadbackMismatch) => Some(
-                "GPU support installation is blocked because the selected VM power or disk binding changed during OS inspection. Refresh and review the selected target again; guest-reported metadata cannot override this change.",
+                "GPU support installation is blocked because the selected VM changed during OS identification. Refresh and review the selected target again.",
             ),
             (Component::GuestCompatibility, _) => Some(
-                "GPU support installation is blocked because Windows 11 could not be identified from the primary check or Hyper-V guest-reported metadata. A locked BitLocker disk alone cannot establish compatibility; the metadata fallback requires complete, consistent Windows version, build and client-type fields. An already running VM can also be queried through an authenticated read-only session. The application will not unlock a disk to identify it.",
+                "GPU support installation is blocked because the current running guest OS could not be identified reliably. Setup requires a recognised Windows 11 client release. Check that the installed OS has finished starting, the guest credentials are correct and PowerShell Direct is available. If BitLocker is waiting for recovery, resolve it locally in the VM; the application never unlocks disks or requests recovery keys. Missing Hyper-V OS labels do not prevent this authenticated check. Inspect the recorded final power state and any recovery requirement before retrying.",
             ),
             (Component::HyperV, FailureCause::NativeRecoveryRequired) => Some(
                 "Native completion is unresolved. An administrator must correlate a terminal Hyper-V job with the exact VM and stage, run native-review --job LOCAL_JOB_REFERENCE, inspect its before/after facts, then approve native-reconcile --review TOKEN. If completion evidence is unavailable, preserve provider-operation.json, workflow recovery and Hyper-V event logs for administrator/provider support. Do not delete the marker or replay Apply.",

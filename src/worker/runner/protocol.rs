@@ -49,8 +49,6 @@ pub enum Operation {
     PreliminaryPlan,
     /// Read-only preview of an explicitly requested complete driver reinstall.
     ReinstallPlan,
-    /// Credential-free host OS preflight for an installation already reviewed.
-    InstallationOs,
     /// Read-only review of exact pairing/profile record removal.
     RemovalPlan,
     /// Read-only preview of the guest verification lifecycle.

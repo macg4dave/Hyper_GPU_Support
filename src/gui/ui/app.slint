@@ -119,10 +119,19 @@ export component AppWindow inherits Window {
         spacing: 0px;
         Rectangle {
             height: 64px; background: Theme.surface;
-            HorizontalLayout { padding: 20px; spacing: 14px;
+            HorizontalLayout { padding: 12px; padding-left: 20px; padding-right: 20px; spacing: 14px;
                 Rectangle { width: 30px; height: 30px; border-radius: 7px; background: Theme.navigation; Text { text: UiText.common-branding-monogram; color: Theme.text; font-weight: 700; font-size: 20px; } }
                 Label { text: UiText.common-branding-title; font-size: 18px; font-weight: 600; }
                 Rectangle { horizontal-stretch: 1; }
+                settings := Button {
+                    width: 44px; height: 36px;
+                    icon: @image-url("icons/settings.svg");
+                    colorize-icon: true;
+                    accessible-label: UiText.dashboard-navigation-settings;
+                    enabled: !Theme.modal-active;
+                    primary: root.page != 0;
+                    clicked => { if self.enabled { root.page = 2; } }
+                }
             }
         }
         HorizontalLayout {
@@ -131,9 +140,6 @@ export component AppWindow inherits Window {
                 width: 184px; background: Theme.navigation;
                 VerticalLayout { padding: 14px; padding-top: 20px; spacing: 10px;
                     dashboard := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-dashboard; primary: root.page == 0; clicked => { root.page = 0; } }
-                    system := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-system; primary: root.page == 1; clicked => { root.page = 1; } }
-                    settings := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-settings; primary: root.page == 2; clicked => { root.page = 2; } }
-                    about := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-about; primary: root.page == 3; clicked => { root.page = 3; } }
                     Rectangle { vertical-stretch: 1; }
                 }
             }
@@ -220,7 +226,7 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
-                if root.page != 0 : Pages { page: root.page; system-summary: root.system-summary; gpu-information: root.gpu-information; theme-index <=> root.theme-index; action(a) => { root.action(a); } }
+                if root.page != 0 : Pages { page <=> root.page; system-summary: root.system-summary; gpu-information: root.gpu-information; theme-index <=> root.theme-index; action(a) => { root.action(a); } }
             }
         }
         Rectangle { height: 30px; background: Theme.surface;

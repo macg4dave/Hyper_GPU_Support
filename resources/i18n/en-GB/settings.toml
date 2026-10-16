@@ -221,3 +221,14 @@ consequences = "Preserve the reviewed effect, uncertainty and next-step facts of
 severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
+
+[messages."settings.navigation.back"]
+text = "Back to Settings"
+screen = "Pages presentation (src/gui/ui/pages.slint)"
+state = "Selected branch: settings.navigation.back"
+audience = "operator"
+intent = "Return from System Information or About to Settings."
+consequences = "Navigation only; retain the selected VM and pending edits."
+severity = "information"
+space_hint = "Compact button above the subpage heading."
+placeholders = []

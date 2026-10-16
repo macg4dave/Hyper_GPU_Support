@@ -1864,11 +1864,6 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B
     }
 }
 impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedBackend<'_, B, F> {
-    fn preflight_installation_os(&mut self, t: &Target) -> Result<(), String> {
-        self.stage("Check guest OS compatibility for installation", |b| {
-            b.preflight_installation_os(t)
-        })
-    }
     fn check_installation_os(&mut self, t: &Target) -> Result<(), String> {
         self.stage("Check guest OS compatibility for installation", |b| {
             b.check_installation_os(t)

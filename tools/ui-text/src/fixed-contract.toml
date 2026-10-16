@@ -496,13 +496,24 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 [[messages]]
 key = "dashboard.navigation.about"
 [messages.metadata]
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
+screen = "Pages presentation (src/gui/ui/pages.slint)"
 state = "Selected branch: dashboard.navigation.about"
 audience = "operator"
 intent = "Present the existing selected state or action without changing its meaning."
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
 severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+
+[[messages]]
+key = "settings.navigation.back"
+[messages.metadata]
+screen = "Pages presentation (src/gui/ui/pages.slint)"
+state = "Selected branch: settings.navigation.back"
+audience = "operator"
+intent = "Return from System Information or About to Settings."
+consequences = "Navigation only; retain the selected VM and pending edits."
+severity = "information"
+space_hint = "Compact button above the subpage heading."
 
 [[messages]]
 key = "dashboard.navigation.dashboard"
@@ -529,7 +540,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 [[messages]]
 key = "dashboard.navigation.system"
 [messages.metadata]
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
+screen = "Pages presentation (src/gui/ui/pages.slint)"
 state = "Selected branch: dashboard.navigation.system"
 audience = "operator"
 intent = "Present the existing selected state or action without changing its meaning."
@@ -2087,6 +2098,17 @@ intent = "Present the existing selected state or action without changing its mea
 consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
 severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
+
+[[messages]]
+key = "operations.apply.review.step.check_os"
+[messages.metadata]
+screen = "review_summary presentation (src/gui/live_state/review_text.rs)"
+state = "GPU installation review"
+audience = "operator"
+intent = "Explain the read-only OS check before GPU and driver changes."
+consequences = "An off VM is started with reviewed consent; identification failure blocks installation."
+severity = "information"
+space_hint = "Use the existing scrolling review."
 
 [[messages]]
 key = "operations.apply.review.step.shutdown"

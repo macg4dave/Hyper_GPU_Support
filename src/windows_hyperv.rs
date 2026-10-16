@@ -12,36 +12,6 @@ use crate::{
 use std::time::{Duration, Instant};
 use windows::{Win32::System::Variant::VARIANT, core::BSTR};
 mod guest_os;
-mod installation_os;
-
-pub(crate) use installation_os::check_offline;
-pub(crate) use installation_os::local_client_installation;
-
-/// Installation-only fallback, freshly queried by VM GUID rather than UI cache.
-pub(crate) fn check_reported_os(t: &Target) -> Result<(), String> {
-    let observe = || {
-        let session = Session::new(TIMEOUT)?;
-        let component = session.one(&format!(
-            "SELECT * FROM Msvm_KvpExchangeComponent WHERE SystemName='{}'",
-            quoted(&t.vm_id)
-        ))?;
-        guest_os::installation_identity(&component.strings("GuestIntrinsicExchangeItems")?)
-    };
-    let identity = observe().map_err(|error: String| {
-        match crate::reporting::ComponentFailure::decode(&error) {
-            Some(failure)
-                if matches!(
-                    failure.component,
-                    crate::reporting::Component::GuestCompatibility
-                ) =>
-            {
-                failure.into_error()
-            }
-            _ => crate::guest_compatibility::unknown(),
-        }
-    })?;
-    crate::guest_compatibility::require_supported(&identity)
-}
 
 const TIMEOUT: Duration = Duration::from_secs(120);
 fn settings(s: &Session, id: &str) -> Result<Object, String> {

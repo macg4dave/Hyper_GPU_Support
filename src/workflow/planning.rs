@@ -100,14 +100,6 @@ fn decision_inputs(
     // the full current payload and rejects a changed digest or effect scope.
     let authentication_deferred =
         preliminary && target.enabled && !reinstall && !journal.pending && journal.setup_eligible();
-    // An explicit repair or missing preparation receipt already establishes
-    // installation intent. Refuse unsupported guests before expensive payload
-    // discovery/authentication, and before the frontend can request credentials.
-    let os_preflight =
-        target.enabled && !journal.pending && (reinstall || journal.prepared.is_none());
-    if os_preflight {
-        backend.preflight_installation_os(target)?;
-    }
     let digest = if authentication_deferred {
         journal.prepared.clone()
     } else if target.enabled {
@@ -118,11 +110,6 @@ fn decision_inputs(
     // The prepared digest is published only after a complete verified preparation.
     // A later Hyper-V failure must not turn that receipt back into partial staging.
     let stale = target.enabled && (reinstall || journal.prepared != digest);
-    // An ordinary payload refresh becomes installation only once the digest is
-    // known. Management with an unchanged payload must not query the guest OS.
-    if stale && !journal.pending && !os_preflight {
-        backend.preflight_installation_os(target)?;
-    }
     let setup_required = target.enabled && (stale || !journal.setup_eligible());
     let assignment = !initial.gpus.is_empty();
     let settings_change = target.enabled && initial.settings != desired;
@@ -221,6 +208,8 @@ pub struct PreparationPreview {
 /// Ordered effects expected from apply if observations remain unchanged.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PreviewAction {
+    /// Read the running OS before GPU or installation changes.
+    CheckOs,
     /// Graceful guest shutdown; refusal stops subsequent mutation.
     Shutdown,
     /// Start the selected guest.
@@ -328,6 +317,15 @@ pub fn plan_reinstall(backend: &mut impl Backend, target: &Target) -> Result<Pla
 pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     let mut actions = Vec::new();
     let mut power = d.initial.power.clone();
+    if d.stale {
+        if power == Power::Off {
+            actions.push(PreviewAction::Start);
+        }
+        actions.push(PreviewAction::CheckOs);
+        if power == Power::Off {
+            actions.push(PreviewAction::Shutdown);
+        }
+    }
     if d.needs_changes {
         if power == Power::Running {
             actions.push(PreviewAction::Shutdown);
@@ -397,6 +395,9 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
         });
     let pending = d.journal.pending;
     let mut summary = Vec::new();
+    if d.stale {
+        summary.push("Identify the current running guest OS before GPU or installation changes. Only Windows 11 clients are supported. An off VM is temporarily started for this read-only authenticated check, then gracefully stopped. Failed identification blocks installation; failed power restoration retains recovery. Disks are never mounted or unlocked by detection.".into());
+    }
     if d.reinstall {
         summary.push("Repair / Reinstall explicitly runs complete signed guest driver preparation, even when historical host receipts match. Files independently confirmed to match may be retained. Complete preparation and selected-hardware graphics verification are required; successful completion leaves the VM off. This is a one-operation request, not an automatic repair policy.".into());
     }
@@ -504,48 +505,6 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn unsupported_initial_setup_and_reinstall_stop_before_payload_work() {
-        use crate::workflow::test_support::{fake, target};
-        for repair in [false, true] {
-            let mut backend = fake();
-            let target = target();
-            if repair {
-                crate::workflow::apply(&mut backend, &target).unwrap();
-            }
-            backend.events.clear();
-            backend.payload_reads = 0;
-            let writes = backend.journal_writes;
-            backend.os_preflight_failure = Some(crate::guest_compatibility::unsupported());
-            let error = if repair {
-                super::plan_reinstall(&mut backend, &target)
-            } else {
-                super::plan_preliminary(&mut backend, &target)
-            }
-            .unwrap_err();
-            assert!(crate::reporting::installation_preflight_blocked(&error));
-            assert_eq!(backend.payload_reads, 0);
-            assert_eq!(backend.journal_writes, writes);
-            assert!(backend.events.is_empty());
-        }
-    }
-
-    #[test]
-    fn refresh_preflights_after_discovering_changed_payload_but_management_does_not() {
-        use crate::workflow::test_support::{fake, target};
-        let mut backend = fake();
-        let target = target();
-        crate::workflow::apply(&mut backend, &target).unwrap();
-        backend.os_preflights = 0;
-        backend.os_preflight_failure = Some(crate::guest_compatibility::unsupported());
-        assert!(super::plan_preliminary(&mut backend, &target).is_ok());
-        assert_eq!(backend.os_preflights, 0);
-        backend.driver = "changed";
-        assert!(crate::reporting::installation_preflight_blocked(
-            &super::plan(&mut backend, &target).unwrap_err()
-        ));
-        assert_eq!(backend.os_preflights, 1);
-    }
     use crate::model::{Allocation, Power};
     use crate::workflow::test_support::{extended_target, fake, target, trace};
     use crate::workflow::{Plan, PreviewAction, admit_approved, apply, plan};

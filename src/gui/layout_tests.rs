@@ -3,7 +3,7 @@ use super::AppWindow;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
 use slint::platform::{Platform, PlatformError, WindowAdapter, WindowEvent};
 use slint::private_unstable_api::re_exports::{
-    AccessibilityAction, AccessibleStringProperty, ItemRc, WindowInner,
+    AccessibilityAction, AccessibleRole, AccessibleStringProperty, ItemRc, WindowInner,
 };
 use slint::{ComponentHandle, LogicalPosition, LogicalSize, Rgb8Pixel};
 use std::{ops::ControlFlow, rc::Rc};
@@ -59,6 +59,103 @@ fn retain_render(name: &str) {
         )
         .unwrap();
     }
+}
+
+#[test]
+fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
+    use hyper_gpu_support::ui_text::{dashboard::navigation, settings};
+    use std::cell::RefCell;
+
+    fn buttons(ui: &AppWindow, label: &str) -> Vec<ItemRc> {
+        let root = ItemRc::new_root(WindowInner::from_pub(ui.window()).component());
+        let mut found = Vec::new();
+        root.visit_descendants::<()>(|item| {
+            if item.accessible_role() == AccessibleRole::Button
+                && item
+                    .accessible_string_property(AccessibleStringProperty::Label)
+                    .as_deref()
+                    == Some(label)
+            {
+                found.push(item.clone());
+            }
+            ControlFlow::Continue(())
+        });
+        found
+    }
+
+    fn button(ui: &AppWindow, label: &str) -> ItemRc {
+        let mut found = buttons(ui, label);
+        assert_eq!(found.len(), 1, "one navigation button: {label}");
+        found.pop().unwrap()
+    }
+
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_selected_id("12345678-1234-1234-1234-123456789abc".into());
+    ui.set_dirty(true);
+    ui.set_memory_input("5.9".into());
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let captured = actions.clone();
+    ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
+    ui.show().unwrap();
+
+    for (width, height) in [(1240., 860.), (700., 520.)] {
+        window.set_size(LogicalSize::new(width, height));
+        ui.set_page(0);
+        draw(&window);
+        assert!(buttons(&ui, navigation::SYSTEM).is_empty());
+        assert!(buttons(&ui, navigation::ABOUT).is_empty());
+        let gear = button(&ui, navigation::SETTINGS);
+        let geometry = gear.geometry();
+        let origin = gear.map_to_window(geometry.origin);
+        assert!(origin.x > width - 100. && origin.x + geometry.width() <= width);
+        assert!(origin.y >= 0. && origin.y + geometry.height() <= 64.);
+        gear.accessible_action(&AccessibilityAction::Default);
+        assert_eq!(ui.get_page(), 2);
+        draw(&window);
+        retain_render(&format!("settings-{width}"));
+
+        for (label, page) in [(navigation::SYSTEM, 1), (navigation::ABOUT, 3)] {
+            let link = button(&ui, label);
+            let origin = link.map_to_window(link.geometry().origin);
+            assert!(link.is_visible());
+            assert!(origin.x >= 184. && origin.x + link.geometry().width() <= width);
+            assert!(origin.y >= 64. && origin.y + link.geometry().height() <= height);
+            // Even direct assistive activation must respect a modal operation.
+            ui.set_dialog_kind("more".into());
+            link.accessible_action(&AccessibilityAction::Default);
+            assert_eq!(ui.get_page(), 2);
+            ui.set_dialog_kind("".into());
+            link.accessible_action(&AccessibilityAction::Default);
+            assert_eq!(ui.get_page(), page);
+            draw(&window);
+            retain_render(&format!("settings-{page}-{width}"));
+            let back = button(&ui, settings::navigation::BACK);
+            ui.set_dialog_kind("more".into());
+            back.accessible_action(&AccessibilityAction::Default);
+            button(&ui, navigation::SETTINGS).accessible_action(&AccessibilityAction::Default);
+            assert_eq!(ui.get_page(), page);
+            ui.set_dialog_kind("".into());
+            if page == 3 {
+                button(&ui, settings::help::OPEN_LABEL)
+                    .accessible_action(&AccessibilityAction::Default);
+                assert_eq!(actions.borrow().as_slice(), &["shortcuts"]);
+                actions.borrow_mut().clear();
+            }
+            back.accessible_action(&AccessibilityAction::Default);
+            assert_eq!(ui.get_page(), 2);
+            draw(&window);
+        }
+        button(&ui, navigation::DASHBOARD).accessible_action(&AccessibilityAction::Default);
+        assert_eq!(ui.get_page(), 0);
+        assert_eq!(ui.get_selected_id(), "12345678-1234-1234-1234-123456789abc");
+        assert!(ui.get_dirty());
+        assert_eq!(ui.get_memory_input(), "5.9");
+        assert!(actions.borrow().is_empty(), "navigation emits no operation");
+    }
+    ui.hide().unwrap();
 }
 
 #[test]

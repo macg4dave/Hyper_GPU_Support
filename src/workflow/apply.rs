@@ -11,7 +11,7 @@ use facts::ApplyFacts;
 /// Failures retain recovery intent; no disk recreation or forced shutdown is attempted.
 pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
     let d = decision(backend, target)?;
-    execute_decision(backend, target, d)
+    execute_decision(backend, target, d, false)
 }
 /// Execute only when independently gathered state still matches the approved plan.
 /// This check precedes journal admission and every GPU/guest effect.
@@ -29,6 +29,7 @@ pub fn apply_approved(
 pub(crate) struct AdmittedApply {
     target: Target,
     decision: Decision,
+    os_checked: bool,
 }
 impl AdmittedApply {
     pub(crate) fn driver_version(&self) -> &str {
@@ -57,11 +58,18 @@ pub(crate) fn admit_approved(
     if d.journal.pending {
         return Err("pending recovery requires manual reconciliation, not Apply".into());
     }
+    // A read-only refusal of an already running guest needs no recovery record.
+    // Keep this inside the authenticated worker, after reviewed facts match.
+    let os_checked = d.stale && d.initial.power == Power::Running;
+    if os_checked {
+        crate::guest_compatibility::preflight(backend.check_installation_os(target))?;
+    }
     Ok((
         actual,
         AdmittedApply {
             target: target.clone(),
             decision: d,
+            os_checked,
         },
     ))
 }
@@ -78,6 +86,7 @@ pub(crate) fn apply_admitted(
     let AdmittedApply {
         target,
         decision: d,
+        os_checked,
     } = admitted;
     let current = backend.inspect(&target)?;
     let gpu = backend.gpu(&target)?;
@@ -91,13 +100,14 @@ pub(crate) fn apply_admitted(
     {
         return Err("admitted state changed; refresh and review before effects".into());
     }
-    execute_decision(backend, &target, d)
+    execute_decision(backend, &target, d, os_checked)
 }
 
 fn execute_decision(
     backend: &mut impl Backend,
     target: &Target,
     d: Decision,
+    os_checked: bool,
 ) -> Result<OperationResult, String> {
     let Decision {
         initial,
@@ -117,11 +127,10 @@ fn execute_decision(
     } = d;
     let mut facts = ApplyFacts::new(initial.clone(), gpu.clone(), managed);
     facts.check(backend, target)?;
-    // All preparation (first install, host-driver refresh and explicit repair)
-    // converges here. Refusal precedes journaling, power and GPU/guest effects.
-    // Ordinary management and verification-only operations do not inspect OS.
-    if stale {
-        backend.check_installation_os(target)?;
+    // A running guest can be refused without any lifecycle changes. Off guests
+    // need the separately reviewed temporary boot, journalled below.
+    if stale && initial.power == Power::Running && !os_checked {
+        crate::guest_compatibility::preflight(backend.check_installation_os(target))?;
         facts.check(backend, target)?;
     }
     // Record power-only ordinary operations too, before graceful shutdown.
@@ -133,14 +142,6 @@ fn execute_decision(
         }
         journal.preparation_started = setup_required.then_some(false);
         journal.check_restored = false;
-        if stale {
-            // A failed refresh may leave a mixture of the old and new payload.
-            // Invalidate the old receipt before effects, including if the host
-            // later rolls back to that old driver's digest.
-            journal.prepared = None;
-            // Historical rendering is not eligibility; latest_check records this
-            // incomplete operation for both ordinary updates and explicit repair.
-        }
         if setup_required {
             persist_check(backend, target, &journal)?;
         } else {
@@ -149,6 +150,27 @@ fn execute_decision(
         facts.journal = Some(journal.clone());
         facts.check(backend, target)?;
     }
+    if stale && initial.power == Power::Off {
+        // The journal still records preparation_started=false and preserves any
+        // previous receipt. This boot grants no permission to touch GPU/drivers.
+        let checked = facts.power(backend, target, Power::Running).and_then(|()| {
+            backend.check_installation_os(target)?;
+            facts.check(backend, target)
+        });
+        let restored = facts.restore(backend, target, &Power::Off);
+        match (checked, restored) {
+            (Ok(()), Ok(())) => {}
+            (Err(error), Ok(())) => return Err(error),
+            (result, Err(restoration)) => {
+                return Err(format!(
+                    "OS identification power restoration failed: {restoration}; {}",
+                    result
+                        .err()
+                        .unwrap_or_else(crate::guest_compatibility::unknown)
+                ));
+            }
+        }
+    }
     let operation: Result<OperationResult, String> = (|| {
         if needs_changes {
             if initial.power == Power::Running {
@@ -156,6 +178,9 @@ fn execute_decision(
             }
             if stale {
                 facts.check(backend, target)?;
+                // Only now can preparation-related effects begin. A failed OS
+                // check must preserve the old completed preparation receipt.
+                journal.prepared = None;
                 journal.preparation_started = Some(true);
                 persist_check(backend, target, &journal)?;
                 facts.journal = Some(journal.clone());
@@ -275,6 +300,113 @@ mod tests {
     };
 
     #[test]
+    fn stopped_setup_reviews_and_checks_the_running_os_before_gpu_or_driver_changes() {
+        let mut backend = fake();
+        backend.state.power = Power::Off;
+        let reviewed = plan(&mut backend, &target()).unwrap();
+        assert_eq!(
+            &reviewed.preview.actions[..3],
+            &[
+                PreviewAction::Start,
+                PreviewAction::CheckOs,
+                PreviewAction::Shutdown
+            ]
+        );
+        assert_eq!(backend.os_checks, 0);
+        apply_approved(&mut backend, &reviewed).unwrap();
+        assert_eq!(backend.os_check_traces, [vec!["start"]]);
+        assert_eq!(
+            backend.events,
+            [
+                "start", "shutdown", "start", "prepare", "shutdown", "attach", "start", "graphics",
+                "shutdown"
+            ]
+        );
+        assert_eq!(backend.state.power, Power::Off);
+        assert!(!backend.journal.unwrap().pending);
+    }
+
+    #[test]
+    fn stopped_os_refusal_restores_power_preserves_receipts_and_retains_recovery() {
+        for path in 0..3 {
+            for failure in [
+                crate::guest_compatibility::unknown(),
+                crate::guest_compatibility::unsupported(),
+            ] {
+                let mut backend = fake();
+                let target = target();
+                if path != 0 {
+                    apply(&mut backend, &target).unwrap();
+                }
+                backend.state.power = Power::Off;
+                let before = serde_json::to_value(&backend.state).unwrap();
+                let prepared = backend.journal.as_ref().and_then(|j| j.prepared.clone());
+                if path == 1 {
+                    backend.driver = "changed";
+                }
+                backend.events.clear();
+                let reviewed = if path == 2 {
+                    plan_reinstall(&mut backend, &target)
+                } else {
+                    plan(&mut backend, &target)
+                }
+                .unwrap();
+                backend.os_failure = Some(failure.clone());
+                assert_eq!(
+                    apply_approved(&mut backend, &reviewed).unwrap_err(),
+                    failure
+                );
+                assert_eq!(backend.events, ["start", "shutdown"]);
+                assert_eq!(serde_json::to_value(&backend.state).unwrap(), before);
+                let journal = backend.journal.unwrap();
+                assert_eq!(journal.prepared, prepared);
+                assert!(journal.pending);
+                assert_eq!(journal.preparation_started, Some(false));
+            }
+        }
+    }
+
+    #[test]
+    fn identification_boot_and_restoration_failures_never_start_installation() {
+        use crate::workflow::test_support::Drift;
+        for fault in 0..4 {
+            let mut backend = fake();
+            backend.state.power = Power::Off;
+            match fault {
+                0 => backend.fail_start_after_effect = true,
+                1 => {
+                    backend.os_failure = Some(crate::guest_compatibility::unknown());
+                    backend.fail_shutdown = true;
+                }
+                2 => backend.drift_at = Some(("os-check", Drift::Settings)),
+                _ => backend.fail_save_at = Some(1),
+            }
+            assert!(apply(&mut backend, &target()).is_err());
+            assert!(
+                backend
+                    .events
+                    .iter()
+                    .all(|event| matches!(*event, "start" | "shutdown"))
+            );
+            assert_eq!(backend.settings_writes, 0);
+            assert_eq!(backend.allocation_writes, 0);
+            if fault == 0 {
+                assert_eq!(backend.state.power, Power::Off);
+            }
+            if fault == 1 || fault == 2 {
+                assert_eq!(backend.state.power, Power::Running);
+            }
+            if fault == 3 {
+                assert!(backend.events.is_empty());
+            }
+            if let Some(journal) = backend.journal {
+                assert!(journal.pending);
+                assert_eq!(journal.preparation_started, Some(false));
+            }
+        }
+    }
+
+    #[test]
     fn installation_os_refusal_blocks_first_install_refresh_and_repair_before_effects() {
         for path in 0..3 {
             for failure in [
@@ -292,6 +424,7 @@ mod tests {
                 if path != 0 {
                     apply(&mut backend, &target).unwrap();
                 }
+                backend.state.power = Power::Running;
                 if path == 1 {
                     backend.driver = "changed";
                 }
@@ -307,7 +440,11 @@ mod tests {
                 assert_eq!(backend.os_checks, 0, "review must not query the OS");
                 backend.os_failure = Some(failure.clone());
                 let error = apply_approved(&mut backend, &reviewed).unwrap_err();
-                assert_eq!(error, failure);
+                assert_eq!(
+                    error,
+                    crate::guest_compatibility::preflight(Err(failure)).unwrap_err()
+                );
+                assert!(crate::reporting::installation_preflight_blocked(&error));
                 assert_eq!(backend.os_checks, 1);
                 assert!(
                     backend.events.is_empty(),
@@ -669,6 +806,8 @@ mod tests {
             ];
             if power == Power::Running {
                 expected.insert(0, "shutdown");
+            } else {
+                expected.splice(0..0, ["start", "shutdown"]);
             }
             assert_eq!(effects, expected);
             assert!(backend.journal.as_ref().unwrap().setup_eligible());
@@ -721,11 +860,14 @@ mod tests {
             let journal = backend.journal.as_ref().unwrap();
             assert!(journal.pending && !journal.verification_only);
             assert_eq!(journal.last_verified, history);
-            if scenario < 2 {
+            if scenario == 1 {
                 assert!(journal.prepared.is_none());
             }
             if scenario == 0 {
                 assert_eq!(backend.events, ["shutdown"]);
+                assert!(journal.prepared.is_some());
+                assert_eq!(journal.preparation_started, Some(false));
+                assert!(!journal.setup_eligible());
             }
             if scenario == 1 {
                 assert!(!backend.events.contains(&"attach"));

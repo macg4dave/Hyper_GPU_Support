@@ -14,20 +14,8 @@ pub(crate) struct NativeBackend {
     pub(crate) data: PathBuf,
 }
 impl Backend for NativeBackend {
-    fn preflight_installation_os(&mut self, t: &Target) -> Result<(), String> {
-        let primary = (|| match windows_hyperv::inspect(&t.vm_id)?.power {
-            Power::Off => windows_hyperv::check_offline(t),
-            Power::Running => Err(crate::guest_compatibility::unknown()),
-            _ => Err("VM power is not stable for installation preflight".into()),
-        })();
-        crate::guest_compatibility::preflight(crate::guest_compatibility::with_metadata_fallback(
-            primary,
-            || windows_hyperv::check_reported_os(t),
-        ))
-    }
     fn check_installation_os(&mut self, t: &Target) -> Result<(), String> {
-        let primary = (|| match windows_hyperv::inspect(&t.vm_id)?.power {
-            Power::Off => windows_hyperv::check_offline(t),
+        match windows_hyperv::inspect(&t.vm_id)?.power {
             Power::Running => crate::guest::check_installation_os(
                 t,
                 self.credential
@@ -35,10 +23,7 @@ impl Backend for NativeBackend {
                     .ok_or_else(crate::guest_compatibility::unknown)?,
             ),
             _ => Err(crate::guest_compatibility::unknown()),
-        })();
-        crate::guest_compatibility::with_metadata_fallback(primary, || {
-            windows_hyperv::check_reported_os(t)
-        })
+        }
     }
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
         crate::diagnostics::run("inspect-vm", &t.vm_id, || windows_hyperv::inspect(&t.vm_id))

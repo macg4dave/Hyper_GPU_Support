@@ -365,6 +365,17 @@ severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
 
+[messages."operations.apply.review.step.check_os"]
+text = "Identify the running guest OS. GPU installation proceeds only on Windows 11; failed identification stops setup."
+screen = "review_summary presentation (src/gui/live_state/review_text.rs)"
+state = "GPU installation review"
+audience = "operator"
+intent = "Explain the read-only OS check before GPU and driver changes."
+consequences = "An off VM is started with reviewed consent; identification failure blocks installation."
+severity = "information"
+space_hint = "Use the existing scrolling review."
+placeholders = []
+
 [messages."operations.apply.review.step.shutdown"]
 text = "Gracefully stop the VM."
 screen = "review_summary presentation (src/gui/live_state.rs)"

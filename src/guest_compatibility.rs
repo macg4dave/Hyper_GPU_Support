@@ -15,6 +15,44 @@ pub(crate) struct WindowsIdentity {
     pub workstation: bool,
 }
 
+impl WindowsIdentity {
+    /// WMI version and build are independent fields and must describe one OS.
+    /// Product names and cached presentation metadata never enter this boundary.
+    pub(crate) fn from_facts(
+        version: &str,
+        build: &str,
+        product_type: u64,
+        installation_type: &str,
+    ) -> Result<Self, String> {
+        let number = |s: &str| {
+            if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(unknown());
+            }
+            s.parse::<u32>().map_err(|_| unknown())
+        };
+        let parts = version
+            .split('.')
+            .map(number)
+            .collect::<Result<Vec<_>, _>>()?;
+        let [major, minor, version_build] = parts.as_slice() else {
+            return Err(unknown());
+        };
+        let build = number(build)?;
+        if build != *version_build
+            || !matches!(product_type, 1..=3)
+            || installation_type.trim().is_empty()
+        {
+            return Err(unknown());
+        }
+        Ok(Self {
+            major: *major,
+            minor: *minor,
+            build,
+            workstation: product_type == 1 && installation_type == "Client",
+        })
+    }
+}
+
 pub(crate) fn unknown() -> String {
     ComponentFailure {
         stage: None,
@@ -35,7 +73,7 @@ pub(crate) fn unsupported() -> String {
     .into_error()
 }
 
-/// Mark a credential-free, pre-effect refusal without exposing adapter prose.
+/// Mark refusal of a running guest before power/GPU/installation effects.
 pub(crate) fn preflight(result: Result<(), String>) -> Result<(), String> {
     result.map_err(|error| {
         let mut failure = ComponentFailure::decode(&error)
@@ -49,29 +87,6 @@ pub(crate) fn preflight(result: Result<(), String>) -> Result<(), String> {
         failure.stage = Some(crate::reporting::FailureStage::GuestOsPreflight);
         failure.into_error()
     })
-}
-
-/// Consult host-read guest reports only when primary inspection was unavailable.
-/// A positive rejection must never be overridden by cached metadata.
-pub(crate) fn with_metadata_fallback(
-    primary: Result<(), String>,
-    fallback: impl FnOnce() -> Result<(), String>,
-) -> Result<(), String> {
-    match primary {
-        Err(error)
-            if matches!(
-                ComponentFailure::decode(&error),
-                Some(ComponentFailure {
-                    component: Component::GuestCompatibility,
-                    cause: FailureCause::Unavailable,
-                    ..
-                })
-            ) =>
-        {
-            fallback()
-        }
-        outcome => outcome,
-    }
 }
 
 pub(crate) fn require_supported(identity: &WindowsIdentity) -> Result<(), String> {
@@ -91,38 +106,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn metadata_is_a_lazy_fallback_and_cannot_override_a_positive_rejection() {
-        assert!(with_metadata_fallback(Ok(()), || panic!("unnecessary fallback")).is_ok());
-        let unsupported = require_supported(&WindowsIdentity {
-            major: 10,
-            minor: 0,
-            build: 19045,
-            workstation: true,
-        })
-        .unwrap_err();
-        assert_eq!(
-            with_metadata_fallback(Err(unsupported.clone()), || panic!("unsupported override")),
-            Err(unsupported),
-        );
-        assert!(with_metadata_fallback(Err(unknown()), || Ok(())).is_ok());
-        assert!(with_metadata_fallback(Err(unknown()), || Err(unknown())).is_err());
-        let changed = ComponentFailure {
-            stage: None,
-            component: Component::GuestCompatibility,
-            cause: FailureCause::ReadbackMismatch,
-            code: None,
+    fn current_windows_facts_require_matching_build_and_actual_client_type() {
+        let client = WindowsIdentity::from_facts("10.0.26100", "26100", 1, "Client").unwrap();
+        assert!(require_supported(&client).is_ok());
+        for (version, build, product_type, kind) in [
+            ("10.0.26100", "22631", 1, "Client"),
+            ("10.0", "26100", 1, "Client"),
+            ("10.0.26100.1", "26100", 1, "Client"),
+            ("10.0.invalid", "26100", 1, "Client"),
+            ("10.0.26100", "+26100", 1, "Client"),
+            ("10.0.26100", "26100", 0, "Client"),
+            ("10.0.26100", "26100", 1, ""),
+        ] {
+            assert!(WindowsIdentity::from_facts(version, build, product_type, kind).is_err());
         }
-        .into_error();
-        assert_eq!(
-            with_metadata_fallback(Err(changed.clone()), || panic!("changed binding override")),
-            Err(changed)
-        );
-        assert_eq!(
-            with_metadata_fallback(Err("other failure".into()), || panic!(
-                "unclassified override"
-            )),
-            Err("other failure".into())
-        );
+        for (product_type, kind) in [(3, "Server"), (2, "Server"), (1, "WindowsPE")] {
+            let identity =
+                WindowsIdentity::from_facts("10.0.26100", "26100", product_type, kind).unwrap();
+            assert!(require_supported(&identity).is_err());
+        }
     }
 
     #[test]
@@ -166,6 +168,18 @@ mod tests {
         assert!(text.contains("Windows 11"));
         assert!(text.contains("BitLocker"));
         assert!(text.contains("blocked"));
+        assert!(text.contains("guest credentials"));
+        assert!(text.contains("PowerShell Direct"));
+        let unsupported = crate::reporting::operator_error("Apply", &unsupported());
+        assert!(!unsupported.contains("start it"));
+        let changed = ComponentFailure {
+            stage: None,
+            component: Component::GuestCompatibility,
+            cause: FailureCause::ReadbackMismatch,
+            code: None,
+        }
+        .into_error();
+        assert!(!crate::reporting::operator_error("Apply", &changed).contains("start it"));
     }
 
     #[test]

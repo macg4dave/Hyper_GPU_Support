@@ -5,7 +5,7 @@ import { Theme, Heading, Label, Hint, Surface } from "theme.slint";
 export struct GpuRow { name: string, description: string }
 
 export component Pages inherits Rectangle {
-    in property <int> page;
+    in-out property <int> page;
     in property <string> system-summary;
     in property <[GpuRow]> gpu-information;
     in-out property <int> theme-index: 0;
@@ -15,6 +15,14 @@ export component Pages inherits Rectangle {
         horizontal-scrollbar-policy: always-off;
         VerticalLayout {
             padding: 28px; spacing: 18px;
+            if root.page != 2 : HorizontalLayout {
+                Button {
+                    enabled: !Theme.modal-active;
+                    text: UiText.settings-navigation-back;
+                    clicked => { if self.enabled { root.page = 2; } }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
             Heading { text: root.page == 2 ? UiText.settings-title : root.page == 1 ? UiText.system-title : UiText.settings-about-title; }
             Hint { text: root.page == 2 ? UiText.settings-preferences-notice : root.page == 1 ? UiText.system-subtitle : UiText.settings-about-subtitle; }
             if root.page == 1 : VerticalLayout {
@@ -24,6 +32,20 @@ export component Pages inherits Rectangle {
 
             if root.page == 2 : VerticalLayout {
                 spacing: 18px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    Button {
+                        enabled: !Theme.modal-active;
+                        text: UiText.dashboard-navigation-system;
+                        clicked => { if self.enabled { root.page = 1; } }
+                    }
+                    Button {
+                        enabled: !Theme.modal-active;
+                        text: UiText.dashboard-navigation-about;
+                        clicked => { if self.enabled { root.page = 3; } }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                }
                 Surface { VerticalLayout { padding: 22px; spacing: 12px;
                     Label { text: UiText.settings-appearance-title; font-weight: 600; }
                     Hint { text: UiText.settings-appearance-theme-label; }

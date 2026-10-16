@@ -1,4 +1,6 @@
 {
+  "dashboard.navigation.system": "System Information",
+  "system.title": "System Information",
   "dashboard.memory.label": "GPU Memory Request",
   "dashboard.memory.submit": "Set",
   "dashboard.support.attached": "GPU support is enabled.",

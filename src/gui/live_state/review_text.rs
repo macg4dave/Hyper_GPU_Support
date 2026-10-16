@@ -216,6 +216,9 @@ pub(in crate::gui) fn review_summary(plan: &Plan) -> String {
             .enumerate()
             .map(|(index, action)| {
                 let step = match action {
+                    PreviewAction::CheckOs => {
+                        hyper_gpu_support::ui_text::operations::apply::review::step::CHECK_OS
+                    }
                     PreviewAction::Shutdown => {
                         hyper_gpu_support::ui_text::operations::apply::review::step::SHUTDOWN
                     }

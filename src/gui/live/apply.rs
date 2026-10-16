@@ -53,23 +53,8 @@ pub(super) fn apply_live(
         Some(&vm_name),
         setup_required,
         move || {
-            // A previous review is not current OS evidence. Repeat the host-only
-            // check before even reading the vault or opening the native prompt.
-            let credential = installation::credentials(
-                approved
-                    .preview
-                    .actions
-                    .contains(&hyper_gpu_support::workflow::PreviewAction::Prepare),
-                approved.preview.credentials_required,
-                || {
-                    hyper_gpu_support::runner::submit(hyper_gpu_support::runner::request(
-                        hyper_gpu_support::runner::Operation::InstallationOs,
-                        Some(approved.desired.clone()),
-                        None,
-                    ))
-                    .map(|_| ())
-                },
-                || {
+            let credential =
+                installation::credentials(approved.preview.credentials_required, || {
                     hyper_gpu_support::credentials::read(&approved.desired.vm_id)?.map_or_else(
                         || {
                             hyper_gpu_support::credentials::prompt_named(
@@ -80,8 +65,7 @@ pub(super) fn apply_live(
                         },
                         Ok,
                     )
-                },
-            )?;
+                })?;
             let shutdown = approved.preview.guest_downtime;
             hyper_gpu_support::worker::apply(approved, revision, shutdown, credential, progress)
         },
