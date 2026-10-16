@@ -57,11 +57,57 @@ fn close_callback_abandons_review_but_retains_busy_admission_and_draft() {
 
     ui.invoke_action("close".into());
     assert!(!ui.get_review_preparing());
-    assert!(!ui.get_running());
-    assert!(ui.get_dialog_kind().is_empty());
+    assert!(ui.get_running());
+    assert_eq!(ui.get_dialog_kind(), "cancelling");
     assert!(!ui.get_operation_dialog_active());
     assert!(ui.get_dirty());
     assert!(ui.get_updating());
     assert!(busy.load(Ordering::Acquire));
     assert!(state.lock().unwrap().enrollment_review.is_none());
+}
+
+#[test]
+fn cancellation_waits_for_admission_release_then_closes_without_continuing() {
+    slint::platform::set_platform(Box::new(Headless)).unwrap();
+    let ui = AppWindow::new().unwrap();
+    let state: SharedState = Arc::new(Mutex::new(State::default()));
+    let busy = Arc::new(AtomicBool::new(true));
+    actions::register(&ui, &state, &busy, &Source);
+    for kind in [
+        crate::gui::operation::Kind::VerifyPlan,
+        crate::gui::operation::Kind::Plan,
+    ] {
+        busy.store(true, Ordering::Release);
+        ui.set_running(true);
+        ui.set_updating(true);
+        ui.set_review_preparing(true);
+        ui.set_dialog_kind("install-progress".into());
+        ui.invoke_action("close".into());
+        assert_eq!(ui.get_dialog_kind(), "cancelling", "{kind:?}");
+        assert!(ui.get_running());
+        assert!(busy.load(Ordering::Acquire));
+        for action in ["close", "more", "verify", "repair", "review", "refresh"] {
+            ui.invoke_action(action.into());
+            assert_eq!(
+                ui.get_dialog_kind(),
+                "cancelling",
+                "wait remains modal: {action}"
+            );
+        }
+        // Match the worker's release order. Both successful and failed late
+        // results take this same discard branch before the completion callback.
+        busy.store(false, Ordering::Release);
+        ui.set_updating(false);
+        assert!(super::background::finish_cancelled_preparation(&ui, true));
+        assert!(ui.get_dialog_kind().is_empty());
+        assert!(!ui.get_running());
+        assert!(!ui.get_updating());
+        ui.invoke_action("more".into());
+        assert_eq!(ui.get_dialog_kind(), "more");
+        ui.invoke_action("close".into());
+        assert!(ui.get_dialog_kind().is_empty());
+    }
+    ui.set_review_preparing(true);
+    assert!(!super::background::finish_cancelled_preparation(&ui, true));
+    assert!(!super::background::finish_cancelled_preparation(&ui, false));
 }

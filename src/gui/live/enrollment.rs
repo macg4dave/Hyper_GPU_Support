@@ -11,10 +11,9 @@ use super::{
 use crate::gui::{
     AppWindow, dialog, failure_dialog,
     operation::{Kind, Operation},
-    set_details,
 };
 use hyper_gpu_support::model::Target;
-use slint::{ComponentHandle, Model};
+use slint::ComponentHandle;
 use std::sync::{Arc, atomic::AtomicBool};
 
 #[cfg(windows)]
@@ -25,18 +24,13 @@ pub(super) fn review_enrollment(
     target: Target,
 ) -> Result<(), String> {
     let reviewed_state = state.clone();
-    let values = ui
-        .get_values()
-        .iter()
-        .take(3)
-        .map(|v| v.to_string())
-        .collect::<Vec<_>>();
-    let allocation = crate::gui::memory::review_allocation(&values)?;
+    let expected = target.clone();
+    let enroll_busy = busy.clone();
     background(
         ui,
         busy,
         Operation::new(
-            Kind::Plan,
+            Kind::PermissionPlan,
             hyper_gpu_support::ui_text::operations::enrollment::review::TITLE,
         ),
         move || {
@@ -66,35 +60,12 @@ pub(super) fn review_enrollment(
         },
         move |ui, result| match result {
             Ok((approved, artifacts, worker_available)) => {
-                let heading = hyper_gpu_support::ui_text::operations::enrollment::review::body(
-                    &(ui.get_vm_name()),
-                    &(ui.get_gpu_options()
-                        .row_data(usize::try_from(ui.get_gpu_index()).unwrap_or(usize::MAX))
-                        .unwrap_or_default()),
-                )
-                .into_string();
-                let summary = hyper_gpu_support::ui_text::operations::enrollment::ELEVATION_NOTICE;
-                let mut body = format!(
-                    "VM ID: {}\nGPU interface: {}\nOperator: {}\nPolicy revision: {:?}\n\nAuthorize this exact VM/GPU pair through Windows elevation, preserving all other enrolled VMs. Enrollment does not enable GPU support, change guest power, prepare drivers or save desired configuration. Your draft is retained. After fresh authority readback, Apply obtains a separate GPU operation plan.",
-                    approved.vm_id,
-                    approved.gpu_interface,
-                    approved.operator_sid,
-                    approved.expected
-                );
-                if let Some(pins) = &artifacts {
-                    body.push_str(
-                        hyper_gpu_support::ui_text::operations::enrollment::INSTALL_DETAILS,
-                    );
-                    for (name, hash) in pins {
-                        body.push_str(
-                            &hyper_gpu_support::ui_text::operations::enrollment::artifact_pin(
-                                name, hash,
-                            )
-                            .into_string(),
-                        );
-                    }
-                }
                 if !with_state(ui, &reviewed_state, |state| {
+                    if draft_target(ui, state)? != expected
+                        || state.view.selected.as_deref() != Some(expected.vm_id.as_str())
+                    {
+                        return Err("Selection or draft changed during permission preparation. Refresh before trying again.".into());
+                    }
                     state.enrollment_review = Some(approved);
                     state.setup_artifacts = artifacts;
                     Ok(())
@@ -102,18 +73,11 @@ pub(super) fn review_enrollment(
                     return;
                 }
                 ui.set_execution_ready(worker_available);
-                ui.set_enrollment_heading(heading.into());
-                ui.set_enrollment_allocation(allocation.into());
-                ui.set_needs_shutdown(false);
-                dialog(
-                    ui,
-                    "enroll-review",
-                    hyper_gpu_support::ui_text::operations::enrollment::review::TITLE,
-                    summary,
-                );
-                set_details(ui, &body);
+                super::background::continue_prepared(ui, Ok(()), || {
+                    enroll_live(ui, &reviewed_state, &enroll_busy, &Source)
+                });
             }
-            Err(error) => dialog(ui, "error", "Permission review unavailable", &error),
+            Err(error) => dialog(ui, "error", "GPU permission preparation failed", &error),
         },
     )
 }
@@ -125,6 +89,10 @@ pub(super) fn enroll_live(
     busy: &Arc<AtomicBool>,
     source: &Source,
 ) -> Result<(), String> {
+    if !ui.get_execution_ready() {
+        return Err("The protected worker is unavailable. Refresh before trying again.".into());
+    }
+
     let (approved, artifacts, expected) = {
         let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
         let approved = state
@@ -146,8 +114,16 @@ pub(super) fn enroll_live(
         ui,
         busy,
         Operation::new(
-            Kind::Setup,
-            hyper_gpu_support::ui_text::operations::enrollment::PROGRESS_TITLE,
+            if artifacts.is_some() {
+                Kind::Install
+            } else {
+                Kind::Setup
+            },
+            if artifacts.is_some() {
+                hyper_gpu_support::ui_text::dialogs::workflow::INSTALL_PROGRESS_TITLE
+            } else {
+                hyper_gpu_support::ui_text::operations::enrollment::PROGRESS_TITLE
+            },
         ),
         move || {
             if let Some(artifacts) = artifacts {
@@ -212,17 +188,21 @@ pub(super) fn reconcile_enrollment_live(
     source: &Source,
 ) -> Result<(), String> {
     let (operation_id, expected) = {
-        let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
         let id = state
             .enrollment_recovery
             .as_ref()
             .ok_or("Refresh enrollment recovery first")?
             .operation_id
             .clone();
-        let expected = state
-            .enrollment_recovery_revision
-            .take()
-            .ok_or("Review authority readback first")?;
+        let record = state
+            .enrollment_recovery
+            .as_ref()
+            .ok_or("Refresh enrollment recovery first")?;
+        let expected = hyper_gpu_support::runner::pair_revision()?;
+        if expected != record.resulting && expected != record.review.expected {
+            return Err("Authority does not match either recorded revision. Recovery remains held for administrator inspection.".into());
+        }
         (id, expected)
     };
     let finished_state = state.clone();
@@ -233,7 +213,7 @@ pub(super) fn reconcile_enrollment_live(
         ui,
         busy,
         Operation::new(
-            Kind::Setup,
+            Kind::PermissionRecovery,
             hyper_gpu_support::ui_text::operations::enrollment::recovery::PROGRESS_TITLE,
         ),
         move || hyper_gpu_support::worker::reconcile_pair(operation_id, expected, progress),

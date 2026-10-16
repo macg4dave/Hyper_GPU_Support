@@ -213,7 +213,7 @@ fn verify_review_distinguishes_current_checks_from_history_and_technical_identit
     assert!(!crate::gui::wording::verify_consent(&plan).contains("shutting it down"));
     plan.observed.power = Power::Other(4);
     assert!(crate::gui::wording::verify_review(&plan).contains("Unknown"));
-    assert!(crate::gui::wording::verify_consent(&plan).contains("review again"));
+    assert!(crate::gui::wording::verify_consent(&plan).contains("Refresh"));
 }
 
 #[test]
@@ -226,7 +226,7 @@ fn apply_consent_uses_reviewed_final_power_instead_of_initial_power_restoration(
     assert!(!consent.contains("restor"));
     plan.observed.power = Power::Off;
     plan.initial_setup = true;
-    assert!(crate::gui::wording::apply_consent(&plan).contains("reviewed starts/shutdowns"));
+    assert!(crate::gui::wording::apply_consent(&plan).contains("planned starts/shutdowns"));
     plan.preview.restore_power = Power::Other(4);
     assert!(crate::gui::wording::apply_consent(&plan).contains("Unknown"));
 }

@@ -3,7 +3,7 @@ locale = "en-GB"
 feature = "operations"
 
 [messages."operations.apply.power_consent"]
-text = "Approve reviewed starts/shutdowns; final state after successful completion: {final_power}."
+text = "This action includes the planned starts/shutdowns; final state after successful completion: {final_power}."
 screen = "Apply review consent"
 state = "Reviewed power changes require consent"
 audience = "operator"

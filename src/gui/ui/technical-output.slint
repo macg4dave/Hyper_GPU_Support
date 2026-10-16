@@ -1,6 +1,6 @@
 import { UiText } from "ui-text.slint";
-import { ScrollView } from "std-widgets.slint";
-import { Theme } from "theme.slint";
+import { Button, ScrollView } from "std-widgets.slint";
+import { Theme, Label, Surface } from "theme.slint";
 
 // TextEdit's Fluent colours are not publicly configurable. Keep diagnostics
 // neutral with Slint's read-only TextInput and the standard scroll container.
@@ -72,5 +72,18 @@ export component TechnicalOutput inherits Rectangle {
                 }
             }
         }
+    }
+}
+
+export component DialogLog inherits Surface {
+    in property <string> text;
+    background: transparent;
+    VerticalLayout {
+        padding: 8px; spacing: 8px;
+        HorizontalLayout {
+            Label { text: UiText.dialogs-install-technical; font-weight: 600; horizontal-stretch: 1; }
+            Button { text: UiText.dialogs-install-copy-log; clicked => { output.copy-all(); } }
+        }
+        output := TechnicalOutput { text: root.text; }
     }
 }

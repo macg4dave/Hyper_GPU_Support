@@ -1,0 +1,52 @@
+import { UiText } from "ui-text.slint";
+import { Theme, Label, Surface } from "theme.slint";
+
+// One modal surface for reviews, choices, progress, notices and results.
+// Phase labels come from the controller's actual operation, never a fixed Apply flow.
+export component DialogFrame inherits Rectangle {
+    in property <[string]> phases;
+    in property <int> active-phase;
+    background: #00000088;
+    TouchArea { }
+    VerticalLayout {
+        padding: 20px;
+        Rectangle { vertical-stretch: 1; }
+        HorizontalLayout {
+            min-height: 0px; preferred-height: 650px; max-height: 650px;
+            Rectangle { horizontal-stretch: 1; }
+            Surface {
+                min-width: 0px; max-width: 660px; preferred-width: 660px;
+                min-height: 0px; max-height: 650px;
+                background: Theme.dialog-surface;
+                border-color: Theme.dialog-border;
+                clip: true;
+                VerticalLayout {
+                    padding: 24px; spacing: 16px;
+                    if root.phases.length == 0 : Label {
+                        text: UiText.common-branding-title; font-size: 13px; color: Theme.muted;
+                        vertical-stretch: 0;
+                    }
+                    if root.phases.length > 0 : HorizontalLayout {
+                        vertical-stretch: 0; spacing: 8px;
+                        for label[index] in root.phases : HorizontalLayout {
+                            min-width: 0px; horizontal-stretch: 1; spacing: 6px;
+                            Rectangle {
+                                width: 28px; height: 28px; border-radius: 14px;
+                                background: index == root.active-phase ? Theme.accent : Theme.tint;
+                                Text { text: index + 1; color: index == root.active-phase ? Theme.canvas : Theme.muted; font-size: 13px; font-weight: 600; }
+                            }
+                            Label { text: label; min-width: 0px; wrap: word-wrap; overflow: clip; font-size: 13px; color: index == root.active-phase ? Theme.text : Theme.muted; font-weight: index == root.active-phase ? 700 : 400; }
+                            if index < root.phases.length - 1 : Rectangle {
+                                min-width: 8px; height: 28px; horizontal-stretch: 1;
+                                Rectangle { y: 13px; height: 1px; width: 100%; background: Theme.line; }
+                            }
+                        }
+                    }
+                    @children
+                }
+            }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        Rectangle { vertical-stretch: 1; }
+    }
+}

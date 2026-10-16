@@ -14,7 +14,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dialogs.apply.review_label"]
-text = "Review changes"
+text = "Apply changes"
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
 state = "Selected branch: dialogs.apply.review_label"
 audience = "operator"
@@ -245,7 +245,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dialogs.profile_deletion.discard_review_label"]
-text = "Discard draft and review Delete profile"
+text = "Discard draft and delete profile"
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
 state = "Selected branch: dialogs.profile_deletion.discard_review_label"
 audience = "operator"
@@ -267,7 +267,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dialogs.profile_deletion.review_label"]
-text = "Review Delete profile"
+text = "Delete profile"
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
 state = "Selected branch: dialogs.profile_deletion.review_label"
 audience = "operator"
@@ -278,7 +278,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dialogs.recovery.review_label"]
-text = "Review recovery"
+text = "Check recorded outcome"
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
 state = "Selected branch: dialogs.recovery.review_label"
 audience = "operator"
@@ -311,7 +311,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dialogs.repair.review_label"]
-text = "Review Repair / Reinstall"
+text = "Repair / Reinstall"
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
 state = "Selected branch: dialogs.repair.review_label"
 audience = "operator"
@@ -322,7 +322,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dialogs.setup.continue_label"]
-text = "Continue to setup review"
+text = "Continue GPU setup"
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
 state = "Selected branch: dialogs.setup.continue_label"
 audience = "operator"
@@ -333,7 +333,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dialogs.setup.new_review_label"]
-text = "Review new GPU setup"
+text = "Start new GPU setup"
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
 state = "Selected branch: dialogs.setup.new_review_label"
 audience = "operator"
@@ -366,7 +366,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dialogs.switch.review_label"]
-text = "Review Changes"
+text = "Apply changes"
 screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
 state = "Selected branch: dialogs.switch.review_label"
 audience = "operator"
@@ -641,7 +641,7 @@ space_hint = "Keep actions reachable and content scrollable at the supported min
 placeholders = []
 
 [messages."dialogs.install.finalising"]
-text = "Finalising and shutting down"
+text = "Saving checked configuration"
 screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
 state = "Installation presentation: finalising"
 audience = "operator"
@@ -704,4 +704,224 @@ intent = "Present authenticated installation progress or the confirmed terminal 
 consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
 severity = "information"
 space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.read"]
+text = "Read information"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: read"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.plan"]
+text = "Build plan"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: plan"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.verify_plan"]
+text = "Prepare verification"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: verify_plan"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.apply"]
+text = "Apply changes"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: apply"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.verify"]
+text = "Verify setup"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: verify"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.recover"]
+text = "Reconcile"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: recover"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.save"]
+text = "Save configuration"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: save"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.remove"]
+text = "Remove GPU setup"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: remove"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.delete"]
+text = "Delete profile"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: delete"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.permissions"]
+text = "Save permissions"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: permissions"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.permission_review"]
+text = "Check permissions"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: permission_review"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.install"]
+text = "Install app"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: install"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.credentials"]
+text = "Manage credentials"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: credentials"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.readback"]
+text = "Readback"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: readback"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.result"]
+text = "Result"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: result"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.install_review_title"]
+text = "Review app installation and GPU permission"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: install_review_title"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.permission_recovery"]
+text = "Reconcile permissions"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: permission_recovery"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.workflow.install_progress_title"]
+text = "Install app and authorize reviewed VM/GPU pair"
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: install_progress_title"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.cancelling.title"]
+text = "Cancelling, please wait..."
+screen = "Operation cancellation dialog"
+state = "Cancelled read-only preparation still holds background admission"
+audience = "operator"
+intent = "Explain the wait until abandoned preparation releases its block."
+consequences = "No effect cancellation or completion claim; late preparation results are discarded."
+severity = "information"
+space_hint = "Wrap at minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.cancelling.body"]
+text = "The background check is still finishing. Your request will not continue into execution. This dialog closes automatically when the check ends."
+screen = "Operation cancellation dialog"
+state = "Cancelled read-only preparation still holds background admission"
+audience = "operator"
+intent = "Explain the wait until abandoned preparation releases its block."
+consequences = "No effect cancellation or completion claim; late preparation results are discarded."
+severity = "information"
+space_hint = "Wrap at minimum window size in both themes."
 placeholders = []

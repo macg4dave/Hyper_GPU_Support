@@ -57,9 +57,17 @@ pub(super) fn apply_live(
         .actions
         .contains(&hyper_gpu_support::workflow::PreviewAction::Verify);
     let final_power = approved.preview.restore_power.clone();
+    let progress_body = format!(
+        "{}\nPhysical GPU: {}\n{}\n{}",
+        crate::gui::live_state::review_summary(&approved),
+        gpu_name,
+        crate::gui::live_state::memory_review(&approved),
+        crate::gui::wording::apply_consent(&approved)
+    );
+    let progress_details = crate::gui::live_state::review_text(&approved);
     let install_progress = install_dialog::prepare(ui, &vm_name, &approved.preview.actions);
     let progress = progress_with_install(ui.as_weak(), Some(install_progress));
-    background_operation(
+    let started = background_operation(
         ui,
         state,
         busy,
@@ -209,7 +217,12 @@ pub(super) fn apply_live(
                 ).into());
             }
         },
-    )
+    );
+    if started.is_ok() {
+        ui.set_dialog_body(progress_body.into());
+        ui.set_dialog_details(progress_details.into());
+    }
+    started
 }
 #[cfg(windows)]
 pub(super) fn save_only_live(

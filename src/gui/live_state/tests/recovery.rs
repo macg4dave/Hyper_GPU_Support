@@ -322,7 +322,7 @@ fn verification_recovery_requires_restoration_proof_and_rejects_changed_facts() 
         .unwrap()
         .check_restored = true;
     assert!(s.recovery_without_guest(&record).unwrap());
-    let body = crate::gui::wording::verification_recovery(&record, "Renamable VM", true);
+    let body = crate::gui::wording::recovery_progress(&record, "Renamable VM", true);
     assert!(body.contains("does not retry the guest check"));
     s.view.inventory.as_mut().unwrap().discovery.vms[0]
         .settings

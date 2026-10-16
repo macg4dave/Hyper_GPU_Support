@@ -22,6 +22,7 @@ pub(super) fn review_forget_live(
         state.forget_target()?
     };
     let reviewed_state = state.clone();
+    let delete_busy = busy.clone();
     background(
         ui,
         busy,
@@ -37,33 +38,15 @@ pub(super) fn review_forget_live(
         },
         move |ui, result| match result {
             Ok((review, available)) => {
-                let name = {
-                    let mut state = match reviewed_state.lock() {
-                        Ok(state) => state,
-                        Err(_) => return,
-                    };
-                    if let Err(error) = state.accept_forget_review(review.clone()) {
-                        dialog(ui, "error", hyper_gpu_support::ui_text::operations::profile_deletion::review::STALE_TITLE, &error);
-                        return;
-                    }
-                    state
-                        .view
-                        .vm(&review.pair.vm_id)
-                        .map_or(review.pair.vm_id.clone(), |vm| vm.name.clone())
-                };
                 ui.set_execution_ready(available);
-                ui.set_needs_shutdown(false);
-                dialog(
-                    ui,
-                    "forget-review",
-                    hyper_gpu_support::ui_text::operations::profile_deletion::review::TITLE,
-                    &hyper_gpu_support::ui_text::operations::profile_deletion::review::body(
-                        &(name),
-                        &(review.pair.vm_id),
-                        &(review.pair.gpu_interface),
-                    )
-                    .into_string(),
-                );
+                if !with_state(ui, &reviewed_state, |state| {
+                    state.accept_forget_review(review)
+                }) {
+                    return;
+                }
+                super::background::continue_prepared(ui, Ok(()), || {
+                    forget_live(ui, &reviewed_state, &delete_busy)
+                });
             }
             Err(error) => dialog(
                 ui,
@@ -84,6 +67,10 @@ pub(super) fn forget_live(
     state: &SharedState,
     busy: &Arc<AtomicBool>,
 ) -> Result<(), String> {
+    if !ui.get_execution_ready() {
+        return Err("The protected worker is unavailable. Refresh before trying again.".into());
+    }
+
     let approved = state
         .lock()
         .map_err(|_| "Presentation state unavailable")?

@@ -443,7 +443,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dashboard.recovery.inspect"]
-text = "Inspect recovery"
+text = "Check recorded outcome"
 screen = "AppWindow presentation (src/gui/ui/app.slint)"
 state = "Selected branch: dashboard.recovery.inspect"
 audience = "operator"
@@ -454,7 +454,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dashboard.recovery.review_label"]
-text = "Review recovery"
+text = "Check recorded outcome"
 screen = "VmDetails presentation (src/gui/ui/details.slint)"
 state = "Selected branch: dashboard.recovery.review_label"
 audience = "operator"
@@ -531,7 +531,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dashboard.setup.body"]
-text = "This Generation 2 VM has no saved GPU configuration. Review the pairing and enrollment before preparing the guest."
+text = "This Generation 2 VM has no saved GPU configuration. Start GPU setup to obtain permission, prepare the guest and apply the selected GPU settings."
 screen = "VmDetails presentation (src/gui/ui/details.slint)"
 state = "Selected branch: dashboard.setup.body"
 audience = "operator"
@@ -542,7 +542,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."dashboard.setup.review_label"]
-text = "Review enrollment & NVIDIA setup"
+text = "Start GPU setup"
 screen = "VmDetails presentation (src/gui/ui/details.slint)"
 state = "Selected branch: dashboard.setup.review_label"
 audience = "operator"
@@ -913,4 +913,81 @@ intent = "Name the diagnostic region for accessibility."
 consequences = "Read only presentation."
 severity = "information"
 space_hint = "Accessible label."
+placeholders = []
+
+[messages."dashboard.startup.inventory"]
+text = "Reading VM and GPU status from the protected service..."
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+placeholders = []
+
+[messages."dashboard.startup.configuration"]
+text = "Reading saved VM settings..."
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+placeholders = []
+
+[messages."dashboard.startup.recovery"]
+text = "Inspecting unfinished GPU operations and recovery records..."
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+placeholders = []
+
+[messages."dashboard.startup.import_recovery"]
+text = "Inspecting configuration import recovery records..."
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+placeholders = []
+
+[messages."dashboard.startup.enrollment_recovery"]
+text = "Inspecting permission recovery records..."
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+placeholders = []
+
+[messages."dashboard.startup.worker"]
+text = "Checking protected worker availability..."
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+placeholders = []
+
+[messages."dashboard.startup.waiting"]
+text = "An earlier cancelled check may still be finishing. These reads can take several minutes. Startup does not repair or replay GPU operations; unfinished work requires Review recovery."
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
 placeholders = []

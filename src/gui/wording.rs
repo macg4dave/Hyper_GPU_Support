@@ -16,11 +16,6 @@ pub(super) fn apply_consent(plan: &Plan) -> String {
     .into_string()
 }
 
-pub(super) fn recovery_consent(final_power: &Power) -> String {
-    hyper_gpu_support::ui_text::operations::recovery::power_consent(&power_name(final_power))
-        .into_string()
-}
-
 pub(super) fn verify_review(plan: &VerificationPlan) -> String {
     let lifecycle = match plan.observed.power {
         Power::Off => hyper_gpu_support::ui_text::operations::verify::lifecycle::off(),
@@ -55,22 +50,24 @@ pub(super) fn verify_consent(plan: &VerificationPlan) -> String {
     }
 }
 
-pub(super) fn verification_recovery(
+pub(super) fn recovery_progress(
     record: &hyper_gpu_support::configuration_store::SaveRecord,
     name: &str,
     restored: bool,
 ) -> String {
     let action = if restored {
-        "Check recorded outcome independently confirms the recorded restoration before ending this failed check. It does not retry the guest check or report success. Changed facts retain recovery."
+        "Independently checking the recorded restoration. This does not retry the guest check or report success; changed facts retain recovery."
+    } else if record.requires_graphics() {
+        "Checking current guest files, devices and hardware rendering after fresh host checks. The selected action includes its required VM power transitions."
     } else {
-        "Check recorded outcome runs a new guest file, device and rendering check after fresh host checks. It requires guest credentials; selecting Check recorded outcome approves the reviewed power changes. This is a retry of verification, not GPU setup or driver repair."
+        "Independently checking the recorded host outcome without guest sign-in or replaying Apply."
     };
     format!(
-        "{name}: GPU verification did not complete. The recovery hold blocks new changes on this host.\n\n{action}\n\nRecorded final power: {}. No saved GPU/VRAM settings or driver files are changed by this check. Previous successful checks remain historical. Close keeps the hold and performs no work.",
+        "{name}: {action}\nRecorded final power: {}. Uncertain outcomes retain their recovery hold.",
         record.final_power().map_or_else(
-            |_| "unavailable; Refresh before continuing".into(),
+            |_| "unavailable".into(),
             |power| power_name(&power).into_string()
-        ),
+        )
     )
 }
 

@@ -4627,3 +4627,300 @@ intent = "Present authenticated installation progress or the confirmed terminal 
 consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
 severity = "information"
 space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.read"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: read"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.plan"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: plan"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.verify_plan"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: verify_plan"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.apply"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: apply"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.verify"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: verify"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.recover"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: recover"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.save"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: save"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.remove"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: remove"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.delete"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: delete"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.permissions"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: permissions"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.permission_review"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: permission_review"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.install"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: install"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.credentials"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: credentials"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.readback"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: readback"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.result"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: result"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.install_review_title"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: install_review_title"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.permission_recovery"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: permission_recovery"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.workflow.install_progress_title"
+[messages.metadata]
+screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
+state = "Workflow phase: install_progress_title"
+audience = "operator"
+intent = "Name only the selected operation and its actual review, execution or readback phase."
+consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
+severity = "information"
+space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
+
+[[messages]]
+key = "dashboard.startup.inventory"
+[messages.metadata]
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+
+[[messages]]
+key = "dashboard.startup.configuration"
+[messages.metadata]
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+
+[[messages]]
+key = "dashboard.startup.recovery"
+[messages.metadata]
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+
+[[messages]]
+key = "dashboard.startup.import_recovery"
+[messages.metadata]
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+
+[[messages]]
+key = "dashboard.startup.enrollment_recovery"
+[messages.metadata]
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+
+[[messages]]
+key = "dashboard.startup.worker"
+[messages.metadata]
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+
+[[messages]]
+key = "dashboard.startup.waiting"
+[messages.metadata]
+screen = "Startup splash"
+state = "Initial inventory read"
+audience = "operator"
+intent = "Present startup loading or continue after failure."
+consequences = "Presentation only; continuing grants no operation authority."
+severity = "information"
+space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
+
+[[messages]]
+key = "dialogs.cancelling.title"
+[messages.metadata]
+screen = "Operation cancellation dialog"
+state = "Cancelled read-only preparation still holds background admission"
+audience = "operator"
+intent = "Explain the wait until abandoned preparation releases its block."
+consequences = "No effect cancellation or completion claim; late preparation results are discarded."
+severity = "information"
+space_hint = "Wrap at minimum window size in both themes."
+
+[[messages]]
+key = "dialogs.cancelling.body"
+[messages.metadata]
+screen = "Operation cancellation dialog"
+state = "Cancelled read-only preparation still holds background admission"
+audience = "operator"
+intent = "Explain the wait until abandoned preparation releases its block."
+consequences = "No effect cancellation or completion claim; late preparation results are discarded."
+severity = "information"
+space_hint = "Wrap at minimum window size in both themes."

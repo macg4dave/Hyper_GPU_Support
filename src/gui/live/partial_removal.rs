@@ -71,41 +71,17 @@ pub(super) fn partial_removal_candidate(
 }
 
 #[cfg(windows)]
-pub(super) fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
-    let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
-    state.reset_review = None;
-    let (revision, approved) = partial_removal_candidate(&state)?;
-    let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
-    let host_action = if approved.observed.gpus.is_empty() {
-        "Keep this VM unattached and confirm its recorded starting host settings. No attachment removal is required."
-    } else {
-        "Remove the partial attachment and its allocations. Restore the compatibility settings recorded before the interrupted change."
-    };
-    let body = format!(
-        "VM GUID: {}\nGPU: {}\nGPU interface: {}\n\n{host_action} Selecting Remove partial GPU setup also approves graceful shutdown of a running VM and leaving it off. No guest sign-in or driver installation is performed.\n\nKeep the saved settings, guest files and archived failure evidence. Invalidate old setup eligibility so a later setup performs fresh checks. After removal, review the next step here. A fresh enrollment may require deleting the inactive app profile first; deletion has its own review and confirmation.\n\nStarting compatibility settings to restore: low MMIO {} MB, high MMIO {} MB, cache types {}, automatic checkpoints {}. This does not complete the interrupted allocation or save its requested settings.",
-        record.target.vm_id,
-        approved.gpu.name,
-        record.target.gpu_interface,
-        record.initial.settings.low_mmio,
-        record.initial.settings.high_mmio,
-        record.initial.settings.cache_types,
-        record.initial.settings.automatic_checkpoints
-    );
-    let heading =
-        hyper_gpu_support::ui_text::operations::action::review_prompt(&approved.observed.name);
-    ui.set_needs_shutdown(approved.observed.power == hyper_gpu_support::model::Power::Running);
-    ui.set_power_consent(
-        "Selecting Remove partial GPU setup approves graceful shutdown of this VM and leaving it off.".into(),
-    );
-    state.reset_review = Some((revision, approved));
-    dialog(
-        ui,
-        "reset-review",
-        hyper_gpu_support::ui_text::operations::partial_removal::review::TITLE,
-        &body,
-    );
-    ui.set_recovery_heading(heading.into_string().into());
-    Ok(())
+pub(super) fn review_reset(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+) -> Result<(), String> {
+    {
+        let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        state.reset_review = None;
+        state.reset_review = Some(partial_removal_candidate(&state)?);
+    }
+    reset_live(ui, state, busy)
 }
 
 #[cfg(windows)]

@@ -4,6 +4,7 @@ import { Theme, Heading, Label, Hint } from "theme.slint";
 
 export component StartupSplash inherits Rectangle {
     in property <string> error;
+    in property <string> stage;
     in property <float> progress;
     callback continue();
     background: Theme.canvas;
@@ -24,6 +25,8 @@ export component StartupSplash inherits Rectangle {
         if root.error == "" : VerticalLayout {
             spacing: 12px;
             Label { text: UiText.dashboard-startup-loading; horizontal-alignment: center; }
+            Hint { text: root.stage; horizontal-alignment: center; }
+            Hint { text: UiText.dashboard-startup-waiting; horizontal-alignment: center; }
             // Six actual reads, not elapsed time or a guessed byte percentage.
             ProgressIndicator { progress: root.progress; }
         }

@@ -1,22 +1,18 @@
 //! Action dispatch and dialog continuations; operation modules own their workflows.
 use super::{
     SharedState,
-    apply::{apply_live, save_only_live},
+    apply::save_only_live,
     credentials::review_credentials,
     presentation::present,
-    recovery::{reconcile_live, review_records},
+    recovery::{review_records, start_recovery},
     refresh::refresh,
     review::{review, review_operation},
     source::Source,
     state_access::with_state,
-    verification::{review_verification, verify_live},
+    verification::review_verification,
 };
 #[cfg(windows)]
-use super::{
-    enrollment::{enroll_live, reconcile_enrollment_live},
-    partial_removal::{reset_live, review_reset},
-    profile_removal::{forget_live, review_forget_live},
-};
+use super::{partial_removal::review_reset, profile_removal::review_forget_live};
 use crate::gui::{AppWindow, dialog};
 use slint::{ComponentHandle, Model};
 use std::sync::{
@@ -110,23 +106,11 @@ pub(super) fn register(
                 }) { return; }
                 review_forget_live(&ui, &action_state, &action_busy)
             }
-            #[cfg(windows)]
-            "confirm-forget" if ui.get_dialog_kind() == "forget-review" => forget_live(&ui, &action_state, &action_busy),
             "review" => review(&ui, &action_state, &action_busy, &action_source),
-            #[cfg(windows)]
-            "confirm-enroll" => enroll_live(&ui, &action_state, &action_busy, &action_source),
-            #[cfg(windows)]
-            "reconcile-enrollment" => reconcile_enrollment_live(&ui, &action_state, &action_busy, &action_source),
-            "confirm" if ui.get_dialog_kind() == "review" => apply_live(&ui, &action_state, &action_busy),
-            "confirm" => Err("Open a fresh review before Apply.".into()),
             "save-only" => save_only_live(&ui, &action_state, &action_busy),
             "verify" => review_verification(&ui, &action_state, &action_busy),
-            "confirm-verify" => verify_live(&ui, &action_state, &action_busy),
-            "reconcile" => reconcile_live(&ui, &action_state, &action_busy),
             #[cfg(windows)]
-            "review-reset" => review_reset(&ui, &action_state),
-            #[cfg(windows)]
-            "confirm-reset" if ui.get_dialog_kind() == "reset-review" => reset_live(&ui, &action_state, &action_busy),
+            "review-reset" => review_reset(&ui, &action_state, &action_busy),
             "reapply" => {
                 // Preserve allocation edits while deliberately previewing enabled support.
                 ui.set_gpu_enabled(true);
@@ -152,17 +136,18 @@ pub(super) fn register(
                 })
             }
             "close" => {
-                if ui.get_review_preparing() {
-                    ui.set_review_preparing(false);
-                    ui.set_running(false);
-                    // The background admission remains held until the abandoned read finishes.
-                }
-                with_state(&ui, &action_state, |state| {
+                let cancelling = ui.get_review_preparing();
+                if with_state(&ui, &action_state, |state| {
                     state.cancel_review();
-                    ui.set_operation_dialog_active(false);
-                    ui.set_dialog_kind("".into());
                     Ok(())
-                });
+                }) {
+                    if cancelling {
+                        super::background::cancel_preparation(&ui);
+                    } else {
+                        ui.set_operation_dialog_active(false);
+                        ui.set_dialog_kind("".into());
+                    }
+                }
                 Ok(())
             },
             "exit" => { ui.set_dirty(false); slint::quit_event_loop().map_err(|e| e.to_string()) },
@@ -180,10 +165,9 @@ pub(super) fn register(
                 dialog(&ui, "more", hyper_gpu_support::ui_text::operations::action::MENU_TITLE, &body); Ok(())
             },
             "credentials" => review_credentials(&ui, &action_state, &action_busy, &action_source),
-            "diagnostics" | "recovery" => {
-                with_state(&ui, &action_state, |state| {
-                    review_records(&ui, state, action == "recovery")
-                }); Ok(())
+            "recovery" => start_recovery(&ui, &action_state, &action_busy, &action_source),
+            "diagnostics" => {
+                with_state(&ui, &action_state, |state| review_records(&ui, state, false)); Ok(())
             }
             "shortcuts" => {
                 let help = hyper_gpu_support::ui_text::operations::help::BODY;

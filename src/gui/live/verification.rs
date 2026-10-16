@@ -14,7 +14,7 @@ use crate::gui::AppWindow;
 use crate::gui::{
     dialog, failure_dialog,
     operation::{Kind, Operation},
-    set_details, wording,
+    wording,
 };
 #[cfg(windows)]
 use slint::ComponentHandle;
@@ -37,6 +37,8 @@ pub(super) fn review_verification(
         state.target(ui.get_selected_id().as_str())?
     };
     let review_state = state.clone();
+    let verify_busy = busy.clone();
+    let expected = target.clone();
     background(
         ui,
         busy,
@@ -57,23 +59,23 @@ pub(super) fn review_verification(
         move |ui, result| match result {
             Ok((plan, worker_available)) => {
                 ui.set_execution_ready(worker_available);
-                ui.set_needs_shutdown(plan.observed.power == hyper_gpu_support::model::Power::Off);
-                ui.set_power_consent(wording::verify_consent(&plan).into());
-                let body = wording::verify_review(&plan);
-                let details = wording::verify_details(&plan);
                 if !with_state(ui, &review_state, |state| {
+                    state.editor_eligibility(&expected.vm_id)?;
+                    if state.view.selected.as_deref() != Some(expected.vm_id.as_str())
+                        || state.target(&expected.vm_id)? != expected
+                        || plan.target != expected
+                        || plan.observed.vm_id != expected.vm_id
+                    {
+                        return Err("Selection or saved settings changed during verification preparation. Refresh before trying again.".into());
+                    }
                     state.verification_plan = Some(plan);
                     Ok(())
                 }) {
                     return;
                 }
-                dialog(
-                    ui,
-                    "verify-review",
-                    hyper_gpu_support::ui_text::operations::verify::review::TITLE,
-                    &body,
-                );
-                set_details(ui, &details);
+                super::background::continue_prepared(ui, Ok(()), || {
+                    verify_live(ui, &review_state, &verify_busy)
+                });
             }
             Err(error) => dialog(ui, "error", "Verify GPU setup unavailable", &error),
         },
@@ -85,6 +87,10 @@ pub(super) fn verify_live(
     state: &SharedState,
     busy: &Arc<AtomicBool>,
 ) -> Result<(), String> {
+    if !ui.get_execution_ready() {
+        return Err("The protected worker is unavailable. Refresh before trying again.".into());
+    }
+
     let approved = state
         .lock()
         .map_err(|_| "Presentation state unavailable")?
@@ -92,11 +98,17 @@ pub(super) fn verify_live(
         .clone()
         .ok_or("Review verification first")?;
     let shutdown = approved.observed.power == hyper_gpu_support::model::Power::Off;
+    let progress_body = format!(
+        "{}\n\n{}",
+        wording::verify_review(&approved),
+        wording::verify_consent(&approved)
+    );
+    let progress_details = wording::verify_details(&approved);
     let progress = progress_to_ui(ui.as_weak());
     let finished_state = state.clone();
     let vm_name = approved.observed.name.clone();
     let result_vm_name = vm_name.clone();
-    background_operation(
+    let started = background_operation(
         ui,
         state,
         busy,
@@ -168,7 +180,12 @@ pub(super) fn verify_live(
                 ),
             }
         },
-    )
+    );
+    if started.is_ok() {
+        ui.set_dialog_body(progress_body.into());
+        ui.set_dialog_details(progress_details.into());
+    }
+    started
 }
 
 #[cfg(not(windows))]

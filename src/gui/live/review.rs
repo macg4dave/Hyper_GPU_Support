@@ -9,9 +9,7 @@ use super::{
 };
 use crate::gui::{
     AppWindow, dialog, failure_dialog,
-    live_state::{review_summary, review_text},
     operation::{Kind, Operation},
-    set_details, wording,
 };
 use slint::ComponentHandle;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -67,6 +65,7 @@ pub(super) fn review_operation(
     let planning_revision = committed_revision.clone();
     let source = source.clone();
     let review_state = state.clone();
+    let apply_busy = busy.clone();
     let review_ui = ui.as_weak();
     background(
         ui,
@@ -104,22 +103,6 @@ pub(super) fn review_operation(
                     && plan.observed.vm_id == expected.vm_id
                     && plan.reinstall == reinstall =>
             {
-                let gpu_name = review_state
-                    .lock()
-                    .ok()
-                    .and_then(|state| {
-                        state
-                            .view
-                            .inventory
-                            .as_ref()?
-                            .discovery
-                            .gpus
-                            .iter()
-                            .find(|gpu| gpu.interface == plan.desired.gpu_interface)
-                            .map(|gpu| gpu.name.clone())
-                    })
-                    .unwrap_or_else(|| plan.desired.gpu_interface.clone());
-                let memory_summary = crate::gui::live_state::memory_review(&plan);
                 ui.set_execution_ready(worker_available);
                 let accepted = review_state
                     .lock()
@@ -128,31 +111,9 @@ pub(super) fn review_operation(
                         let current = draft_target(ui, &state)?;
                         state.accept_review(plan.clone(), &current, committed_revision.clone())
                     });
-                if let Err(error) = accepted {
-                    dialog(
-                        ui,
-                        "error",
-                        hyper_gpu_support::ui_text::operations::review::STALE_TITLE,
-                        &error,
-                    );
-                    return;
-                }
-                ui.set_needs_shutdown(plan.preview.guest_downtime);
-                ui.set_power_consent(wording::apply_consent(&plan).into());
-                dialog(
-                    ui,
-                    "review",
-                    if reinstall {
-                        hyper_gpu_support::ui_text::operations::repair::review::TITLE
-                    } else {
-                        hyper_gpu_support::ui_text::operations::apply::review::TITLE
-                    },
-                    &format!(
-                        "{}\nPhysical GPU: {gpu_name}\n{memory_summary}\n\nThese changes are still pending. Apply confirms this review; Cancel keeps your edits. Windows will request approval before changes. Settings are saved only after the required outcome checks pass.",
-                        review_summary(&plan)
-                    ),
-                );
-                set_details(ui, &review_text(&plan));
+                super::background::continue_prepared(ui, accepted, || {
+                    super::apply::apply_live(ui, &review_state, &apply_busy)
+                });
             }
             Ok(_) => dialog(
                 ui,

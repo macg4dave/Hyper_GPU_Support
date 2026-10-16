@@ -12,51 +12,66 @@ use crate::gui::{AppWindow, dialog, live_state::State, set_details, wording};
 use slint::ComponentHandle;
 use std::sync::{Arc, atomic::AtomicBool};
 
+/// Only an explicit foreground action enters recovery. Refresh and result
+/// publication never call this; reconciliation never replays Apply.
+pub(super) fn start_recovery(
+    ui: &AppWindow,
+    state: &SharedState,
+    busy: &Arc<AtomicBool>,
+    source: &super::source::Source,
+) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let (permission, import, save, operation) = {
+            let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+            (
+                state.enrollment_recovery.is_some(),
+                state.import_recovery.is_some(),
+                state.recovery.as_ref().is_some_and(|record| {
+                    record.publication_required
+                        && matches!(
+                            record.phase,
+                            hyper_gpu_support::configuration_store::SavePhase::Verified(_)
+                                | hyper_gpu_support::configuration_store::SavePhase::Published(_)
+                        )
+                }),
+                state.recovery.is_some(),
+            )
+        };
+        if permission {
+            return super::enrollment::reconcile_enrollment_live(ui, state, busy, source);
+        }
+        if import {
+            return review_records(
+                ui,
+                &mut *state.lock().map_err(|_| "Presentation state unavailable")?,
+                true,
+            );
+        }
+        if save {
+            return super::apply::save_only_live(ui, state, busy);
+        }
+        if operation {
+            return reconcile_live(ui, state, busy);
+        }
+        review_records(
+            ui,
+            &mut *state.lock().map_err(|_| "Presentation state unavailable")?,
+            false,
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (ui, state, busy, source);
+        Err("Recovery requires Windows".into())
+    }
+}
+
 pub(super) fn review_records(
     ui: &AppWindow,
     state: &mut State,
     recovery: bool,
 ) -> Result<(), String> {
-    #[cfg(windows)]
-    if recovery && let Some(record) = &state.enrollment_recovery {
-        let revision = hyper_gpu_support::runner::pair_revision()?;
-        let known = revision == record.resulting || revision == record.review.expected;
-        if !known {
-            return Err("Authority does not match either recorded revision. Recovery remains held for administrator inspection.".into());
-        }
-        let outcome = if record.removal.is_some() {
-            hyper_gpu_support::ui_text::operations::enrollment::recovery::PARTIAL_DELETION
-        } else if revision == record.resulting {
-            hyper_gpu_support::ui_text::operations::enrollment::recovery::POLICY_PUBLISHED
-        } else {
-            hyper_gpu_support::ui_text::operations::enrollment::recovery::POLICY_ORIGINAL
-        };
-        let body = format!(
-            "Operation: {}\nVM ID: {}\nGPU: {}\n\n{outcome}",
-            record.operation_id, record.review.vm_id, record.review.gpu_interface
-        );
-        let name = state.view.vm(&record.review.vm_id).map_or(
-            hyper_gpu_support::ui_text::operations::enrollment::recovery::NAME_UNAVAILABLE,
-            |vm| vm.name.as_str(),
-        );
-        let summary = format!(
-            "Virtual machine: {name}\n\n{outcome}\n\nReviewing this record makes no changes. Confirmation is required for the recovery action shown."
-        );
-        state.enrollment_recovery_revision = Some(revision);
-        ui.set_needs_shutdown(false);
-        dialog(
-            ui,
-            "enrollment-recovery",
-            if record.removal.is_some() {
-                hyper_gpu_support::ui_text::operations::profile_deletion::recovery::TITLE
-            } else {
-                hyper_gpu_support::ui_text::operations::enrollment::recovery::TITLE
-            },
-            &summary,
-        );
-        set_details(ui, &body);
-        return Ok(());
-    }
     if recovery && let Some(record) = &state.import_recovery {
         dialog(
             ui,
@@ -73,110 +88,6 @@ pub(super) fn review_records(
             )
             .into_string(),
         );
-        return Ok(());
-    }
-    if recovery && let Some(record) = &state.recovery {
-        ui.set_needs_shutdown(record.requires_graphics() && !state.recovery_without_guest(record)?);
-        ui.set_power_consent(wording::recovery_consent(&record.final_power()?).into());
-        match record.phase {
-            hyper_gpu_support::configuration_store::SavePhase::Verified(_)
-            | hyper_gpu_support::configuration_store::SavePhase::Published(_) => {
-                if record.publication_required {
-                    dialog(
-                        ui,
-                        "save",
-                        hyper_gpu_support::ui_text::operations::save_only::review::TITLE,
-                        hyper_gpu_support::ui_text::operations::save_only::review::BODY,
-                    );
-                    set_details(
-                        ui,
-                        &format!(
-                            "Operation: {}\nVM ID: {}\nGPU: {}\nReviewed configuration revision: {:?}\nDriver: {}\nExpected final power: {:?}",
-                            record.operation_id,
-                            record.target.vm_id,
-                            record.target.gpu_interface,
-                            record.expected,
-                            record.driver_version,
-                            record.final_power()?
-                        ),
-                    );
-                } else {
-                    dialog(
-                        ui,
-                        "recovery",
-                        hyper_gpu_support::ui_text::operations::verify::recovery::TITLE,
-                        hyper_gpu_support::ui_text::operations::verify::recovery::BODY,
-                    );
-                    ui.set_needs_shutdown(false);
-                }
-            }
-            hyper_gpu_support::configuration_store::SavePhase::Admitted
-            | hyper_gpu_support::configuration_store::SavePhase::EffectsStarted => {
-                let name = state
-                    .view
-                    .vm(&record.target.vm_id)
-                    .map_or(record.initial.name.as_str(), |vm| vm.name.as_str());
-                if matches!(
-                    record.phase,
-                    hyper_gpu_support::configuration_store::SavePhase::Admitted
-                ) {
-                    dialog(
-                        ui,
-                        "recovery",
-                        hyper_gpu_support::ui_text::operations::recovery::review::TITLE,
-                        hyper_gpu_support::ui_text::operations::recovery::admitted::BODY,
-                    );
-                    ui.set_recovery_heading(
-                        hyper_gpu_support::ui_text::operations::action::review_prompt(name)
-                            .into_string()
-                            .into(),
-                    );
-                } else if !record.publication_required {
-                    let restored = state.recovery_without_guest(record)?;
-                    let body = wording::verification_recovery(record, name, restored);
-                    dialog(
-                        ui,
-                        "recovery",
-                        hyper_gpu_support::ui_text::operations::verify::recovery::TITLE,
-                        &body,
-                    );
-                    ui.set_needs_shutdown(!restored);
-                } else if !record.requires_graphics() {
-                    dialog(
-                        ui,
-                        "recovery",
-                        hyper_gpu_support::ui_text::operations::apply::recovery::TITLE,
-                        &hyper_gpu_support::ui_text::operations::apply::recovery::body(name)
-                            .into_string(),
-                    );
-                } else {
-                    dialog(
-                        ui,
-                        "recovery",
-                        hyper_gpu_support::ui_text::operations::recovery::review::TITLE,
-                        hyper_gpu_support::ui_text::operations::recovery::review::EXPLANATION,
-                    );
-                    ui.set_recovery_heading(
-                        hyper_gpu_support::ui_text::operations::action::review_prompt(name)
-                            .into_string()
-                            .into(),
-                    );
-                }
-                set_details(
-                    ui,
-                    &format!(
-                        "Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\nReviewed final guest power: {:?}",
-                        record.operation_id,
-                        record.target.vm_id,
-                        record.target.gpu_interface,
-                        record.initial.power,
-                        record.final_power()?
-                    ),
-                );
-                ui.set_recovery_vm_id(record.target.vm_id.clone().into());
-            }
-        }
-        ui.set_recovery_vm_id(record.target.vm_id.clone().into());
         return Ok(());
     }
     state
@@ -225,7 +136,8 @@ pub(super) fn reconcile_live(
     };
     let prompt_name = vm_name.clone();
     let result_vm_name = vm_name.clone();
-    background_operation(
+    let progress_body = wording::recovery_progress(&record, &vm_name, restored_candidate);
+    let started = background_operation(
         ui,
         state,
         busy,
@@ -326,7 +238,11 @@ pub(super) fn reconcile_live(
                 }
             }
         },
-    )
+    );
+    if started.is_ok() {
+        ui.set_dialog_body(progress_body.into());
+    }
+    started
 }
 
 #[cfg(not(windows))]

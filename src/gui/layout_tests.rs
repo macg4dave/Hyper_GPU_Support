@@ -141,6 +141,11 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                     }
                     .into(),
                 );
+                super::dialog_presentation::begin(&ui, super::operation::Kind::Apply);
+                if completed {
+                    super::dialog_presentation::readback(&ui);
+                    super::dialog_presentation::opened(&ui, "install-complete", true);
+                }
                 ui.set_running(!completed);
                 ui.set_dialog_title(
                     if completed {
@@ -465,6 +470,22 @@ fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_res
     ui.show().unwrap();
     window.set_size(LogicalSize::new(700., 520.));
     draw(&window);
+    use hyper_gpu_support::ui_text::dashboard::startup;
+    for stage in [
+        startup::INVENTORY,
+        startup::CONFIGURATION,
+        startup::RECOVERY,
+        startup::IMPORT_RECOVERY,
+        startup::ENROLLMENT_RECOVERY,
+        startup::WORKER,
+    ] {
+        ui.set_startup_stage(stage.into());
+        draw(&window);
+        let label = control(&ui, stage);
+        let origin = label.map_to_window(label.geometry().origin);
+        assert!(label.is_visible());
+        assert!(origin.y >= 0. && origin.y + label.geometry().height() <= 520.);
+    }
     retain_render("startup");
     super::live::finish_startup(
         &ui,
@@ -602,15 +623,17 @@ fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_res
 }
 
 #[test]
-fn shared_plan_and_review_dialog_preserves_cancellation_and_explicit_power_consent() {
-    use hyper_gpu_support::ui_text::{dialogs, operations, settings};
+fn all_dialog_families_share_reachable_modal_actions_and_copyable_details() {
+    use hyper_gpu_support::ui_text::{diagnostics, dialogs, settings};
     use std::cell::RefCell;
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
     slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
     let ui = AppWindow::new().unwrap();
     ui.set_startup_loading(false);
-    ui.set_vm_name("win_26300.9457 VM1".into());
-    ui.set_install_vm_name(ui.get_vm_name());
+    ui.set_vm_name("Reviewed VM".into());
+    ui.set_execution_ready(true);
+    ui.set_repair_allowed(true);
+    ui.set_forget_allowed(true);
     let actions = Rc::new(RefCell::new(Vec::new()));
     let captured = actions.clone();
     ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
@@ -627,80 +650,105 @@ fn shared_plan_and_review_dialog_preserves_cancellation_and_explicit_power_conse
         ui.set_page(0);
         for (width, height) in [(1240., 860.), (700., 520.)] {
             window.set_size(LogicalSize::new(width, height));
-            ui.set_review_preparing(true);
-            ui.set_running(true);
-            ui.set_updating(true);
-            super::dialog(
-                &ui,
-                "install-progress",
-                operations::plan::PROGRESS_TITLE,
-                operations::plan::PROGRESS_BODY,
-            );
-            ui.set_current_stage(operations::plan::AUTHENTICATE.into());
-            draw(&window);
-            actions.borrow_mut().clear();
-            control(&ui, dialogs::cancel::LABEL).accessible_action(&AccessibilityAction::Default);
-            assert_eq!(&*actions.borrow(), &["close"]);
-            // The four-phase header is present during preparation as well as review.
-            assert!(control(&ui, dialogs::install::PERMISSIONS).is_visible());
-            retain_render(&format!("plan-{theme}-{width}x{height}"));
-            ui.set_review_preparing(false);
-            ui.set_running(false);
-            ui.set_updating(false);
-            for (kind, title, label, action) in [
-                (
-                    "review",
-                    operations::apply::review::TITLE,
-                    dialogs::apply::LABEL,
-                    "confirm",
-                ),
-                (
-                    "verify-review",
-                    operations::verify::TITLE,
-                    operations::verify::TITLE,
-                    "confirm-verify",
-                ),
+            for kind in [
+                "info",
+                "error",
+                "status-error",
+                "switch",
+                "exit",
+                "more",
+                "recovery-needed",
+                "recovery-blocked",
+                "recovery-ended",
+                "progress",
+                "cancelling",
+                "operation-error",
+                "operation-complete",
+                "save",
+                "profile-deleted",
+                "reset-complete",
             ] {
-                ui.set_execution_ready(true);
-                ui.set_needs_shutdown(true);
-                ui.set_power_consent("This operation will shut down the reviewed VM.".into());
+                ui.set_dialog_kind("".into());
+                ui.set_operation_dialog_active(false);
+                ui.set_updating(false);
+                ui.set_running(matches!(kind, "progress" | "cancelling"));
+                ui.set_review_preparing(false);
+                let operation = match kind {
+                    "operation-error" | "operation-complete" => {
+                        Some(super::operation::Kind::Verify)
+                    }
+                    "save" => Some(super::operation::Kind::SaveOnly),
+                    "profile-deleted" => Some(super::operation::Kind::Forget),
+                    "reset-complete" => Some(super::operation::Kind::Remove),
+                    _ => None,
+                };
+                super::dialog_presentation::begin(
+                    &ui,
+                    operation.unwrap_or(super::operation::Kind::Read),
+                );
+                ui.set_operation_dialog_active(operation.is_some());
+                let title = format!("{kind}: selected workflow");
                 super::dialog(
                     &ui,
                     kind,
-                    title,
-                    &"Reviewed GPU and memory changes.\n".repeat(16),
+                    &title,
+                    &"Details of this selected action.\n".repeat(8),
                 );
+                ui.set_dialog_details("Captured event details\n".repeat(40).into());
                 draw(&window);
-                actions.borrow_mut().clear();
-                control(&ui, label).accessible_action(&AccessibilityAction::Default);
+                assert!(control(&ui, &title).is_visible(), "actual title: {kind}");
+                let dismiss = match kind {
+                    "switch" => dialogs::switch::STAY_LABEL,
+                    "exit" => dialogs::draft::KEEP_LABEL,
+                    "forget-review" => dialogs::cancel::LABEL,
+                    "progress" | "cancelling" => dialogs::busy::LABEL,
+                    _ => dialogs::close::LABEL,
+                };
+                let close = control(&ui, dismiss);
+                let bounds = close.geometry();
+                let origin = close.map_to_window(bounds.origin);
                 assert!(
-                    actions.borrow().is_empty(),
-                    "power consent required: {kind}"
+                    origin.y >= 0. && origin.y + bounds.height() <= height,
+                    "fixed footer: {kind}"
                 );
-                let consent = control(&ui, &ui.get_power_consent());
-                let geometry = consent.geometry();
-                let origin = consent.map_to_window(geometry.origin);
-                assert!(origin.y >= 0. && origin.y + geometry.height() <= height);
-                consent.accessible_action(&AccessibilityAction::Default);
-                control(&ui, label).accessible_action(&AccessibilityAction::Default);
-                assert_eq!(&*actions.borrow(), &[action]);
-                retain_render(&format!("review-{kind}-{theme}-{width}x{height}"));
-                // A changed review invalidates the local checkbox consent.
-                ui.set_dialog_body("Changed reviewed operation.".into());
+                assert!(
+                    origin.x >= 0. && origin.x + bounds.width() <= width,
+                    "reachable dismiss: {kind}"
+                );
+                let panel_left = (width - 660_f32.min(width - 40.)) / 2.;
+                assert!(
+                    origin.x >= panel_left + 24.
+                        && origin.x + bounds.width() <= width - panel_left - 24.,
+                    "dismiss stays inside footer viewport: {kind}"
+                );
+                let toggle = if matches!(
+                    kind,
+                    "operation-error"
+                        | "operation-complete"
+                        | "save"
+                        | "profile-deleted"
+                        | "reset-complete"
+                ) {
+                    dialogs::install::VIEW_LOG
+                } else {
+                    diagnostics::SHOW_LABEL
+                };
+                control(&ui, toggle).accessible_action(&AccessibilityAction::Default);
                 draw(&window);
+                let copy = control(&ui, dialogs::install::COPY_LOG);
+                let copy_origin = copy.map_to_window(copy.geometry().origin);
+                assert!(
+                    copy_origin.y >= 0. && copy_origin.y + copy.geometry().height() <= origin.y,
+                    "log remains above footer: {kind}"
+                );
+                retain_render(&format!("dialog-{kind}-{theme}-{width}x{height}"));
                 actions.borrow_mut().clear();
-                control(&ui, label).accessible_action(&AccessibilityAction::Default);
-                assert!(actions.borrow().is_empty());
-                ui.set_needs_shutdown(false);
-                draw(&window);
-                control(&ui, label).accessible_action(&AccessibilityAction::Default);
-                assert_eq!(&*actions.borrow(), &[action]);
-                ui.set_updating(true);
-                draw(&window);
-                actions.borrow_mut().clear();
-                control(&ui, label).accessible_action(&AccessibilityAction::Default);
-                assert!(actions.borrow().is_empty());
-                ui.set_updating(false);
+                close.accessible_action(&AccessibilityAction::Default);
+                assert_eq!(
+                    actions.borrow().len(),
+                    usize::from(!matches!(kind, "progress" | "cancelling")),
+                    "busy dismissal: {kind}"
+                );
             }
         }
     }
@@ -708,197 +756,80 @@ fn shared_plan_and_review_dialog_preserves_cancellation_and_explicit_power_conse
 }
 
 #[test]
-fn permission_review_actions_stay_on_one_row_at_supported_sizes_in_both_themes() {
+fn operation_preparation_and_execution_have_no_review_confirmation_controls() {
+    use hyper_gpu_support::ui_text::{dialogs, settings};
+    use slint::Model;
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
     slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
     let ui = AppWindow::new().unwrap();
     ui.set_startup_loading(false);
-    ui.set_execution_ready(true);
     ui.show().unwrap();
     window.set_size(LogicalSize::new(1240., 860.));
-    for (theme, label) in [
-        (
-            "light",
-            hyper_gpu_support::ui_text::settings::appearance::LIGHT,
-        ),
-        (
-            "dark",
-            hyper_gpu_support::ui_text::settings::appearance::DARK,
-        ),
-    ] {
+    for theme in [settings::appearance::LIGHT, settings::appearance::DARK] {
         ui.set_dialog_kind("".into());
         ui.set_page(2);
         draw(&window);
-        control(&ui, label).accessible_action(&AccessibilityAction::Default);
-        ui.set_page(0);
-        ui.set_dialog_title(
-            hyper_gpu_support::ui_text::operations::enrollment::review::TITLE.into(),
-        );
-        ui.set_enrollment_heading("Virtual machine: VM1\nPhysical GPU: NVIDIA GPU".into());
-        ui.set_enrollment_allocation("8.27850752 GB".into());
-        ui.set_dialog_body(
-            hyper_gpu_support::ui_text::operations::enrollment::ELEVATION_NOTICE.into(),
-        );
-        ui.set_dialog_details("Diagnostic section\n".repeat(30).into());
-        ui.set_dialog_kind("enroll-review".into());
-        for (width, height) in [(1240., 860.), (1000., 620.), (700., 520.)] {
-            window.set_size(LogicalSize::new(width, height));
-            draw(&window);
-            for expanded in [false, true] {
-                let labels = [
-                    if expanded {
-                        hyper_gpu_support::ui_text::diagnostics::HIDE_LABEL
-                    } else {
-                        hyper_gpu_support::ui_text::diagnostics::SHOW_LABEL
-                    },
-                    hyper_gpu_support::ui_text::dialogs::draft::KEEP_LABEL,
-                    hyper_gpu_support::ui_text::dialogs::enrollment::CONFIRM_LABEL,
-                ];
-                let mut row_y: Option<f32> = None;
-                let mut previous_right = 0.;
-                for label in labels {
-                    let button = control(&ui, label);
-                    let geometry = button.geometry();
-                    let origin = button.map_to_window(geometry.origin);
-                    assert!(button.is_visible(), "visible action: {label}");
-                    assert!(origin.x >= previous_right && origin.x + geometry.width() <= width);
-                    assert!(origin.y >= 0. && origin.y + geometry.height() <= height);
-                    if let Some(y) = row_y {
-                        assert!(
-                            (origin.y - y).abs() < 1.,
-                            "actions share one row at {width}x{height}"
-                        );
-                    }
-                    row_y = Some(origin.y);
-                    previous_right = origin.x + geometry.width();
-                }
-                retain_render(&format!("permission-{theme}-{width}x{height}-{expanded}"));
-                control(&ui, labels[0]).accessible_action(&AccessibilityAction::Default);
-                draw(&window);
-            }
-        }
-    }
-    ui.hide().unwrap();
-}
-
-#[test]
-fn recovery_review_has_prominent_identity_and_action_confirmation_without_a_power_checkbox() {
-    use hyper_gpu_support::ui_text::{dialogs, operations, settings};
-    use std::cell::RefCell;
-    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
-    let ui = AppWindow::new().unwrap();
-    ui.set_startup_loading(false);
-    ui.set_execution_ready(true);
-    ui.set_reset_allowed(true);
-    let actions = Rc::new(RefCell::new(Vec::new()));
-    let captured = actions.clone();
-    ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
-    ui.show().unwrap();
-    window.set_size(LogicalSize::new(1240., 860.));
-    let heading = operations::action::review_prompt(
-        "A long virtual machine name that wraps without hiding the recovery action",
-    )
-    .into_string();
-    for (theme, label) in [
-        ("light", settings::appearance::LIGHT),
-        ("dark", settings::appearance::DARK),
-    ] {
-        ui.set_dialog_kind("".into());
-        ui.set_page(2);
-        draw(&window);
-        control(&ui, label).accessible_action(&AccessibilityAction::Default);
+        control(&ui, theme).accessible_action(&AccessibilityAction::Default);
         ui.set_page(0);
         for (width, height) in [(1240., 860.), (700., 520.)] {
             window.set_size(LogicalSize::new(width, height));
-            for no_effects in [true, false] {
+            for kind in [
+                super::operation::Kind::Plan,
+                super::operation::Kind::VerifyPlan,
+                super::operation::Kind::PermissionPlan,
+                super::operation::Kind::Apply,
+                super::operation::Kind::Verify,
+                super::operation::Kind::Install,
+                super::operation::Kind::Forget,
+                super::operation::Kind::Remove,
+                super::operation::Kind::Reconcile,
+            ] {
+                super::dialog_presentation::begin(&ui, kind);
+                ui.set_running(true);
+                ui.set_updating(true);
+                ui.set_review_preparing(kind.review_preparation());
                 super::dialog(
                     &ui,
-                    "recovery",
-                    operations::recovery::review::TITLE,
-                    if no_effects {
-                        operations::recovery::admitted::BODY
-                    } else {
-                        operations::recovery::review::EXPLANATION
-                    },
-                );
-                ui.set_recovery_heading(heading.clone().into());
-                ui.set_needs_shutdown(!no_effects);
-                ui.set_power_consent(
-                    super::wording::recovery_consent(&hyper_gpu_support::model::Power::Off).into(),
+                    "install-progress",
+                    super::dialog_presentation::task(kind),
+                    "Preparing and running the selected request.",
                 );
                 draw(&window);
-                let identity = control(&ui, &heading);
-                let confirm = control(&ui, operations::recovery::PROGRESS_TITLE);
-                assert!(identity.is_visible());
-                assert!(identity.geometry().width() > 0.);
+                let root = ItemRc::new_root(WindowInner::from_pub(ui.window()).component());
+                let mut confirmations = 0;
+                root.visit_descendants::<()>(|item| {
+                    if item.accessible_role() == AccessibleRole::Checkbox {
+                        confirmations += 1;
+                    }
+                    if item.accessible_role() == AccessibleRole::Button
+                        && item
+                            .accessible_string_property(AccessibleStringProperty::Label)
+                            .as_deref()
+                            == Some(dialogs::apply::LABEL)
+                    {
+                        confirmations += 1;
+                    }
+                    ControlFlow::Continue(())
+                });
+                assert_eq!(confirmations, 0, "no review controls: {kind:?}");
                 assert!(
-                    identity.map_to_window(identity.geometry().origin).y
-                        < confirm.map_to_window(confirm.geometry().origin).y
+                    !ui.get_dialog_phases()
+                        .iter()
+                        .any(|phase| phase == dialogs::install::REVIEW)
                 );
-                actions.borrow_mut().clear();
-                confirm.accessible_action(&AccessibilityAction::Default);
-                assert_eq!(&*actions.borrow(), &["reconcile"]);
-                // Profile deletion is available even without a partial setup,
-                // and it has its own review rather than dispatching GPU removal.
-                control(&ui, dialogs::profile_deletion::LABEL)
-                    .accessible_action(&AccessibilityAction::Default);
-                assert_eq!(
-                    &*actions.borrow(),
-                    &["reconcile", "forget-recovery-profile"]
+                let dismiss = control(
+                    &ui,
+                    if kind.review_preparation() {
+                        dialogs::cancel::LABEL
+                    } else {
+                        dialogs::install::CANCEL
+                    },
                 );
-                retain_render(&format!("recovery-{theme}-{width}x{height}-{no_effects}"));
+                assert!(dismiss.is_visible());
+                retain_render(&format!("direct-{kind:?}-{theme}-{width}x{height}"));
             }
         }
     }
-    for kind in ["recovery", "reset-review", "review", "verify-review"] {
-        super::dialog(
-            &ui,
-            kind,
-            "Reviewed operation",
-            "Review the required power changes.",
-        );
-        ui.set_needs_shutdown(true);
-        let label = match kind {
-            "recovery" => operations::recovery::PROGRESS_TITLE,
-            "reset-review" => dialogs::partial_removal::CONFIRM_LABEL,
-            "review" => dialogs::apply::LABEL,
-            _ => operations::verify::TITLE,
-        };
-        draw(&window);
-        actions.borrow_mut().clear();
-        control(&ui, label).accessible_action(&AccessibilityAction::Default);
-        assert_eq!(
-            actions.borrow().len(),
-            usize::from(matches!(kind, "recovery" | "reset-review"))
-        );
-    }
-    for (ready, updating) in [(false, false), (true, true)] {
-        ui.set_execution_ready(ready);
-        ui.set_updating(updating);
-        for (kind, label) in [
-            ("recovery", operations::recovery::PROGRESS_TITLE),
-            ("reset-review", dialogs::partial_removal::CONFIRM_LABEL),
-        ] {
-            super::dialog(
-                &ui,
-                kind,
-                "Reviewed operation",
-                "Required power changes are shown here.",
-            );
-            draw(&window);
-            actions.borrow_mut().clear();
-            control(&ui, label).accessible_action(&AccessibilityAction::Default);
-            assert!(actions.borrow().is_empty(), "unavailable action: {kind}");
-        }
-    }
-    super::dialog(
-        &ui,
-        "info",
-        "Finished",
-        "Recovery presentation must not leak into another dialog.",
-    );
-    assert!(ui.get_recovery_heading().is_empty());
     ui.hide().unwrap();
 }
 
@@ -926,10 +857,6 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
         control(&ui, theme).accessible_action(&AccessibilityAction::Default);
         ui.set_page(0);
         for (kind, mut labels) in [
-            (
-                "review",
-                vec![dialogs::cancel::LABEL, dialogs::apply::LABEL],
-            ),
             (
                 "status-error",
                 vec![dialogs::close::LABEL, dialogs::status::RETRY_LABEL],
@@ -967,10 +894,10 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
                 labels.retain(|label| *label != dialogs::close::LABEL);
                 labels.insert(0, hyper_gpu_support::ui_text::dialogs::install::VIEW_LOG);
                 labels.push(dialogs::close::LABEL);
-            } else if kind == "review" {
-                labels.insert(0, diagnostics::SHOW_LABEL);
             } else {
-                labels.push(diagnostics::SHOW_LABEL);
+                labels.retain(|label| *label != dialogs::close::LABEL);
+                labels.insert(0, diagnostics::SHOW_LABEL);
+                labels.push(dialogs::close::LABEL);
             }
             for (width, height) in [(1240., 860.), (700., 520.)] {
                 window.set_size(LogicalSize::new(width, height));
@@ -1003,6 +930,45 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
             repair.map_to_window(repair.geometry().origin).y
                 > verify.map_to_window(verify.geometry().origin).y,
             "More Actions keeps its vertical choices"
+        );
+    }
+    ui.hide().unwrap();
+}
+
+#[test]
+fn cancelled_reads_leave_dialog_close_usable_while_new_operations_stay_disabled() {
+    use hyper_gpu_support::ui_text::dialogs;
+    use std::cell::RefCell;
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_execution_ready(true);
+    ui.set_verify_allowed(true);
+    ui.set_repair_allowed(true);
+    ui.set_updating(true);
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let captured = actions.clone();
+    ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(700., 520.));
+    for kind in ["more", "info", "operation-complete", "operation-error"] {
+        ui.set_running(false);
+        ui.set_review_preparing(false);
+        ui.set_dialog_kind(kind.into());
+        draw(&window);
+        actions.borrow_mut().clear();
+        if kind == "more" {
+            for label in [dialogs::verify::LABEL, dialogs::repair::LABEL] {
+                control(&ui, label).accessible_action(&AccessibilityAction::Default);
+            }
+            assert!(actions.borrow().is_empty(), "new work remains disabled");
+        }
+        control(&ui, dialogs::close::LABEL).accessible_action(&AccessibilityAction::Default);
+        assert_eq!(
+            &*actions.borrow(),
+            &["close"],
+            "dismiss while reading: {kind}"
         );
     }
     ui.hide().unwrap();

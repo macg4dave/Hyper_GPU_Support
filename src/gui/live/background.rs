@@ -17,6 +17,55 @@ use std::sync::{
 
 // Only the event loop touches Slint models.
 
+/// A foreground request continues directly after fresh preparation. Failed
+/// preparation or an unavailable worker never reaches the execution callback.
+pub(super) fn continue_prepared(
+    ui: &AppWindow,
+    prepared: Result<(), String>,
+    execute: impl FnOnce() -> Result<(), String>,
+) {
+    let result = prepared.and_then(|()| {
+        if !ui.get_execution_ready() {
+            return Err("The protected worker is unavailable. Refresh before trying again.".into());
+        }
+        execute()
+    });
+    if let Err(error) = result {
+        dialog(
+            ui,
+            "error",
+            hyper_gpu_support::ui_text::operations::action::UNAVAILABLE_TITLE,
+            &error,
+        );
+    }
+}
+
+/// Abandon preparation without pretending the underlying read has stopped.
+pub(super) fn cancel_preparation(ui: &AppWindow) {
+    ui.set_review_preparing(false);
+    ui.set_operation_dialog_active(false);
+    ui.set_running(true);
+    dialog(
+        ui,
+        "cancelling",
+        hyper_gpu_support::ui_text::dialogs::cancelling::TITLE,
+        hyper_gpu_support::ui_text::dialogs::cancelling::BODY,
+    );
+}
+
+/// Called after background admission is released. Abandoned reads never publish
+/// a plan, error or continuation; their waiting dialog ends with the block.
+pub(super) fn finish_cancelled_preparation(ui: &AppWindow, preparing: bool) -> bool {
+    if !preparing || ui.get_review_preparing() {
+        return false;
+    }
+    if ui.get_dialog_kind() == "cancelling" {
+        ui.set_running(false);
+        ui.set_dialog_kind("".into());
+    }
+    true
+}
+
 pub(super) fn background<T: Send + 'static>(
     ui: &AppWindow,
     busy: &Arc<AtomicBool>,
@@ -95,6 +144,7 @@ pub(super) fn background_operation<T: Send + 'static>(
         move || {
             let outcome = run_background_task(task);
             let _ = readback_ui.upgrade_in_event_loop(|ui| {
+                crate::gui::dialog_presentation::readback(&ui);
                 ui.set_current_stage(hyper_gpu_support::ui_text::dialogs::install::READBACK.into());
                 ui.set_transfer_fraction(-1.0);
             });
@@ -132,24 +182,14 @@ pub(super) fn background_for_vm<T: Send + 'static>(
     }
     if !silent {
         ui.set_operation_dialog_active(operation.kind.operation_dialog());
-        if operation.kind.operation_dialog() {
-            if operation.kind != Kind::Apply {
-                ui.set_install_vm_name(vm_name.map_or_else(|| ui.get_vm_name(), Into::into));
-                ui.set_install_steps(crate::gui::model(Vec::new()));
-                ui.set_install_facts(crate::gui::model(Vec::new()));
-                ui.set_install_transfer("".into());
-                ui.set_install_guest_work(false);
-            }
-            ui.set_install_is_apply(operation.kind == Kind::Apply);
-            ui.set_install_action_title(
-                match operation.kind {
-                    Kind::Plan => hyper_gpu_support::ui_text::dialogs::apply::LABEL,
-                    Kind::VerifyPlan => hyper_gpu_support::ui_text::operations::verify::TITLE,
-                    _ => operation.title,
-                }
-                .into(),
-            );
+        if operation.kind.operation_dialog() && operation.kind != Kind::Apply {
+            ui.set_install_vm_name(vm_name.map_or_else(|| ui.get_vm_name(), Into::into));
+            ui.set_install_steps(crate::gui::model(Vec::new()));
+            ui.set_install_facts(crate::gui::model(Vec::new()));
+            ui.set_install_transfer("".into());
+            ui.set_install_guest_work(false);
         }
+        crate::gui::dialog_presentation::begin(ui, operation.kind);
         let guest_message = wording::guest_progress(
             operation.kind,
             vm_name.unwrap_or(hyper_gpu_support::ui_text::operations::selection::FALLBACK),
@@ -168,7 +208,7 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                 hyper_gpu_support::ui_text::operations::apply::HOST_PROGRESS
             } else if operation.kind == Kind::Reconcile {
                 hyper_gpu_support::ui_text::operations::recovery::HOST_PROGRESS
-            } else if preparing {
+            } else if matches!(operation.kind, Kind::Plan | Kind::VerifyPlan) {
                 hyper_gpu_support::ui_text::operations::plan::PROGRESS_BODY
             } else if operation.kind == Kind::SaveOnly {
                 hyper_gpu_support::ui_text::operations::save_only::PROGRESS_BODY
@@ -177,7 +217,7 @@ pub(super) fn background_for_vm<T: Send + 'static>(
             },
         );
         if operation.kind.operation_dialog() {
-            ui.set_current_stage(hyper_gpu_support::ui_text::dialogs::install::STARTING.into());
+            ui.set_current_stage(crate::gui::dialog_presentation::task(operation.kind).into());
         }
     }
     #[cfg(windows)]
@@ -197,7 +237,7 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                     ui.set_updating(false);
                     // Cancel abandons this read's result, including failures. It
                     // never terminates a protected effect or publishes a late plan.
-                    if preparing && !ui.get_review_preparing() {
+                    if finish_cancelled_preparation(&ui, preparing) {
                         return;
                     }
                     ui.set_review_preparing(false);
@@ -230,10 +270,52 @@ mod tests {
     use super::*;
 
     #[test]
+    fn direct_continuation_requires_successful_preparation_and_an_available_worker() {
+        slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+        let ui = AppWindow::new().unwrap();
+        let started = std::cell::Cell::new(0);
+        for (prepared, ready) in [
+            (Err("stale plan".into()), true),
+            (Err("cancelled preparation".into()), true),
+            (Ok(()), false),
+        ] {
+            ui.set_execution_ready(ready);
+            continue_prepared(&ui, prepared, || {
+                started.set(started.get() + 1);
+                Ok(())
+            });
+            assert_eq!(started.get(), 0);
+            assert_eq!(ui.get_dialog_kind(), "error");
+        }
+        ui.set_execution_ready(true);
+        continue_prepared(&ui, Ok(()), || {
+            started.set(started.get() + 1);
+            dialog(
+                &ui,
+                "install-progress",
+                "Applying selected action",
+                "Progress",
+            );
+            Ok(())
+        });
+        assert_eq!(started.get(), 1);
+        assert_eq!(ui.get_dialog_kind(), "install-progress");
+        // Failure to start is shown, without retrying the callback.
+        continue_prepared(&ui, Ok(()), || {
+            started.set(started.get() + 1);
+            Err("start failed".into())
+        });
+        assert_eq!(started.get(), 2);
+        assert_eq!(ui.get_dialog_kind(), "error");
+    }
+
+    #[test]
     fn operation_dialog_covers_apply_setup_verification_recovery_save_and_removal() {
         slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
         for (kind, guest_access) in [
             (Kind::Plan, false),
+            (Kind::PermissionPlan, false),
+            (Kind::PermissionRecovery, false),
             (Kind::VerifyPlan, false),
             (Kind::Apply, false),
             (Kind::Apply, true),
@@ -241,6 +323,7 @@ mod tests {
             (Kind::Reconcile, false),
             (Kind::SaveOnly, false),
             (Kind::Setup, false),
+            (Kind::Install, false),
             (Kind::Remove, false),
             (Kind::Forget, false),
         ] {
@@ -263,7 +346,7 @@ mod tests {
                 if kind == Kind::Reconcile {
                     hyper_gpu_support::ui_text::progress::stage::RECOVERY_PREPARATION
                 } else {
-                    hyper_gpu_support::ui_text::dialogs::install::STARTING
+                    crate::gui::dialog_presentation::task(kind)
                 }
             );
             ui.set_dialog_details("00:01   Reported step".into());

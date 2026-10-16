@@ -142,31 +142,35 @@ pub(super) fn refresh_with_result(
             )
         },
         move || {
+            // Publish the current read before it blocks, including initial discovery.
+            // Progress counts completed reads; it never implies recovery effects.
+            let report = |completed: u8, stage: &'static str| {
+                if startup {
+                    let progress = f32::from(completed) / 6.0;
+                    let _ = startup_ui.upgrade_in_event_loop(move |ui| {
+                        ui.set_startup_progress(progress);
+                        ui.set_startup_stage(stage.into());
+                    });
+                }
+            };
+            use hyper_gpu_support::ui_text::dashboard::startup as text;
+            report(0, text::INVENTORY);
             let (inventory, warning) = if automatic {
                 discover_status()?
             } else {
                 source.discover()?
             };
-            let mut completed = 0;
-            let mut advance = || {
-                completed += 1;
-                if startup {
-                    let progress = completed as f32 / 6.0;
-                    let _ = startup_ui
-                        .upgrade_in_event_loop(move |ui| ui.set_startup_progress(progress));
-                }
-            };
-            advance();
+            report(1, text::CONFIGURATION);
             let committed = source.committed();
-            advance();
+            report(2, text::RECOVERY);
             let recovery = source.recovery()?;
-            advance();
+            report(3, text::IMPORT_RECOVERY);
             let import_recovery = source.import_recovery()?;
-            advance();
+            report(4, text::ENROLLMENT_RECOVERY);
             let enrollment_recovery = source.enrollment_recovery()?;
-            advance();
+            report(5, text::WORKER);
             let worker_available = protected_worker_available();
-            advance();
+            report(6, text::WORKER);
             Ok((
                 inventory,
                 warning,

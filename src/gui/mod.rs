@@ -5,6 +5,7 @@ mod actions;
 #[cfg(test)]
 mod catalogue_tests;
 mod diagnostics;
+mod dialog_presentation;
 mod host_configuration;
 #[cfg(test)]
 mod layout_tests;
@@ -59,6 +60,7 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
         "".into()
     });
     ui.set_dialog_kind(kind.into());
+    dialog_presentation::opened(ui, kind, operation);
     ui.set_dialog_title(title.into());
     ui.set_dialog_body(if kind == "error" || kind == "operation-error" {
         hyper_gpu_support::reporting::operator_error(title, body).into()
