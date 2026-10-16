@@ -146,7 +146,7 @@ pub(super) fn enroll_live(
         ui,
         busy,
         Operation::new(
-            Kind::Read,
+            Kind::Setup,
             hyper_gpu_support::ui_text::operations::enrollment::PROGRESS_TITLE,
         ),
         move || {
@@ -233,7 +233,7 @@ pub(super) fn reconcile_enrollment_live(
         ui,
         busy,
         Operation::new(
-            Kind::Read,
+            Kind::Setup,
             hyper_gpu_support::ui_text::operations::enrollment::recovery::PROGRESS_TITLE,
         ),
         move || hyper_gpu_support::worker::reconcile_pair(operation_id, expected, progress),

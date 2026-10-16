@@ -10,6 +10,8 @@ mod editor;
 #[cfg(windows)]
 mod enrollment;
 #[cfg(any(windows, test))]
+mod install_dialog;
+#[cfg(any(windows, test))]
 mod installation;
 #[cfg(windows)]
 mod partial_removal;

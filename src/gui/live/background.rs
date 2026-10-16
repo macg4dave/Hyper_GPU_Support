@@ -95,7 +95,7 @@ pub(super) fn background_operation<T: Send + 'static>(
         move || {
             let outcome = run_background_task(task);
             let _ = readback_ui.upgrade_in_event_loop(|ui| {
-                ui.set_current_stage("Reading saved settings and recovery records".into());
+                ui.set_current_stage(hyper_gpu_support::ui_text::dialogs::install::READBACK.into());
                 ui.set_transfer_fraction(-1.0);
             });
             Ok((outcome, Source.operation_readback()))
@@ -131,13 +131,29 @@ pub(super) fn background_for_vm<T: Send + 'static>(
         ui.set_running(true);
     }
     if !silent {
+        ui.set_operation_dialog_active(operation.kind.operation_dialog());
+        if operation.kind.operation_dialog() {
+            if operation.kind != Kind::Apply {
+                ui.set_install_vm_name(vm_name.map_or_else(|| ui.get_vm_name(), Into::into));
+                ui.set_install_steps(crate::gui::model(Vec::new()));
+                ui.set_install_facts(crate::gui::model(Vec::new()));
+                ui.set_install_transfer("".into());
+                ui.set_install_guest_work(false);
+            }
+            ui.set_install_is_apply(operation.kind == Kind::Apply);
+            ui.set_install_action_title(operation.title.into());
+        }
         let guest_message = wording::guest_progress(
             operation.kind,
             vm_name.unwrap_or(hyper_gpu_support::ui_text::operations::selection::FALLBACK),
         );
         dialog(
             ui,
-            "progress",
+            if operation.kind.operation_dialog() {
+                "install-progress"
+            } else {
+                "progress"
+            },
             operation.title,
             if guest_access {
                 &guest_message
@@ -153,6 +169,9 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                 hyper_gpu_support::ui_text::operations::background::READING
             },
         );
+        if operation.kind.operation_dialog() {
+            ui.set_current_stage(hyper_gpu_support::ui_text::dialogs::install::STARTING.into());
+        }
     }
     #[cfg(windows)]
     if operation.kind == Kind::Reconcile {
@@ -202,6 +221,61 @@ pub(super) fn background_for_vm<T: Send + 'static>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn operation_dialog_covers_apply_setup_verification_recovery_save_and_removal() {
+        slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+        for (kind, guest_access) in [
+            (Kind::Apply, false),
+            (Kind::Apply, true),
+            (Kind::Verify, true),
+            (Kind::Reconcile, false),
+            (Kind::SaveOnly, false),
+            (Kind::Setup, false),
+            (Kind::Remove, false),
+            (Kind::Forget, false),
+        ] {
+            let ui = AppWindow::new().unwrap();
+            let busy = Arc::new(AtomicBool::new(false));
+            // Only an isolated no-op background task; no worker or inventory calls.
+            background_for_vm(
+                &ui,
+                &busy,
+                Operation::new(kind, "Operation"),
+                Some("VM2"),
+                guest_access,
+                || Ok(()),
+                |_, _| {},
+            )
+            .unwrap();
+            assert_eq!(ui.get_dialog_kind(), "install-progress");
+            assert_eq!(
+                ui.get_current_stage(),
+                if kind == Kind::Reconcile {
+                    hyper_gpu_support::ui_text::progress::stage::RECOVERY_PREPARATION
+                } else {
+                    hyper_gpu_support::ui_text::dialogs::install::STARTING
+                }
+            );
+            ui.set_dialog_details("00:01   Reported step".into());
+            crate::gui::dialog(&ui, "info", "Confirmed outcome", "Confirmed result");
+            assert_eq!(ui.get_dialog_kind(), "operation-complete");
+            assert_eq!(ui.get_dialog_title(), "Confirmed outcome");
+            assert_eq!(ui.get_dialog_details(), "00:01   Reported step");
+            ui.set_operation_dialog_active(true);
+            crate::gui::dialog(&ui, "error", "Unconfirmed outcome", "Failure");
+            assert_eq!(ui.get_dialog_kind(), "operation-error");
+        }
+        for kind in [
+            Kind::Plan,
+            Kind::VerifyPlan,
+            Kind::Read,
+            Kind::StatusRefresh,
+            Kind::Credentials,
+        ] {
+            assert!(!kind.operation_dialog());
+        }
+    }
 
     #[test]
     fn background_failure_or_panic_never_becomes_a_completed_operation() {

@@ -29,8 +29,18 @@ pub(super) fn recovery_preparation(ui: &AppWindow, guest_access: bool) {
 pub(super) fn progress_to_ui(
     weak: slint::Weak<AppWindow>,
 ) -> impl FnMut(hyper_gpu_support::worker::Progress) {
-    let state = std::sync::Arc::new(std::sync::Mutex::new(State::default()));
+    progress_with_install(weak, Some(super::install_dialog::Progress::default()))
+}
+
+#[cfg(windows)]
+pub(super) fn progress_with_install(
+    weak: slint::Weak<AppWindow>,
+    installation: Option<super::install_dialog::Progress>,
+) -> impl FnMut(hyper_gpu_support::worker::Progress) {
+    let state = std::sync::Arc::new(std::sync::Mutex::new((State::default(), installation)));
+    let started = std::time::Instant::now();
     move |progress| {
+        let now = started.elapsed();
         let event = Event::from_worker(
             &progress.stage,
             match progress.status {
@@ -44,6 +54,7 @@ pub(super) fn progress_to_ui(
             let mut state = state
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let (state, installation) = &mut *state;
             let stage = match progress.stage.as_str() {
                 "Check recorded recovery outcome" => {
                     hyper_gpu_support::ui_text::progress::stage::RECOVERY_OUTCOME
@@ -126,6 +137,29 @@ pub(super) fn progress_to_ui(
                     -1.0
                 });
                 ui.set_progress_steps(steps);
+            }
+            if ui.get_dialog_kind() == "install-progress"
+                && let Some(installation) = installation.as_mut()
+            {
+                installation.record(&event, &progress.stage, stage, now);
+                installation.present(&ui, now);
+                if event.identity == Identity::Transfer {
+                    ui.set_current_stage(
+                        hyper_gpu_support::ui_text::dialogs::install::PREPARING_FILES.into(),
+                    );
+                    ui.set_install_transfer(progress.stage.replacen("; ", "\n", 1).into());
+                } else {
+                    if event.status == Status::Running {
+                        ui.set_install_transfer("".into());
+                    }
+                    let current = ui.get_current_stage();
+                    ui.set_current_stage(
+                        current
+                            .rsplit_once(" · ")
+                            .map_or(current.as_str(), |(label, _)| label)
+                            .into(),
+                    );
+                }
             }
         });
     }

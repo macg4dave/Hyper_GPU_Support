@@ -97,7 +97,7 @@ pub(super) fn forget_live(
         ui,
         busy,
         Operation::new(
-            Kind::Read,
+            Kind::Forget,
             hyper_gpu_support::ui_text::operations::profile_deletion::PROGRESS_TITLE,
         ),
         move || hyper_gpu_support::worker::forget_pair(approved, progress).map(|_| ()),

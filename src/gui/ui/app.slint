@@ -7,6 +7,8 @@ import { VmDetails } from "details.slint";
 import { Pages, GpuRow } from "pages.slint";
 import { StartupSplash } from "startup.slint";
 import { OperationDialog } from "dialogs.slint";
+import { InstallDialog, InstallStep, InstallFact } from "install-dialog.slint";
+export { InstallStep, InstallFact }
 
 export component AppWindow inherits Window {
     title: UiText.common-branding-title;
@@ -99,6 +101,14 @@ export component AppWindow inherits Window {
     in-out property <[string]> progress-steps;
     in-out property <string> current-stage;
     in-out property <float> transfer-fraction: -1;
+    in-out property <string> install-vm-name;
+    in-out property <bool> install-guest-work: false;
+    in-out property <bool> operation-dialog-active: false;
+    in-out property <bool> install-is-apply: true;
+    in-out property <string> install-action-title: UiText.dialogs-apply-label;
+    in-out property <string> install-transfer;
+    in-out property <[InstallStep]> install-steps;
+    in-out property <[InstallFact]> install-facts;
     in-out property <bool> running: false;
     in-out property <bool> review-preparing: false;
     in-out property <bool> needs-shutdown: false;
@@ -230,7 +240,24 @@ export component AppWindow inherits Window {
         progress: root.startup-progress;
         continue => { root.startup-loading = false; }
     }
-    if !root.startup-loading && root.dialog-kind != "" : OperationDialog {
+    private property <bool> operation-presentation: root.dialog-kind == "install-progress" || root.dialog-kind == "install-complete" || root.dialog-kind == "operation-complete" || root.dialog-kind == "operation-error" || root.dialog-kind == "save" || root.dialog-kind == "reset-complete" || root.dialog-kind == "profile-deleted";
+    if !root.startup-loading && root.operation-presentation : InstallDialog {
+        completed: root.dialog-kind != "install-progress";
+        failed: root.dialog-kind == "operation-error" || root.dialog-kind == "save";
+        kind: root.dialog-kind; action-recovery: root.action-recovery;
+        dirty: root.dirty; execution-ready: root.execution-ready;
+        repair-allowed: root.repair-allowed; forget-allowed: root.forget-allowed;
+        title: root.dialog-kind == "install-progress" && root.install-is-apply ? UiText.dialogs-install-applying : root.dialog-title;
+        action-title: root.install-is-apply ? UiText.dialogs-apply-label : root.install-action-title;
+        guest-work: root.install-guest-work;
+        updating: root.updating;
+        vm-name: root.install-vm-name; body: root.dialog-body; details: root.dialog-details;
+        current-stage: root.current-stage; transfer: root.install-transfer; transfer-fraction: root.transfer-fraction;
+        steps: root.install-steps; facts: root.install-facts;
+        close => { root.action("close"); }
+        action(a) => { root.action(a); }
+    }
+    if !root.startup-loading && root.dialog-kind != "" && !root.operation-presentation : OperationDialog {
         execution-ready: root.execution-ready; updating: root.updating;
         verify-unavailable: root.verify-unavailable; verify-allowed: root.verify-allowed; repair-unavailable: root.repair-unavailable; repair-allowed: root.repair-allowed;
         remove-unavailable: root.remove-unavailable; remove-allowed: root.remove-allowed; forget-unavailable: root.forget-unavailable; forget-allowed: root.forget-allowed;

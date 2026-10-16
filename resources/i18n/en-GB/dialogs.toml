@@ -386,3 +386,322 @@ consequences = "Preserve the reviewed effect, uncertainty and next-step facts of
 severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
+
+[messages."dialogs.install.review"]
+text = "Review"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: review"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.permissions"]
+text = "Permissions"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: permissions"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.applying"]
+text = "Applying changes"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: applying"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.completed"]
+text = "Changes applied successfully"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: completed"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.vm"]
+text = "Virtual machine:"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: vm"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.wait"]
+text = "Please wait while the changes are applied. This includes driver preparation and GPU setup checks."
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: wait"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.pending"]
+text = "Pending"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: pending"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.summary"]
+text = "Summary"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: summary"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.technical"]
+text = "Technical details"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: technical"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.copy_log"]
+text = "Copy log"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: copy_log"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.view_log"]
+text = "View log"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: view_log"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.hide_log"]
+text = "Hide log"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: hide_log"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.cancel"]
+text = "Cancel operation"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: cancel"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.support"]
+text = "GPU support"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: support"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.gpu"]
+text = "Physical GPU"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: gpu"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.memory"]
+text = "GPU memory"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: memory"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.preparation"]
+text = "Driver preparation"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: preparation"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.checks"]
+text = "Setup checks"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: checks"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.prepared"]
+text = "Completed"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: prepared"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.unchanged"]
+text = "Existing preparation retained"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: unchanged"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.starting"]
+text = "Preparing protected worker"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: starting"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.readback"]
+text = "Reading saved settings and recovery records"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: readback"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.preparing_files"]
+text = "Preparing GPU driver files"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: preparing_files"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.finalising"]
+text = "Finalising and shutting down"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: finalising"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.success_off"]
+text = "The GPU configuration has been updated and the virtual machine is now shut down."
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: success_off"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.success_running"]
+text = "The GPU configuration has been updated and the virtual machine is running."
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: success_running"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.checking_files"]
+text = "Checking VM and driver files"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: checking_files"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.installing_files"]
+text = "Installing GPU driver files"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: installing_files"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.not_required"]
+text = "Not required"
+screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
+state = "Installation presentation: not_required"
+audience = "operator"
+intent = "Present authenticated installation progress or the confirmed terminal result."
+consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
+severity = "information"
+space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
+placeholders = []

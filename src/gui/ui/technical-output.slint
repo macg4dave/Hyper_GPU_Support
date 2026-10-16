@@ -17,6 +17,10 @@ export component TechnicalOutput inherits Rectangle {
     border-width: 1px;
     border-color: output.has-focus ? Theme.accent : #c8c8c8;
     forward-focus: output;
+    public function copy-all() {
+        output.select-all();
+        output.copy();
+    }
     ContextMenuArea {
         enabled: root.enabled;
         Menu {

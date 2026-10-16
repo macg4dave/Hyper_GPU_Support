@@ -11,6 +11,7 @@ use std::sync::{Arc, atomic::AtomicBool};
 pub(super) fn credential_request_cancelled(ui: &AppWindow, error: &str, recovery: bool) -> bool {
     #[cfg(windows)]
     if hyper_gpu_support::credentials::is_prompt_cancelled(error) {
+        ui.set_operation_dialog_active(false);
         dialog(
             ui,
             "info",

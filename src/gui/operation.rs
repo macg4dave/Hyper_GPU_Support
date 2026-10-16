@@ -10,6 +10,9 @@ pub(super) enum Kind {
     Reconcile,
     SaveOnly,
     Credentials,
+    Setup,
+    Remove,
+    Forget,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +37,18 @@ impl<'a> Operation<'a> {
 }
 
 impl Kind {
+    pub fn operation_dialog(self) -> bool {
+        matches!(
+            self,
+            Self::Apply
+                | Self::Verify
+                | Self::Reconcile
+                | Self::SaveOnly
+                | Self::Setup
+                | Self::Remove
+                | Self::Forget
+        )
+    }
     pub fn review_preparation(self) -> bool {
         matches!(self, Self::Plan | Self::VerifyPlan)
     }

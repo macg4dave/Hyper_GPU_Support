@@ -24,6 +24,18 @@ fn model<T: Clone + 'static>(rows: Vec<T>) -> ModelRc<T> {
     Rc::new(VecModel::from(rows)).into()
 }
 fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
+    let operation = ui.get_operation_dialog_active();
+    let retained_log = ui.get_dialog_details();
+    let kind = if operation && kind == "info" {
+        "operation-complete"
+    } else if operation && kind == "error" {
+        "operation-error"
+    } else {
+        kind
+    };
+    if kind != "install-progress" {
+        ui.set_operation_dialog_active(false);
+    }
     ui.set_recovery_heading("".into());
     ui.set_recovery_vm_id("".into());
     let reportable = ui.get_stage_reportable();
@@ -39,14 +51,16 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
     ui.set_progress_steps(model(Vec::new()));
     ui.set_current_stage("".into());
     ui.set_transfer_fraction(-1.0);
-    ui.set_dialog_details(if kind == "error" {
+    ui.set_dialog_details(if kind == "error" || kind == "operation-error" {
         diagnostics::failure_details(title, body, &previous_stages).into()
+    } else if operation && kind != "install-progress" {
+        retained_log
     } else {
         "".into()
     });
     ui.set_dialog_kind(kind.into());
     ui.set_dialog_title(title.into());
-    ui.set_dialog_body(if kind == "error" {
+    ui.set_dialog_body(if kind == "error" || kind == "operation-error" {
         hyper_gpu_support::reporting::operator_error(title, body).into()
     } else {
         body.into()

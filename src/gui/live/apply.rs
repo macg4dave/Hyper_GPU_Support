@@ -4,9 +4,9 @@ use super::SharedState;
 use super::{
     background::background_operation,
     credentials::credential_request_cancelled,
-    installation,
+    install_dialog, installation,
     presentation::{draft_target, present},
-    progress::progress_to_ui,
+    progress::{progress_to_ui, progress_with_install},
     state_access::{with_completion_state, with_state},
 };
 use crate::gui::AppWindow;
@@ -28,20 +28,37 @@ pub(super) fn apply_live(
     if !ui.get_execution_ready() {
         return Err("The reviewed protected worker is not available.".into());
     }
-    let (approved, revision) = {
+    let (approved, revision, gpu_name) = {
         let state = state.lock().map_err(|_| "Presentation state unavailable")?;
         let reviewed = state.reviewed_plan(&draft_target(ui, &state)?)?;
-        (reviewed.plan, reviewed.revision)
+        let gpu_name = state
+            .view
+            .inventory
+            .as_ref()
+            .and_then(|inventory| {
+                inventory
+                    .discovery
+                    .gpus
+                    .iter()
+                    .find(|gpu| gpu.interface == reviewed.plan.desired.gpu_interface)
+            })
+            .map_or_else(
+                || reviewed.plan.desired.gpu_interface.clone(),
+                |gpu| gpu.name.clone(),
+            );
+        (reviewed.plan, reviewed.revision, gpu_name)
     };
     let selected = approved.desired.clone();
     let finished_state = state.clone();
-    let progress = progress_to_ui(ui.as_weak());
     let vm_name = approved.observed.name.clone();
     let result_vm_name = vm_name.clone();
     let setup_required = approved
         .preview
         .actions
         .contains(&hyper_gpu_support::workflow::PreviewAction::Verify);
+    let final_power = approved.preview.restore_power.clone();
+    let install_progress = install_dialog::prepare(ui, &vm_name, &approved.preview.actions);
+    let progress = progress_with_install(ui.as_weak(), Some(install_progress));
     background_operation(
         ui,
         state,
@@ -87,34 +104,33 @@ pub(super) fn apply_live(
                     return;
                 }
                 if published {
-                    dialog(
-                        ui,
-                        "info",
-                        if setup_required {
-                            hyper_gpu_support::ui_text::operations::setup::completed::TITLE
-                        } else {
-                            hyper_gpu_support::ui_text::operations::apply::completed::TITLE
-                        },
-                        &if setup_required {
-                            format!(
-                                "{result_vm_name}: GPU support {}. VRAM request: {}. Hardware rendering passed, graceful final shutdown was confirmed, and your settings were saved. The VM is off; start it through Hyper-V when ready.",
-                                if selected.enabled {
-                                    hyper_gpu_support::ui_text::common::support::ENABLED_SENTENCE
-                                } else {
-                                    hyper_gpu_support::ui_text::common::support::DISABLED_SENTENCE
-                                },
-                                selected.vram.as_ref().map_or_else(
-                                    || hyper_gpu_support::ui_text::common::allocation::PROVIDER_DEFAULT.to_owned(),
-                                    |v| crate::gui::memory::format_gb(v.optimal)
-                                )
-                            )
-                        } else {
-                            hyper_gpu_support::ui_text::operations::apply::completed::body(
-                                &(result_vm_name),
-                            )
-                            .into_string()
-                        },
-                    );
+                    match install_dialog::completion(
+                        &selected,
+                        outcome.operation.as_ref(),
+                        outcome.finished,
+                        outcome.saved && published,
+                        &gpu_name,
+                        &final_power,
+                        setup_required,
+                    ) {
+                        Ok((body, facts)) => {
+                            let log = ui.get_dialog_details();
+                            dialog(
+                                ui,
+                                "install-complete",
+                                hyper_gpu_support::ui_text::dialogs::install::COMPLETED,
+                                &body,
+                            );
+                            ui.set_install_facts(model(facts));
+                            ui.set_dialog_details(log);
+                        }
+                        Err(error) => failure_dialog(
+                            ui,
+                            hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE,
+                            &error,
+                            "Changes may have completed. Inspect current status and recovery before another operation.",
+                        ),
+                    }
                 } else {
                     dialog(
                         ui,

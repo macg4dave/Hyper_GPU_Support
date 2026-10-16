@@ -139,7 +139,7 @@ pub(super) fn reset_live(
         state,
         busy,
         Operation::new(
-            Kind::Read,
+            Kind::Remove,
             hyper_gpu_support::ui_text::operations::partial_removal::TITLE,
         ),
         Some(&name),

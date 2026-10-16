@@ -62,6 +62,265 @@ fn retain_render(name: &str) {
 }
 
 #[test]
+fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
+    use hyper_gpu_support::ui_text::{diagnostics, dialogs::install, settings};
+    use std::cell::{Cell, RefCell};
+    use std::time::Duration;
+    struct InstallPlatform {
+        window: Rc<MinimalSoftwareWindow>,
+        clipboard: Rc<RefCell<String>>,
+        clock: Rc<Cell<Duration>>,
+    }
+    impl Platform for InstallPlatform {
+        fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
+            Ok(self.window.clone())
+        }
+        fn set_clipboard_text(&self, text: &str, _: slint::platform::Clipboard) {
+            *self.clipboard.borrow_mut() = text.into();
+        }
+        fn duration_since_start(&self) -> Duration {
+            self.clock.get()
+        }
+    }
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    let clipboard = Rc::new(RefCell::new(String::new()));
+    let clock = Rc::new(Cell::new(Duration::ZERO));
+    slint::platform::set_platform(Box::new(InstallPlatform {
+        window: window.clone(),
+        clipboard: clipboard.clone(),
+        clock: clock.clone(),
+    }))
+    .unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let captured = actions.clone();
+    ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(1240., 860.));
+    let render = || {
+        draw(&window);
+        clock.set(clock.get() + Duration::from_millis(250));
+        slint::platform::update_timers_and_animations();
+        draw(&window);
+    };
+    for (theme, label) in [
+        ("light", settings::appearance::LIGHT),
+        ("dark", settings::appearance::DARK),
+    ] {
+        ui.set_dialog_kind("".into());
+        ui.set_page(2);
+        render();
+        control(&ui, label).accessible_action(&AccessibilityAction::Default);
+        ui.set_page(0);
+        for (width, height) in [(1240., 860.), (700., 520.)] {
+            window.set_size(LogicalSize::new(width, height));
+            for (completed, guest_work) in
+                [(false, true), (true, true), (false, false), (true, false)]
+            {
+                ui.set_dialog_kind(
+                    if completed {
+                        "install-complete"
+                    } else {
+                        "install-progress"
+                    }
+                    .into(),
+                );
+                ui.set_running(!completed);
+                ui.set_dialog_title(
+                    if completed {
+                        install::COMPLETED
+                    } else {
+                        install::APPLYING
+                    }
+                    .into(),
+                );
+                ui.set_install_guest_work(guest_work);
+                ui.set_install_vm_name("win_26300.9457 VM1".into());
+                ui.set_dialog_body(
+                    if completed {
+                        install::SUCCESS_OFF
+                    } else if guest_work {
+                        install::WAIT
+                    } else {
+                        hyper_gpu_support::ui_text::operations::apply::HOST_PROGRESS
+                    }
+                    .into(),
+                );
+                ui.set_current_stage(
+                    if guest_work {
+                        install::PREPARING_FILES
+                    } else {
+                        hyper_gpu_support::ui_text::progress::stage::AUTHENTICATE
+                    }
+                    .into(),
+                );
+                ui.set_transfer_fraction(if guest_work { 0.23 } else { -1.0 });
+                ui.set_install_transfer(if guest_work { "Copying files: 799.9 MB of 3.4 GB (23%)\n82 of 273 files; verification pending" } else { "" }.into());
+                ui.set_install_steps(super::model(
+                    (0..if guest_work { 7 } else { 5 })
+                        .map(|index| super::InstallStep {
+                            label: if !guest_work && index == 4 {
+                                "Finalising and shutting down"
+                            } else if index < 4 {
+                                [
+                                    "Checking protected worker",
+                                    "Checking VM and driver files",
+                                    "Reading current VM state",
+                                    "Reading selected GPU and driver version",
+                                ][index]
+                            } else {
+                                [
+                                    "Preparing GPU driver files",
+                                    "Installing GPU driver files",
+                                    "Finalising and shutting down",
+                                ][index - 4]
+                            }
+                            .into(),
+                            status: if index < 4 {
+                                2
+                            } else if index == 4 {
+                                1
+                            } else {
+                                0
+                            },
+                            elapsed: "00:04".into(),
+                        })
+                        .collect(),
+                ));
+                ui.set_install_facts(super::model(vec![
+                    super::InstallFact {
+                        label: install::SUPPORT.into(),
+                        value: "Enabled".into(),
+                    },
+                    super::InstallFact {
+                        label: install::GPU.into(),
+                        value: "NVIDIA GeForce RTX 5060".into(),
+                    },
+                    super::InstallFact {
+                        label: install::MEMORY.into(),
+                        value: "7 GB".into(),
+                    },
+                    super::InstallFact {
+                        label: install::PREPARATION.into(),
+                        value: if guest_work {
+                            "Completed"
+                        } else {
+                            install::NOT_REQUIRED
+                        }
+                        .into(),
+                    },
+                    super::InstallFact {
+                        label: install::CHECKS.into(),
+                        value: if guest_work {
+                            "Completed"
+                        } else {
+                            install::NOT_REQUIRED
+                        }
+                        .into(),
+                    },
+                ]));
+                let log = (0..40)
+                    .map(|index| format!("00:{index:02}   Checked driver files · Complete\n"))
+                    .collect::<String>();
+                ui.set_dialog_details(log.clone().into());
+                render();
+                retain_render(&format!(
+                    "install-{theme}-{width}x{height}-{completed}-{guest_work}"
+                ));
+                let left = control(
+                    &ui,
+                    if completed {
+                        install::VIEW_LOG
+                    } else {
+                        diagnostics::SHOW_LABEL
+                    },
+                );
+                let right = control(
+                    &ui,
+                    if completed {
+                        hyper_gpu_support::ui_text::dialogs::close::LABEL
+                    } else {
+                        install::CANCEL
+                    },
+                );
+                let origin = right.map_to_window(right.geometry().origin);
+                let left_origin = left.map_to_window(left.geometry().origin);
+                assert!((origin.y - left_origin.y).abs() < 1., "inline footer");
+                assert!(origin.y > 0. && origin.y + right.geometry().height() <= height);
+                assert!(origin.x + right.geometry().width() <= width);
+                actions.borrow_mut().clear();
+                right.accessible_action(&AccessibilityAction::Default);
+                assert_eq!(
+                    actions.borrow().as_slice(),
+                    if completed {
+                        &["close"]
+                    } else {
+                        &[] as &[&str]
+                    }
+                );
+                actions.borrow_mut().clear();
+                ui.set_updating(true);
+                right.accessible_action(&AccessibilityAction::Default);
+                assert!(actions.borrow().is_empty());
+                ui.set_updating(false);
+                left.accessible_action(&AccessibilityAction::Default);
+                render();
+                retain_render(&format!(
+                    "install-log-{theme}-{width}x{height}-{completed}-{guest_work}"
+                ));
+                let mut outputs = Vec::new();
+                ItemRc::new_root(WindowInner::from_pub(ui.window()).component())
+                    .visit_descendants::<()>(|item| {
+                        if item.accessible_role() == AccessibleRole::Groupbox
+                            && item.accessible_string_property(AccessibleStringProperty::Label).as_deref()
+                                == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::OUTPUT_LABEL)
+                        {
+                            outputs.push(item.clone());
+                        }
+                        ControlFlow::Continue(())
+                    });
+                assert_eq!(outputs.len(), 1);
+                let output = outputs.pop().unwrap();
+                let output_top = output.map_to_window(output.geometry().origin).y;
+                assert!(output_top >= 0.);
+                assert!(
+                    output_top + output.geometry().height() < origin.y,
+                    "expanded log must be visible above the fixed footer"
+                );
+                control(&ui, install::COPY_LOG).accessible_action(&AccessibilityAction::Default);
+                assert_eq!(*clipboard.borrow(), log);
+                let toggle = control(
+                    &ui,
+                    if completed {
+                        install::HIDE_LOG
+                    } else {
+                        diagnostics::HIDE_LABEL
+                    },
+                );
+                toggle.accessible_action(&AccessibilityAction::Default);
+                render();
+                // Updating progress text must not collapse a log the user opened.
+                control(
+                    &ui,
+                    if completed {
+                        install::VIEW_LOG
+                    } else {
+                        diagnostics::SHOW_LABEL
+                    },
+                )
+                .accessible_action(&AccessibilityAction::Default);
+                ui.set_dialog_details(format!("{log}01:00   Final checks\n").into());
+                render();
+                control(&ui, install::COPY_LOG);
+                ui.set_dialog_kind("".into());
+            }
+        }
+    }
+    ui.hide().unwrap();
+}
+
+#[test]
 fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
     use hyper_gpu_support::ui_text::{dashboard::navigation, dialogs, settings};
     use std::cell::RefCell;
@@ -583,7 +842,13 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
             ui.set_dialog_body("Review the selected action.".into());
             ui.set_dialog_details("Diagnostic section\n".repeat(30).into());
             ui.set_dialog_kind(kind.into());
-            labels.push(diagnostics::SHOW_LABEL);
+            if matches!(kind, "profile-deleted" | "reset-complete") {
+                labels.retain(|label| *label != dialogs::close::LABEL);
+                labels.insert(0, hyper_gpu_support::ui_text::dialogs::install::VIEW_LOG);
+                labels.push(dialogs::close::LABEL);
+            } else {
+                labels.push(diagnostics::SHOW_LABEL);
+            }
             for (width, height) in [(1240., 860.), (700., 520.)] {
                 window.set_size(LogicalSize::new(width, height));
                 draw(&window);

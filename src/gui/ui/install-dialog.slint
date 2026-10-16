@@ -1,0 +1,237 @@
+import { UiText } from "ui-text.slint";
+import { Button, ProgressIndicator, ScrollView } from "std-widgets.slint";
+import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
+import { TechnicalOutput } from "technical-output.slint";
+
+export struct InstallStep {
+    label: string,
+    // 0 pending, 1 running, 2 reported done, 3 reported failed.
+    status: int,
+    elapsed: string,
+}
+
+export struct InstallFact { label: string, value: string }
+
+component StatusMark inherits Rectangle {
+    in property <int> status;
+    accessible-role: text;
+    accessible-label: root.status == 0 ? UiText.dialogs-install-pending : root.status == 1 ? UiText.dialogs-busy-label : root.status == 2 ? UiText.progress-status-complete : UiText.progress-status-failed;
+    width: 20px; height: 20px;
+    border-radius: self.width / 2;
+    border-width: root.status == 2 ? 0px : 2px;
+    border-color: root.status == 1 ? Theme.accent : root.status == 3 ? Theme.stopped : Theme.unknown;
+    background: root.status == 2 ? Theme.running : transparent;
+    if root.status == 2 : Path {
+        width: parent.width * 0.55; height: parent.height * 0.45;
+        viewbox-width: 12; viewbox-height: 10;
+        stroke: Theme.checkmark; stroke-width: 2px;
+        commands: "M 1 5 L 5 9 L 11 1";
+    }
+    if root.status == 3 : Text { text: "!"; color: Theme.stopped; font-weight: 700; }
+}
+
+// Every confirmed Apply uses this presentation; other operation dialogs retain
+// their own reviews, consent and recovery controls.
+export component InstallDialog inherits Rectangle {
+    in property <bool> completed;
+    in property <bool> failed;
+    in property <string> kind;
+    in property <string> title;
+    in property <string> action-title;
+    in property <bool> action-recovery;
+    in property <bool> dirty;
+    in property <bool> execution-ready;
+    in property <bool> repair-allowed;
+    in property <bool> forget-allowed;
+    in property <bool> guest-work;
+    in property <bool> updating;
+    in property <string> vm-name;
+    in property <string> body;
+    in property <string> details;
+    in property <string> current-stage;
+    in property <string> transfer;
+    in property <float> transfer-fraction: -1;
+    in property <[InstallStep]> steps;
+    in property <[InstallFact]> facts;
+    private property <bool> technical: false;
+    changed completed => {
+        root.technical = false;
+        content.content-y = 0px;
+        if root.completed { close-button.focus(); } else { dialog-focus.focus(); }
+    }
+    changed technical => {
+        content.content-y = root.technical ? min(0px, content.visible-height - content.content-height) : 0px;
+    }
+    callback close();
+    callback action(string);
+    background: #00000088;
+    TouchArea { }
+    function reveal-action(x: length, width: length) {
+        if x + footer.content-x < 0px { footer.content-x = -x; }
+        else if x + width + footer.content-x > footer.visible-width { footer.content-x = footer.visible-width - x - width; }
+    }
+    init => { if root.completed { close-button.focus(); } else { dialog-focus.focus(); } }
+    dialog-focus := FocusScope {
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                if root.completed && !root.updating { root.close(); }
+                accept
+            } else { reject }
+        }
+        VerticalLayout {
+            padding: 20px;
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                min-height: 0px; preferred-height: 650px; max-height: 650px;
+                Rectangle { horizontal-stretch: 1; }
+                Surface {
+                    min-width: 0px; max-width: 660px; preferred-width: 660px;
+                    min-height: 0px; max-height: 650px;
+                    background: Theme.install-surface;
+                    border-color: Theme.dialog-border;
+                    clip: true;
+                    VerticalLayout {
+                        padding: 24px; spacing: 16px;
+                        HorizontalLayout {
+                            vertical-stretch: 0; spacing: 8px;
+                            for label[index] in [UiText.dialogs-install-review, UiText.dialogs-install-permissions, root.action-title, root.failed ? UiText.progress-status-failed : UiText.progress-status-complete] : HorizontalLayout {
+                                spacing: 6px;
+                                Rectangle {
+                                    width: 28px; height: 28px; border-radius: 14px;
+                                    background: index == (root.completed ? 3 : 2) ? Theme.accent : Theme.tint;
+                                    Text { text: index + 1; color: index == (root.completed ? 3 : 2) ? Theme.checkmark : Theme.muted; font-size: 13px; font-weight: 600; }
+                                }
+                                Label { text: label; font-size: 13px; min-width: 0px; min-height: 28px; vertical-alignment: center; color: index == (root.completed ? 3 : 2) ? Theme.text : Theme.muted; font-weight: index == (root.completed ? 3 : 2) ? 700 : 400; }
+                                if index < 3 : Rectangle {
+                                    min-width: 8px; height: 28px; horizontal-stretch: 1;
+                                    Rectangle { y: 13px; height: 1px; width: 100%; background: Theme.line; }
+                                }
+                            }
+                        }
+                        content := ScrollView {
+                            min-height: 0px; vertical-stretch: 1;
+                            horizontal-scrollbar-policy: always-off;
+                            content-width: self.visible-width;
+                            changed content-height => {
+                                if root.technical { self.content-y = min(0px, self.visible-height - self.content-height); }
+                            }
+                            changed visible-height => {
+                                if root.technical { self.content-y = min(0px, self.visible-height - self.content-height); }
+                            }
+                            VerticalLayout {
+                                width: content.visible-width;
+                                padding-right: 4px; spacing: 16px; alignment: start;
+                                HorizontalLayout {
+                                    spacing: 16px;
+                                    if root.completed : StatusMark { status: root.failed ? 3 : 2; width: 64px; height: 64px; }
+                                    VerticalLayout {
+                                        spacing: 4px;
+                                        Heading { text: root.title; min-width: 0px; wrap: word-wrap; overflow: clip; }
+                                        Hint { text: UiText.dialogs-install-vm + " " + root.vm-name; font-size: 14px; min-width: 0px; }
+                                    }
+                                }
+                                Rectangle {
+                                    background: root.failed ? Theme.install-error : root.completed ? Theme.install-success : Theme.install-information;
+                                    border-radius: Theme.radius;
+                                    HorizontalLayout {
+                                        padding: 16px; spacing: 16px;
+                                        if root.completed : StatusMark { status: root.failed ? 3 : 2; width: 24px; height: 24px; }
+                                        if !root.completed : Rectangle {
+                                            width: 24px; height: 24px; border-radius: 12px; background: Theme.accent;
+                                            Text { text: "i"; color: Theme.checkmark; font-weight: 700; }
+                                        }
+                                        Label { text: root.completed || !root.guest-work ? root.body : UiText.dialogs-install-wait; min-width: 0px; wrap: word-wrap; overflow: clip; font-size: 14px; }
+                                    }
+                                }
+                                if !root.completed : Surface {
+                                    background: transparent;
+                                    VerticalLayout {
+                                        padding: 16px; spacing: 8px;
+                                        Label { text: root.current-stage; min-width: 0px; wrap: word-wrap; overflow: clip; font-weight: 600; }
+                                        HorizontalLayout {
+                                            spacing: 16px;
+                                            ProgressIndicator { indeterminate: root.transfer-fraction < 0; progress: max(0, root.transfer-fraction); height: 8px; horizontal-stretch: 1; }
+                                            if root.transfer-fraction >= 0 : Label { text: round(root.transfer-fraction * 100) + "%"; font-weight: 700; }
+                                        }
+                                        if root.transfer != "" : Hint { text: root.transfer; font-size: 13px; min-width: 0px; }
+                                        if !root.technical : VerticalLayout {
+                                            spacing: 10px; padding-top: 12px;
+                                            for step in root.steps : HorizontalLayout {
+                                                spacing: 12px;
+                                                StatusMark { status: step.status; }
+                                                Label { text: step.label; font-size: 14px; min-width: 0px; wrap: word-wrap; overflow: clip; horizontal-stretch: 1; }
+                                                Hint { text: step.status == 0 ? UiText.dialogs-install-pending : step.elapsed; font-size: 13px; }
+                                            }
+                                        }
+                                    }
+                                }
+                                if root.completed && !root.failed && root.facts.length > 0 && !root.technical : Surface {
+                                    background: transparent;
+                                    VerticalLayout {
+                                        padding: 20px; spacing: 12px;
+                                        Label { text: UiText.dialogs-install-summary; font-weight: 700; }
+                                        for fact[index] in root.facts : VerticalLayout {
+                                            spacing: 10px;
+                                            HorizontalLayout {
+                                                spacing: 12px;
+                                                Label { text: fact.label; min-width: 0px; preferred-width: 180px; wrap: word-wrap; overflow: clip; }
+                                                StatusMark { status: 2; width: 18px; height: 18px; }
+                                                Label { text: fact.value; min-width: 0px; horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
+                                            }
+                                            if index < root.facts.length - 1 : Rectangle { height: 1px; background: Theme.line; }
+                                        }
+                                    }
+                                }
+                                if root.technical : Surface {
+                                    background: transparent;
+                                    VerticalLayout {
+                                        padding: 8px; spacing: 8px;
+                                        HorizontalLayout {
+                                            Label { text: UiText.dialogs-install-technical; font-weight: 600; horizontal-stretch: 1; }
+                                            Button { text: UiText.dialogs-install-copy-log; clicked => { output.copy-all(); } }
+                                        }
+                                        output := TechnicalOutput { text: root.details; }
+                                    }
+                                }
+                            }
+                        }
+                        footer := ScrollView {
+                            min-width: 0px; vertical-stretch: 0;
+                            horizontal-scrollbar-policy: as-needed; vertical-scrollbar-policy: always-off;
+                            content-width: max(self.visible-width, footer-buttons.min-width);
+                            content-height: footer-buttons.preferred-height;
+                            min-height: footer-buttons.preferred-height + (self.content-width > self.visible-width ? 16px : 0px);
+                            max-height: self.min-height; preferred-height: self.min-height;
+                            footer-buttons := HorizontalLayout {
+                                x: 0px; y: 0px; width: footer.content-width; height: self.preferred-height;
+                                vertical-stretch: 0; spacing: 12px;
+                                if !root.completed : TechnicalDetailsButton {
+                                    changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+                                    expanded <=> root.technical;
+                                    accessible-expandable: true; accessible-expanded: root.technical;
+                                    icon: root.technical ? @image-url("icons/chevron-up.svg") : @image-url("icons/chevron-down.svg"); colorize-icon: true;
+                                }
+                                if root.completed : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: root.technical ? UiText.dialogs-install-hide-log : UiText.dialogs-install-view-log; accessible-expandable: true; accessible-expanded: root.technical; clicked => { root.technical = !root.technical; } }
+                                Rectangle { horizontal-stretch: 1; }
+                                if root.failed && root.action-recovery : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-recovery-review-label; enabled: !root.updating; clicked => { root.action("recovery"); } }
+                                if root.kind == "profile-deleted" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-setup-new-review-label; enabled: root.execution-ready && !root.updating && !root.action-recovery; clicked => { root.action("reapply"); } }
+                                if root.kind == "reset-complete" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-repair-review-label; enabled: root.execution-ready && !root.updating && root.repair-allowed; clicked => { root.action("repair"); } }
+                                if root.kind == "reset-complete" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: root.dirty ? UiText.dialogs-profile-deletion-discard-review-label : UiText.dialogs-profile-deletion-review-label; enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-allowed); clicked => { root.action(root.dirty ? "discard-review-forget" : "forget"); } }
+                                if root.kind == "save" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.operations-save-only-progress-title; enabled: root.execution-ready && !root.updating; clicked => { root.action("save-only"); } }
+                                close-button := Button {
+                                    changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+                                    text: root.completed ? UiText.dialogs-close-label : UiText.dialogs-install-cancel;
+                                    primary: root.completed; min-width: root.completed ? 120px : 160px;
+                                    enabled: root.completed && !root.updating;
+                                    clicked => { if self.enabled { root.close(); } }
+                                }
+                            }
+                        }
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            Rectangle { vertical-stretch: 1; }
+        }
+    }
+}
