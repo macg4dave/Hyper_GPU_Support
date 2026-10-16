@@ -170,6 +170,12 @@ pub(super) fn installation_identity(items: &[String]) -> Result<WindowsIdentity,
             return Err(unknown());
         }
     }
+    identity_from_values(&values)
+}
+
+fn identity_from_values(
+    values: &std::collections::BTreeMap<String, String>,
+) -> Result<WindowsIdentity, String> {
     let get = |key: &str| values.get(key).map(String::as_str).ok_or_else(unknown);
     // Linux reports need not contain Windows ProductType/build fields. A clear
     // intrinsic Linux OSName establishes unsupported, rather than unknown.
@@ -214,6 +220,7 @@ pub(super) fn installation_identity(items: &[String]) -> Result<WindowsIdentity,
     let name = get("osname")?.to_ascii_lowercase();
     let product = name
         .strip_prefix("microsoft windows ")
+        .or_else(|| name.strip_prefix("windows "))
         .ok_or_else(unknown)?;
     let windows_client_name = ["10", "11"]
         .iter()
@@ -226,4 +233,67 @@ pub(super) fn installation_identity(items: &[String]) -> Result<WindowsIdentity,
             && windows_client_name
             && !name.contains("server"),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn facts(name: &str) -> std::collections::BTreeMap<String, String> {
+        [
+            ("osname", name),
+            ("osversion", "10.0.26100"),
+            ("osbuildnumber", "26100"),
+            ("producttype", "1"),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.into(), value.into()))
+        .collect()
+    }
+
+    #[test]
+    fn registry_product_names_allow_windows_11_only_with_matching_client_facts() {
+        for name in [
+            "Windows 10 Pro",
+            "Windows 11 Pro",
+            "Microsoft Windows 11 Pro",
+        ] {
+            let values = facts(name);
+            let identity = identity_from_values(&values).unwrap();
+            assert!(crate::guest_compatibility::require_supported(&identity).is_ok());
+            for (key, value) in [
+                ("osbuildnumber", "22631"),
+                ("osmajorversion", "6"),
+                ("osminorversion", "1"),
+                ("osplatformid", "1"),
+                ("producttype", ""),
+            ] {
+                let mut invalid = values.clone();
+                invalid.insert(key.into(), value.into());
+                assert!(identity_from_values(&invalid).is_err(), "{name}: {key}");
+            }
+            let mut missing = values.clone();
+            missing.remove("producttype");
+            assert!(identity_from_values(&missing).is_err());
+            for (key, value) in [("producttype", "3"), ("osname", "Windows Server 2025")] {
+                let mut server = values.clone();
+                server.insert(key.into(), value.into());
+                assert!(
+                    identity_from_values(&server)
+                        .and_then(|identity| crate::guest_compatibility::require_supported(
+                            &identity
+                        ))
+                        .is_err()
+                );
+            }
+            let mut windows_10 = values;
+            windows_10.insert("osversion".into(), "10.0.19045".into());
+            windows_10.insert("osbuildnumber".into(), "19045".into());
+            assert!(
+                identity_from_values(&windows_10)
+                    .and_then(|identity| crate::guest_compatibility::require_supported(&identity))
+                    .is_err()
+            );
+        }
+    }
 }

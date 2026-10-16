@@ -12,6 +12,7 @@ The subsequent source correction checks installation eligibility before first-se
 
 - Select a VM, set GPU support on/off, and choose VRAM from 1 GB to the selected card's capacity.
 - Apply opens a review showing actual changes, required VM power transitions, and relevant time warnings. A second Apply confirms.
+- After first-time GPU management permission is saved, fresh status readback opens the GPU setup review directly. There is no separate permission-saved dialog; Apply still requires confirmation.
 - First GPU setup manages preparation and VM power, explains guest credentials before the local prompt, verifies GPU operation with a pass/fail result, then leaves the VM off after completed setup.
 - Later toggle/VRAM changes follow review and Apply without repeating full setup or initial verification.
 - Remembering guest credentials is optional. Saved settings, current observations, drafts, and failures stay truthful.

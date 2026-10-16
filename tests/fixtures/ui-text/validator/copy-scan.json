@@ -78,7 +78,67 @@
       "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
     },
     {
-      "path": "src/gui/live.rs",
+      "path": "src/gui/live/mod.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/actions.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/apply.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/background.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/credentials.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/editor.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/enrollment.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/partial_removal.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/recovery.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/refresh.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/review.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/state_access.rs",
+      "mode": "enforce",
+      "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/live/verification.rs",
       "mode": "enforce",
       "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
     },

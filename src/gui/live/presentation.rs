@@ -279,7 +279,7 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
     ui.set_action_recovery(actions.recovery);
     #[cfg(windows)]
     {
-        let result = super::partial_removal_candidate(state);
+        let result = super::partial_removal::partial_removal_candidate(state);
         ui.set_reset_allowed(result.is_ok());
         ui.set_reset_unavailable(result.err().unwrap_or_default().into());
     }

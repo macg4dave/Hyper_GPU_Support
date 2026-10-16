@@ -3,6 +3,25 @@ use super::{ReviewedPlan, State};
 use hyper_gpu_support::{model::Target, workflow::Plan};
 
 impl State {
+    /// Permission completion can open a fresh review only for the same draft
+    /// after independent enrollment/inventory readback. It never approves Apply.
+    pub fn enrollment_continuation(
+        &self,
+        expected: &Target,
+        current: &Target,
+    ) -> Result<(), String> {
+        if expected != current
+            || self.view.selected.as_deref() != Some(expected.vm_id.as_str())
+            || !self.enrolled(expected)
+        {
+            return Err(
+                "The target, draft or GPU management permission changed. Review again.".into(),
+            );
+        }
+        self.editor_eligibility(&current.vm_id)?;
+        self.view.proposal_eligibility(current)
+    }
+
     pub fn accept_review(
         &mut self,
         plan: Plan,

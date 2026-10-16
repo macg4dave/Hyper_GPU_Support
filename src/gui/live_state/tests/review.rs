@@ -1,6 +1,33 @@
 use super::*;
 
 #[test]
+fn permission_continuation_requires_fresh_matching_enrollment_without_approving_apply() {
+    let s = state();
+    let target = s.target(id(&s)).unwrap();
+    assert!(s.enrollment_continuation(&target, &target).is_ok());
+    assert!(s.approved_plan.is_none());
+    assert!(s.reviewed_plan(&target).is_err());
+
+    for scenario in 0..6 {
+        let mut s = state();
+        let mut current = target.clone();
+        match scenario {
+            0 => s.view.needs_readback = true,
+            1 => s.view.inventory.as_mut().unwrap().enrolled.clear(),
+            2 => s.view.selected = Some("another-vm".into()),
+            3 => current.enabled = !current.enabled,
+            4 => current.gpu_interface = "another-gpu".into(),
+            _ => s.recovery = Some(save_record(&s)),
+        }
+        assert!(
+            s.enrollment_continuation(&target, &current).is_err(),
+            "scenario {scenario}"
+        );
+        assert!(s.approved_plan.is_none());
+    }
+}
+
+#[test]
 fn removal_is_reviewable_without_preparation_or_attachment_and_preserves_requests() {
     let mut s = state();
     let vm_id = id(&s).to_owned();

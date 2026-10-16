@@ -1,4 +1,14 @@
-use super::*;
+//! Exact-profile deletion reviews and protected record-removal completion.
+use super::{
+    SharedState, background::background, presentation::present, progress::progress_to_ui,
+    refresh::refresh_after_result, source::protected_worker_available, state_access::with_state,
+};
+use crate::gui::{
+    AppWindow, dialog,
+    operation::{Kind, Operation},
+};
+use slint::ComponentHandle;
+use std::sync::{Arc, atomic::AtomicBool};
 
 #[cfg(windows)]
 pub(super) fn review_forget_live(
