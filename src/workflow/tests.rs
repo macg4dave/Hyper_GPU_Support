@@ -707,6 +707,9 @@ fn initial_setup_of_second_vm_preserves_first_on_the_same_gpu() {
         }
     }
     impl Backend for Fleet {
+        fn preflight_installation_os(&mut self, t: &Target) -> Result<(), String> {
+            self.selected(t).preflight_installation_os(t)
+        }
         fn check_installation_os(&mut self, t: &Target) -> Result<(), String> {
             self.selected(t).check_installation_os(t)
         }

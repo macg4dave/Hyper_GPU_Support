@@ -53,6 +53,13 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
 
 // Keep the typed backend envelope intact until both diagnostic views are built.
 fn failure_dialog(ui: &AppWindow, title: &str, error: &str, context: &str) {
+    if hyper_gpu_support::reporting::installation_preflight_blocked(error) {
+        let title = "GPU support installation blocked";
+        dialog(ui, "error", title, error);
+        ui.set_dialog_body(diagnostics::failure_summary(title, error,
+            "This attempt stopped before driver installation or VM power changes. Your draft is retained.").into());
+        return;
+    }
     dialog(ui, "error", title, error);
     ui.set_dialog_body(diagnostics::failure_summary(title, error, context).into());
 }

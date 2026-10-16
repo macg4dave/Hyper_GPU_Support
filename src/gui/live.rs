@@ -13,6 +13,8 @@ use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
+#[cfg(any(windows, test))]
+mod installation;
 pub(super) mod polling;
 pub(super) mod presentation;
 mod progress;
@@ -1051,8 +1053,23 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
         Some(&vm_name),
         setup_required,
         move || {
-            let credential = if approved.preview.credentials_required {
-                Some(
+            // A previous review is not current OS evidence. Repeat the host-only
+            // check before even reading the vault or opening the native prompt.
+            let credential = installation::credentials(
+                approved
+                    .preview
+                    .actions
+                    .contains(&hyper_gpu_support::workflow::PreviewAction::Prepare),
+                approved.preview.credentials_required,
+                || {
+                    hyper_gpu_support::runner::submit(hyper_gpu_support::runner::request(
+                        hyper_gpu_support::runner::Operation::InstallationOs,
+                        Some(approved.desired.clone()),
+                        None,
+                    ))
+                    .map(|_| ())
+                },
+                || {
                     hyper_gpu_support::credentials::read(&approved.desired.vm_id)?.map_or_else(
                         || {
                             hyper_gpu_support::credentials::prompt_named(
@@ -1062,11 +1079,9 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                             )
                         },
                         Ok,
-                    )?,
-                )
-            } else {
-                None
-            };
+                    )
+                },
+            )?;
             let shutdown = approved.preview.guest_downtime;
             hyper_gpu_support::worker::apply(approved, revision, shutdown, credential, progress)
         },
@@ -1164,6 +1179,15 @@ fn apply_live(ui: &AppWindow, state: &SharedState, busy: &Arc<AtomicBool>) -> Re
                 }
                 ui.set_stages(model(stages));
                 ui.set_stage_reportable(reportable);
+                if hyper_gpu_support::reporting::installation_preflight_blocked(&error) {
+                    failure_dialog(
+                        ui,
+                        "GPU support installation blocked",
+                        &error,
+                        "This attempt stopped before driver installation or VM power changes. Your draft is retained.",
+                    );
+                    return;
+                }
                 let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
                 dialog(
                     ui,

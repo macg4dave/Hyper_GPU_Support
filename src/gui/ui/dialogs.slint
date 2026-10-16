@@ -111,12 +111,12 @@ export component OperationDialog inherits Rectangle {
                                 text: root.enrollment-heading + "\n" + UiText.operations-enrollment-review-allocation-label + " " + root.enrollment-allocation;
                                 font-size: 18px; font-weight: 600;
                                 width: max(0px, body-scroll.visible-width - 8px);
-                                min-width: 0px; wrap: word-wrap; overflow: clip;
+                                wrap: word-wrap; overflow: clip;
                             }
                             if root.kind == "enroll-review" : Label {
                                 text: root.body; font-size: 14px; font-weight: 700;
                                 width: max(0px, body-scroll.visible-width - 8px);
-                                min-width: 0px; wrap: word-wrap; overflow: clip;
+                                wrap: word-wrap; overflow: clip;
                             }
                             if root.kind == "more" : Label { text: root.body; font-size: 18px; font-weight: 600; width: max(0px, body-scroll.visible-width - 8px); wrap: word-wrap; overflow: clip; }
                             if root.kind != "more" && root.kind != "enroll-review" : Hint { text: root.body; font-size: 14px; width: max(0px, body-scroll.visible-width - 8px); horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }

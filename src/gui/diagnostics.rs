@@ -145,6 +145,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unsupported_os_preflight_keeps_a_clear_block_reason() {
+        use hyper_gpu_support::reporting::{
+            Component, ComponentFailure, FailureCause, FailureStage,
+        };
+        let error = ComponentFailure {
+            stage: Some(FailureStage::GuestOsPreflight),
+            component: Component::GuestCompatibility,
+            cause: FailureCause::UnsupportedGuest,
+            code: None,
+        }
+        .into_error();
+        assert!(hyper_gpu_support::reporting::installation_preflight_blocked(&error));
+        let body = failure_summary(
+            "GPU support installation blocked",
+            &error,
+            "This attempt stopped before driver installation or VM power changes.",
+        );
+        assert!(body.contains("unsupported"));
+        assert!(body.contains("Windows 11"));
+        assert!(body.contains("Linux"));
+        assert!(!body.contains("Unknown"));
+        assert!(!body.contains("Changes may have started"));
+        assert!(failure_details("OS check", &error, &[]).contains("UnsupportedGuest"));
+    }
+
+    #[test]
     fn failure_context_does_not_corrupt_the_typed_envelope_or_echo_adapter_output() {
         use hyper_gpu_support::reporting::{Component, ComponentFailure, FailureCause};
         let error = ComponentFailure {

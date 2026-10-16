@@ -85,6 +85,8 @@ pub enum Operation {
     PreliminaryPlan,
     /// Read-only preview of an explicitly requested complete driver reinstall.
     ReinstallPlan,
+    /// Credential-free host OS preflight for an installation already reviewed.
+    InstallationOs,
     /// Read-only review of exact pairing/profile record removal.
     RemovalPlan,
     /// Read-only preview of the guest verification lifecycle.
@@ -1233,6 +1235,13 @@ fn execute_operation(
         Operation::Plan => serde_json::to_value(crate::workflow::plan(&mut backend, &target)?),
         Operation::PreliminaryPlan => serde_json::to_value(crate::workflow::plan_preliminary(&mut backend, &target)?),
         Operation::ReinstallPlan => serde_json::to_value(crate::workflow::plan_reinstall(&mut backend, &target)?),
+        Operation::InstallationOs => {
+            if !target.enabled || backend.credential.is_some() {
+                return Err("OS preflight requires installation intent and no credentials".into());
+            }
+            backend.preflight_installation_os(&target)?;
+            Ok(serde_json::Value::Null)
+        },
         Operation::RemovalPlan => serde_json::to_value(profile_removal::plan(&target, &e.client_sid)?),
         Operation::VerifyPlan => serde_json::to_value(crate::workflow::plan_verification(&mut backend, &target)?),
         Operation::Apply | Operation::Verify => return Err("mutation requires the reviewed per-operation worker; update the frontend and installation".into()),
@@ -1319,6 +1328,17 @@ pub(crate) fn require_no_recovery() -> Result<(), String> {
     Ok(())
 }
 impl Backend for NativeBackend {
+    fn preflight_installation_os(&mut self, t: &Target) -> Result<(), String> {
+        let primary = (|| match windows_hyperv::inspect(&t.vm_id)?.power {
+            Power::Off => windows_hyperv::check_offline(t),
+            Power::Running => Err(crate::guest_compatibility::unknown()),
+            _ => Err("VM power is not stable for installation preflight".into()),
+        })();
+        crate::guest_compatibility::preflight(crate::guest_compatibility::with_metadata_fallback(
+            primary,
+            || windows_hyperv::check_reported_os(t),
+        ))
+    }
     fn check_installation_os(&mut self, t: &Target) -> Result<(), String> {
         let primary = (|| match windows_hyperv::inspect(&t.vm_id)?.power {
             Power::Off => windows_hyperv::check_offline(t),

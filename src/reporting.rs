@@ -112,6 +112,8 @@ pub enum FailureCode {
 /// Fixed operation stages; labels cannot carry arbitrary adapter output.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum FailureStage {
+    /// Credential-free installation compatibility refusal before effects.
+    GuestOsPreflight,
     /// Durable operation journaling.
     RecoveryPersistence,
     /// Guest shutdown or startup.
@@ -287,6 +289,19 @@ impl Diagnostic {
         )
     }
 }
+/// A marked credential-free preflight failed before installation effects.
+/// This presentation fact never grants execution or recovery authority.
+pub fn installation_preflight_blocked(error: &str) -> bool {
+    matches!(
+        ComponentFailure::decode(error),
+        Some(ComponentFailure {
+            component: Component::GuestCompatibility,
+            stage: Some(FailureStage::GuestOsPreflight),
+            ..
+        })
+    )
+}
+
 /// Present arbitrary failure text safely at the frontend boundary.
 pub fn operator_error(stage: &str, error: &str) -> String {
     if let Some((primary, restoration)) = verification_failure_parts(error) {
@@ -305,7 +320,7 @@ pub fn operator_error(stage: &str, error: &str) -> String {
     if let Some(failure) = ComponentFailure::decode(error) {
         let description = match (failure.component, failure.cause) {
             (Component::GuestCompatibility, FailureCause::UnsupportedGuest) => Some(
-                "GPU support installation is blocked: only recognised Windows 11 client releases are supported. Windows Server, older Windows and unrecognised releases are not eligible.",
+                "GPU support installation is blocked: this guest OS is unsupported. Only recognised Windows 11 client releases are supported. Linux, Windows Server, older Windows and unrecognised releases are not eligible.",
             ),
             (Component::GuestCompatibility, FailureCause::ReadbackMismatch) => Some(
                 "GPU support installation is blocked because the selected VM power or disk binding changed during OS inspection. Refresh and review the selected target again; guest-reported metadata cannot override this change.",
@@ -364,6 +379,9 @@ pub fn operator_error(stage: &str, error: &str) -> String {
             _ => None,
         };
         if let Some(description) = description {
+            if installation_preflight_blocked(error) {
+                return format!("{stage}: {description}");
+            }
             return format!(
                 "{stage}: {description} Refresh and inspect recovery before any reviewed repair; do not repeat Apply automatically."
             );

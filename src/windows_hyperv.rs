@@ -27,7 +27,19 @@ pub(crate) fn check_reported_os(t: &Target) -> Result<(), String> {
         ))?;
         guest_os::installation_identity(&component.strings("GuestIntrinsicExchangeItems")?)
     };
-    let identity = observe().map_err(|_: String| crate::guest_compatibility::unknown())?;
+    let identity = observe().map_err(|error: String| {
+        match crate::reporting::ComponentFailure::decode(&error) {
+            Some(failure)
+                if matches!(
+                    failure.component,
+                    crate::reporting::Component::GuestCompatibility
+                ) =>
+            {
+                failure.into_error()
+            }
+            _ => crate::guest_compatibility::unknown(),
+        }
+    })?;
     crate::guest_compatibility::require_supported(&identity)
 }
 

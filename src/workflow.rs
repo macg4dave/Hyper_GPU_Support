@@ -74,6 +74,11 @@ pub enum PreparationProgress {
 
 /// The concrete management boundary, also used for meaningful workflow tests.
 pub trait Backend {
+    /// Installation-intent preflight before payload work or credential prompts.
+    /// Host-only observations; no guest session, boot, unlock or writes.
+    fn preflight_installation_os(&mut self, _target: &Target) -> Result<(), String> {
+        crate::guest_compatibility::preflight(Err(crate::guest_compatibility::unknown()))
+    }
     /// Positively identify Windows 11 immediately before driver installation.
     /// Must not boot, unlock, or modify a guest to obtain evidence. Missing
     /// implementations deny installation; discovery/planning never call this.

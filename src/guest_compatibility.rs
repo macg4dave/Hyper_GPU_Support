@@ -25,6 +25,32 @@ pub(crate) fn unknown() -> String {
     .into_error()
 }
 
+pub(crate) fn unsupported() -> String {
+    ComponentFailure {
+        stage: None,
+        component: Component::GuestCompatibility,
+        cause: FailureCause::UnsupportedGuest,
+        code: None,
+    }
+    .into_error()
+}
+
+/// Mark a credential-free, pre-effect refusal without exposing adapter prose.
+pub(crate) fn preflight(result: Result<(), String>) -> Result<(), String> {
+    result.map_err(|error| {
+        let mut failure = ComponentFailure::decode(&error)
+            .filter(|failure| matches!(failure.component, Component::GuestCompatibility))
+            .unwrap_or(ComponentFailure {
+                stage: None,
+                component: Component::GuestCompatibility,
+                cause: FailureCause::Unavailable,
+                code: None,
+            });
+        failure.stage = Some(crate::reporting::FailureStage::GuestOsPreflight);
+        failure.into_error()
+    })
+}
+
 /// Consult host-read guest reports only when primary inspection was unavailable.
 /// A positive rejection must never be overridden by cached metadata.
 pub(crate) fn with_metadata_fallback(
@@ -56,13 +82,7 @@ pub(crate) fn require_supported(identity: &WindowsIdentity) -> Result<(), String
     {
         Ok(())
     } else {
-        Err(ComponentFailure {
-            stage: None,
-            component: Component::GuestCompatibility,
-            cause: FailureCause::UnsupportedGuest,
-            code: None,
-        }
-        .into_error())
+        Err(unsupported())
     }
 }
 

@@ -2,8 +2,41 @@
 use crate::guest_compatibility::{WindowsIdentity, unknown};
 use windows::{
     Data::Xml::Dom::{XmlDocument, XmlLoadSettings},
-    core::HSTRING,
+    Win32::System::WinRT::{
+        IActivationFactory, RO_INIT_MULTITHREADED, RoInitialize, RoUninitialize,
+    },
+    core::{HSTRING, Interface, RuntimeName},
 };
+
+struct XmlRuntime;
+#[allow(unsafe_code)]
+impl XmlRuntime {
+    fn initialize() -> windows::core::Result<Self> {
+        // SAFETY: metadata parsing uses the calling WMI MTA thread. WinRT has
+        // its own per-thread initialisation contract in addition to COM; retain
+        // it until all XML objects and factories in this call have been released.
+        unsafe { RoInitialize(RO_INIT_MULTITHREADED) }?;
+        Ok(Self)
+    }
+}
+#[allow(unsafe_code)]
+impl Drop for XmlRuntime {
+    fn drop(&mut self) {
+        // SAFETY: balances this thread's successful RoInitialize, including S_FALSE.
+        unsafe { RoUninitialize() };
+    }
+}
+
+#[allow(unsafe_code)]
+fn activate<T: Interface + RuntimeName>() -> windows::core::Result<T> {
+    // Generated `new()` caches agile factories across calls. Our WMI apartments
+    // are short-lived; after the last MTA exits that cache can reference unloaded
+    // XML implementation code. Own a fresh factory only for this activation.
+    let factory = windows::core::factory::<T, IActivationFactory>()?;
+    // SAFETY: the factory was obtained for T's exact registered runtime class;
+    // both the factory and instance are released within the caller's apartment.
+    unsafe { factory.ActivateInstance() }?.cast()
+}
 
 fn property(document: &XmlDocument, name: &str) -> Option<String> {
     let instance = document.DocumentElement().ok()?;
@@ -67,7 +100,8 @@ fn property(document: &XmlDocument, name: &str) -> Option<String> {
 
 /// Intrinsic KVP entries are CIM XML. Missing or ambiguous OSName stays unknown.
 pub(super) fn name(items: &[String]) -> Option<String> {
-    let settings = XmlLoadSettings::new().ok()?;
+    let _runtime = XmlRuntime::initialize().ok()?;
+    let settings = activate::<XmlLoadSettings>().ok()?;
     settings.SetProhibitDtd(true).ok()?;
     settings.SetResolveExternals(false).ok()?;
     settings.SetMaxElementDepth(16).ok()?;
@@ -76,7 +110,7 @@ pub(super) fn name(items: &[String]) -> Option<String> {
         if xml.len() > 65536 {
             return None;
         }
-        let document = XmlDocument::new().ok()?;
+        let document = activate::<XmlDocument>().ok()?;
         if document
             .LoadXmlWithSettings(&HSTRING::from(xml), &settings)
             .is_err()
@@ -99,10 +133,11 @@ pub(super) fn name(items: &[String]) -> Option<String> {
 /// never a VM name, frontend cache or OSName alone. Reports can be historical;
 /// the current running OS is still rechecked before guest installation writes.
 pub(super) fn installation_identity(items: &[String]) -> Result<WindowsIdentity, String> {
+    let _runtime = XmlRuntime::initialize().map_err(|_| unknown())?;
     if items.len() > 256 {
         return Err(unknown());
     }
-    let settings = XmlLoadSettings::new().map_err(|_| unknown())?;
+    let settings = activate::<XmlLoadSettings>().map_err(|_| unknown())?;
     settings.SetProhibitDtd(true).map_err(|_| unknown())?;
     settings.SetResolveExternals(false).map_err(|_| unknown())?;
     settings.SetMaxElementDepth(16).map_err(|_| unknown())?;
@@ -111,7 +146,7 @@ pub(super) fn installation_identity(items: &[String]) -> Result<WindowsIdentity,
         if xml.len() > 65536 {
             return Err(unknown());
         }
-        let document = XmlDocument::new().map_err(|_| unknown())?;
+        let document = activate::<XmlDocument>().map_err(|_| unknown())?;
         document
             .LoadXmlWithSettings(&HSTRING::from(xml), &settings)
             .map_err(|_| unknown())?;
@@ -136,6 +171,17 @@ pub(super) fn installation_identity(items: &[String]) -> Result<WindowsIdentity,
         }
     }
     let get = |key: &str| values.get(key).map(String::as_str).ok_or_else(unknown);
+    // Linux reports need not contain Windows ProductType/build fields. A clear
+    // intrinsic Linux OSName establishes unsupported, rather than unknown.
+    let reported_name = get("osname")?.to_ascii_lowercase();
+    if reported_name.contains("linux")
+        || reported_name.starts_with("debian")
+        || reported_name.starts_with("ubuntu")
+        || reported_name.starts_with("freebsd")
+        || reported_name.starts_with("microsoft windows server")
+    {
+        return Err(crate::guest_compatibility::unsupported());
+    }
     let number = |text: &str| {
         if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
             return Err(unknown());
@@ -199,6 +245,41 @@ mod tests {
             entry("OSBuildNumber", build),
             entry("ProductType", product_type),
         ]
+    }
+
+    #[test]
+    fn debian_report_without_windows_fields_is_unsupported_not_unknown() {
+        let _apartment = crate::windows_com::Apartment::initialize().unwrap();
+        let error = installation_identity(&[
+            entry("OSName", "Debian GNU/Linux 13 (trixie)"),
+            entry("OSVersion", "6.12.0"),
+        ])
+        .err()
+        .unwrap();
+        let failure = crate::reporting::ComponentFailure::decode(&error).unwrap();
+        assert!(matches!(
+            failure.cause,
+            crate::reporting::FailureCause::UnsupportedGuest
+        ));
+    }
+
+    #[test]
+    fn metadata_activation_survives_repeated_apartment_teardown() {
+        for _ in 0..8 {
+            std::thread::spawn(|| {
+                let _apartment = crate::windows_com::Apartment::initialize().unwrap();
+                let items = reported_windows("26100", "1");
+                assert_eq!(name(&items).as_deref(), Some("Microsoft Windows 11 Pro"));
+                assert!(
+                    crate::guest_compatibility::require_supported(
+                        &installation_identity(&items).unwrap()
+                    )
+                    .is_ok()
+                );
+            })
+            .join()
+            .unwrap();
+        }
     }
 
     #[test]

@@ -297,7 +297,6 @@ mod tests {
                 }
                 backend.os_checks = 0;
                 backend.events.clear();
-                backend.os_failure = Some(failure.clone());
                 let before = serde_json::to_value(&backend.journal).unwrap();
                 let writes = backend.journal_writes;
                 let reviewed = if path == 2 {
@@ -306,6 +305,7 @@ mod tests {
                     plan(&mut backend, &target).unwrap()
                 };
                 assert_eq!(backend.os_checks, 0, "review must not query the OS");
+                backend.os_failure = Some(failure.clone());
                 let error = apply_approved(&mut backend, &reviewed).unwrap_err();
                 assert_eq!(error, failure);
                 assert_eq!(backend.os_checks, 1);

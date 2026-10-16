@@ -100,6 +100,14 @@ fn decision_inputs(
     // the full current payload and rejects a changed digest or effect scope.
     let authentication_deferred =
         preliminary && target.enabled && !reinstall && !journal.pending && journal.setup_eligible();
+    // An explicit repair or missing preparation receipt already establishes
+    // installation intent. Refuse unsupported guests before expensive payload
+    // discovery/authentication, and before the frontend can request credentials.
+    let os_preflight =
+        target.enabled && !journal.pending && (reinstall || journal.prepared.is_none());
+    if os_preflight {
+        backend.preflight_installation_os(target)?;
+    }
     let digest = if authentication_deferred {
         journal.prepared.clone()
     } else if target.enabled {
@@ -110,6 +118,11 @@ fn decision_inputs(
     // The prepared digest is published only after a complete verified preparation.
     // A later Hyper-V failure must not turn that receipt back into partial staging.
     let stale = target.enabled && (reinstall || journal.prepared != digest);
+    // An ordinary payload refresh becomes installation only once the digest is
+    // known. Management with an unchanged payload must not query the guest OS.
+    if stale && !journal.pending && !os_preflight {
+        backend.preflight_installation_os(target)?;
+    }
     let setup_required = target.enabled && (stale || !journal.setup_eligible());
     let assignment = !initial.gpus.is_empty();
     let settings_change = target.enabled && initial.settings != desired;
@@ -491,6 +504,48 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unsupported_initial_setup_and_reinstall_stop_before_payload_work() {
+        use crate::workflow::test_support::{fake, target};
+        for repair in [false, true] {
+            let mut backend = fake();
+            let target = target();
+            if repair {
+                crate::workflow::apply(&mut backend, &target).unwrap();
+            }
+            backend.events.clear();
+            backend.payload_reads = 0;
+            let writes = backend.journal_writes;
+            backend.os_preflight_failure = Some(crate::guest_compatibility::unsupported());
+            let error = if repair {
+                super::plan_reinstall(&mut backend, &target)
+            } else {
+                super::plan_preliminary(&mut backend, &target)
+            }
+            .unwrap_err();
+            assert!(crate::reporting::installation_preflight_blocked(&error));
+            assert_eq!(backend.payload_reads, 0);
+            assert_eq!(backend.journal_writes, writes);
+            assert!(backend.events.is_empty());
+        }
+    }
+
+    #[test]
+    fn refresh_preflights_after_discovering_changed_payload_but_management_does_not() {
+        use crate::workflow::test_support::{fake, target};
+        let mut backend = fake();
+        let target = target();
+        crate::workflow::apply(&mut backend, &target).unwrap();
+        backend.os_preflights = 0;
+        backend.os_preflight_failure = Some(crate::guest_compatibility::unsupported());
+        assert!(super::plan_preliminary(&mut backend, &target).is_ok());
+        assert_eq!(backend.os_preflights, 0);
+        backend.driver = "changed";
+        assert!(crate::reporting::installation_preflight_blocked(
+            &super::plan(&mut backend, &target).unwrap_err()
+        ));
+        assert_eq!(backend.os_preflights, 1);
+    }
     use crate::model::{Allocation, Power};
     use crate::workflow::test_support::{extended_target, fake, target, trace};
     use crate::workflow::{Plan, PreviewAction, admit_approved, apply, plan};
