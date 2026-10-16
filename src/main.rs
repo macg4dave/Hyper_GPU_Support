@@ -137,7 +137,7 @@ fn execute(args: &[String]) -> Result<(), String> {
             "save-only" => hyper_gpu_support::worker::save_only(operation_id, progress)?,
             "import-reconcile" => hyper_gpu_support::worker::resume_import(operation_id, progress)?,
             _ => {
-                let record = runner::recovery_record()?
+                let record = runner::recovery_for_operation(&operation_id)?
                     .ok_or("no recorded operation requires reconciliation")?;
                 if record.operation_id != operation_id {
                     return Err("reconciliation operation identity mismatch".into());

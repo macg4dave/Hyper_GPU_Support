@@ -25,6 +25,7 @@ pub(super) struct State {
     committed_conflict: Option<String>,
     authority_conflict: Option<String>,
     pub recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
+    pub recoveries: Vec<hyper_gpu_support::configuration_store::SaveRecord>,
     pub import_recovery: Option<hyper_gpu_support::configuration_store::ImportRecord>,
     pub enrollment_review: Option<hyper_gpu_support::enrollment::PairReview>,
     pub enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
@@ -42,7 +43,7 @@ pub(super) struct ReviewedPlan {
 /// Protected reads gathered off the UI thread after an operation attempt.
 pub(super) struct OperationReadback {
     pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
-    pub recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
+    pub recovery: Vec<hyper_gpu_support::configuration_store::SaveRecord>,
 }
 
 impl Default for State {
@@ -65,6 +66,7 @@ impl Default for State {
             committed_conflict: None,
             authority_conflict: None,
             recovery: None,
+            recoveries: Vec::new(),
             import_recovery: None,
             enrollment_review: None,
             enrollment_recovery: None,
@@ -145,7 +147,7 @@ impl State {
             self.view.published(target)?;
         }
         self.finish_readback(readback)?;
-        if let Some(record) = &self.recovery {
+        if let Some(record) = self.recovery_for_vm(&target.vm_id) {
             if record.operation_id != operation_id || record.target != *target {
                 return Err(
                     "The protected recovery receipt changed after completion. Inspect the loaded operation before any retry.".into(),
@@ -207,7 +209,7 @@ impl State {
 
     pub fn applied_text(&self, id: &str) -> String {
         use hyper_gpu_support::configuration_store::SavePhase;
-        if let Some(record) = self.recovery.as_ref().filter(|r| r.target.vm_id == id) {
+        if let Some(record) = self.recovery_for_vm(id) {
             return match record.phase {
                 SavePhase::Admitted | SavePhase::EffectsStarted => {
                     hyper_gpu_support::ui_text::operations::outcome::UNCERTAIN
@@ -390,24 +392,39 @@ impl State {
     /// Record absence alone cannot prove that verified intent was published.
     pub fn sync_recovery(
         &mut self,
-        recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
+        recovery: impl IntoIterator<Item = hyper_gpu_support::configuration_store::SaveRecord>,
         import_recovery: Option<hyper_gpu_support::configuration_store::ImportRecord>,
         enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
     ) -> Result<(), String> {
         use hyper_gpu_support::configuration_store::SavePhase;
         self.removal_review = None;
-        self.recovery = recovery;
+        self.recoveries = recovery.into_iter().collect();
+        self.recovery = self
+            .recoveries
+            .iter()
+            .find(|r| Some(r.target.vm_id.as_str()) == self.view.selected.as_deref())
+            .or_else(|| self.recoveries.first())
+            .cloned();
         self.import_recovery = import_recovery;
         self.enrollment_recovery = enrollment_recovery;
         self.approved_plan = None;
         self.verification_plan = None;
-        if let Some(record) = &self.recovery {
+        if let Some(record) = self
+            .recovery_for_vm(self.view.selected.as_deref().unwrap_or_default())
+            .cloned()
+        {
             self.view.unsaved =
                 record.publication_required && matches!(record.phase, SavePhase::Verified(_));
             self.view.verified_unsaved = self.view.unsaved.then(|| record.target.clone());
             return Ok(());
         }
         if let Some(target) = &self.view.verified_unsaved {
+            if self.recovery_for_vm(&target.vm_id).is_some() {
+                // Its durable receipt retains this VM's save-only hold while another is selected.
+                self.view.unsaved = false;
+                self.view.verified_unsaved = None;
+                return Ok(());
+            }
             let published = self.committed.revision(&target.vm_id).is_ok()
                 && self
                     .committed
@@ -519,13 +536,43 @@ impl State {
         self.view.draft_eligibility(target)
     }
 
+    pub fn recovery_for_vm(
+        &self,
+        id: &str,
+    ) -> Option<&hyper_gpu_support::configuration_store::SaveRecord> {
+        self.recovery
+            .iter()
+            .chain(self.recoveries.iter())
+            .find(|r| r.target.vm_id.eq_ignore_ascii_case(id))
+    }
+
+    pub fn blocks_vm(&self, id: &str) -> bool {
+        self.recovery_for_vm(id).is_some()
+            || self.import_recovery.is_some()
+            || self.enrollment_recovery.is_some()
+    }
+
+    pub fn select_vm(&mut self, id: Option<String>) -> Result<(), String> {
+        self.view.selected = id;
+        if !self.recoveries.is_empty() {
+            self.sync_recovery(
+                self.recoveries.clone(),
+                self.import_recovery.clone(),
+                self.enrollment_recovery.clone(),
+            )?;
+        }
+        Ok(())
+    }
+
     /// Explain recovery before offering actions that would be blocked by it.
     pub fn action_recovery_message(&self) -> Option<String> {
         let (vm_id, fallback) = if let Some(record) = &self.enrollment_recovery {
             (Some(record.review.vm_id.as_str()), None)
         } else if self.import_recovery.is_some() {
             (None, None)
-        } else if let Some(record) = &self.recovery {
+        } else if let Some(record) =
+            self.recovery_for_vm(self.view.selected.as_deref().unwrap_or_default())
+        {
             (
                 Some(record.target.vm_id.as_str()),
                 Some(record.initial.name.as_str()),
@@ -567,12 +614,9 @@ impl State {
         if self.committed_conflict.as_deref() == Some(id) {
             return Err("Committed configuration changed or became unavailable. Draft preserved; discard it to reload the latest committed intent.".into());
         }
-        if self.recovery.is_some()
-            || self.import_recovery.is_some()
-            || self.enrollment_recovery.is_some()
-        {
+        if self.blocks_vm(id) {
             return Err(
-                "A host-wide operation requires manual reconciliation or save-only retry.".into(),
+                "This VM or shared authority requires reconciliation or a save-only retry.".into(),
             );
         }
         if self
@@ -708,7 +752,7 @@ impl State {
                 "Discard or complete pending edits and Refresh before Delete profile.".into(),
             );
         }
-        if self.recovery.is_some()
+        if self.recovery_for_vm(id).is_some()
             || self.import_recovery.is_some()
             || self.enrollment_recovery.is_some()
             || self.authority_conflict.is_some()
@@ -1374,15 +1418,15 @@ mod tests {
     }
 
     #[test]
-    fn host_wide_recovery_preserves_draft_when_another_vm_is_selected() {
+    fn recovery_preserves_another_vms_draft_without_claiming_its_actions_need_recovery() {
         let mut s = action_state();
         let target = s.target(id(&s)).unwrap();
         s.recovery = Some(save_record(&s));
         s.view.draft = Some(target.clone());
         s.view.selected = Some("another-vm".into());
         let actions = s.selected_actions(0, &allocation_values(&target));
-        assert!(actions.recovery);
-        assert!(actions.remove.contains("Review recovery"));
+        assert!(!actions.recovery);
+        assert!(!actions.remove.contains("Review recovery"));
         assert!(s.recovery.is_some());
         assert_eq!(s.view.draft, Some(target));
     }
@@ -2023,6 +2067,163 @@ mod tests {
     }
 
     #[test]
+    fn recovery_presentation_and_editor_admission_are_vm_scoped() {
+        use super::super::{AppWindow, catalogue_tests::Headless, live::presentation};
+        use hyper_gpu_support::configuration_store::SavePhase;
+        slint::platform::set_platform(Box::new(Headless)).unwrap();
+        let ui = AppWindow::new().unwrap();
+        let mut s = state();
+        let affected = id(&s).to_owned();
+        let mut other = s.view.vm(&affected).unwrap().clone();
+        other.vm_id = "87654321-4321-4321-4321-cba987654321".into();
+        // Equal names must not cause another VM to inherit the recovery state.
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .discovery
+            .vms
+            .push(other.clone());
+        s.view.selected = Some(other.vm_id.clone());
+        presentation::present(&ui, &s, true);
+        assert!(!ui.get_selected_recovery());
+        assert!(ui.get_vm_details().is_empty());
+        let normal_summary = ui.get_support_summary();
+
+        s.view.selected = Some(affected.clone());
+        let mut record = save_record(&s);
+        record.phase = SavePhase::EffectsStarted;
+        s.recovery = Some(record);
+        let before = serde_json::to_value(&s.recovery).unwrap();
+        for selected in [&affected, &other.vm_id, &affected, &other.vm_id] {
+            s.view.selected = Some(selected.clone());
+            presentation::present(&ui, &s, true);
+            assert_eq!(ui.get_recovery(), selected == &affected);
+            assert_eq!(ui.get_action_recovery(), selected == &affected);
+            assert!(ui.get_has_recovery());
+            assert_eq!(
+                s.editor_eligibility(selected).is_err(),
+                selected == &affected
+            );
+            assert_eq!(ui.get_selected_recovery(), selected == &affected);
+            assert_eq!(ui.get_vm_details().is_empty(), selected != &affected);
+            if selected == &other.vm_id {
+                assert_eq!(ui.get_support_summary(), normal_summary);
+                assert!(ui.get_recovery_summary().contains(&affected));
+            }
+            let actions = s.selected_actions(-1, &[]);
+            if selected == &affected {
+                assert!(!actions.verify_allowed && !actions.repair_allowed);
+                assert!(!actions.remove_allowed && !actions.forget_allowed);
+            }
+        }
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .discovery
+            .vms
+            .retain(|vm| vm.vm_id != affected);
+        presentation::present(&ui, &s, true);
+        assert!(!ui.get_selected_recovery());
+        assert!(ui.get_vm_details().is_empty());
+        assert!(ui.get_recovery_summary().contains(&affected));
+        assert_eq!(serde_json::to_value(&s.recovery).unwrap(), before);
+        s.recovery = None;
+        presentation::present(&ui, &s, true);
+        assert!(!ui.get_recovery());
+        assert!(!ui.get_selected_recovery());
+        assert!(ui.get_vm_details().is_empty());
+    }
+
+    #[test]
+    fn multiple_vm_holds_preserve_independent_editing_and_save_only_selection() {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        let mut s = action_state();
+        let first = id(&s).to_owned();
+        let second = "87654321-4321-4321-4321-cba987654321".to_owned();
+        let third = "87654321-4321-4321-4321-cba987654322".to_owned();
+        let mut next = s.view.inventory.clone().unwrap();
+        for id in [&second, &third] {
+            let mut vm = next.discovery.vms[0].clone();
+            vm.vm_id = id.clone();
+            let mut target = next.enrolled[0].clone();
+            target.vm_id = id.clone();
+            next.discovery.vms.push(vm);
+            next.enrolled.push(target);
+            next.managed.insert(id.clone(), None);
+        }
+        s.refresh(next);
+        let mut failed = save_record(&s);
+        failed.phase = SavePhase::EffectsStarted;
+        let retained = serde_json::to_value(&failed).unwrap();
+        s.sync_recovery(Some(failed.clone()), None, None).unwrap();
+        assert!(s.editor_eligibility(&first).is_err());
+        s.select_vm(Some(second.clone())).unwrap();
+        let target = s.target(&second).unwrap();
+        let values = allocation_values(&target);
+        let actions = s.selected_actions(0, &values);
+        assert!(!actions.recovery);
+        assert!(
+            actions.verify_allowed
+                && actions.repair_allowed
+                && actions.remove_allowed
+                && actions.forget_allowed
+        );
+        assert!(s.draft(&second, true, 0, &values).is_ok());
+        let mut unsaved = save_record(&s);
+        unsaved.operation_id = "second-operation".into();
+        // A separate save failure is retained alongside the first VM's uncertain effects.
+        s.sync_recovery(vec![failed.clone(), unsaved.clone()], None, None)
+            .unwrap();
+        assert!(s.view.unsaved);
+        assert_eq!(
+            s.save_only_record().unwrap().operation_id,
+            "second-operation"
+        );
+        s.select_vm(Some(third.clone())).unwrap();
+        assert!(!s.view.unsaved);
+        assert!(s.editor_eligibility(&third).is_ok());
+        assert!(s.draft(&third, true, 0, &values).is_ok());
+        s.select_vm(Some(first.clone())).unwrap();
+        assert_eq!(
+            s.recovery.as_ref().unwrap().operation_id,
+            failed.operation_id
+        );
+        assert!(s.save_only_record().is_err());
+        s.select_vm(Some(second.clone())).unwrap();
+        assert!(s.view.unsaved);
+        assert_eq!(s.save_only_record().unwrap().target.vm_id, second);
+        // Finishing the second operation's readback must not attribute the first hold to it.
+        let mut committed = hyper_gpu_support::configuration_store::StoreSnapshot::default();
+        let source = hyper_gpu_support::model::Configuration {
+            schema: 3,
+            targets: vec![target.clone()],
+        }
+        .vm_documents()
+        .unwrap();
+        for (name, text) in source {
+            committed.insert(&name, Ok(text));
+        }
+        s.finish_apply(
+            &target,
+            "second-operation",
+            true,
+            Ok(OperationReadback {
+                committed,
+                recovery: vec![failed],
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(s.recovery_for_vm(&first).unwrap()).unwrap(),
+            retained
+        );
+        assert!(s.recovery_for_vm(&second).is_none());
+        assert!(!s.view.unsaved);
+    }
+
+    #[test]
     fn unfinished_operation_explains_recovery_without_discarding_edits_or_releasing_hold() {
         use hyper_gpu_support::configuration_store::SavePhase;
         let mut s = state();
@@ -2048,15 +2249,13 @@ mod tests {
             SavePhase::EffectsStarted
         ));
         assert!(s.editor_eligibility(id(&s)).is_err());
-        // A host-wide hold still needs an explanation when another VM is selected.
+        // The retained hold remains visible without blocking another VM.
         s.view.selected = Some("another-vm".into());
         let summary = super::super::live::presentation::recovery_summary(&s, "another-vm").unwrap();
-        assert!(summary.contains("blocked") && summary.contains("Renamable VM"));
         assert!(
-            s.action_recovery_message()
-                .unwrap()
-                .contains("Renamable VM")
+            summary.contains("Other VMs can still be changed") && summary.contains("Renamable VM")
         );
+        assert!(s.action_recovery_message().is_none());
         s.recovery = None;
         assert!(s.action_recovery_message().is_none());
     }
@@ -2071,7 +2270,7 @@ mod tests {
         record.initial.name = "Recorded VM name".into();
         let affected_id = record.target.vm_id.clone();
         let mut unrelated = s.view.vm(&affected_id).unwrap().clone();
-        unrelated.vm_id = "another-vm".into();
+        unrelated.vm_id = "87654321-4321-4321-4321-cba987654321".into();
         unrelated.name = "Untouched VM".into();
         unrelated.gpus.clear();
         s.view
@@ -2086,11 +2285,11 @@ mod tests {
 
         let summary =
             super::super::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
-        assert!(summary.contains("GPU verification recovery for Renamable VM"));
+        assert!(summary.contains("Renamable VM") && summary.contains("GPU verification"));
         assert!(summary.contains(&affected_id));
         assert!(!summary.contains("Untouched VM"));
         assert!(!summary.contains("setup"));
-        assert!(s.editor_eligibility(&unrelated.vm_id).is_err());
+        assert!(s.editor_eligibility(&unrelated.vm_id).is_ok());
         assert_eq!(
             serde_json::to_value(s.view.vm(&unrelated.vm_id).unwrap()).unwrap(),
             serde_json::to_value(&unrelated).unwrap()
@@ -2106,18 +2305,14 @@ mod tests {
             .retain(|vm| vm.vm_id != affected_id);
         let summary =
             super::super::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
-        assert!(summary.contains("GPU verification recovery for Recorded VM name"));
-        assert!(
-            s.action_recovery_message()
-                .unwrap()
-                .contains("Recorded VM name")
-        );
-        assert!(s.editor_eligibility(&unrelated.vm_id).is_err());
+        assert!(summary.contains("Recorded VM name") && summary.contains("GPU verification"));
+        assert!(s.action_recovery_message().is_none());
+        assert!(s.editor_eligibility(&unrelated.vm_id).is_ok());
 
         s.recovery.as_mut().unwrap().publication_required = true;
         let summary =
             super::super::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
-        assert!(summary.contains("GPU change recovery for Recorded VM name"));
+        assert!(summary.contains("Recorded VM name") && summary.contains("GPU change"));
         assert!(!summary.contains("verification"));
         assert!(matches!(
             s.recovery.as_ref().unwrap().phase,
@@ -2298,7 +2493,7 @@ mod tests {
             false,
             Ok(OperationReadback {
                 committed: store,
-                recovery: Some(record),
+                recovery: vec![record],
             }),
         )
         .unwrap();
@@ -2356,7 +2551,7 @@ mod tests {
                     false,
                     Ok(OperationReadback {
                         committed: Default::default(),
-                        recovery: Some(record),
+                        recovery: vec![record],
                     })
                 )
                 .unwrap_err()
@@ -2385,7 +2580,7 @@ mod tests {
             true,
             Ok(OperationReadback {
                 committed: store.clone(),
-                recovery: None,
+                recovery: vec![],
             }),
         )
         .unwrap();
@@ -2414,7 +2609,7 @@ mod tests {
         record.phase = SavePhase::EffectsStarted;
         s.finish_readback(Ok(OperationReadback {
             committed: Default::default(),
-            recovery: Some(record),
+            recovery: vec![record],
         }))
         .unwrap();
         assert!(s.view.needs_readback);

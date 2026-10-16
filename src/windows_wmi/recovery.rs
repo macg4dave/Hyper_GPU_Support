@@ -28,7 +28,7 @@ impl Scope {
             target: target.clone(),
             before: crate::windows_hyperv::inspect(&target.vm_id)?,
             effect,
-            recovery: crate::runner::recovery_record()?
+            recovery: crate::runner::recovery_for_vm(&target.vm_id)?
                 .as_ref()
                 .map(revision)
                 .transpose()?,
@@ -45,7 +45,7 @@ impl Scope {
             Effect::Power(_) => 16,
         }
     }
-    fn method(&self) -> &'static str {
+    pub(super) fn method(&self) -> &'static str {
         match self.effect {
             Effect::Assignment(true) => "AddResourceSettings",
             Effect::Assignment(false) => "RemoveResourceSettings",
@@ -128,7 +128,7 @@ fn revision(value: &impl Serialize) -> Result<crate::configuration_store::Revisi
         &serde_json::to_vec(value).map_err(|e| e.to_string())?,
     ))
 }
-fn read<T: serde::de::DeserializeOwned>(path: &std::path::Path) -> Result<T> {
+pub(super) fn read<T: serde::de::DeserializeOwned>(path: &std::path::Path) -> Result<T> {
     use std::io::Read;
     crate::security::verify(path)?;
     let mut bytes = Vec::new();
@@ -163,7 +163,7 @@ fn evidence(s: &Session, path: &str) -> Result<JobEvidence> {
     })
 }
 fn validate_binding(scope: &Scope) -> Result<()> {
-    if crate::runner::recovery_record()?
+    if crate::runner::recovery_for_vm(&scope.target.vm_id)?
         .as_ref()
         .map(revision)
         .transpose()?
@@ -255,10 +255,10 @@ pub(crate) fn review(job: &str) -> Result<serde_json::Value> {
         return Err("Native recovery review requires an administrator console".into());
     }
     let _lock = crate::runner::operation_lock()?;
-    let pending: PendingOperation = read(&operation_path()?)?;
-    validate_binding(pending.scope.as_ref().ok_or_else(recovery_handoff)?)?;
     let s = Session::new(Duration::from_secs(30))?;
     let job = evidence(&s, job)?;
+    let (_, pending) = operation_for(&job.vm_id)?.ok_or("No provider recovery for this VM")?;
+    validate_binding(pending.scope.as_ref().ok_or_else(recovery_handoff)?)?;
     let state = crate::windows_hyperv::inspect(&job.vm_id)?;
     validate(&pending, &job, &state)?;
     require_quiescent(&s, &job.vm_id)?;
@@ -283,8 +283,9 @@ pub(crate) fn reconcile(token: &crate::configuration_store::Revision) -> Result<
         return Err("Native recovery requires an administrator console".into());
     }
     let _lock = crate::runner::operation_lock()?;
-    let pending: PendingOperation = read(&operation_path()?)?;
     let review: Review = read(&crate::runner::data_directory()?.join("provider-review.json"))?;
+    let (operation_path, pending) =
+        operation_for(&review.job.vm_id)?.ok_or("No reviewed provider recovery for this VM")?;
     if &revision(&review)? != token || review.pending != revision(&pending)? {
         return Err("Native recovery review changed; review again".into());
     }
@@ -318,7 +319,7 @@ pub(crate) fn reconcile(token: &crate::configuration_store::Revision) -> Result<
             )
         },
         || {
-            let current: PendingOperation = read(&operation_path()?)?;
+            let current: PendingOperation = read(&operation_path)?;
             if revision(&current)? != review.pending {
                 return Err("Native marker changed during retirement".into());
             }
@@ -332,12 +333,36 @@ pub(crate) fn reconcile(token: &crate::configuration_store::Revision) -> Result<
             }
             Ok(())
         },
-        clear_operation,
+        || clear_operation(&operation_path),
     )
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn provider_holds_block_the_bound_vm_and_unknown_legacy_scope_stays_global() {
+        let (pending, _, _) = fixture();
+        let vm = pending.scope.as_ref().unwrap().target.vm_id.clone();
+        let path = std::path::PathBuf::from("retained-provider-receipt.json");
+        assert!(
+            select_operation(vec![(path.clone(), pending)], "another-vm")
+                .unwrap()
+                .is_none()
+        );
+        let (pending, _, _) = fixture();
+        let selected = select_operation(vec![(path.clone(), pending)], &vm)
+            .unwrap()
+            .unwrap();
+        assert_eq!(selected.0, path);
+        let (mut pending, _, _) = fixture();
+        pending.schema = 1;
+        pending.scope = None;
+        assert!(select_operation(vec![(path.clone(), pending)], "another-vm").is_err());
+        let (first, _, _) = fixture();
+        let (second, _, _) = fixture();
+        assert!(select_operation(vec![(path.clone(), first), (path, second)], &vm).is_err());
+    }
     use crate::configuration_store::Revision;
 
     fn fixture() -> (PendingOperation, JobEvidence, VmState) {

@@ -147,7 +147,8 @@ pub fn review_pair(target: &Target) -> Result<crate::enrollment::PairReview, Str
         operator_sid: operator,
     };
     review.append(&current.targets, &review.expected, &current.client_sid)?;
-    require_no_recovery()?;
+    require_no_vm_recovery(&target.vm_id)?;
+    crate::windows_wmi::require_no_pending_operation_for(&target.vm_id)?;
     Ok(review)
 }
 
@@ -203,8 +204,8 @@ pub(crate) fn enroll_pair(
     review: &crate::enrollment::PairReview,
     session: &str,
 ) -> Result<(), String> {
-    require_no_recovery()?;
-    crate::windows_wmi::require_no_pending_operation()?;
+    require_no_vm_recovery(&review.vm_id)?;
+    crate::windows_wmi::require_no_pending_operation_for(&review.vm_id)?;
     let mut current = enrollment()?;
     let revision = enrollment_revision(&current)?;
     let targets = review.append(&current.targets, &revision, &current.client_sid)?;
@@ -283,10 +284,10 @@ pub(crate) fn reconcile_pair(
     if pending.removal.is_some() {
         return profile_removal::resume_removal(pending);
     }
-    if recovery_record()?.is_some() || import_record()?.is_some() {
+    if recovery_for_vm(&pending.review.vm_id)?.is_some() || import_record()?.is_some() {
         return Err("resolve the separate GPU/configuration recovery first".into());
     }
-    crate::windows_wmi::require_no_pending_operation()?;
+    crate::windows_wmi::require_no_pending_operation_for(&pending.review.vm_id)?;
     Ok(())
 }
 
@@ -1204,8 +1205,8 @@ fn execute_operation(
         data,
     };
     if matches!(request.operation, Operation::Apply | Operation::Verify) {
-        require_no_recovery()?;
-        crate::windows_wmi::require_no_pending_operation()?;
+        require_no_vm_recovery(&target.vm_id)?;
+        crate::windows_wmi::require_no_pending_operation_for(&target.vm_id)?;
         if backend
             .journal(&target)?
             .is_some_and(|journal| journal.pending)
@@ -1286,38 +1287,18 @@ pub fn import_record() -> Result<Option<crate::configuration_store::ImportRecord
     record.validate()?;
     Ok(Some(record))
 }
-/// Read the host-wide protected operation hold without modifying or clearing it.
-pub fn recovery_record() -> Result<Option<crate::configuration_store::SaveRecord>, String> {
-    let path = recovery_path()?;
-    match fs::symlink_metadata(&path) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.to_string()),
-        Ok(metadata) if !metadata.is_file() => return Err("recovery record is not a file".into()),
-        Ok(_) => {}
-    }
-    crate::security::verify(&path)?;
-    let mut bytes = Vec::new();
-    fs::File::open(&path)
-        .map_err(|e| e.to_string())?
-        .take(FRAME_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    if bytes.len() > FRAME_LIMIT {
-        return Err("recovery record exceeds input limit".into());
-    }
-    let record: crate::configuration_store::SaveRecord = serde_json::from_slice(&bytes)
-        .map_err(|e| format!("invalid protected recovery record: {e}"))?;
-    if record.schema != 1 {
-        return Err("unsupported protected recovery version".into());
-    }
-    record.target.validate()?;
-    Ok(Some(record))
-}
+mod recovery;
+pub(crate) use recovery::{
+    new_recovery_path, prepare_vm_recovery, read_recovery_at, recovery_record_path,
+    require_no_vm_recovery, retire_recovery_at, vm_receipt_name, write_recovery_at,
+};
+pub use recovery::{recovery_for_operation, recovery_for_vm, recovery_records};
+
 pub(crate) fn require_no_recovery() -> Result<(), String> {
     if pending_pair()?.is_some() {
         return Err("interrupted enrollment requires explicit authority readback; GPU effects remain blocked".into());
     }
-    if recovery_record()?.is_some() {
+    if !recovery_records()?.is_empty() {
         return Err("host-wide recovery hold is active; reconcile or retry saving only".into());
     }
     if import_record()?.is_some() {

@@ -42,6 +42,7 @@ export component VmDetails inherits Rectangle {
     in property <bool> verify-allowed: false;
     in property <string> verify-unavailable;
     in property <bool> recovery;
+    in property <bool> selected-recovery;
     in property <bool> gpu-selection-fixed;
     in-out property <bool> gpu-enabled;
     in-out property <int> gpu-index;
@@ -120,7 +121,6 @@ export component VmDetails inherits Rectangle {
                             enabled: !Theme.modal-active && root.verify-allowed && root.execution-ready && !root.updating;
                             clicked => { root.action("verify"); }
                         }
-                        if root.recovery : Button { text: UiText.dashboard-recovery-review-label; primary: true; enabled: !Theme.modal-active; clicked => { root.action("recovery"); } }
                         Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: UiText.dashboard-support-toggle-accessible; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
                         Hint { text: UiText.dashboard-gpu-label; }
                         ComboBox { enabled: !Theme.modal-active && root.eligible && !root.recovery && !root.gpu-selection-fixed; model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
@@ -190,7 +190,7 @@ export component VmDetails inherits Rectangle {
                         Button { enabled: !Theme.modal-active && root.eligible && !root.recovery; text: UiText.dashboard-setup-review-label; clicked => { root.action("reapply"); } }
                     }
                 }
-                if !root.eligible : Surface {
+                if !root.eligible && !root.recovery : Surface {
                     VerticalLayout { padding: 16px; spacing: 8px;
                         Label { text: root.vm-unsupported ? UiText.dashboard-eligibility-title : (UiText.dashboard-configuration-unavailable-title); font-weight: 600; }
                         Hint { text: root.vm-unsupported ? UiText.dashboard-eligibility-unsupported-body : (root.validation); }
@@ -206,12 +206,18 @@ export component VmDetails inherits Rectangle {
                     Hint { text: UiText.dashboard-memory-advanced-hint; }
                     ResourceEditor { title: UiText.dashboard-memory-vram-label; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index, value); } }
                 }
-                if root.validation != "" : Hint { text: root.validation; color: Theme.accent; }
-                if root.technical-details != "" : HorizontalLayout {
-                    TechnicalDetailsButton { enabled: !Theme.modal-active; expanded <=> root.technical; }
-                    Rectangle { horizontal-stretch: 1; }
+                if root.validation != "" && !root.recovery : Hint { text: root.validation; color: Theme.accent; }
+                if root.technical-details != "" : Surface {
+                    VerticalLayout {
+                        padding: 16px; spacing: 10px;
+                        if root.selected-recovery : Button { text: UiText.dashboard-recovery-inspect; enabled: !Theme.modal-active; clicked => { root.action("recovery"); } }
+                        HorizontalLayout {
+                            TechnicalDetailsButton { enabled: !Theme.modal-active; expanded <=> root.technical; }
+                            Rectangle { horizontal-stretch: 1; }
+                        }
+                        if root.technical : TechnicalOutput { enabled: !Theme.modal-active; text: root.technical-details; }
+                    }
                 }
-                if root.technical && root.technical-details != "" : TechnicalOutput { enabled: !Theme.modal-active; text: root.technical-details; }
                 content-end := Rectangle { height: 0px; vertical-stretch: 0; }
             }
         }

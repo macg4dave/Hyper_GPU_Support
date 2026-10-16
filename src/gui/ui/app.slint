@@ -1,7 +1,7 @@
 import { UiText } from "ui-text.slint";
 export { UiText }
 import { Button, ScrollView } from "std-widgets.slint";
-import { Theme, Label, Hint } from "theme.slint";
+import { Theme, Label, Hint, Surface } from "theme.slint";
 import { VmRow, VmCard, Splitter } from "cards.slint";
 import { VmDetails } from "details.slint";
 import { Pages, GpuRow } from "pages.slint";
@@ -64,6 +64,8 @@ export component AppWindow inherits Window {
     in-out property <bool> eligible: false;
     in-out property <bool> dirty: false;
     in-out property <bool> recovery: false;
+    in property <bool> selected-recovery: false;
+    in property <bool> has-recovery: false;
     in property <string> recovery-summary;
     in-out property <bool> gpu-enabled: false;
     in-out property <int> gpu-index: 0;
@@ -154,12 +156,16 @@ export component AppWindow inherits Window {
                                     enabled: !Theme.modal-active; text: UiText.dashboard-inventory-refresh; clicked => { root.action("refresh"); }
                                 } }
                                 Hint { text: UiText.dashboard-vm-list-count(root.vms.length); }
-                                if root.recovery : VerticalLayout {
-                                    Hint { text: root.recovery-summary; color: Theme.accent; }
-                                    Button {
-                                        property <int> restore-request: root.focus-return-serial;
-                                        changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
-                                        enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { root.action("recovery"); }
+                                if root.has-recovery : Surface {
+                                    VerticalLayout {
+                                        padding: 12px; spacing: 10px;
+                                        Label { text: UiText.dashboard-recovery-review-label; font-weight: 600; }
+                                        Hint { text: root.recovery-summary; color: Theme.accent; }
+                                        Button {
+                                            property <int> restore-request: root.focus-return-serial;
+                                            changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
+                                            enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { root.action("recovery"); }
+                                        }
                                     }
                                 }
                                 if root.notice != "" : Hint { text: root.notice; color: Theme.accent; }
@@ -190,6 +196,7 @@ export component AppWindow inherits Window {
                             inventory-details: root.inventory-details;
                             technical-details: root.vm-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
+                            selected-recovery: root.selected-recovery;
                             execution-ready: root.execution-ready; updating: root.updating; gpu-problem: root.gpu-problem; verify-unavailable: root.verify-unavailable; verify-allowed: root.verify-allowed;
                             gpu-selection-fixed: root.gpu-selection-fixed;
                             presenting: root.presenting; resource-defaults: root.resource-defaults;

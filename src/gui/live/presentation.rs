@@ -129,7 +129,7 @@ pub(super) fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool
     row
 }
 
-pub(super) fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
+pub(in crate::gui) fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_presenting(true);
     if let Some(inventory) = &state.view.inventory {
         ui.set_vms(update_model(
@@ -148,7 +148,9 @@ pub(super) fn present(ui: &AppWindow, state: &State, reset_draft: bool) {
 }
 
 pub(in crate::gui) fn recovery_summary(state: &State, selected: &str) -> Option<String> {
-    let (id, fallback, operation) = if let Some(record) = &state.recovery {
+    let (id, fallback, operation) = if let Some(record) =
+        state.recovery_for_vm(selected).or(state.recovery.as_ref())
+    {
         (
             record.target.vm_id.as_str(),
             record.initial.name.as_str(),
@@ -174,20 +176,85 @@ pub(in crate::gui) fn recovery_summary(state: &State, selected: &str) -> Option<
     let name = state.view.vm(id).map_or(fallback, |vm| vm.name.as_str());
     Some(if id == selected {
         format!("{name}: {operation} requires recovery. Review recovery before new changes.")
+    } else if state.import_recovery.is_some() || state.enrollment_recovery.is_some() {
+        format!(
+            "Shared authority/configuration recovery for {name} ({id}) blocks new changes. Inspect recovery before continuing."
+        )
     } else {
         format!(
-            "Changes are blocked by {operation} recovery for {name} ({id}). Review recovery for that VM."
+            "Recovery is required for {name} ({id}): {operation}. Other VMs can still be changed."
         )
     })
 }
 
+/// VM recovery presentation follows the same identity as protected effect admission.
+pub(in crate::gui) fn vm_recovery(state: &State, id: &str) -> bool {
+    !id.is_empty()
+        && (state.recovery_for_vm(id).is_some()
+            || state
+                .enrollment_recovery
+                .as_ref()
+                .is_some_and(|r| r.review.vm_id == id)
+            || state
+                .view
+                .inventory
+                .as_ref()
+                .is_some_and(|inventory| inventory.recorded_state(id).recovery_required))
+}
+
+fn vm_has_issue(state: &State, id: &str) -> bool {
+    use hyper_gpu_support::workflow::GuestCheck;
+    vm_recovery(state, id)
+        || state.committed.revision(id).is_err()
+        || state.view.vm(id).is_none_or(|vm| vm.generation != 2)
+        || super::super::host_configuration::has_current_problem(state, id)
+        || state.view.inventory.as_ref().is_some_and(|inventory| {
+            inventory
+                .discovery
+                .issues
+                .iter()
+                .any(|issue| issue.target.as_deref() == Some(id))
+                || inventory
+                    .managed
+                    .get(id)
+                    .and_then(Option::as_ref)
+                    .is_some_and(|journal| {
+                        matches!(
+                            journal.latest_check,
+                            Some(
+                                GuestCheck::Interrupted
+                                    | GuestCheck::PayloadMismatch
+                                    | GuestCheck::Failed
+                                    | GuestCheck::Unavailable
+                            )
+                        )
+                    })
+        })
+}
+
 pub(super) fn present_actions(ui: &AppWindow, state: &State) {
+    let selected = ui.get_selected_id();
+    ui.set_has_recovery(
+        state.recovery.is_some()
+            || !state.recoveries.is_empty()
+            || state.import_recovery.is_some()
+            || state.enrollment_recovery.is_some()
+            || vm_recovery(state, selected.as_str()),
+    );
+    ui.set_selected_recovery(vm_recovery(state, selected.as_str()));
     ui.set_recovery_summary(
         recovery_summary(state, ui.get_selected_id().as_str())
             .unwrap_or_else(|| hyper_gpu_support::ui_text::dashboard::recovery::BANNER.to_owned())
             .into(),
     );
-    ui.set_vm_details(diagnostics::selected_vm_details(state).into());
+    ui.set_vm_details(
+        if !selected.is_empty() && vm_has_issue(state, selected.as_str()) {
+            diagnostics::selected_vm_details(state)
+        } else {
+            String::new()
+        }
+        .into(),
+    );
     let values = ui
         .get_values()
         .iter()
@@ -266,11 +333,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         );
         ui.set_support_summary(hyper_gpu_support::ui_text::dashboard::selection::PROMPT.into());
         ui.set_eligible(false);
-        ui.set_recovery(
-            state.recovery.is_some()
-                || state.import_recovery.is_some()
-                || state.enrollment_recovery.is_some(),
-        );
+        ui.set_recovery(state.blocks_vm(ui.get_selected_id().as_str()));
         ui.set_dirty(false);
         ui.set_draft_valid(false);
         ui.set_validation("".into());
@@ -298,11 +361,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
             }
             .into(),
         );
-        ui.set_recovery(
-            state.recovery.is_some()
-                || state.import_recovery.is_some()
-                || state.enrollment_recovery.is_some(),
-        );
+        ui.set_recovery(state.blocks_vm(ui.get_selected_id().as_str()));
         ui.set_draft_valid(false);
         ui.set_validation(hyper_gpu_support::ui_text::dashboard::draft::VM_REMOVED.into());
         return;
@@ -317,12 +376,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_vm_unsupported(row.unsupported);
     ui.set_status(row.status);
     let recorded = inventory.recorded_state(id);
-    ui.set_recovery(
-        recorded.recovery_required
-            || state.recovery.is_some()
-            || state.import_recovery.is_some()
-            || state.enrollment_recovery.is_some(),
-    );
+    ui.set_recovery(recorded.recovery_required || state.blocks_vm(id));
     ui.set_observed(
         format!(
             "{}{}; {}; {}",
@@ -375,10 +429,10 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_support_summary(
         if state.view.needs_readback {
             hyper_gpu_support::ui_text::dashboard::support::HOST_UNAVAILABLE.to_owned()
-        } else if let Some(summary) = recovery_summary(state, id) {
-            summary
-        } else if recorded.recovery_required {
-            hyper_gpu_support::ui_text::dashboard::support::RECOVERY_HOLD.to_owned()
+        } else if vm_recovery(state, id) {
+            recovery_summary(state, id).unwrap_or_else(|| {
+                hyper_gpu_support::ui_text::dashboard::support::RECOVERY_HOLD.to_owned()
+            })
         } else if state.committed.revision(id).is_err() {
             hyper_gpu_support::ui_text::dashboard::support::SAVED_UNAVAILABLE.to_owned()
         } else if vm.gpus.is_empty() {

@@ -38,44 +38,110 @@ struct PendingOperation {
 fn operation_path() -> Result<std::path::PathBuf> {
     Ok(crate::runner::data_directory()?.join("provider-operation.json"))
 }
-fn clear_operation() -> Result<()> {
-    let path = operation_path()?;
-    crate::security::verify(&path)?;
+fn new_operation_path(vm: &str) -> Result<std::path::PathBuf> {
+    Ok(crate::runner::data_directory()?
+        .join(crate::runner::vm_receipt_name("provider-operation-", vm)?))
+}
+fn pending_operations() -> Result<Vec<(std::path::PathBuf, PendingOperation)>> {
+    let root = crate::runner::data_directory()?;
+    crate::security::verify(&root)?;
+    let mut paths = vec![operation_path()?];
+    for entry in std::fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with("provider-operation-") && !name.ends_with(".partial") {
+            if paths.len() > 128 {
+                return Err("Provider recovery count exceeds limit".into());
+            }
+            paths.push(entry.path());
+        }
+    }
+    let mut pending = Vec::new();
+    let mut vms = std::collections::BTreeSet::new();
+    for path in paths {
+        match std::fs::symlink_metadata(&path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(e.to_string()),
+            Ok(m) if !m.is_file() || m.len() > 65536 => {
+                return Err("Invalid provider recovery file".into());
+            }
+            Ok(_) => {}
+        }
+        let record: PendingOperation = recovery::read(&path)?;
+        if !matches!(record.schema, 1 | 2) {
+            return Err("Unsupported provider recovery schema".into());
+        }
+        if let Some(scope) = &record.scope {
+            scope.target.validate()?;
+            if record.schema != 2
+                || scope.before.vm_id != scope.target.vm_id
+                || record.method != scope.method()
+            {
+                return Err("Provider recovery scope is inconsistent".into());
+            }
+            if !vms.insert(scope.target.vm_id.to_ascii_lowercase()) {
+                return Err("Duplicate provider recovery VM".into());
+            }
+            if path != operation_path()? && path != new_operation_path(&scope.target.vm_id)? {
+                return Err("Provider filename and VM identity differ".into());
+            }
+        } else if path != operation_path()? {
+            return Err("Provider recovery VM scope is absent".into());
+        }
+        pending.push((path, record));
+    }
+    Ok(pending)
+}
+fn operation_for(vm: &str) -> Result<Option<(std::path::PathBuf, PendingOperation)>> {
+    select_operation(pending_operations()?, vm)
+}
+fn select_operation(
+    records: Vec<(std::path::PathBuf, PendingOperation)>,
+    vm: &str,
+) -> Result<Option<(std::path::PathBuf, PendingOperation)>> {
+    let mut found = None;
+    for (path, record) in records {
+        let scope = record.scope.as_ref().ok_or_else(recovery_handoff)?;
+        if scope.target.vm_id.eq_ignore_ascii_case(vm) {
+            if found.is_some() {
+                return Err("Duplicate provider recovery VM".into());
+            }
+            found = Some((path, record));
+        }
+    }
+    Ok(found)
+}
+fn clear_operation(path: &std::path::Path) -> Result<()> {
+    crate::security::verify(path)?;
     std::fs::remove_file(path).map_err(|e| e.to_string())
 }
 pub(crate) fn require_no_pending_operation() -> Result<()> {
-    match std::fs::symlink_metadata(operation_path()?) {
-        Ok(_) => Err(recovery_handoff()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.to_string()),
+    if pending_operations()?.is_empty() {
+        Ok(())
+    } else {
+        Err(recovery_handoff())
     }
 }
-pub(crate) fn reconcile_pending_operation() -> Result<()> {
-    let path = operation_path()?;
-    match std::fs::symlink_metadata(&path) {
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error.to_string()),
+pub(crate) fn require_no_pending_operation_for(vm: &str) -> Result<()> {
+    if operation_for(vm)?.is_none() {
+        Ok(())
+    } else {
+        Err(recovery_handoff())
     }
-    crate::security::verify(&path)?;
-    if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 65536 {
-        return Err("invalid pending provider operation size".into());
-    }
-    let pending: PendingOperation =
-        serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?)
-            .map_err(|_| "invalid pending provider operation")?;
-    if !matches!(pending.schema, 1 | 2) {
-        return Err("unsupported pending provider operation".into());
-    }
+}
+pub(crate) fn reconcile_pending_operation_for(vm: &str) -> Result<()> {
+    let Some((path, pending)) = operation_for(vm)? else {
+        return Ok(());
+    };
     let job = pending.job_path().map_err(|_| recovery_handoff())?;
     let s = Session::new(Duration::from_secs(30))?;
     let job = s
         .get(local_job_path(job)?)
         .map_err(|_| recovery_handoff())?;
-    let state = job.number("JobState")?;
-    require_terminal_operation(state)?;
+    require_terminal_operation(job.number("JobState")?)?;
     recovery::validate_recorded(&pending, &s)?;
-    clear_operation()
+    clear_operation(&path)
 }
 fn recovery_handoff() -> String {
     crate::reporting::ComponentFailure {
@@ -425,7 +491,8 @@ impl Session {
     ) -> Result<Object> {
         // Arguments own their native allocations before even entering this call.
         self.check_deadline()?;
-        require_no_pending_operation()?;
+        require_no_pending_operation_for(&scope.target.vm_id)?;
+        let operation_path = new_operation_path(&scope.target.vm_id)?;
         let mut signature = None;
         // GetMethod is valid only on a class definition, never a queried VM or
         // management-service instance. ExecMethod still targets the exact instance.
@@ -468,7 +535,7 @@ impl Session {
         {
             return Err("Native invocation binding exceeds input limit".into());
         }
-        crate::runner::atomic_json(&operation_path()?, &pending)?;
+        crate::runner::atomic_json(&operation_path, &pending)?;
         // SAFETY: secured services, live input, initialized output; fixed target method.
         let invoked = unsafe {
             self.services.ExecMethod(
@@ -484,7 +551,7 @@ impl Session {
         if let Err(error) = invoked {
             let error = win(error);
             pending.failure = crate::reporting::ComponentFailure::decode(&error);
-            crate::runner::atomic_json(&operation_path()?, &pending)?;
+            crate::runner::atomic_json(&operation_path, &pending)?;
             return Err(format!("{method}: invoke method: {error}"));
         }
         let output = Object(output.ok_or("missing WMI method output")?);
@@ -494,13 +561,13 @@ impl Session {
             // Do not follow remote/arbitrary provider references.
             let path = local_job_path(&path)?;
             pending.job = Some(path.into());
-            crate::runner::atomic_json(&operation_path()?, &pending)?;
+            crate::runner::atomic_json(&operation_path, &pending)?;
             loop {
                 self.check_deadline()?;
                 let job = self.get(path)?;
                 let state = job.number("JobState")?;
                 if (7..=10).contains(&state) {
-                    clear_operation()?;
+                    clear_operation(&operation_path)?;
                 }
                 match job_status(state)
                     .map_err(|_| provider_failure(job.number("ErrorCode").ok()))?
@@ -516,10 +583,10 @@ impl Session {
                 }
             }
         } else if code != 0 {
-            clear_operation()?;
+            clear_operation(&operation_path)?;
             return Err(provider_failure(Some(code)));
         } else {
-            clear_operation()?;
+            clear_operation(&operation_path)?;
         }
         Ok(output)
     }

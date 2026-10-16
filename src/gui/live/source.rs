@@ -47,14 +47,14 @@ impl Source {
     }
     pub(super) fn recovery(
         &self,
-    ) -> Result<Option<hyper_gpu_support::configuration_store::SaveRecord>, String> {
+    ) -> Result<Vec<hyper_gpu_support::configuration_store::SaveRecord>, String> {
         #[cfg(windows)]
         {
-            hyper_gpu_support::runner::recovery_record()
+            hyper_gpu_support::runner::recovery_records()
         }
         #[cfg(not(windows))]
         {
-            Ok(None)
+            Ok(Vec::new())
         }
     }
     pub(super) fn committed(

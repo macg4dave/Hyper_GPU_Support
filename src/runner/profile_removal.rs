@@ -26,10 +26,10 @@ fn file_revision(path: &Path) -> Result<Revision, String> {
 }
 
 fn records(target: &Target) -> Result<RemovalSnapshot, String> {
-    if recovery_record()?.is_some() || import_record()?.is_some() {
+    if recovery_for_vm(&target.vm_id)?.is_some() || import_record()?.is_some() {
         return Err("Resolve operation/publication/import recovery before profile removal.".into());
     }
-    crate::windows_wmi::require_no_pending_operation()?;
+    crate::windows_wmi::require_no_pending_operation_for(&target.vm_id)?;
     let current = enrollment()?;
     verify_artifacts(&current)?;
     if current.targets.len() > 128 {
@@ -115,7 +115,7 @@ pub(super) fn plan(target: &Target, operator: &str) -> Result<RemovalReview, Str
 }
 
 fn review_for_operator(target: &Target, operator: &str) -> Result<RemovalReview, String> {
-    require_no_recovery()?;
+    require_no_vm_recovery(&target.vm_id)?;
     let current = enrollment()?;
     let pair = crate::enrollment::PairReview {
         vm_id: target.vm_id.clone(),

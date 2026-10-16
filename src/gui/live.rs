@@ -1761,7 +1761,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                         hyper_gpu_support::ui_text::operations::draft::switch::BODY,
                     );
                 } else {
-                    state.view.selected = Some(id.to_string());
+                    state.select_vm(Some(id.to_string()))?;
                     present(&ui, state, true);
                 }
                 Ok(())
@@ -2060,7 +2060,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             "discard" | "switch" => {
                 with_state(&ui, &action_state, |state| {
                     state.discard();
-                    if action == "switch" { state.view.selected = state.pending_selection.take(); }
+                    if action == "switch" { let selected = state.pending_selection.take(); state.select_vm(selected)?; }
                     present(&ui, state, true); ui.set_dirty(false); ui.set_dialog_kind("".into());
                      Ok(())
                 }); Ok(())

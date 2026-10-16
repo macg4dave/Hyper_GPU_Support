@@ -685,523 +685,625 @@ fn execute(
         &audit,
         &serde_json::json!({"schema":1,"session":session,"operation":operation_name,"binding":binding,"outcome":"Started"}),
     )?;
-    let result = (|| match request.command {
-        Command::ResetPartial {
-            operation_id,
-            record_revision,
-            approved,
-            shutdown_approved,
-        } => {
-            if request.credential.is_some() {
-                return Err("Partial GPU removal does not accept credentials".into());
+    let mut recovery_path = None;
+    let result = (|| {
+        if matches!(
+            &request.command,
+            Command::Apply { .. }
+                | Command::Verify { .. }
+                | Command::Reconcile { .. }
+                | Command::SaveOnly { .. }
+                | Command::ResetPartial { .. }
+        ) {
+            runner::prepare_vm_recovery()?;
+        }
+        // Bind every write and final retirement to this command's own receipt.
+        recovery_path = match &request.command {
+            Command::Apply { approved, .. } => {
+                Some(runner::new_recovery_path(&approved.desired.vm_id)?)
             }
-            let mut record =
-                runner::recovery_record()?.ok_or("No interrupted operation to remove")?;
-            if record.operation_id != operation_id
-                || Revision::of(&serde_json::to_vec(&record).map_err(|e| e.to_string())?)
-                    != record_revision
-                || !enrollment.targets.iter().any(|t| {
-                    t.vm_id == record.target.vm_id && t.gpu_interface == record.target.gpu_interface
-                })
-                || runner::pending_pair()?.is_some()
-                || runner::import_record()?.is_some()
-            {
-                return Err("Partial GPU removal review changed; Refresh and review again".into());
+            Command::Verify { approved, .. } => {
+                Some(runner::new_recovery_path(&approved.target.vm_id)?)
             }
-            crate::windows_wmi::reconcile_pending_operation()?;
-            let revision = configuration_store::protected::revision(&record.target.vm_id)?;
-            approved.validate(&record, &revision)?;
-            if approved.observed.power == Power::Running && !shutdown_approved {
-                return Err(
-                    "Separately approve graceful shutdown for this recovery disposition".into(),
-                );
-            }
-            if record.reset.is_none() {
-                let mut fresh = NativeBackend {
+            Command::ResetPartial { operation_id, .. }
+            | Command::Reconcile { operation_id, .. }
+            | Command::SaveOnly { operation_id } => Some(runner::recovery_record_path(
+                &runner::recovery_for_operation(operation_id)?
+                    .ok_or("recorded recovery operation is unavailable")?,
+            )?),
+            _ => None,
+        };
+        match request.command {
+            Command::ResetPartial {
+                operation_id,
+                record_revision,
+                approved,
+                shutdown_approved,
+            } => {
+                if request.credential.is_some() {
+                    return Err("Partial GPU removal does not accept credentials".into());
+                }
+                let mut record = runner::read_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                )?
+                .ok_or("No interrupted operation to remove")?;
+                if record.operation_id != operation_id
+                    || Revision::of(&serde_json::to_vec(&record).map_err(|e| e.to_string())?)
+                        != record_revision
+                    || !enrollment.targets.iter().any(|t| {
+                        t.vm_id == record.target.vm_id
+                            && t.gpu_interface == record.target.gpu_interface
+                    })
+                    || runner::pending_pair()?.is_some()
+                    || runner::import_record()?.is_some()
+                {
+                    return Err(
+                        "Partial GPU removal review changed; Refresh and review again".into(),
+                    );
+                }
+                crate::windows_wmi::reconcile_pending_operation_for(&record.target.vm_id)?;
+                let revision = configuration_store::protected::revision(&record.target.vm_id)?;
+                approved.validate(&record, &revision)?;
+                if approved.observed.power == Power::Running && !shutdown_approved {
+                    return Err(
+                        "Separately approve graceful shutdown for this recovery disposition".into(),
+                    );
+                }
+                if record.reset.is_none() {
+                    let mut fresh = NativeBackend {
+                        credential: None,
+                        manifest: None,
+                        data: data.clone(),
+                    };
+                    if serde_json::to_value(fresh.inspect(&record.target)?)
+                        .map_err(|e| e.to_string())?
+                        != serde_json::to_value(&approved.observed).map_err(|e| e.to_string())?
+                        || serde_json::to_value(fresh.gpu(&record.target)?)
+                            .map_err(|e| e.to_string())?
+                            != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
+                        || serde_json::to_value(fresh.journal(&record.target)?)
+                            .map_err(|e| e.to_string())?
+                            != serde_json::to_value(Some(&approved.journal))
+                                .map_err(|e| e.to_string())?
+                    {
+                        return Err("Partial GPU removal facts changed before admission; Refresh and review again".into());
+                    }
+                }
+                if let Some(existing) = &record.reset
+                    && serde_json::to_value(existing).map_err(|e| e.to_string())?
+                        != serde_json::to_value(&approved).map_err(|e| e.to_string())?
+                {
+                    return Err("Partial GPU removal is bound to its original review".into());
+                }
+                record.reset = Some(approved);
+                runner::write_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                    &record,
+                )?;
+                runner::atomic_json(
+                    &audit_directory.join(format!("partial-removal-{}.json", operation_id)),
+                    &record,
+                )?;
+                let bound = serde_json::to_value(&record).map_err(|e| e.to_string())?;
+                let mut check_binding = || {
+                    if serde_json::to_value(runner::read_recovery_at(
+                        recovery_path
+                            .as_deref()
+                            .ok_or("missing bound recovery path")?,
+                    )?)
+                    .map_err(|e| e.to_string())?
+                        != serde_json::json!(bound)
+                        || configuration_store::protected::revision(&record.target.vm_id)?
+                            != revision
+                    {
+                        return Err("Partial GPU removal receipt changed; retain recovery".into());
+                    }
+                    crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)
+                };
+                check_binding()?;
+                let mut backend = NativeBackend {
                     credential: None,
                     manifest: None,
                     data: data.clone(),
                 };
-                if serde_json::to_value(fresh.inspect(&record.target)?)
+                workflow::reset_partial(
+                    &mut ObservedBackend {
+                        backend: &mut backend,
+                        notify: &mut notify,
+                        before_effect: Some(&mut check_binding),
+                    },
+                    &record,
+                    &revision,
+                    shutdown_approved,
+                )?;
+                if configuration_store::protected::revision(&record.target.vm_id)? != revision
+                    || serde_json::to_value(runner::read_recovery_at(
+                        recovery_path
+                            .as_deref()
+                            .ok_or("missing bound recovery path")?,
+                    )?)
                     .map_err(|e| e.to_string())?
-                    != serde_json::to_value(&approved.observed).map_err(|e| e.to_string())?
-                    || serde_json::to_value(fresh.gpu(&record.target)?)
-                        .map_err(|e| e.to_string())?
-                        != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
-                    || serde_json::to_value(fresh.journal(&record.target)?)
-                        .map_err(|e| e.to_string())?
-                        != serde_json::to_value(Some(&approved.journal))
-                            .map_err(|e| e.to_string())?
+                        != serde_json::json!(bound)
                 {
-                    return Err("Partial GPU removal facts changed before admission; Refresh and review again".into());
+                    return Err("Partial GPU removal final receipt changed; retain recovery".into());
                 }
-            }
-            if let Some(existing) = &record.reset
-                && serde_json::to_value(existing).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&approved).map_err(|e| e.to_string())?
-            {
-                return Err("Partial GPU removal is bound to its original review".into());
-            }
-            record.reset = Some(approved);
-            runner::atomic_json(&runner::recovery_path()?, &record)?;
-            runner::atomic_json(
-                &audit_directory.join(format!("partial-removal-{}.json", operation_id)),
-                &record,
-            )?;
-            let bound = serde_json::to_value(&record).map_err(|e| e.to_string())?;
-            let mut check_binding = || {
-                if serde_json::to_value(runner::recovery_record()?).map_err(|e| e.to_string())?
-                    != serde_json::json!(bound)
-                    || configuration_store::protected::revision(&record.target.vm_id)? != revision
-                {
-                    return Err("Partial GPU removal receipt changed; retain recovery".into());
-                }
-                crate::windows_wmi::require_no_pending_operation()
-            };
-            check_binding()?;
-            let mut backend = NativeBackend {
-                credential: None,
-                manifest: None,
-                data: data.clone(),
-            };
-            workflow::reset_partial(
-                &mut ObservedBackend {
-                    backend: &mut backend,
-                    notify: &mut notify,
-                    before_effect: Some(&mut check_binding),
-                },
-                &record,
-                &revision,
-                shutdown_approved,
-            )?;
-            if configuration_store::protected::revision(&record.target.vm_id)? != revision
-                || serde_json::to_value(runner::recovery_record()?).map_err(|e| e.to_string())?
-                    != serde_json::json!(bound)
-            {
-                return Err("Partial GPU removal final receipt changed; retain recovery".into());
-            }
-            crate::windows_wmi::require_no_pending_operation()?;
-            Ok(Outcome {
-                operation: None,
-                saved: false,
-                finished: true,
-                operation_id,
-                save_error: None,
-            })
-        }
-        Command::ForgetPair { approved } => {
-            if request.credential.is_some() {
-                return Err("Pair removal does not accept guest credentials.".into());
-            }
-            notify(Progress {
-                stage: "Remove inactive pairing and profile records".into(),
-                status: StageStatus::Running,
-            })?;
-            runner::forget_pair(&approved, session)?;
-            notify(Progress {
-                stage: "Remove inactive pairing and profile records".into(),
-                status: StageStatus::Done,
-            })?;
-            Ok(Outcome {
-                operation: None,
-                saved: false,
-                finished: true,
-                operation_id: session.into(),
-                save_error: None,
-            })
-        }
-        Command::EnrollPair { approved } => {
-            if request.credential.is_some() {
-                return Err("enrollment does not accept guest credentials".into());
-            }
-            notify(Progress {
-                stage: "Validate and enroll exact VM/GPU pair".into(),
-                status: StageStatus::Running,
-            })?;
-            runner::enroll_pair(&approved, session)?;
-            notify(Progress {
-                stage: "Exact pair authority read back; GPU support has not been applied".into(),
-                status: StageStatus::Done,
-            })?;
-            Ok(Outcome {
-                operation: None,
-                saved: false,
-                finished: true,
-                operation_id: session.into(),
-                save_error: None,
-            })
-        }
-        Command::ReconcilePair {
-            operation_id,
-            expected,
-        } => {
-            if request.credential.is_some() {
-                return Err("enrollment reconciliation does not accept credentials".into());
-            }
-            runner::reconcile_pair(&operation_id, &expected)?;
-            Ok(Outcome {
-                operation: None,
-                saved: false,
-                finished: true,
-                operation_id: session.into(),
-                save_error: None,
-            })
-        }
-        Command::Import { source, expected } => {
-            runner::require_no_recovery()?;
-            crate::windows_wmi::require_no_pending_operation()?;
-            let documents = Configuration::parse(&source)?.vm_documents()?;
-            let ids = documents
-                .iter()
-                .map(|(filename, text)| {
-                    Configuration::parse_vm_file(text, filename)
-                        .map(|mut c| c.targets.remove(0).vm_id)
+                crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)?;
+                Ok(Outcome {
+                    operation: None,
+                    saved: false,
+                    finished: true,
+                    operation_id,
+                    save_error: None,
                 })
-                .collect::<Result<Vec<_>, _>>()?;
-            configuration_store::protected::check_capacity(&ids)?;
-            if documents.len() != expected.len() {
-                return Err("import destination scope mismatch".into());
             }
-            for (filename, text) in &documents {
-                let target = Configuration::parse_vm_file(text, filename)?
-                    .targets
-                    .remove(0);
-                if expected.get(filename) != Some(&Revision::Missing)
-                    || configuration_store::protected::revision(&target.vm_id)? != Revision::Missing
-                {
-                    return Err(format!(
-                        "import destination {filename} already exists or changed; explicit conflict resolution required"
-                    ));
+            Command::ForgetPair { approved } => {
+                if request.credential.is_some() {
+                    return Err("Pair removal does not accept guest credentials.".into());
                 }
+                notify(Progress {
+                    stage: "Remove inactive pairing and profile records".into(),
+                    status: StageStatus::Running,
+                })?;
+                runner::forget_pair(&approved, session)?;
+                notify(Progress {
+                    stage: "Remove inactive pairing and profile records".into(),
+                    status: StageStatus::Done,
+                })?;
+                Ok(Outcome {
+                    operation: None,
+                    saved: false,
+                    finished: true,
+                    operation_id: session.into(),
+                    save_error: None,
+                })
             }
-            let mut record = configuration_store::ImportRecord {
-                schema: 1,
-                operation_id: session.into(),
-                source_revision: Revision::of(source.as_bytes()),
-                documents: documents
-                    .into_iter()
-                    .map(|(filename, source)| {
-                        (
-                            filename,
-                            configuration_store::ImportItem {
-                                source,
-                                published: false,
-                            },
-                        )
-                    })
-                    .collect(),
-            };
-            runner::atomic_json(&runner::import_path()?, &record)?;
-            publish_import_record(&mut record, &enrollment.client_sid, false, &mut notify)?;
-            Ok(Outcome {
-                operation: None,
-                saved: true,
-                finished: true,
-                operation_id: session.into(),
-                save_error: None,
-            })
-        }
-        Command::ImportResume { operation_id } => {
-            if runner::recovery_record()?.is_some() {
-                return Err("GPU recovery must remain distinct from import reconciliation".into());
+            Command::EnrollPair { approved } => {
+                if request.credential.is_some() {
+                    return Err("enrollment does not accept guest credentials".into());
+                }
+                notify(Progress {
+                    stage: "Validate and enroll exact VM/GPU pair".into(),
+                    status: StageStatus::Running,
+                })?;
+                runner::enroll_pair(&approved, session)?;
+                notify(Progress {
+                    stage: "Exact pair authority read back; GPU support has not been applied"
+                        .into(),
+                    status: StageStatus::Done,
+                })?;
+                Ok(Outcome {
+                    operation: None,
+                    saved: false,
+                    finished: true,
+                    operation_id: session.into(),
+                    save_error: None,
+                })
             }
-            let mut record = runner::import_record()?.ok_or("no interrupted import exists")?;
-            if record.operation_id != operation_id {
-                return Err("import operation identity mismatch".into());
-            }
-            publish_import_record(&mut record, &enrollment.client_sid, true, &mut notify)?;
-            Ok(Outcome {
-                operation: None,
-                saved: true,
-                finished: true,
+            Command::ReconcilePair {
                 operation_id,
-                save_error: None,
-            })
-        }
-        Command::Apply {
-            approved,
-            expected,
-            shutdown_approved,
-        } => {
-            runner::require_no_recovery()?;
-            crate::windows_wmi::require_no_pending_operation()?;
-            approved.desired.validate()?;
-            if !enrollment.targets.iter().any(|target| {
-                target.vm_id == approved.desired.vm_id
-                    && target.gpu_interface == approved.desired.gpu_interface
-            }) {
-                return Err("selected pair requires administrator enrollment before Apply".into());
-            }
-            if approved.preview.guest_downtime && !shutdown_approved {
-                return Err("graceful guest shutdown was not separately approved".into());
-            }
-            if configuration_store::protected::revision(&approved.desired.vm_id)? != expected {
-                return Err("committed configuration changed before admission; Refresh".into());
-            }
-            if expected == Revision::Missing {
-                configuration_store::protected::check_capacity(std::slice::from_ref(
-                    &approved.desired.vm_id,
-                ))?;
-            }
-            let mut backend = NativeBackend {
-                credential: request.credential,
-                manifest: None,
-                data: data.clone(),
-            };
-            let (current, admitted) = ObservedBackend {
-                backend: &mut backend,
-                notify: &mut notify,
-                before_effect: None,
-            }
-            .stage_observed("Checking reviewed VM and driver files", |backend| {
-                workflow::admit_approved(backend, &approved)
-            })?;
-            let driver_version = admitted.driver_version().to_owned();
-            let mut record = SaveRecord {
-                schema: 1,
-                retirement: None,
-                reset: None,
-                operation_id: session.into(),
-                target: approved.desired.clone(),
                 expected,
-                driver_version: driver_version.clone(),
-                payload_digest: current.preparation.as_ref().map(|p| p.digest.clone()),
-                plan_revision: Revision::of(
-                    &serde_json::to_vec(&current).map_err(|e| e.to_string())?,
-                ),
-                intended_source: Configuration {
-                    schema: 3,
-                    targets: vec![approved.desired.clone()],
+            } => {
+                if request.credential.is_some() {
+                    return Err("enrollment reconciliation does not accept credentials".into());
                 }
-                .vm_documents()?
-                .into_values()
-                .next()
-                .ok_or("missing output document")?,
-                publication_required: true,
-                initial: current.observed.clone(),
-                expected_power: Some(current.preview.restore_power.clone()),
-                graphics_required: Some(
-                    current
-                        .preview
-                        .actions
-                        .contains(&workflow::PreviewAction::Verify),
-                ),
-                initial_journal: current.managed.clone(),
-                expected_settings: current
-                    .preview
-                    .settings
-                    .as_ref()
-                    .map_or_else(|| current.observed.settings.clone(), |s| s.after.clone()),
-                phase: SavePhase::Admitted,
-            };
-            runner::atomic_json(&runner::recovery_path()?, &record)?;
-            let mut mark_effects = || {
-                if matches!(record.phase, SavePhase::Admitted) {
-                    record.phase = SavePhase::EffectsStarted;
-                    runner::atomic_json(&runner::recovery_path()?, &record)?;
+                runner::reconcile_pair(&operation_id, &expected)?;
+                Ok(Outcome {
+                    operation: None,
+                    saved: false,
+                    finished: true,
+                    operation_id: session.into(),
+                    save_error: None,
+                })
+            }
+            Command::Import { source, expected } => {
+                runner::require_no_recovery()?;
+                crate::windows_wmi::require_no_pending_operation()?;
+                let documents = Configuration::parse(&source)?.vm_documents()?;
+                let ids = documents
+                    .iter()
+                    .map(|(filename, text)| {
+                        Configuration::parse_vm_file(text, filename)
+                            .map(|mut c| c.targets.remove(0).vm_id)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                configuration_store::protected::check_capacity(&ids)?;
+                if documents.len() != expected.len() {
+                    return Err("import destination scope mismatch".into());
                 }
-                Ok(())
-            };
-            let result = workflow::apply_admitted(
-                &mut ObservedBackend {
+                for (filename, text) in &documents {
+                    let target = Configuration::parse_vm_file(text, filename)?
+                        .targets
+                        .remove(0);
+                    if expected.get(filename) != Some(&Revision::Missing)
+                        || configuration_store::protected::revision(&target.vm_id)?
+                            != Revision::Missing
+                    {
+                        return Err(format!(
+                            "import destination {filename} already exists or changed; explicit conflict resolution required"
+                        ));
+                    }
+                }
+                let mut record = configuration_store::ImportRecord {
+                    schema: 1,
+                    operation_id: session.into(),
+                    source_revision: Revision::of(source.as_bytes()),
+                    documents: documents
+                        .into_iter()
+                        .map(|(filename, source)| {
+                            (
+                                filename,
+                                configuration_store::ImportItem {
+                                    source,
+                                    published: false,
+                                },
+                            )
+                        })
+                        .collect(),
+                };
+                runner::atomic_json(&runner::import_path()?, &record)?;
+                publish_import_record(&mut record, &enrollment.client_sid, false, &mut notify)?;
+                Ok(Outcome {
+                    operation: None,
+                    saved: true,
+                    finished: true,
+                    operation_id: session.into(),
+                    save_error: None,
+                })
+            }
+            Command::ImportResume { operation_id } => {
+                if !runner::recovery_records()?.is_empty() {
+                    return Err(
+                        "GPU recovery must remain distinct from import reconciliation".into(),
+                    );
+                }
+                let mut record = runner::import_record()?.ok_or("no interrupted import exists")?;
+                if record.operation_id != operation_id {
+                    return Err("import operation identity mismatch".into());
+                }
+                publish_import_record(&mut record, &enrollment.client_sid, true, &mut notify)?;
+                Ok(Outcome {
+                    operation: None,
+                    saved: true,
+                    finished: true,
+                    operation_id,
+                    save_error: None,
+                })
+            }
+            Command::Apply {
+                approved,
+                expected,
+                shutdown_approved,
+            } => {
+                runner::require_no_vm_recovery(&approved.desired.vm_id)?;
+                crate::windows_wmi::require_no_pending_operation_for(&approved.desired.vm_id)?;
+                approved.desired.validate()?;
+                if !enrollment.targets.iter().any(|target| {
+                    target.vm_id == approved.desired.vm_id
+                        && target.gpu_interface == approved.desired.gpu_interface
+                }) {
+                    return Err(
+                        "selected pair requires administrator enrollment before Apply".into(),
+                    );
+                }
+                if approved.preview.guest_downtime && !shutdown_approved {
+                    return Err("graceful guest shutdown was not separately approved".into());
+                }
+                if configuration_store::protected::revision(&approved.desired.vm_id)? != expected {
+                    return Err("committed configuration changed before admission; Refresh".into());
+                }
+                if expected == Revision::Missing {
+                    configuration_store::protected::check_capacity(std::slice::from_ref(
+                        &approved.desired.vm_id,
+                    ))?;
+                }
+                let mut backend = NativeBackend {
+                    credential: request.credential,
+                    manifest: None,
+                    data: data.clone(),
+                };
+                let (current, admitted) = ObservedBackend {
                     backend: &mut backend,
                     notify: &mut notify,
-                    before_effect: Some(&mut mark_effects),
-                },
-                admitted,
-            )?;
-            ObservedBackend {
-                backend: &mut backend,
-                notify: &mut notify,
-                before_effect: None,
-            }
-            .stage_observed(
-                "Confirm final VM state and signed driver files",
-                |backend| {
-                    if serde_json::to_value(backend.inspect(&record.target)?)
-                        .map_err(|e| e.to_string())?
-                        != serde_json::to_value(&result.effective).map_err(|e| e.to_string())?
-                    {
-                        return Err(
+                    before_effect: None,
+                }
+                .stage_observed("Checking reviewed VM and driver files", |backend| {
+                    workflow::admit_approved(backend, &approved)
+                })?;
+                let driver_version = admitted.driver_version().to_owned();
+                let mut record = SaveRecord {
+                    schema: 1,
+                    retirement: None,
+                    reset: None,
+                    operation_id: session.into(),
+                    target: approved.desired.clone(),
+                    expected,
+                    driver_version: driver_version.clone(),
+                    payload_digest: current.preparation.as_ref().map(|p| p.digest.clone()),
+                    plan_revision: Revision::of(
+                        &serde_json::to_vec(&current).map_err(|e| e.to_string())?,
+                    ),
+                    intended_source: Configuration {
+                        schema: 3,
+                        targets: vec![approved.desired.clone()],
+                    }
+                    .vm_documents()?
+                    .into_values()
+                    .next()
+                    .ok_or("missing output document")?,
+                    publication_required: true,
+                    initial: current.observed.clone(),
+                    expected_power: Some(current.preview.restore_power.clone()),
+                    graphics_required: Some(
+                        current
+                            .preview
+                            .actions
+                            .contains(&workflow::PreviewAction::Verify),
+                    ),
+                    initial_journal: current.managed.clone(),
+                    expected_settings: current
+                        .preview
+                        .settings
+                        .as_ref()
+                        .map_or_else(|| current.observed.settings.clone(), |s| s.after.clone()),
+                    phase: SavePhase::Admitted,
+                };
+                runner::write_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                    &record,
+                )?;
+                let mut mark_effects = || {
+                    if matches!(record.phase, SavePhase::Admitted) {
+                        record.phase = SavePhase::EffectsStarted;
+                        runner::write_recovery_at(
+                            recovery_path
+                                .as_deref()
+                                .ok_or("missing bound recovery path")?,
+                            &record,
+                        )?;
+                    }
+                    Ok(())
+                };
+                let result = workflow::apply_admitted(
+                    &mut ObservedBackend {
+                        backend: &mut backend,
+                        notify: &mut notify,
+                        before_effect: Some(&mut mark_effects),
+                    },
+                    admitted,
+                )?;
+                ObservedBackend {
+                    backend: &mut backend,
+                    notify: &mut notify,
+                    before_effect: None,
+                }
+                .stage_observed(
+                    "Confirm final VM state and signed driver files",
+                    |backend| {
+                        if serde_json::to_value(backend.inspect(&record.target)?)
+                            .map_err(|e| e.to_string())?
+                            != serde_json::to_value(&result.effective).map_err(|e| e.to_string())?
+                        {
+                            return Err(
                             "final independent readback changed; manual reconciliation required"
                                 .into(),
                         );
-                    }
-                    if backend.gpu(&record.target)?.driver_version != driver_version {
-                        return Err(
-                            "driver changed during effects; manual reconciliation required".into(),
-                        );
-                    }
-                    if let Some(digest) = &record.payload_digest
-                        && backend.payload(&record.target)? != *digest
-                    {
-                        return Err(
+                        }
+                        if backend.gpu(&record.target)?.driver_version != driver_version {
+                            return Err(
+                                "driver changed during effects; manual reconciliation required"
+                                    .into(),
+                            );
+                        }
+                        if let Some(digest) = &record.payload_digest
+                            && backend.payload(&record.target)? != *digest
+                        {
+                            return Err(
                             "signed payload changed during effects; manual reconciliation required"
                                 .into(),
                         );
-                    }
-                    Ok(())
-                },
-            )?;
-            record.phase = SavePhase::Verified(result.effective.clone());
-            runner::atomic_json(&runner::recovery_path()?, &record)?;
-            notify(Progress {
-                stage: "Publish checked VM configuration".into(),
-                status: StageStatus::Running,
-            })?;
-            let saved = configuration_store::protected::publish(&record, &enrollment.client_sid);
-            if saved.is_ok() {
-                record.phase = SavePhase::Published(result.effective.clone());
-                runner::atomic_json(&runner::recovery_path()?, &record)?;
-            }
-            let delivery = notify(Progress {
-                stage: "Publish checked VM configuration".into(),
-                status: if saved.is_ok() {
-                    StageStatus::Done
-                } else {
-                    StageStatus::Failed
-                },
-            });
-            if let Err(delivery) = delivery {
-                return Err(saved.err().map_or_else(
+                        }
+                        Ok(())
+                    },
+                )?;
+                record.phase = SavePhase::Verified(result.effective.clone());
+                runner::write_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                    &record,
+                )?;
+                notify(Progress {
+                    stage: "Publish checked VM configuration".into(),
+                    status: StageStatus::Running,
+                })?;
+                let saved =
+                    configuration_store::protected::publish(&record, &enrollment.client_sid);
+                if saved.is_ok() {
+                    record.phase = SavePhase::Published(result.effective.clone());
+                    runner::write_recovery_at(
+                        recovery_path
+                            .as_deref()
+                            .ok_or("missing bound recovery path")?,
+                        &record,
+                    )?;
+                }
+                let delivery = notify(Progress {
+                    stage: "Publish checked VM configuration".into(),
+                    status: if saved.is_ok() {
+                        StageStatus::Done
+                    } else {
+                        StageStatus::Failed
+                    },
+                });
+                if let Err(delivery) = delivery {
+                    return Err(saved.err().map_or_else(
                     || format!("Publication completed but progress delivery failed; outcome uncertain: {delivery}"),
                     |primary| format!("Progress delivery failed: {delivery}; {primary}"),
                 ));
-            }
-            Ok(Outcome {
-                operation: Some(result),
-                saved: saved.is_ok(),
-                finished: saved.is_ok(),
-                operation_id: record.operation_id,
-                save_error: saved.err(),
-            })
-        }
-        Command::Verify {
-            approved,
-            shutdown_approved,
-        } => {
-            runner::require_no_recovery()?;
-            crate::windows_wmi::require_no_pending_operation()?;
-            approved.target.validate()?;
-            if approved.observed.power == Power::Off && !shutdown_approved {
-                return Err("temporary guest start and graceful shutdown were not approved".into());
-            }
-            if !enrollment.targets.iter().any(|target| {
-                target.vm_id == approved.target.vm_id
-                    && target.gpu_interface == approved.target.gpu_interface
-            }) {
-                return Err("verification target is outside enrollment".into());
-            }
-            let mut backend = NativeBackend {
-                credential: request.credential,
-                manifest: None,
-                data: data.clone(),
-            };
-            let admitted = workflow::admit_verification(&mut backend, &approved)?;
-            let mut record = SaveRecord {
-                schema: 1,
-                retirement: None,
-                reset: None,
-                operation_id: session.into(),
-                target: approved.target.clone(),
-                expected: configuration_store::protected::revision(&approved.target.vm_id)?,
-                driver_version: approved.gpu.driver_version.clone(),
-                payload_digest: Some(approved.payload_digest.clone()),
-                plan_revision: Revision::of(
-                    &serde_json::to_vec(&approved).map_err(|e| e.to_string())?,
-                ),
-                intended_source: Configuration {
-                    schema: 3,
-                    targets: vec![approved.target.clone()],
                 }
-                .vm_documents()?
-                .into_values()
-                .next()
-                .ok_or("missing receipt intent")?,
-                publication_required: false,
-                initial: approved.observed.clone(),
-                expected_power: Some(workflow::verification_power(
-                    &approved.target,
-                    &approved.observed,
-                    approved.managed.as_ref(),
-                )?),
-                graphics_required: Some(true),
-                initial_journal: approved.managed.clone(),
-                expected_settings: approved.observed.settings.clone(),
-                phase: SavePhase::Admitted,
-            };
-            runner::atomic_json(&runner::recovery_path()?, &record)?;
-            let mut mark_effects = || {
-                if matches!(record.phase, SavePhase::Admitted) {
-                    record.phase = SavePhase::EffectsStarted;
-                    runner::atomic_json(&runner::recovery_path()?, &record)?;
+                Ok(Outcome {
+                    operation: Some(result),
+                    saved: saved.is_ok(),
+                    finished: saved.is_ok(),
+                    operation_id: record.operation_id,
+                    save_error: saved.err(),
+                })
+            }
+            Command::Verify {
+                approved,
+                shutdown_approved,
+            } => {
+                runner::require_no_vm_recovery(&approved.target.vm_id)?;
+                crate::windows_wmi::require_no_pending_operation_for(&approved.target.vm_id)?;
+                approved.target.validate()?;
+                if approved.observed.power == Power::Off && !shutdown_approved {
+                    return Err(
+                        "temporary guest start and graceful shutdown were not approved".into(),
+                    );
                 }
-                Ok(())
-            };
-            let result = workflow::verify_admitted(
-                &mut ObservedBackend {
+                if !enrollment.targets.iter().any(|target| {
+                    target.vm_id == approved.target.vm_id
+                        && target.gpu_interface == approved.target.gpu_interface
+                }) {
+                    return Err("verification target is outside enrollment".into());
+                }
+                let mut backend = NativeBackend {
+                    credential: request.credential,
+                    manifest: None,
+                    data: data.clone(),
+                };
+                let admitted = workflow::admit_verification(&mut backend, &approved)?;
+                let mut record = SaveRecord {
+                    schema: 1,
+                    retirement: None,
+                    reset: None,
+                    operation_id: session.into(),
+                    target: approved.target.clone(),
+                    expected: configuration_store::protected::revision(&approved.target.vm_id)?,
+                    driver_version: approved.gpu.driver_version.clone(),
+                    payload_digest: Some(approved.payload_digest.clone()),
+                    plan_revision: Revision::of(
+                        &serde_json::to_vec(&approved).map_err(|e| e.to_string())?,
+                    ),
+                    intended_source: Configuration {
+                        schema: 3,
+                        targets: vec![approved.target.clone()],
+                    }
+                    .vm_documents()?
+                    .into_values()
+                    .next()
+                    .ok_or("missing receipt intent")?,
+                    publication_required: false,
+                    initial: approved.observed.clone(),
+                    expected_power: Some(workflow::verification_power(
+                        &approved.target,
+                        &approved.observed,
+                        approved.managed.as_ref(),
+                    )?),
+                    graphics_required: Some(true),
+                    initial_journal: approved.managed.clone(),
+                    expected_settings: approved.observed.settings.clone(),
+                    phase: SavePhase::Admitted,
+                };
+                runner::write_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                    &record,
+                )?;
+                let mut mark_effects = || {
+                    if matches!(record.phase, SavePhase::Admitted) {
+                        record.phase = SavePhase::EffectsStarted;
+                        runner::write_recovery_at(
+                            recovery_path
+                                .as_deref()
+                                .ok_or("missing bound recovery path")?,
+                            &record,
+                        )?;
+                    }
+                    Ok(())
+                };
+                let result = workflow::verify_admitted(
+                    &mut ObservedBackend {
+                        backend: &mut backend,
+                        notify: &mut notify,
+                        before_effect: Some(&mut mark_effects),
+                    },
+                    admitted,
+                )?;
+                if serde_json::to_value(backend.inspect(&record.target)?)
+                    .map_err(|e| e.to_string())?
+                    != serde_json::to_value(&record.initial).map_err(|e| e.to_string())?
+                    || serde_json::to_value(backend.gpu(&record.target)?)
+                        .map_err(|e| e.to_string())?
+                        != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
+                    || backend.payload(&record.target)? != approved.payload_digest
+                {
+                    return Err(
+                        "verification final facts changed; manual reconciliation required".into(),
+                    );
+                }
+                record.phase = SavePhase::Verified(result.effective.clone());
+                runner::write_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                    &record,
+                )?;
+                Ok(Outcome {
+                    operation: Some(result),
+                    saved: false,
+                    finished: true,
+                    operation_id: record.operation_id,
+                    save_error: None,
+                })
+            }
+            Command::Reconcile {
+                operation_id,
+                shutdown_approved,
+            } => {
+                let mut record = runner::read_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                )?
+                .ok_or("no durable operation requires reconciliation")?;
+                if record.operation_id != operation_id {
+                    return Err("reconciliation operation identity mismatch".into());
+                }
+                if !enrollment.targets.iter().any(|t| {
+                    t.vm_id == record.target.vm_id && t.gpu_interface == record.target.gpu_interface
+                }) {
+                    return Err("recorded pair is no longer enrolled".into());
+                }
+                if record.publication_required
+                    && matches!(
+                        record.phase,
+                        SavePhase::Verified(_) | SavePhase::Published(_)
+                    )
+                {
+                    return Err(
+                        "already verified: use save-only without repeating graphics or guest power"
+                            .into(),
+                    );
+                }
+                let mut backend = NativeBackend {
+                    credential: request.credential,
+                    manifest: None,
+                    data: data.clone(),
+                };
+                let mut backend = ObservedBackend {
                     backend: &mut backend,
                     notify: &mut notify,
-                    before_effect: Some(&mut mark_effects),
-                },
-                admitted,
-            )?;
-            if serde_json::to_value(backend.inspect(&record.target)?).map_err(|e| e.to_string())?
-                != serde_json::to_value(&record.initial).map_err(|e| e.to_string())?
-                || serde_json::to_value(backend.gpu(&record.target)?).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
-                || backend.payload(&record.target)? != approved.payload_digest
-            {
-                return Err(
-                    "verification final facts changed; manual reconciliation required".into(),
-                );
-            }
-            record.phase = SavePhase::Verified(result.effective.clone());
-            runner::atomic_json(&runner::recovery_path()?, &record)?;
-            Ok(Outcome {
-                operation: Some(result),
-                saved: false,
-                finished: true,
-                operation_id: record.operation_id,
-                save_error: None,
-            })
-        }
-        Command::Reconcile {
-            operation_id,
-            shutdown_approved,
-        } => {
-            let mut record =
-                runner::recovery_record()?.ok_or("no durable operation requires reconciliation")?;
-            if record.operation_id != operation_id {
-                return Err("reconciliation operation identity mismatch".into());
-            }
-            if !enrollment.targets.iter().any(|t| {
-                t.vm_id == record.target.vm_id && t.gpu_interface == record.target.gpu_interface
-            }) {
-                return Err("recorded pair is no longer enrolled".into());
-            }
-            if record.publication_required
-                && matches!(
-                    record.phase,
-                    SavePhase::Verified(_) | SavePhase::Published(_)
-                )
-            {
-                return Err(
-                    "already verified: use save-only without repeating graphics or guest power"
-                        .into(),
-                );
-            }
-            let mut backend = NativeBackend {
-                credential: request.credential,
-                manifest: None,
-                data: data.clone(),
-            };
-            let mut backend = ObservedBackend {
-                backend: &mut backend,
-                notify: &mut notify,
-                before_effect: None,
-            };
-            backend.stage_observed("Check recorded recovery outcome", |backend| {
+                    before_effect: None,
+                };
+                backend.stage_observed("Check recorded recovery outcome", |backend| {
             let before = backend.inspect(&record.target)?;
             let negative = record.negative_completion(
                 &before,
@@ -1216,11 +1318,11 @@ fn execute(
                 negative.ok().flatten()
             };
             if let Some(retirement) = retirement {
-                crate::windows_wmi::require_no_pending_operation()?;
+                crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)?;
                 // Persist the exact transition before its journal write. A lost reply or
                 // interruption can resume only the bound before/after states.
                 record.retirement = Some(retirement.clone());
-                runner::atomic_json(&runner::recovery_path()?, &record)?;
+                runner::write_recovery_at(recovery_path.as_deref().ok_or("missing bound recovery path")?, &record)?;
                 runner::atomic_json(
                     &audit_directory.join(format!("ended-{}.json", record.operation_id)),
                     &record,
@@ -1251,7 +1353,7 @@ fn execute(
                             .into(),
                     );
                 }
-                crate::windows_wmi::require_no_pending_operation()?;
+                crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)?;
                 return Ok(Outcome {
                     operation: None,
                     saved: false,
@@ -1261,7 +1363,7 @@ fn execute(
                 });
             }
             if matches!(record.phase, SavePhase::EffectsStarted) {
-                crate::windows_wmi::require_no_pending_operation()?;
+                crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)?;
                 let journal = backend.journal(&record.target)?;
                 if record
                     .validate_restored_baseline(
@@ -1309,7 +1411,7 @@ fn execute(
             if matches!(record.phase, SavePhase::Admitted) {
                 // The wrapper marks EffectsStarted before every guest/Hyper-V
                 // adapter, so this phase proves no such effect was dispatched.
-                crate::windows_wmi::require_no_pending_operation()?;
+                crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)?;
                 if serde_json::to_value(&before).map_err(|e| e.to_string())?
                     != serde_json::to_value(&record.initial).map_err(|e| e.to_string())?
                     || configuration_store::protected::revision(&record.target.vm_id)?
@@ -1340,7 +1442,7 @@ fn execute(
                     save_error: None,
                 });
             }
-            crate::windows_wmi::reconcile_pending_operation()?;
+            crate::windows_wmi::reconcile_pending_operation_for(&record.target.vm_id)?;
             if !record.publication_required
                 && let SavePhase::Verified(verified) | SavePhase::Published(verified) =
                     &record.phase
@@ -1399,7 +1501,7 @@ fn execute(
                 &backend.gpu(&record.target)?.driver_version,
             )?;
             record.phase = SavePhase::Verified(result.effective.clone());
-            runner::atomic_json(&runner::recovery_path()?, &record)?;
+            runner::write_recovery_at(recovery_path.as_deref().ok_or("missing bound recovery path")?, &record)?;
             if !record.publication_required {
                 return Ok(Outcome {
                     operation: Some(result),
@@ -1421,7 +1523,7 @@ fn execute(
             let saved = configuration_store::protected::publish(&record, &enrollment.client_sid);
             if saved.is_ok() {
                 record.phase = SavePhase::Published(result.effective.clone());
-                runner::atomic_json(&runner::recovery_path()?, &record)?;
+                runner::write_recovery_at(recovery_path.as_deref().ok_or("missing bound recovery path")?, &record)?;
             }
             let delivery = (backend.notify)(Progress {
                 stage: "Publish checked VM configuration".into(),
@@ -1445,98 +1547,112 @@ fn execute(
                 save_error: saved.err(),
             })
             })
-        }
-        Command::SaveOnly { operation_id } => {
-            crate::windows_wmi::require_no_pending_operation()?;
-            let mut record =
-                runner::recovery_record()?.ok_or("no verified-unsaved operation exists")?;
-            if record.operation_id != operation_id {
-                return Err("save-only operation identity mismatch".into());
             }
-            if !enrollment.targets.iter().any(|target| {
-                target.vm_id == record.target.vm_id
-                    && target.gpu_interface == record.target.gpu_interface
-            }) {
-                return Err("save-only pair no longer enrolled".into());
-            }
-            let mut backend = NativeBackend {
-                credential: None,
-                manifest: None,
-                data: data.clone(),
-            };
-            if backend
-                .journal(&record.target)?
-                .is_some_and(|journal| journal.pending)
-            {
-                return Err(
-                    "unfinished managed operation requires manual reconciliation before saving"
-                        .into(),
-                );
-            }
-            if let Some(digest) = &record.payload_digest
-                && backend.payload(&record.target)? != *digest
-            {
-                return Err(
-                    "signed payload changed since verification; reconcile before saving".into(),
-                );
-            }
-            record.validate_save_only(
-                &backend.inspect(&record.target)?,
-                &backend.gpu(&record.target)?.driver_version,
-                &configuration_store::protected::revision(&record.target.vm_id)?,
-            )?;
-            notify(Progress {
-                stage: "Save verified configuration only".into(),
-                status: StageStatus::Running,
-            })?;
-            let publication =
-                configuration_store::protected::publish(&record, &enrollment.client_sid);
-            if publication.is_err() {
-                let delivery = notify(Progress {
-                    stage: "Save verified configuration only".into(),
-                    status: StageStatus::Failed,
-                });
-                finish_progress(publication, delivery)?;
-            }
-            let verified = match &record.phase {
-                SavePhase::Verified(state) | SavePhase::Published(state) => state.clone(),
-                SavePhase::Admitted | SavePhase::EffectsStarted => {
-                    return Err("manual reconciliation required".into());
+            Command::SaveOnly { operation_id } => {
+                let mut record = runner::read_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                )?
+                .ok_or("no verified-unsaved operation exists")?;
+                crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)?;
+                if record.operation_id != operation_id {
+                    return Err("save-only operation identity mismatch".into());
                 }
-            };
-            record.phase = SavePhase::Published(verified);
-            runner::atomic_json(&runner::recovery_path()?, &record)?;
-            notify(Progress {
-                stage: "Save verified configuration only".into(),
-                status: StageStatus::Done,
-            })?;
-            Ok(Outcome {
-                operation: None,
-                saved: true,
-                finished: true,
-                operation_id,
-                save_error: None,
-            })
+                if !enrollment.targets.iter().any(|target| {
+                    target.vm_id == record.target.vm_id
+                        && target.gpu_interface == record.target.gpu_interface
+                }) {
+                    return Err("save-only pair no longer enrolled".into());
+                }
+                let mut backend = NativeBackend {
+                    credential: None,
+                    manifest: None,
+                    data: data.clone(),
+                };
+                if backend
+                    .journal(&record.target)?
+                    .is_some_and(|journal| journal.pending)
+                {
+                    return Err(
+                        "unfinished managed operation requires manual reconciliation before saving"
+                            .into(),
+                    );
+                }
+                if let Some(digest) = &record.payload_digest
+                    && backend.payload(&record.target)? != *digest
+                {
+                    return Err(
+                        "signed payload changed since verification; reconcile before saving".into(),
+                    );
+                }
+                record.validate_save_only(
+                    &backend.inspect(&record.target)?,
+                    &backend.gpu(&record.target)?.driver_version,
+                    &configuration_store::protected::revision(&record.target.vm_id)?,
+                )?;
+                notify(Progress {
+                    stage: "Save verified configuration only".into(),
+                    status: StageStatus::Running,
+                })?;
+                let publication =
+                    configuration_store::protected::publish(&record, &enrollment.client_sid);
+                if publication.is_err() {
+                    let delivery = notify(Progress {
+                        stage: "Save verified configuration only".into(),
+                        status: StageStatus::Failed,
+                    });
+                    finish_progress(publication, delivery)?;
+                }
+                let verified = match &record.phase {
+                    SavePhase::Verified(state) | SavePhase::Published(state) => state.clone(),
+                    SavePhase::Admitted | SavePhase::EffectsStarted => {
+                        return Err("manual reconciliation required".into());
+                    }
+                };
+                record.phase = SavePhase::Published(verified);
+                runner::write_recovery_at(
+                    recovery_path
+                        .as_deref()
+                        .ok_or("missing bound recovery path")?,
+                    &record,
+                )?;
+                notify(Progress {
+                    stage: "Save verified configuration only".into(),
+                    status: StageStatus::Done,
+                })?;
+                Ok(Outcome {
+                    operation: None,
+                    saved: true,
+                    finished: true,
+                    operation_id,
+                    save_error: None,
+                })
+            }
         }
     })();
     runner::atomic_json(
         &audit,
         &serde_json::json!({"schema":1,"session":session,"operation":operation_name,"binding":binding,"outcome":if result.as_ref().is_ok_and(|o| o.finished) { "Succeeded" } else { "Failed" }}),
     )?;
-    // Release hold last, after both publication and terminal audit are durable.
-    if result.as_ref().is_ok_and(|o| o.finished) {
-        let path = if matches!(
-            operation_name,
-            "EnrollPair" | "ReconcilePair" | "ForgetPair"
-        ) {
-            runner::pair_pending_path()?
-        } else if operation_name == "ImportConfiguration" || operation_name == "ReconcileImport" {
-            runner::import_path()?
+    // Release only this command's hold, after publication and terminal audit.
+    if let Ok(outcome) = &result
+        && outcome.finished
+    {
+        if let Some(path) = recovery_path {
+            runner::retire_recovery_at(&path, &outcome.operation_id)?;
         } else {
-            runner::recovery_path()?
-        };
-        crate::security::verify(&path)?;
-        fs::remove_file(path).map_err(|e| e.to_string())?;
+            let path = if matches!(
+                operation_name,
+                "EnrollPair" | "ReconcilePair" | "ForgetPair"
+            ) {
+                runner::pair_pending_path()?
+            } else {
+                runner::import_path()?
+            };
+            crate::security::verify(&path)?;
+            fs::remove_file(path).map_err(|e| e.to_string())?;
+        }
     }
     result
 }
