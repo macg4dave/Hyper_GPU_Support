@@ -204,7 +204,8 @@ pub struct ImportRecord {
     pub operation_id: String,
     /// Exact source bytes supplied by the operator; source itself is retained.
     pub source_revision: Revision,
-    /// Complete canonical destination set approved before any publication.
+    /// Approved canonical destinations. Explicit profile deletion may remove only
+    /// that profile's entry while retaining the other import items and progress.
     pub documents: BTreeMap<String, ImportItem>,
 }
 impl ImportRecord {

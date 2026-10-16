@@ -1296,7 +1296,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_actions_allow_profile_deletion_with_attached_support_when_off() {
+    fn selected_actions_allow_profile_deletion_with_attached_support_at_either_power() {
         let mut s = action_state();
         let values = allocation_values(&s.target(id(&s)).unwrap());
         for power in [Power::Off, Power::Running] {
@@ -1305,7 +1305,7 @@ mod tests {
             assert!(actions.verify_allowed);
             assert!(actions.repair_allowed);
             assert!(actions.remove_allowed);
-            assert_eq!(actions.forget_allowed, power == Power::Off);
+            assert!(actions.forget_allowed);
             assert!(!actions.recovery);
         }
         s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Off;
@@ -1334,7 +1334,8 @@ mod tests {
         values[0] = "invalid".into();
         let actions = s.selected_actions(0, &values);
         assert!(actions.verify.contains("pending edits"));
-        assert!(actions.forget.contains("pending edits"));
+        assert!(actions.forget_allowed);
+        assert!(actions.forget.is_empty());
         assert!(!actions.repair_allowed);
         assert!(!actions.remove_allowed);
         assert_eq!(s.view.draft, Some(target));
@@ -1396,7 +1397,10 @@ mod tests {
         assert!(!actions.verify_allowed);
         assert!(!actions.repair_allowed);
         assert!(!actions.remove_allowed);
-        assert!(!actions.forget_allowed);
+        assert!(
+            actions.forget_allowed,
+            "app-record review does not require host observation or an editable profile"
+        );
     }
 
     #[test]
@@ -1408,7 +1412,11 @@ mod tests {
         s.view.inventory.as_mut().unwrap().managed.remove(&vm_id);
         let actions = s.selected_actions(0, &allocation_values(&target));
         assert!(!actions.recovery);
-        for action in ["verify", "repair", "remove-gpu", "forget"] {
+        assert!(
+            actions.forget_allowed,
+            "profile deletion remains separately reviewable"
+        );
+        for action in ["verify", "repair", "remove-gpu"] {
             assert!(actions.reason(action).unwrap().contains("Use Refresh"));
         }
         assert!(s.recovery.is_none());
@@ -1496,7 +1504,7 @@ mod tests {
         s.committed_conflict = Some(vm_id);
         let actions = s.selected_actions(0, &values);
         assert!(actions.remove.contains("Draft preserved"));
-        assert!(!actions.forget_allowed);
+        assert!(actions.forget_allowed);
         assert!(s.committed_conflict.is_some());
     }
 
@@ -1526,7 +1534,11 @@ mod tests {
             .issues
             .push(issue("VM settings", Some(vm_id), "access denied"));
         let actions = s.selected_actions(0, &values);
-        for action in ["verify", "repair", "remove-gpu", "forget"] {
+        assert!(
+            actions.forget_allowed,
+            "profile deletion remains separately reviewable"
+        );
+        for action in ["verify", "repair", "remove-gpu"] {
             assert!(actions.reason(action).unwrap().contains("Correct access"));
         }
         assert!(!actions.recovery);
@@ -2120,7 +2132,8 @@ mod tests {
             let actions = s.selected_actions(-1, &[]);
             if selected == &affected {
                 assert!(!actions.verify_allowed && !actions.repair_allowed);
-                assert!(!actions.remove_allowed && !actions.forget_allowed);
+                assert!(!actions.remove_allowed);
+                assert!(actions.forget_allowed);
             }
         }
         s.view
@@ -2912,7 +2925,11 @@ mod tests {
             assert!(s.recovery.is_none());
             let actions = s.selected_actions(0, &allocation_values(&draft));
             assert!(actions.recovery);
-            for action in ["verify", "repair", "remove-gpu", "forget"] {
+            assert!(
+                actions.forget_allowed,
+                "profile deletion remains separately reviewable"
+            );
+            for action in ["verify", "repair", "remove-gpu"] {
                 assert!(actions.reason(action).unwrap().contains("Review recovery"));
             }
             assert!(
@@ -3172,11 +3189,25 @@ mod tests {
     #[test]
     fn completed_profile_deletion_keeps_vm_and_other_profiles_without_host_changes() {
         let (mut s, selected, other) = profiles_for_deletion();
+        s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Running;
         let vm_before = s.view.vm(&selected.vm_id).unwrap().clone();
         let other_document = s.committed.documents[&other.vm_id].clone();
         let other_vm = s.view.vm(&other.vm_id).unwrap().clone();
+        let removed = save_record(&s);
+        let mut retained = removed.clone();
+        retained.target = other.clone();
+        retained.initial = other_vm.clone();
+        let retained_bytes = serde_json::to_value(&retained).unwrap();
+        s.recovery = Some(removed.clone());
+        s.recoveries = vec![removed, retained];
         assert!(s.forget_target().is_ok());
         s.finish_profile_deletion(&selected.vm_id, Ok(())).unwrap();
+        assert!(s.recovery.is_none());
+        assert_eq!(s.recoveries.len(), 1);
+        assert_eq!(
+            serde_json::to_value(&s.recoveries[0]).unwrap(),
+            retained_bytes
+        );
         assert_eq!(s.view.selected.as_deref(), Some(selected.vm_id.as_str()));
         assert_eq!(
             serde_json::to_value(s.view.vm(&selected.vm_id).unwrap()).unwrap(),

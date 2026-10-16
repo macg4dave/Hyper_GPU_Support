@@ -124,7 +124,8 @@ pub struct RemovalReview {
     pub configurations: std::collections::BTreeMap<String, Revision>,
     /// Complete GUID-keyed managed history revisions, including selected absence.
     pub journals: std::collections::BTreeMap<String, Revision>,
-    /// Exact per-profile interrupted-operation files explicitly discarded by deletion.
+    /// Exact per-profile recovery records/entries explicitly discarded by deletion.
+    /// A shared receipt is Missing here when it has no entry for this profile.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub recovery: std::collections::BTreeMap<String, Revision>,
 }
@@ -160,7 +161,7 @@ pub struct RemovalState {
     pub configuration_removed: bool,
     /// Managed history absence has been independently established.
     pub journal_removed: bool,
-    /// Independently confirmed absences; interruption never permits deleting changed files.
+    /// Confirmed profile record/entry absences; changed records cannot be deleted on resume.
     #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
     pub recovery_removed: std::collections::BTreeSet<String>,
 }
@@ -323,9 +324,9 @@ pub(crate) fn publish_removal(
     Ok(())
 }
 
-/// Fixed leaf names only. Legacy singleton files require an additional exact VM binding.
+/// Fixed leaf names only. Legacy/shared files additionally require exact profile binding.
 #[cfg(any(windows, test))]
-pub(crate) fn profile_recovery_names(id: &str) -> [String; 7] {
+pub(crate) fn profile_recovery_names(id: &str) -> [String; 8] {
     [
         format!("operation-recovery-{id}.json"),
         format!("provider-operation-{id}.json"),
@@ -334,6 +335,7 @@ pub(crate) fn profile_recovery_names(id: &str) -> [String; 7] {
         format!("{id}.partial"),
         "operation-recovery.json".into(),
         "provider-operation.json".into(),
+        "configuration-import.json".into(),
     ]
 }
 

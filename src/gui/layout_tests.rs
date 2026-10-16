@@ -295,7 +295,7 @@ fn recovery_review_has_prominent_identity_and_action_confirmation_without_a_powe
     ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
     ui.show().unwrap();
     window.set_size(LogicalSize::new(1240., 860.));
-    let heading = operations::apply::review::vm_heading(
+    let heading = operations::action::review_prompt(
         "A long virtual machine name that wraps without hiding the recovery action",
     )
     .into_string();

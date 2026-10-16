@@ -222,6 +222,10 @@ fn explicit_profile_deletion_discards_only_bound_recovery_and_resumes_every_inte
             format!("provider-operation-{VM}.json"),
             Revision::of(b"provider receipt"),
         ),
+        (
+            "configuration-import.json".into(),
+            Revision::of(b"this profile in a shared import"),
+        ),
     ]);
     let mut reference = Fake::new(&approved);
     publish_removal(&mut reference, &mut approved.clone()).unwrap();
@@ -256,7 +260,7 @@ fn explicit_profile_deletion_discards_only_bound_recovery_and_resumes_every_inte
                 .iter()
                 .filter(|m| **m == "selected recovery")
                 .count(),
-            2
+            3
         );
         assert_eq!(backend.observed.policy, approved.resulting);
     }

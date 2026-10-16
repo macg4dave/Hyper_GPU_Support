@@ -77,7 +77,26 @@ fn belongs_to_profile(id: &str, name: &str, bytes: &[u8]) -> bool {
         return serde_json::from_slice::<serde_json::Value>(bytes)
             .is_ok_and(|value| legacy_vm(&value) == Some(id));
     }
+    if name == "configuration-import.json" {
+        return serde_json::from_slice::<configuration_store::ImportRecord>(bytes)
+            .is_ok_and(|record| record.documents.contains_key(&format!("{id}.toml")));
+    }
     true
+}
+
+fn discard_import_profile(
+    record: &mut configuration_store::ImportRecord,
+    id: &str,
+) -> Result<bool, String> {
+    record.validate()?;
+    if record.documents.remove(&format!("{id}.toml")).is_none() {
+        return Err("Profile is no longer part of this interrupted import.".into());
+    }
+    if record.documents.is_empty() {
+        return Ok(true);
+    }
+    record.validate()?;
+    Ok(false)
 }
 
 fn records(target: &Target) -> Result<RemovalSnapshot, String> {
@@ -227,7 +246,22 @@ impl RemovalBackend for ProtectedRemoval {
         }
         let path = data_directory()?.join(name);
         crate::security::verify(&path)?;
-        fs::remove_file(&path).map_err(|e| e.to_string())?;
+        if name == "configuration-import.json" {
+            let bytes =
+                record_bytes(&path)?.ok_or("Interrupted import disappeared before deletion")?;
+            if Revision::of(&bytes) != *expected {
+                return Err("Interrupted import changed before profile deletion.".into());
+            }
+            let mut record: configuration_store::ImportRecord =
+                serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+            if discard_import_profile(&mut record, &self.target.vm_id)? {
+                fs::remove_file(&path).map_err(|e| e.to_string())?;
+            } else {
+                atomic_json(&path, &record)?;
+            }
+        } else {
+            fs::remove_file(&path).map_err(|e| e.to_string())?;
+        }
         if recovery_revisions(&self.target)?[name] != Revision::Missing {
             return Err("Profile recovery removal was not established.".into());
         }
@@ -304,6 +338,76 @@ pub(super) fn resume_removal(mut pending: PendingPair) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn deleting_a_profile_from_an_interrupted_import_cannot_recreate_it_or_drop_other_profiles() {
+        let target = |last: char| Target {
+            vm_id: format!("12345678-1234-1234-1234-123456789ab{last}"),
+            gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#fixture\GPUPARAV".into(),
+            enabled: false,
+            vram: None,
+            compute: None,
+            encode: None,
+            decode: None,
+        };
+        let deleted = target('c');
+        let retained = target('d');
+        let documents = crate::model::Configuration {
+            schema: 3,
+            targets: vec![deleted.clone(), retained.clone()],
+        }
+        .vm_documents()
+        .unwrap()
+        .into_iter()
+        .map(|(name, source)| {
+            (
+                name,
+                configuration_store::ImportItem {
+                    source,
+                    published: false,
+                },
+            )
+        })
+        .collect();
+        let mut record = configuration_store::ImportRecord {
+            schema: 1,
+            operation_id: "original-import".into(),
+            source_revision: Revision::of(b"original batch"),
+            documents,
+        };
+        let before = record.clone();
+        let bytes = serde_json::to_vec(&record).unwrap();
+        assert!(belongs_to_profile(
+            &deleted.vm_id,
+            "configuration-import.json",
+            &bytes
+        ));
+        assert!(!discard_import_profile(&mut record, &deleted.vm_id).unwrap());
+        assert_eq!(record.operation_id, before.operation_id);
+        assert_eq!(record.source_revision, before.source_revision);
+        let retained_name = format!("{}.toml", retained.vm_id);
+        assert_eq!(
+            serde_json::to_value(&record.documents[&retained_name]).unwrap(),
+            serde_json::to_value(&before.documents[&retained_name]).unwrap()
+        );
+        assert!(
+            record
+                .validate_destination(&format!("{}.toml", deleted.vm_id), &Revision::Missing)
+                .is_err()
+        );
+        assert!(
+            record
+                .validate_destination(&retained_name, &Revision::Missing)
+                .is_ok()
+        );
+        assert!(!belongs_to_profile(
+            &deleted.vm_id,
+            "configuration-import.json",
+            &serde_json::to_vec(&record).unwrap()
+        ));
+        assert!(discard_import_profile(&mut record, &deleted.vm_id).is_err());
+        assert!(discard_import_profile(&mut record, &retained.vm_id).unwrap());
+    }
+
     #[test]
     fn profile_record_scope_rejects_other_vms_unknown_legacy_and_path_injection() {
         let id = "12345678-1234-1234-1234-123456789abc";

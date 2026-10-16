@@ -1555,7 +1555,7 @@ fn reconcile_live(
                     ).into());
                     ui.set_recovery_vm_id(recovery_vm_id.clone().into());
                     ui.set_recovery_heading(
-                        hyper_gpu_support::ui_text::operations::apply::review::vm_heading(
+                        hyper_gpu_support::ui_text::operations::action::review_prompt(
                             &result_vm_name,
                         )
                         .into_string()
@@ -1648,7 +1648,7 @@ fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
         record.initial.settings.automatic_checkpoints
     );
     let heading =
-        hyper_gpu_support::ui_text::operations::apply::review::vm_heading(&approved.observed.name);
+        hyper_gpu_support::ui_text::operations::action::review_prompt(&approved.observed.name);
     ui.set_needs_shutdown(approved.observed.power == hyper_gpu_support::model::Power::Running);
     ui.set_power_consent(
         "Selecting Remove partial GPU setup approves graceful shutdown of this VM and leaving it off.".into(),
@@ -2161,7 +2161,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                                 let name = state.view.vm(&record.target.vm_id).map_or(record.initial.name.as_str(), |vm| vm.name.as_str());
                                 if matches!(record.phase, hyper_gpu_support::configuration_store::SavePhase::Admitted) {
                                     dialog(&ui, "recovery", hyper_gpu_support::ui_text::operations::recovery::review::TITLE, hyper_gpu_support::ui_text::operations::recovery::admitted::BODY);
-                                    ui.set_recovery_heading(hyper_gpu_support::ui_text::operations::apply::review::vm_heading(name).into_string().into());
+                                    ui.set_recovery_heading(hyper_gpu_support::ui_text::operations::action::review_prompt(name).into_string().into());
                                 } else if !record.publication_required {
                                     let restored = state.recovery_without_guest(record)?;
                                     let body = wording::verification_recovery(record, name, restored);
@@ -2171,7 +2171,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                                     dialog(&ui, "recovery", hyper_gpu_support::ui_text::operations::apply::recovery::TITLE, &hyper_gpu_support::ui_text::operations::apply::recovery::body(name).into_string());
                                 } else {
                                     dialog(&ui, "recovery", hyper_gpu_support::ui_text::operations::recovery::review::TITLE, hyper_gpu_support::ui_text::operations::recovery::review::EXPLANATION);
-                                    ui.set_recovery_heading(hyper_gpu_support::ui_text::operations::apply::review::vm_heading(name).into_string().into());
+                                    ui.set_recovery_heading(hyper_gpu_support::ui_text::operations::action::review_prompt(name).into_string().into());
                                 }
                                 set_details(&ui, &format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\nReviewed final guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power, record.final_power()?));
                                 ui.set_recovery_vm_id(record.target.vm_id.clone().into());

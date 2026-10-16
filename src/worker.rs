@@ -957,6 +957,12 @@ fn execute(
                 })
             }
             Command::ImportResume { operation_id } => {
+                if runner::pending_pair()?.is_some() {
+                    return Err(
+                        "Finish the interrupted app-permission change before resuming import."
+                            .into(),
+                    );
+                }
                 if !runner::recovery_records()?.is_empty() {
                     return Err(
                         "GPU recovery must remain distinct from import reconciliation".into(),
