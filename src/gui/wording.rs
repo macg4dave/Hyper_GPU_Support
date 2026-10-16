@@ -63,7 +63,7 @@ pub(super) fn verification_recovery(
     let action = if restored {
         "Check recorded outcome independently confirms the recorded restoration before ending this failed check. It does not retry the guest check or report success. Changed facts retain recovery."
     } else {
-        "Check recorded outcome runs a new guest file, device and rendering check after fresh host checks. It requires guest credentials and separate power consent. This is a retry of verification, not GPU setup or driver repair."
+        "Check recorded outcome runs a new guest file, device and rendering check after fresh host checks. It requires guest credentials; selecting Check recorded outcome approves the reviewed power changes. This is a retry of verification, not GPU setup or driver repair."
     };
     format!(
         "{name}: GPU verification did not complete. The recovery hold blocks new changes on this host.\n\n{action}\n\nRecorded final power: {}. No saved GPU/VRAM settings or driver files are changed by this check. Previous successful checks remain historical. Close keeps the hold and performs no work.",

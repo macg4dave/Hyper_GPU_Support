@@ -1452,6 +1452,7 @@ fn reconcile_live(
     let finished_state = state.clone();
     let target = record.target.clone();
     let publication = record.publication_required;
+    let recovery_vm_id = target.vm_id.clone();
     let (vm_name, restored_candidate) = {
         let s = state.lock().map_err(|_| "Presentation state unavailable")?;
         let vm = s
@@ -1461,6 +1462,7 @@ fn reconcile_live(
         (vm.name.clone(), s.recovery_without_guest(&record)?)
     };
     let prompt_name = vm_name.clone();
+    let result_vm_name = vm_name.clone();
     background_operation(
         ui,
         state,
@@ -1548,9 +1550,17 @@ fn reconcile_live(
                     );
                     ui.set_dialog_kind("recovery-blocked".into());
                     ui.set_dialog_body(format!(
-                        "{}\nReview partial removal here. For an interrupted first setup or partial enable, Remove partial GPU setup can restore its recorded starting host configuration. If that review cannot establish safe removal, recovery stays blocked and its explanation names the unavailable facts.",
+                        "{}\nUse Retry status update to read the current facts. Delete profile instead reviews deletion of this VM's app settings, pairing, history and interrupted-operation records. It leaves the VM, GPU support and guest files unchanged.",
                         hyper_gpu_support::reporting::operator_error(hyper_gpu_support::ui_text::operations::recovery::FAILURE_STAGE, &error),
                     ).into());
+                    ui.set_recovery_vm_id(recovery_vm_id.clone().into());
+                    ui.set_recovery_heading(
+                        hyper_gpu_support::ui_text::operations::apply::review::vm_heading(
+                            &result_vm_name,
+                        )
+                        .into_string()
+                        .into(),
+                    );
                 }
             }
         },
@@ -1574,6 +1584,12 @@ fn partial_removal_candidate(
         );
     }
     let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
+    if matches!(
+        record.phase,
+        hyper_gpu_support::configuration_store::SavePhase::Admitted
+    ) {
+        return Err("This attempt stopped before VM/GPU changes. Use Check recorded outcome to confirm its unchanged starting state and end recovery.".into());
+    }
     let inventory = state
         .view
         .inventory
@@ -1622,8 +1638,7 @@ fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
         "Remove the partial attachment and its allocations. Restore the compatibility settings recorded before the interrupted change."
     };
     let body = format!(
-        "Virtual machine: {}\nVM GUID: {}\nGPU: {}\nGPU interface: {}\n\n{host_action} A running VM will be gracefully shut down with your separate consent and left off. No guest sign-in or driver installation is performed.\n\nKeep the saved settings, guest files and archived failure evidence. Invalidate old setup eligibility so a later setup performs fresh checks. After removal, review the next step here. A fresh enrollment may require deleting the inactive app profile first; deletion has its own review and confirmation.\n\nStarting compatibility settings to restore: low MMIO {} MB, high MMIO {} MB, cache types {}, automatic checkpoints {}. This does not complete the interrupted allocation or save its requested settings.",
-        approved.observed.name,
+        "VM GUID: {}\nGPU: {}\nGPU interface: {}\n\n{host_action} Selecting Remove partial GPU setup also approves graceful shutdown of a running VM and leaving it off. No guest sign-in or driver installation is performed.\n\nKeep the saved settings, guest files and archived failure evidence. Invalidate old setup eligibility so a later setup performs fresh checks. After removal, review the next step here. A fresh enrollment may require deleting the inactive app profile first; deletion has its own review and confirmation.\n\nStarting compatibility settings to restore: low MMIO {} MB, high MMIO {} MB, cache types {}, automatic checkpoints {}. This does not complete the interrupted allocation or save its requested settings.",
         record.target.vm_id,
         approved.gpu.name,
         record.target.gpu_interface,
@@ -1632,9 +1647,11 @@ fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
         record.initial.settings.cache_types,
         record.initial.settings.automatic_checkpoints
     );
+    let heading =
+        hyper_gpu_support::ui_text::operations::apply::review::vm_heading(&approved.observed.name);
     ui.set_needs_shutdown(approved.observed.power == hyper_gpu_support::model::Power::Running);
     ui.set_power_consent(
-        "I approve graceful shutdown of this recovery VM and leaving it off.".into(),
+        "Selecting Remove partial GPU setup approves graceful shutdown of this VM and leaving it off.".into(),
     );
     state.reset_review = Some((revision, approved));
     dialog(
@@ -1643,6 +1660,7 @@ fn review_reset(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
         hyper_gpu_support::ui_text::operations::partial_removal::review::TITLE,
         &body,
     );
+    ui.set_recovery_heading(heading.into_string().into());
     Ok(())
 }
 
@@ -1945,12 +1963,12 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
         }
         if ui.get_dialog_kind().is_empty() { ui.set_focus_return_action(action.clone()); }
         if action_busy.load(Ordering::Acquire)
-            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "remove-gpu" | "forget" | "confirm-forget" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "review-reset" | "confirm-reset" | "reconcile-enrollment" | "save-only" | "credentials" | "discard-review-forget")
+            && matches!(action.as_str(), "refresh" | "review" | "reapply" | "repair" | "remove-gpu" | "forget" | "confirm-forget" | "verify" | "confirm" | "confirm-enroll" | "confirm-verify" | "reconcile" | "review-reset" | "confirm-reset" | "reconcile-enrollment" | "save-only" | "credentials" | "discard-review-forget" | "forget-recovery-profile")
         {
 
             return;
         }
-        if matches!(action.as_str(), "verify" | "repair" | "remove-gpu" | "forget") {
+        if matches!(action.as_str(), "verify" | "repair" | "remove-gpu") {
             let message = action_state.lock()
                 .map_err(|_| "Live presentation state unavailable".to_owned())
                 .map(|state| state.action_recovery_message());
@@ -2002,6 +2020,17 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
             }
             #[cfg(windows)]
             "forget" => review_forget_live(&ui, &action_state, &action_busy),
+            #[cfg(windows)]
+            "forget-recovery-profile" if matches!(ui.get_dialog_kind().as_str(), "recovery" | "recovery-blocked") => {
+                let id = ui.get_recovery_vm_id().to_string();
+                if id.is_empty() { return; }
+                if !with_state(&ui, &action_state, |state| {
+                    state.select_vm(Some(id))?;
+                    present(&ui, state, false);
+                    Ok(())
+                }) { return; }
+                review_forget_live(&ui, &action_state, &action_busy)
+            }
             #[cfg(windows)]
             "confirm-forget" if ui.get_dialog_kind() == "forget-review" => forget_live(&ui, &action_state, &action_busy),
             "review" => review(&ui, &action_state, &action_busy, &action_source),
@@ -2116,7 +2145,7 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     }
                     if action == "recovery"
                         && let Some(record) = &state.recovery {
-                        ui.set_needs_shutdown(record.requires_graphics());
+                        ui.set_needs_shutdown(record.requires_graphics() && !state.recovery_without_guest(record)?);
                         ui.set_power_consent(wording::recovery_consent(&record.final_power()?).into());
                         match record.phase {
                             hyper_gpu_support::configuration_store::SavePhase::Verified(_) | hyper_gpu_support::configuration_store::SavePhase::Published(_) => {
@@ -2130,7 +2159,10 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                             }
                             hyper_gpu_support::configuration_store::SavePhase::Admitted | hyper_gpu_support::configuration_store::SavePhase::EffectsStarted => {
                                 let name = state.view.vm(&record.target.vm_id).map_or(record.initial.name.as_str(), |vm| vm.name.as_str());
-                                if !record.publication_required {
+                                if matches!(record.phase, hyper_gpu_support::configuration_store::SavePhase::Admitted) {
+                                    dialog(&ui, "recovery", hyper_gpu_support::ui_text::operations::recovery::review::TITLE, hyper_gpu_support::ui_text::operations::recovery::admitted::BODY);
+                                    ui.set_recovery_heading(hyper_gpu_support::ui_text::operations::apply::review::vm_heading(name).into_string().into());
+                                } else if !record.publication_required {
                                     let restored = state.recovery_without_guest(record)?;
                                     let body = wording::verification_recovery(record, name, restored);
                                     dialog(&ui, "recovery", hyper_gpu_support::ui_text::operations::verify::recovery::TITLE, &body);
@@ -2138,11 +2170,14 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                                 } else if !record.requires_graphics() {
                                     dialog(&ui, "recovery", hyper_gpu_support::ui_text::operations::apply::recovery::TITLE, &hyper_gpu_support::ui_text::operations::apply::recovery::body(name).into_string());
                                 } else {
-                                    dialog(&ui, "recovery", hyper_gpu_support::ui_text::operations::recovery::review::TITLE, &hyper_gpu_support::ui_text::operations::recovery::review::body(name).into_string());
+                                    dialog(&ui, "recovery", hyper_gpu_support::ui_text::operations::recovery::review::TITLE, hyper_gpu_support::ui_text::operations::recovery::review::EXPLANATION);
+                                    ui.set_recovery_heading(hyper_gpu_support::ui_text::operations::apply::review::vm_heading(name).into_string().into());
                                 }
                                 set_details(&ui, &format!("Operation: {}\nVM ID: {}\nGPU: {}\nOriginal guest power: {:?}\nReviewed final guest power: {:?}", record.operation_id, record.target.vm_id, record.target.gpu_interface, record.initial.power, record.final_power()?));
+                                ui.set_recovery_vm_id(record.target.vm_id.clone().into());
                             }
                         }
+                        ui.set_recovery_vm_id(record.target.vm_id.clone().into());
                         return Ok(());
                     }
                     state.view.inventory.as_ref().ok_or("Refresh inventory first.")?;

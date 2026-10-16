@@ -1,6 +1,73 @@
 //! VM-bound protected receipts with guarded, resumable legacy migration.
-use super::*;
+use super::{
+    pairing::pending_pair,
+    protocol::FRAME_LIMIT,
+    storage::{atomic_json, data_directory},
+};
 use crate::configuration_store::SaveRecord;
+use serde::{Deserialize, Serialize};
+use std::{
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+};
+
+/// Capture protected, VM/stage-bound terminal provider evidence for administrator review.
+pub fn review_native(job: &str) -> Result<serde_json::Value, String> {
+    crate::windows_wmi::recovery::review(job)
+}
+/// Approve only the previously captured provider retirement; workflow holds remain.
+pub fn reconcile_native(token: &crate::configuration_store::Revision) -> Result<(), String> {
+    crate::windows_wmi::recovery::reconcile(token)
+}
+
+pub(crate) fn recovery_path() -> Result<PathBuf, String> {
+    Ok(data_directory()?.join("operation-recovery.json"))
+}
+pub(crate) fn import_path() -> Result<PathBuf, String> {
+    Ok(data_directory()?.join("configuration-import.json"))
+}
+/// Read import recovery without accepting it as enrollment or changing any file.
+pub fn import_record() -> Result<Option<crate::configuration_store::ImportRecord>, String> {
+    let path = import_path()?;
+    match fs::symlink_metadata(&path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+        Ok(metadata) if !metadata.is_file() => {
+            return Err("import receipt is not a regular file".into());
+        }
+        Ok(_) => {}
+    }
+    crate::security::verify(&path)?;
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .map_err(|e| e.to_string())?
+        .take(FRAME_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() > FRAME_LIMIT {
+        return Err("import recovery input limit exceeded".into());
+    }
+    let record: crate::configuration_store::ImportRecord =
+        serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    record.validate()?;
+    Ok(Some(record))
+}
+
+pub(crate) fn require_no_recovery() -> Result<(), String> {
+    if pending_pair()?.is_some() {
+        return Err("interrupted enrollment requires explicit authority readback; GPU effects remain blocked".into());
+    }
+    if !recovery_records()?.is_empty() {
+        return Err("host-wide recovery hold is active; reconcile or retry saving only".into());
+    }
+    if import_record()?.is_some() {
+        return Err(
+            "interrupted configuration import requires explicit import reconciliation".into(),
+        );
+    }
+    Ok(())
+}
 
 const PREFIX: &str = "operation-recovery-";
 
@@ -58,7 +125,7 @@ pub(crate) fn read_recovery_at(path: &Path) -> Result<Option<SaveRecord>, String
     }
     let value: serde_json::Value = serde_json::from_slice(&bytes)
         .map_err(|e| format!("invalid protected recovery record: {e}"))?;
-    if path == super::recovery_path()? && value.get("schema").and_then(|v| v.as_u64()) == Some(2) {
+    if path == recovery_path()? && value.get("schema").and_then(|v| v.as_u64()) == Some(2) {
         let marker: ReceiptIndex = serde_json::from_value(value).map_err(|e| e.to_string())?;
         if !marker.per_vm {
             return Err("invalid VM recovery index".into());
@@ -103,7 +170,7 @@ pub fn recovery_records() -> Result<Vec<SaveRecord>, String> {
         Ok(_) => crate::security::verify(&root)?,
     }
     let mut records = Vec::new();
-    let legacy_record = read_recovery_at(&super::recovery_path()?)?;
+    let legacy_record = read_recovery_at(&recovery_path()?)?;
     if let Some(record) = &legacy_record {
         records.push(record.clone());
     }
@@ -155,7 +222,7 @@ fn same_record(a: &SaveRecord, b: &SaveRecord) -> Result<bool, String> {
 /// Under the common lock and admission audit, preserve a legacy hold before
 /// installing the barrier. No VM work starts until both writes/readback succeed.
 pub(crate) fn prepare_vm_recovery() -> Result<(), String> {
-    let legacy = super::recovery_path()?;
+    let legacy = recovery_path()?;
     let Some(record) = read_recovery_at(&legacy)? else {
         return Ok(());
     };
@@ -205,7 +272,7 @@ pub fn recovery_for_operation(id: &str) -> Result<Option<SaveRecord>, String> {
 }
 
 pub(crate) fn recovery_record_path(record: &SaveRecord) -> Result<PathBuf, String> {
-    let legacy = super::recovery_path()?;
+    let legacy = recovery_path()?;
     if read_recovery_at(&legacy)?.is_some_and(|r| {
         r.operation_id == record.operation_id && r.target.vm_id == record.target.vm_id
     }) {
@@ -223,7 +290,7 @@ pub(crate) fn write_recovery_at(path: &Path, record: &SaveRecord) -> Result<(), 
             .and_then(|n| n.to_str())
             .ok_or("invalid recovery filename")?,
     )?;
-    let legacy = super::recovery_path()?;
+    let legacy = recovery_path()?;
     if path != legacy && read_recovery_at(&legacy)?.is_none() {
         atomic_json(&legacy, &index())?;
     }
@@ -236,7 +303,7 @@ pub(crate) fn retire_recovery_at(path: &Path, operation: &str) -> Result<(), Str
     if recovery_record_path(&record)? != path {
         return Err("terminal recovery identity changed; retain all receipts".into());
     }
-    let legacy = super::recovery_path()?;
+    let legacy = recovery_path()?;
     retire_bound(
         &record,
         path,
@@ -308,7 +375,10 @@ pub(crate) fn require_no_vm_recovery(id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configuration_store::{Revision, SavePhase};
+    use crate::{
+        configuration_store::{Revision, SavePhase},
+        model::{Power, Settings, Target, VmState},
+    };
     use std::collections::BTreeMap;
 
     fn receipt(last: char) -> SaveRecord {

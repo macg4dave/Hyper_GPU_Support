@@ -37,6 +37,7 @@ export component OperationDialog inherits Rectangle {
     in property <string> kind;
     in property <string> title;
     in property <string> body;
+    in property <string> recovery-heading;
     in property <string> enrollment-heading;
     in property <string> enrollment-allocation;
     in property <string> details;
@@ -106,6 +107,11 @@ export component OperationDialog inherits Rectangle {
                         content-width: self.visible-width;
                         VerticalLayout { spacing: 14px; alignment: start; padding-right: 8px;
                             width: body-scroll.visible-width;
+                            if root.recovery-heading != "" : Label {
+                                text: root.recovery-heading; font-size: 18px; font-weight: 600;
+                                width: max(0px, body-scroll.visible-width - 8px);
+                                wrap: word-wrap; overflow: clip;
+                            }
                             if root.kind == "enroll-review" : Label {
                                 // One text block gives all three facts identical line spacing.
                                 text: root.enrollment-heading + "\n" + UiText.operations-enrollment-review-allocation-label + " " + root.enrollment-allocation;
@@ -171,7 +177,7 @@ export component OperationDialog inherits Rectangle {
                         vertical-stretch: 1;
                         text: root.details;
                     }
-                    if (root.kind == "review" || root.kind == "verify-review" || root.kind == "recovery" || root.kind == "reset-review") && root.needs-shutdown : CheckBox {
+                    if (root.kind == "review" || root.kind == "verify-review") && root.needs-shutdown : CheckBox {
                         text: UiText.dialogs-power-consent-label;
                         accessible-label: root.power-consent;
                         enabled: !root.running;
@@ -184,10 +190,6 @@ export component OperationDialog inherits Rectangle {
                         if root.action-recovery : Button { text: UiText.dialogs-recovery-review-label; enabled: !root.running && !root.updating; clicked => { root.action("recovery"); } }
                         if root.dirty && !root.action-recovery : Button { text: UiText.dialogs-apply-review-label; enabled: root.execution-ready && !root.updating; clicked => { root.action("review"); } }
                         if root.dirty : Button { text: UiText.dialogs-draft-discard-label; enabled: !root.running && !root.updating; clicked => { root.action("discard"); } }
-                    }
-                    if root.kind == "recovery" || root.kind == "recovery-blocked" : Hint {
-                        text: root.updating ? UiText.dialogs-partial-removal-checking : !root.reset-allowed ? root.reset-unavailable : UiText.dialogs-partial-removal-available;
-                        vertical-stretch: 0;
                     }
                     if root.kind == "reset-complete" : Hint {
                         text: root.updating ? UiText.dashboard-inventory-updating-notice : !root.forget-allowed && !root.dirty ? root.forget-unavailable : UiText.dialogs-enrollment-new-permission-hint;
@@ -227,9 +229,9 @@ export component OperationDialog inherits Rectangle {
                             if root.kind == "review" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: root.execution-ready ? UiText.dialogs-apply-label : UiText.dialogs-apply-unavailable-label; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm"); } }
                             if root.kind == "verify-review" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.operations-verify-title; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-verify"); } }
                             if root.kind == "save" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.operations-save-only-progress-title; primary: true; enabled: root.execution-ready; clicked => { root.action("save-only"); } }
-                            if root.kind == "recovery" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.operations-recovery-progress-title; primary: true; enabled: root.execution-ready && (!root.needs-shutdown || root.consent); clicked => { root.action("reconcile"); } }
-                            if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-partial-removal-review-label; enabled: root.execution-ready && !root.updating && root.reset-allowed; clicked => { root.action("review-reset"); } }
-                            if root.kind == "reset-review" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-partial-removal-confirm-label; primary: true; enabled: root.execution-ready && !root.updating && (!root.needs-shutdown || root.consent); clicked => { root.action("confirm-reset"); } }
+                            if root.kind == "recovery" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.operations-recovery-progress-title; primary: true; enabled: root.execution-ready && !root.updating; clicked => { root.action("reconcile"); } }
+                            if root.kind == "recovery" || root.kind == "recovery-blocked" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-profile-deletion-label; enabled: !root.running && !root.updating; clicked => { root.action("forget-recovery-profile"); } }
+                            if root.kind == "reset-review" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-partial-removal-confirm-label; primary: true; enabled: root.execution-ready && !root.updating; clicked => { root.action("confirm-reset"); } }
                             if root.kind == "recovery-needed" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-recovery-review-label; primary: true; enabled: !root.running; clicked => { root.action("recovery"); } }
                             if root.kind == "status-error" || root.kind == "recovery-blocked" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
                                 text: UiText.dialogs-status-retry-label; enabled: !root.updating;

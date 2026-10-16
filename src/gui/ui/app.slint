@@ -89,6 +89,8 @@ export component AppWindow inherits Window {
     in-out property <string> dialog-kind;
     in-out property <string> dialog-title;
     in-out property <string> dialog-body;
+    in-out property <string> recovery-heading;
+    in-out property <string> recovery-vm-id;
     in-out property <string> enrollment-heading;
     in-out property <string> enrollment-allocation;
     in-out property <string> dialog-details;
@@ -240,6 +242,7 @@ export component AppWindow inherits Window {
         details: root.dialog-details; stages: root.progress-steps; running: root.running;
         review-preparing: root.review-preparing;
         current-stage: root.current-stage; transfer-fraction: root.transfer-fraction;
+        recovery-heading: root.recovery-heading;
         needs-shutdown: root.needs-shutdown; power-consent: root.power-consent; action(a) => { root.action(a); }
     }
 }

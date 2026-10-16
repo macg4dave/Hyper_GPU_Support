@@ -1,10 +1,12 @@
 //! One restricted elevated instance of the product executable for an approved plan.
 //! Private process-bound IPC; fixed paths, exact enrollment and durable admission.
+pub mod runner;
+
 use crate::{
     configuration_store::{self, Revision, SavePhase, SaveRecord},
     credentials::Credential,
     model::{Allocation, Configuration, Gpu, Power, Resource, Settings, Target, VmState},
-    runner::{self, NativeBackend},
+    runner::NativeBackend,
     windows_pipe::{self, session::Pipe},
     workflow::{self, Backend, Journal, OperationResult, Plan},
 };
@@ -2198,6 +2200,7 @@ mod tests {
     fn forget_terminal_reply_requires_complete_bound_removal_without_gpu_effect_result() {
         let plan = ordinary_disabled_plan();
         let approved = crate::enrollment::RemovalReview {
+            recovery: Default::default(),
             pair: crate::enrollment::PairReview {
                 vm_id: plan.desired.vm_id.clone(),
                 gpu_interface: plan.desired.gpu_interface.clone(),

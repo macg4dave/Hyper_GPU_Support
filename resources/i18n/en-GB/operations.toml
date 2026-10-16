@@ -1257,7 +1257,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."operations.profile_deletion.review.body"]
-text = "Virtual machine: {vm_name}\nVM ID: {vm_id}\nGPU: {gpu_interface}\n\nDelete only this VM's app profile: its saved GPU settings, authorized VM/GPU pairing and managed setup/verification history. Keep all other app profiles, the Hyper-V VM, disks, checkpoints, guest driver files and shared application artifacts.\n\nThis action does not remove GPU support, change VM power, uninstall drivers or request guest credentials. The VM must be off; GPU support may remain attached.\n\nDelete profile confirms this review; Windows requests approval to remove the protected app records. Cancel keeps all records. The VM stays discoverable and a new reviewed setup is required to enable GPU support through this app again."
+text = "Virtual machine: {vm_name}\nVM ID: {vm_id}\nGPU: {gpu_interface}\n\nDelete this VM's app profile: its saved GPU settings, authorized VM/GPU pairing, managed setup history and interrupted-operation records. Recovery records for this profile are discarded even if an earlier operation did not finish. Pending edits for this profile are discarded too.\n\nKeep the Hyper-V VM, its current GPU support, disks, checkpoints and guest driver files. No VM power change, GPU detachment, driver removal or guest sign-in is performed. Other profiles are unchanged.\n\nDelete profile confirms this review; Windows requests approval to remove the protected app records. Cancel keeps the profile. The VM stays discoverable for a future reviewed setup."
 screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
 state = "Selected branch: operations.profile_deletion.review.body"
 audience = "operator"
@@ -1422,7 +1422,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."operations.recovery.power_consent"]
-text = "Approve reviewed power changes; expected final state if confirmed: {final_power}."
+text = "Selecting Check recorded outcome approves the reviewed power changes. Expected final state: {final_power}."
 screen = "recovery_consent presentation (src/gui/wording.rs)"
 state = "Selected branch: operations.recovery.power_consent"
 audience = "operator"
@@ -1980,4 +1980,26 @@ intent = "Present the selected UI label or explanation."
 consequences = "No effects; presentation only."
 severity = "neutral"
 space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."
+placeholders = []
+
+[messages."operations.recovery.admitted.body"]
+text = "This attempt stopped before any VM or GPU changes began. There is no partial GPU setup to remove.\n\nSelect Check recorded outcome to confirm that the VM still matches its recorded starting state and end this interrupted attempt. This check does not start the VM, request guest credentials or repeat GPU setup.\n\nIf the current facts no longer match, recovery stays blocked. Delete profile instead discards this VM's app settings, pairing, history and recovery records while leaving its GPU support in place. Close keeps the profile."
+screen = "Interrupted operation review (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.admitted.body"
+audience = "operator"
+intent = "Explain the available recovery action and its reviewed consequences."
+consequences = "Fresh worker checks remain mandatory; uncertain or changed facts retain recovery."
+severity = "information"
+space_hint = "Wrapped recovery explanation below the prominent VM heading."
+placeholders = []
+
+[messages."operations.recovery.review.explanation"]
+text = "Check whether the interrupted GPU change can be safely ended or its reviewed result confirmed. GPU setup will not be repeated.\n\nIf fresh checks confirm the original host state was restored, recovery can end without guest sign-in. This does not certify GPU setup or save the interrupted request.\n\nOtherwise, the check may temporarily start the VM and request its guest administrator credentials. The reviewed final power state is shown below when power changes are required. Changed or uncertain facts keep recovery blocked. Delete profile instead discards this VM's app settings, pairing, history and recovery records while leaving the VM and its GPU support unchanged."
+screen = "Interrupted operation review (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.review.explanation"
+audience = "operator"
+intent = "Explain the available recovery action and its reviewed consequences."
+consequences = "Fresh worker checks remain mandatory; uncertain or changed facts retain recovery."
+severity = "information"
+space_hint = "Wrapped recovery explanation below the prominent VM heading."
 placeholders = []

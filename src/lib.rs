@@ -22,7 +22,7 @@ pub mod probe;
 pub mod process;
 pub mod reporting;
 #[cfg(windows)]
-pub mod runner;
+pub use worker::runner;
 #[cfg(windows)]
 mod security;
 #[cfg(windows)]

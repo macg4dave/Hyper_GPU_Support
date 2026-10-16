@@ -12,6 +12,7 @@ fn pending() -> PendingPair {
         operator_sid: "S-1-5-21-1".into(),
     };
     let approved = RemovalReview {
+        recovery: Default::default(),
         pair: pair.clone(),
         configurations: BTreeMap::from([
             (VM.into(), Revision::of(b"disabled intent")),
@@ -27,6 +28,7 @@ fn pending() -> PendingPair {
         review: pair,
         resulting: Revision::of(b"retained policy"),
         removal: Some(RemovalState {
+            recovery_removed: Default::default(),
             approved,
             configuration_removed: false,
             journal_removed: false,
@@ -46,6 +48,7 @@ impl Fake {
         let state = pending.removal.as_ref().unwrap();
         Self {
             observed: RemovalSnapshot {
+                recovery: state.approved.recovery.clone(),
                 policy: pending.review.expected.clone(),
                 configurations: state.approved.configurations.clone(),
                 journals: state.approved.journals.clone(),
@@ -68,6 +71,7 @@ impl RemovalBackend for Fake {
     fn snapshot(&mut self) -> Result<RemovalSnapshot, String> {
         self.step()?;
         Ok(RemovalSnapshot {
+            recovery: self.observed.recovery.clone(),
             policy: self.observed.policy.clone(),
             configurations: self.observed.configurations.clone(),
             journals: self.observed.journals.clone(),
@@ -98,6 +102,19 @@ impl RemovalBackend for Fake {
         self.mutations.push("selected history");
         Ok(())
     }
+    fn remove_recovery(&mut self, name: &str, expected: &Revision) -> Result<(), String> {
+        self.step()?;
+        assert!(self.saved.is_some());
+        let actual = &self.observed.recovery[name];
+        assert!(actual == expected || *actual == Revision::Missing);
+        if *actual != Revision::Missing {
+            self.mutations.push("selected recovery");
+        }
+        self.observed
+            .recovery
+            .insert(name.into(), Revision::Missing);
+        Ok(())
+    }
     fn revoke(&mut self, review: &PairReview, resulting: &Revision) -> Result<(), String> {
         self.step()?;
         assert!(self.saved.is_some());
@@ -114,7 +131,7 @@ impl RemovalBackend for Fake {
 }
 
 #[test]
-fn profile_admission_allows_active_support_but_preserves_power_identity_and_recovery_checks() {
+fn profile_admission_allows_active_power_and_pending_history_but_preserves_identity_checks() {
     use crate::{
         model::{Power, Settings, VmState},
         workflow::Journal,
@@ -185,10 +202,86 @@ fn profile_admission_allows_active_support_but_preserves_power_identity_and_reco
             6 => history.vm_id = OTHER.into(),
             _ => current.vm_id = OTHER.into(),
         }
-        assert!(
-            validate_inactive_profile(&target, &current, Some(&history), Some(&saved)).is_err()
+        assert_eq!(
+            validate_inactive_profile(&target, &current, Some(&history), Some(&saved)).is_ok(),
+            change < 3,
         );
     }
+}
+
+#[test]
+fn explicit_profile_deletion_discards_only_bound_recovery_and_resumes_every_interruption() {
+    let original = pending();
+    let mut approved = original.clone();
+    approved.removal.as_mut().unwrap().approved.recovery = BTreeMap::from([
+        (
+            format!("operation-recovery-{VM}.json"),
+            Revision::of(b"unfinished operation"),
+        ),
+        (
+            format!("provider-operation-{VM}.json"),
+            Revision::of(b"provider receipt"),
+        ),
+    ]);
+    let mut reference = Fake::new(&approved);
+    publish_removal(&mut reference, &mut approved.clone()).unwrap();
+    for failure in 1..=reference.calls {
+        let mut progress = approved.clone();
+        let mut backend = Fake::new(&progress);
+        backend.fail = Some(failure);
+        assert!(publish_removal(&mut backend, &mut progress).is_err());
+        if let Some(saved) = &backend.saved {
+            progress = saved.clone();
+        }
+        backend.fail = None;
+        publish_removal(&mut backend, &mut progress).unwrap();
+        assert!(
+            backend
+                .observed
+                .recovery
+                .values()
+                .all(|value| *value == Revision::Missing)
+        );
+        assert_eq!(
+            backend.observed.configurations[OTHER],
+            original.removal.as_ref().unwrap().approved.configurations[OTHER]
+        );
+        assert_eq!(
+            backend.observed.journals[OTHER],
+            original.removal.as_ref().unwrap().approved.journals[OTHER]
+        );
+        assert_eq!(
+            backend
+                .mutations
+                .iter()
+                .filter(|m| **m == "selected recovery")
+                .count(),
+            2
+        );
+        assert_eq!(backend.observed.policy, approved.resulting);
+    }
+    for bad_name in [
+        "../enrollment.json".to_owned(),
+        format!("operation-recovery-{OTHER}.json"),
+    ] {
+        let mut bad = approved.clone();
+        bad.removal
+            .as_mut()
+            .unwrap()
+            .approved
+            .recovery
+            .insert(bad_name, Revision::of(b"foreign"));
+        let mut backend = Fake::new(&bad);
+        assert!(publish_removal(&mut backend, &mut bad).is_err());
+        assert!(backend.mutations.is_empty());
+    }
+    let mut changed = Fake::new(&approved);
+    changed.observed.recovery.insert(
+        format!("operation-recovery-{VM}.json"),
+        Revision::of(b"changed after review"),
+    );
+    assert!(publish_removal(&mut changed, &mut approved.clone()).is_err());
+    assert!(changed.mutations.is_empty());
 }
 
 #[test]

@@ -1,6 +1,18 @@
 //! Artifact replacement preserves authority and rebases pending policy receipts atomically.
-use super::*;
+use super::{
+    pairing::{pair_pending_path, pending_pair},
+    policy::{Enrollment, enrollment_revision, read_enrollment, verify_artifacts},
+    protocol::FRAME_LIMIT,
+    recovery::require_no_recovery,
+    storage::{atomic_json, data_directory},
+};
 use crate::enrollment::PendingPair;
+use crate::{
+    model::{Configuration, Target},
+    payload,
+};
+use serde::{Deserialize, Serialize};
+use std::{fs, io::Read, path::Path};
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -480,7 +492,9 @@ mod tests {
             review: review.clone(),
             resulting: enrollment_revision(&resulting).unwrap(),
             removal: Some(crate::enrollment::RemovalState {
+                recovery_removed: Default::default(),
                 approved: crate::enrollment::RemovalReview {
+                    recovery: Default::default(),
                     pair: review,
                     configurations: snapshot.clone(),
                     journals: snapshot.clone(),

@@ -281,6 +281,127 @@ fn permission_review_actions_stay_on_one_row_at_supported_sizes_in_both_themes()
 }
 
 #[test]
+fn recovery_review_has_prominent_identity_and_action_confirmation_without_a_power_checkbox() {
+    use hyper_gpu_support::ui_text::{dialogs, operations, settings};
+    use std::cell::RefCell;
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_execution_ready(true);
+    ui.set_reset_allowed(true);
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let captured = actions.clone();
+    ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(1240., 860.));
+    let heading = operations::apply::review::vm_heading(
+        "A long virtual machine name that wraps without hiding the recovery action",
+    )
+    .into_string();
+    for (theme, label) in [
+        ("light", settings::appearance::LIGHT),
+        ("dark", settings::appearance::DARK),
+    ] {
+        ui.set_dialog_kind("".into());
+        ui.set_page(2);
+        draw(&window);
+        control(&ui, label).accessible_action(&AccessibilityAction::Default);
+        ui.set_page(0);
+        for (width, height) in [(1240., 860.), (700., 520.)] {
+            window.set_size(LogicalSize::new(width, height));
+            for no_effects in [true, false] {
+                super::dialog(
+                    &ui,
+                    "recovery",
+                    operations::recovery::review::TITLE,
+                    if no_effects {
+                        operations::recovery::admitted::BODY
+                    } else {
+                        operations::recovery::review::EXPLANATION
+                    },
+                );
+                ui.set_recovery_heading(heading.clone().into());
+                ui.set_needs_shutdown(!no_effects);
+                ui.set_power_consent(
+                    super::wording::recovery_consent(&hyper_gpu_support::model::Power::Off).into(),
+                );
+                draw(&window);
+                let identity = control(&ui, &heading);
+                let confirm = control(&ui, operations::recovery::PROGRESS_TITLE);
+                assert!(identity.is_visible());
+                assert!(identity.geometry().width() > 0.);
+                assert!(
+                    identity.map_to_window(identity.geometry().origin).y
+                        < confirm.map_to_window(confirm.geometry().origin).y
+                );
+                actions.borrow_mut().clear();
+                confirm.accessible_action(&AccessibilityAction::Default);
+                assert_eq!(&*actions.borrow(), &["reconcile"]);
+                // Profile deletion is available even without a partial setup,
+                // and it has its own review rather than dispatching GPU removal.
+                control(&ui, dialogs::profile_deletion::LABEL)
+                    .accessible_action(&AccessibilityAction::Default);
+                assert_eq!(
+                    &*actions.borrow(),
+                    &["reconcile", "forget-recovery-profile"]
+                );
+                retain_render(&format!("recovery-{theme}-{width}x{height}-{no_effects}"));
+            }
+        }
+    }
+    for kind in ["recovery", "reset-review", "review", "verify-review"] {
+        super::dialog(
+            &ui,
+            kind,
+            "Reviewed operation",
+            "Review the required power changes.",
+        );
+        ui.set_needs_shutdown(true);
+        let label = match kind {
+            "recovery" => operations::recovery::PROGRESS_TITLE,
+            "reset-review" => dialogs::partial_removal::CONFIRM_LABEL,
+            "review" => dialogs::apply::LABEL,
+            _ => operations::verify::TITLE,
+        };
+        draw(&window);
+        actions.borrow_mut().clear();
+        control(&ui, label).accessible_action(&AccessibilityAction::Default);
+        assert_eq!(
+            actions.borrow().len(),
+            usize::from(matches!(kind, "recovery" | "reset-review"))
+        );
+    }
+    for (ready, updating) in [(false, false), (true, true)] {
+        ui.set_execution_ready(ready);
+        ui.set_updating(updating);
+        for (kind, label) in [
+            ("recovery", operations::recovery::PROGRESS_TITLE),
+            ("reset-review", dialogs::partial_removal::CONFIRM_LABEL),
+        ] {
+            super::dialog(
+                &ui,
+                kind,
+                "Reviewed operation",
+                "Required power changes are shown here.",
+            );
+            draw(&window);
+            actions.borrow_mut().clear();
+            control(&ui, label).accessible_action(&AccessibilityAction::Default);
+            assert!(actions.borrow().is_empty(), "unavailable action: {kind}");
+        }
+    }
+    super::dialog(
+        &ui,
+        "info",
+        "Finished",
+        "Recovery presentation must not leak into another dialog.",
+    );
+    assert!(ui.get_recovery_heading().is_empty());
+    ui.hide().unwrap();
+}
+
+#[test]
 fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions() {
     use hyper_gpu_support::ui_text::{diagnostics, dialogs};
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
@@ -332,7 +453,7 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
                 "recovery-blocked",
                 vec![
                     dialogs::close::LABEL,
-                    dialogs::partial_removal::REVIEW_LABEL,
+                    dialogs::profile_deletion::LABEL,
                     dialogs::status::RETRY_LABEL,
                 ],
             ),

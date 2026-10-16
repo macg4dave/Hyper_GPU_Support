@@ -4264,3 +4264,25 @@ intent = "Present the selected UI label or explanation."
 consequences = "No effects; presentation only."
 severity = "neutral"
 space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."
+
+[[messages]]
+key = "operations.recovery.admitted.body"
+[messages.metadata]
+screen = "Interrupted operation review (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.admitted.body"
+audience = "operator"
+intent = "Explain the available recovery action and its reviewed consequences."
+consequences = "Fresh worker checks remain mandatory; uncertain or changed facts retain recovery."
+severity = "information"
+space_hint = "Wrapped recovery explanation below the prominent VM heading."
+
+[[messages]]
+key = "operations.recovery.review.explanation"
+[messages.metadata]
+screen = "Interrupted operation review (src/gui/live.rs)"
+state = "Selected branch: operations.recovery.review.explanation"
+audience = "operator"
+intent = "Explain the available recovery action and its reviewed consequences."
+consequences = "Fresh worker checks remain mandatory; uncertain or changed facts retain recovery."
+severity = "information"
+space_hint = "Wrapped recovery explanation below the prominent VM heading."

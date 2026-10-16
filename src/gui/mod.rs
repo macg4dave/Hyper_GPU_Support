@@ -24,6 +24,8 @@ fn model<T: Clone + 'static>(rows: Vec<T>) -> ModelRc<T> {
     Rc::new(VecModel::from(rows)).into()
 }
 fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
+    ui.set_recovery_heading("".into());
+    ui.set_recovery_vm_id("".into());
     let reportable = ui.get_stage_reportable();
     let previous_stages: Vec<_> = ui
         .get_stages()

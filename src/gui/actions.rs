@@ -53,6 +53,7 @@ impl State {
             };
             (allowed, reason)
         };
+        let (forget_allowed, forget) = check(self.forget_target().map(|_| ()));
         let actions = || -> Result<SelectedActions, String> {
             common?;
             let id = self.view.selected.as_deref().ok_or("Select a VM first.")?;
@@ -90,7 +91,6 @@ impl State {
             } else {
                 Err(pairing.into())
             });
-            let (forget_allowed, forget) = check(self.forget_target().map(|_| ()));
             Ok(SelectedActions {
                 verify_allowed,
                 repair_allowed,
@@ -99,7 +99,7 @@ impl State {
                 verify,
                 repair,
                 remove,
-                forget,
+                forget: forget.clone(),
                 recovery,
             })
         };
@@ -107,11 +107,11 @@ impl State {
             verify_allowed: false,
             repair_allowed: false,
             remove_allowed: false,
-            forget_allowed: false,
+            forget_allowed,
             verify: reason.clone(),
             repair: reason.clone(),
             remove: reason.clone(),
-            forget: reason,
+            forget,
             recovery,
         })
     }

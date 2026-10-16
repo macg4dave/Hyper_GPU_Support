@@ -124,9 +124,12 @@ pub struct RemovalReview {
     pub configurations: std::collections::BTreeMap<String, Revision>,
     /// Complete GUID-keyed managed history revisions, including selected absence.
     pub journals: std::collections::BTreeMap<String, Revision>,
+    /// Exact per-profile interrupted-operation files explicitly discarded by deletion.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub recovery: std::collections::BTreeMap<String, Revision>,
 }
 
-/// Record-only deletion permits active support but retains identity, power and recovery checks.
+/// Record-only deletion checks profile identity independently of VM power or setup state.
 pub fn validate_inactive_profile(
     target: &Target,
     vm: &crate::model::VmState,
@@ -135,19 +138,14 @@ pub fn validate_inactive_profile(
 ) -> Result<(), String> {
     target.validate()?;
     if vm.vm_id != target.vm_id
-        || vm.generation != 2
-        || vm.power != crate::model::Power::Off
         || saved.is_some_and(|s| s.vm_id != target.vm_id || s.gpu_interface != target.gpu_interface)
     {
-        return Err("Leave this exact VM off before deleting its app profile.".into());
+        return Err("Selected VM/profile identities differ; Refresh before deletion.".into());
     }
     if journal.is_some_and(|j| {
-        j.schema != 1
-            || j.pending
-            || j.vm_id != target.vm_id
-            || j.gpu_interface != target.gpu_interface
+        j.schema != 1 || j.vm_id != target.vm_id || j.gpu_interface != target.gpu_interface
     }) {
-        return Err("Resolve managed recovery before deleting profile history.".into());
+        return Err("Managed profile identity differs; Refresh before deletion.".into());
     }
     Ok(())
 }
@@ -162,6 +160,9 @@ pub struct RemovalState {
     pub configuration_removed: bool,
     /// Managed history absence has been independently established.
     pub journal_removed: bool,
+    /// Independently confirmed absences; interruption never permits deleting changed files.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    pub recovery_removed: std::collections::BTreeSet<String>,
 }
 
 /// Independent readback at every removal boundary; no guest facts are inferred.
@@ -170,6 +171,7 @@ pub(crate) struct RemovalSnapshot {
     pub policy: Revision,
     pub configurations: std::collections::BTreeMap<String, Revision>,
     pub journals: std::collections::BTreeMap<String, Revision>,
+    pub recovery: std::collections::BTreeMap<String, Revision>,
 }
 
 #[cfg(any(windows, test))]
@@ -184,7 +186,9 @@ impl RemovalState {
         if self.approved.pair != pending.review
             || (observed.policy != pending.review.expected && observed.policy != pending.resulting)
             || (observed.policy == pending.resulting
-                && (!self.configuration_removed || !self.journal_removed))
+                && (!self.configuration_removed
+                    || !self.journal_removed
+                    || self.recovery_removed.len() != self.approved.recovery.len()))
         {
             return Err("Removal authority/progress changed; retain recovery.".into());
         }
@@ -219,6 +223,28 @@ impl RemovalState {
                 }
             }
         }
+        let names = profile_recovery_names(id);
+        if self
+            .approved
+            .recovery
+            .keys()
+            .any(|name| !names.contains(name))
+            || self.approved.recovery.keys().ne(observed.recovery.keys())
+            || self
+                .recovery_removed
+                .iter()
+                .any(|name| !self.approved.recovery.contains_key(name))
+        {
+            return Err("Profile recovery scope changed; review deletion again.".into());
+        }
+        for (name, revision) in &self.approved.recovery {
+            let actual = &observed.recovery[name];
+            if (self.recovery_removed.contains(name) || actual != revision)
+                && *actual != Revision::Missing
+            {
+                return Err("Profile recovery changed; review deletion again.".into());
+            }
+        }
         Ok(())
     }
 }
@@ -230,6 +256,7 @@ pub(crate) trait RemovalBackend {
     fn hold(&mut self, pending: &PendingPair) -> Result<(), String>;
     fn remove_configuration(&mut self, expected: &Revision) -> Result<(), String>;
     fn remove_journal(&mut self, expected: &Revision) -> Result<(), String>;
+    fn remove_recovery(&mut self, name: &str, expected: &Revision) -> Result<(), String>;
     fn revoke(&mut self, review: &PairReview, resulting: &Revision) -> Result<(), String>;
 }
 
@@ -269,6 +296,23 @@ pub(crate) fn publish_removal(
         pending.removal = Some(state.clone());
         backend.hold(pending)?;
     }
+    for (name, expected) in state.approved.recovery.clone() {
+        if state.recovery_removed.contains(&name) {
+            continue;
+        }
+        state.validate(pending, &backend.snapshot()?)?;
+        backend.remove_recovery(&name, &expected)?;
+        let observed = backend.snapshot()?;
+        state.validate(pending, &observed)?;
+        if observed.recovery[&name] != Revision::Missing {
+            return Err(
+                "Profile recovery deletion not established; retain deletion progress.".into(),
+            );
+        }
+        state.recovery_removed.insert(name);
+        pending.removal = Some(state.clone());
+        backend.hold(pending)?;
+    }
     state.validate(pending, &backend.snapshot()?)?;
     backend.revoke(&pending.review, &pending.resulting)?;
     let observed = backend.snapshot()?;
@@ -277,6 +321,20 @@ pub(crate) fn publish_removal(
         return Err("Pair removal readback failed; retain recovery.".into());
     }
     Ok(())
+}
+
+/// Fixed leaf names only. Legacy singleton files require an additional exact VM binding.
+#[cfg(any(windows, test))]
+pub(crate) fn profile_recovery_names(id: &str) -> [String; 7] {
+    [
+        format!("operation-recovery-{id}.json"),
+        format!("provider-operation-{id}.json"),
+        format!("operation-recovery-{id}.partial"),
+        format!("provider-operation-{id}.partial"),
+        format!("{id}.partial"),
+        "operation-recovery.json".into(),
+        "provider-operation.json".into(),
+    ]
 }
 
 impl PendingPair {

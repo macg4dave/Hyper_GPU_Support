@@ -86,8 +86,11 @@ impl State {
         use hyper_gpu_support::configuration_store::SavePhase;
         if matches!(
             record.phase,
-            SavePhase::Verified(_) | SavePhase::Published(_)
+            SavePhase::Admitted | SavePhase::Verified(_) | SavePhase::Published(_)
         ) {
+            // Admitted proves no guest/Hyper-V effect was dispatched. The worker
+            // still requires fresh, unchanged starting facts before ending it;
+            // stale presentation must never cause an unnecessary guest sign-in.
             return Ok(true);
         }
         if self.view.needs_readback {
@@ -747,22 +750,6 @@ impl State {
     /// Profile deletion changes app records only, including when GPU support remains active.
     pub fn forget_target(&self) -> Result<Target, String> {
         let id = self.view.selected.as_deref().ok_or("Select a VM first.")?;
-        if self.view.draft.is_some() || self.view.unsaved || self.view.needs_readback {
-            return Err(
-                "Discard or complete pending edits and Refresh before Delete profile.".into(),
-            );
-        }
-        if self.recovery_for_vm(id).is_some()
-            || self.import_recovery.is_some()
-            || self.enrollment_recovery.is_some()
-            || self.authority_conflict.is_some()
-            || self.committed_conflict.is_some()
-            || !self.committed.errors.is_empty()
-        {
-            return Err(
-                "Resolve recovery or conflicting/unreadable records before Delete profile.".into(),
-            );
-        }
         let inventory = self.view.inventory.as_ref().ok_or("Refresh first.")?;
         let mut target = inventory
             .enrolled
@@ -770,20 +757,9 @@ impl State {
             .find(|t| t.vm_id == id)
             .cloned()
             .ok_or("This VM has no authorized pairing; Refresh for current state.")?;
-        let vm = self.view.vm(id).ok_or("VM unavailable; Refresh first.")?;
-        if inventory.recorded_state(id).recovery_required || !inventory.managed.contains_key(id) {
-            return Err(
-                "Resolve recovery and Refresh managed history before Delete profile.".into(),
-            );
-        }
         target.enabled = false;
         target.clear_allocations();
-        hyper_gpu_support::enrollment::validate_inactive_profile(
-            &target,
-            vm,
-            inventory.managed.get(id).and_then(Option::as_ref),
-            self.committed.documents.get(id).map(|d| &d.target),
-        ).map_err(|error| format!("Delete profile changes app records only and cannot remove GPU support or change VM power. {error}"))?;
+        target.validate()?;
         Ok(target)
     }
 
@@ -802,6 +778,32 @@ impl State {
             .targets
             .retain(|target| target.vm_id != id);
         self.committed.documents.remove(id);
+        self.committed.errors.remove(&format!("{id}.toml"));
+        self.recoveries.retain(|record| record.target.vm_id != id);
+        if self
+            .recovery
+            .as_ref()
+            .is_some_and(|record| record.target.vm_id == id)
+        {
+            self.recovery = None;
+        }
+        if self
+            .view
+            .draft
+            .as_ref()
+            .is_some_and(|target| target.vm_id == id)
+        {
+            self.view.draft = None;
+        }
+        if self
+            .view
+            .verified_unsaved
+            .as_ref()
+            .is_some_and(|target| target.vm_id == id)
+        {
+            self.view.verified_unsaved = None;
+            self.view.unsaved = false;
+        }
         if let Some(inventory) = &mut self.view.inventory {
             inventory.enrolled.retain(|target| target.vm_id != id);
             inventory.managed.remove(id);
@@ -823,7 +825,11 @@ impl State {
         revisions
             .entry(target.vm_id.clone())
             .or_insert(hyper_gpu_support::configuration_store::Revision::Missing);
-        if review.pair.target()? != target || review.configurations != revisions {
+        if review.pair.target()? != target
+            || (!self.view.needs_readback
+                && self.committed.errors.is_empty()
+                && review.configurations != revisions)
+        {
             return Err(
                 "Selection, saved profiles or pairing changed; review Delete profile again.".into(),
             );
@@ -2325,6 +2331,27 @@ mod tests {
     }
 
     #[test]
+    fn admitted_recovery_needs_no_guest_sign_in_even_when_presentation_is_stale() {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        let mut s = state();
+        let mut record = save_record(&s);
+        record.phase = SavePhase::Admitted;
+        record.graphics_required = Some(true);
+        record.initial_journal = None;
+        s.recovery = Some(record.clone());
+        let retained = serde_json::to_value(&s.recovery).unwrap();
+        assert!(s.recovery_without_guest(&record).unwrap());
+        s.view.needs_readback = true;
+        s.view.inventory = None;
+        assert!(s.recovery_without_guest(&record).unwrap());
+        assert_eq!(serde_json::to_value(&s.recovery).unwrap(), retained);
+        // Once effects started, stale facts cannot promise a record-only exit.
+        record.phase = SavePhase::EffectsStarted;
+        assert!(!s.recovery_without_guest(&record).unwrap());
+        assert_eq!(serde_json::to_value(&s.recovery).unwrap(), retained);
+    }
+
+    #[test]
     fn verification_recovery_requires_restoration_proof_and_rejects_changed_facts() {
         use hyper_gpu_support::{
             configuration_store::SavePhase,
@@ -3089,6 +3116,7 @@ mod tests {
         s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus =
             vec![target.gpu_interface.clone()];
         let review = RemovalReview {
+            recovery: Default::default(),
             pair: PairReview {
                 vm_id: vm_id.clone(),
                 gpu_interface: target.gpu_interface.clone(),
@@ -3207,7 +3235,10 @@ mod tests {
             serde_json::to_value(s.view.vm(&selected.vm_id).unwrap()).unwrap(),
             serde_json::to_value(&vm_before).unwrap()
         );
-        assert!(s.forget_target().is_err());
+        assert!(
+            s.forget_target().is_ok(),
+            "a new read-only review remains reachable; the worker binds any interrupted deletion"
+        );
         assert!(
             s.selected_actions(0, &allocation_values(&selected))
                 .recovery
@@ -3238,7 +3269,7 @@ mod tests {
     }
 
     #[test]
-    fn forget_pairing_refuses_unstable_power_unknown_recovery_or_absent_authority() {
+    fn profile_deletion_review_remains_available_during_power_changes_and_recovery() {
         for scenario in 0..6 {
             let mut s = state();
             let vm_id = id(&s).to_owned();
@@ -3260,7 +3291,12 @@ mod tests {
                 4 => s.view.inventory.as_mut().unwrap().enrolled.clear(),
                 _ => s.view.needs_readback = true,
             }
-            assert!(s.forget_target().is_err());
+            assert_eq!(s.forget_target().is_ok(), scenario != 4);
+            assert_eq!(
+                s.selected_actions(0, &allocation_values(&s.target(&vm_id).unwrap()))
+                    .forget_allowed,
+                scenario != 4
+            );
             assert!(s.removal_review.is_none());
         }
     }
