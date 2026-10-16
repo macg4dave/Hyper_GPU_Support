@@ -7,7 +7,7 @@ This page owns component and data-flow boundaries. The [roadmap](roadmap.md) and
 | Layer | Responsibility | Source |
 | --- | --- | --- |
 | Frontend dispatch | Select the live GUI for argument-free startup, CLI for explicit commands, or fixed internal modes; retired simulation entrypoints removed under APP-001 | [main](../src/main.rs) |
-| Slint presentation | Dashboard and VM details; top-right Settings gear with System Information and About subpages; dialogs and resource controls | [UI root](../src/gui/ui/app.slint), [GUI host](../src/gui/mod.rs) |
+| Slint presentation | VM view without a navigation sidebar; top-right Settings gear toggles back to the VM view; fixed Settings footer places System Information/About on the left and Close on the right; dialogs and resource controls | [UI root](../src/gui/ui/app.slint), [GUI host](../src/gui/mod.rs) |
 | Live lifecycle/state | Startup, polling lifetime, shutdown and shared draft/review state | [live](../src/gui/live/mod.rs), [live state](../src/gui/live_state/mod.rs), [GUI model](../src/gui_model.rs) |
 | Live callbacks | Selection/allocation editing and action/dialog dispatch | [editor](../src/gui/live/editor.rs), [actions](../src/gui/live/actions.rs) |
 | Live task/readback coordination | Foreground admission, event-loop completions, state access and inventory/result publication | [background](../src/gui/live/background.rs), [state access](../src/gui/live/state_access.rs), [refresh](../src/gui/live/refresh.rs) |

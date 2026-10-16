@@ -26,7 +26,7 @@ export component AppWindow inherits Window {
     changed dialog-kind => {
         if root.dialog-kind == "" && !root.startup-loading {
             root.focus-return-serial += 1;
-            if root.page != 0 || root.selected-id == "" { dashboard.focus(); }
+            if root.page != 0 || root.selected-id == "" { settings.focus(); }
         }
     }
     in property <bool> gpu-problem: false;
@@ -104,7 +104,7 @@ export component AppWindow inherits Window {
     in-out property <bool> needs-shutdown: false;
     in-out property <string> power-consent;
     private property <bool> modal-active: root.dialog-kind != "" || root.running;
-    changed startup-loading => { if !root.startup-loading { dashboard.focus(); } }
+    changed startup-loading => { if !root.startup-loading { settings.focus(); } }
     changed modal-active => { Theme.modal-active = root.modal-active; }
     private property <length> split: 310px;
     callback select-vm(string);
@@ -130,20 +130,12 @@ export component AppWindow inherits Window {
                     accessible-label: UiText.dashboard-navigation-settings;
                     enabled: !Theme.modal-active;
                     primary: root.page != 0;
-                    clicked => { if self.enabled { root.page = 2; } }
+                    clicked => { if self.enabled { root.page = root.page == 0 ? 2 : 0; } }
                 }
             }
         }
         HorizontalLayout {
             spacing: 0px;
-            Rectangle {
-                width: 184px; background: Theme.navigation;
-                VerticalLayout { padding: 14px; padding-top: 20px; spacing: 10px;
-                    dashboard := Button { enabled: !Theme.modal-active; text: UiText.dashboard-navigation-dashboard; primary: root.page == 0; clicked => { root.page = 0; } }
-                    Rectangle { vertical-stretch: 1; }
-                }
-            }
-            Rectangle { width: 1px; background: Theme.line; }
             VerticalLayout {
                 spacing: 0px;
                 if root.page == 0 : dashboard-scroll := ScrollView {

@@ -63,7 +63,7 @@ fn retain_render(name: &str) {
 
 #[test]
 fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
-    use hyper_gpu_support::ui_text::{dashboard::navigation, settings};
+    use hyper_gpu_support::ui_text::{dashboard::navigation, dialogs, settings};
     use std::cell::RefCell;
 
     fn buttons(ui: &AppWindow, label: &str) -> Vec<ItemRc> {
@@ -105,6 +105,7 @@ fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
         window.set_size(LogicalSize::new(width, height));
         ui.set_page(0);
         draw(&window);
+        assert!(buttons(&ui, navigation::DASHBOARD).is_empty());
         assert!(buttons(&ui, navigation::SYSTEM).is_empty());
         assert!(buttons(&ui, navigation::ABOUT).is_empty());
         let gear = button(&ui, navigation::SETTINGS);
@@ -116,28 +117,45 @@ fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
         assert_eq!(ui.get_page(), 2);
         draw(&window);
         retain_render(&format!("settings-{width}"));
+        gear.accessible_action(&AccessibilityAction::Default);
+        assert_eq!(ui.get_page(), 0, "gear closes Settings");
+        gear.accessible_action(&AccessibilityAction::Default);
+        assert_eq!(ui.get_page(), 2);
+        draw(&window);
 
         for (label, page) in [(navigation::SYSTEM, 1), (navigation::ABOUT, 3)] {
             let link = button(&ui, label);
             let origin = link.map_to_window(link.geometry().origin);
             assert!(link.is_visible());
-            assert!(origin.x >= 184. && origin.x + link.geometry().width() <= width);
-            assert!(origin.y >= 64. && origin.y + link.geometry().height() <= height);
+            assert!(origin.x >= 28. && origin.x < width / 2.);
+            assert!(origin.y > height - 110. && origin.y + link.geometry().height() < height - 30.);
+            let close = button(&ui, dialogs::close::LABEL);
+            let close_origin = close.map_to_window(close.geometry().origin);
+            assert!(close_origin.x > width / 2.);
+            assert!((close_origin.x + close.geometry().width() - (width - 28.)).abs() < 1.);
+            assert!((close_origin.y - origin.y).abs() < 1., "one footer row");
             // Even direct assistive activation must respect a modal operation.
             ui.set_dialog_kind("more".into());
+            // Deliver Slint's deferred modal-state change before the next input,
+            // as the real event loop does between user interactions.
+            slint::platform::update_timers_and_animations();
             link.accessible_action(&AccessibilityAction::Default);
+            close.accessible_action(&AccessibilityAction::Default);
             assert_eq!(ui.get_page(), 2);
             ui.set_dialog_kind("".into());
+            slint::platform::update_timers_and_animations();
             link.accessible_action(&AccessibilityAction::Default);
             assert_eq!(ui.get_page(), page);
             draw(&window);
             retain_render(&format!("settings-{page}-{width}"));
             let back = button(&ui, settings::navigation::BACK);
             ui.set_dialog_kind("more".into());
+            slint::platform::update_timers_and_animations();
             back.accessible_action(&AccessibilityAction::Default);
             button(&ui, navigation::SETTINGS).accessible_action(&AccessibilityAction::Default);
             assert_eq!(ui.get_page(), page);
             ui.set_dialog_kind("".into());
+            slint::platform::update_timers_and_animations();
             if page == 3 {
                 button(&ui, settings::help::OPEN_LABEL)
                     .accessible_action(&AccessibilityAction::Default);
@@ -147,8 +165,14 @@ fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
             back.accessible_action(&AccessibilityAction::Default);
             assert_eq!(ui.get_page(), 2);
             draw(&window);
+            button(&ui, label).accessible_action(&AccessibilityAction::Default);
+            assert_eq!(ui.get_page(), page);
+            gear.accessible_action(&AccessibilityAction::Default);
+            assert_eq!(ui.get_page(), 0, "gear also closes subpages");
+            gear.accessible_action(&AccessibilityAction::Default);
+            draw(&window);
         }
-        button(&ui, navigation::DASHBOARD).accessible_action(&AccessibilityAction::Default);
+        button(&ui, dialogs::close::LABEL).accessible_action(&AccessibilityAction::Default);
         assert_eq!(ui.get_page(), 0);
         assert_eq!(ui.get_selected_id(), "12345678-1234-1234-1234-123456789abc");
         assert!(ui.get_dirty());

@@ -11,67 +11,77 @@ export component Pages inherits Rectangle {
     in-out property <int> theme-index: 0;
     callback action(string);
     background: Theme.canvas;
-    ScrollView {
-        horizontal-scrollbar-policy: always-off;
-        VerticalLayout {
-            padding: 28px; spacing: 18px;
-            if root.page != 2 : HorizontalLayout {
-                Button {
-                    enabled: !Theme.modal-active;
-                    text: UiText.settings-navigation-back;
-                    clicked => { if self.enabled { root.page = 2; } }
-                }
-                Rectangle { horizontal-stretch: 1; }
-            }
-            Heading { text: root.page == 2 ? UiText.settings-title : root.page == 1 ? UiText.system-title : UiText.settings-about-title; }
-            Hint { text: root.page == 2 ? UiText.settings-preferences-notice : root.page == 1 ? UiText.system-subtitle : UiText.settings-about-subtitle; }
-            if root.page == 1 : VerticalLayout {
-                spacing: 18px;
-                for gpu in root.gpu-information : Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: gpu.name; font-weight: 600; } Hint { text: gpu.description; } } }
-            }
-
-            if root.page == 2 : VerticalLayout {
-                spacing: 18px;
-                HorizontalLayout {
-                    spacing: 10px;
+    VerticalLayout {
+        spacing: 0px;
+        ScrollView {
+            vertical-stretch: 1;
+            horizontal-scrollbar-policy: always-off;
+            VerticalLayout {
+                padding: 28px; spacing: 18px;
+                if root.page != 2 : HorizontalLayout {
                     Button {
                         enabled: !Theme.modal-active;
-                        text: UiText.dashboard-navigation-system;
-                        clicked => { if self.enabled { root.page = 1; } }
-                    }
-                    Button {
-                        enabled: !Theme.modal-active;
-                        text: UiText.dashboard-navigation-about;
-                        clicked => { if self.enabled { root.page = 3; } }
+                        text: UiText.settings-navigation-back;
+                        clicked => { if self.enabled { root.page = 2; } }
                     }
                     Rectangle { horizontal-stretch: 1; }
                 }
-                Surface { VerticalLayout { padding: 22px; spacing: 12px;
-                    Label { text: UiText.settings-appearance-title; font-weight: 600; }
-                    Hint { text: UiText.settings-appearance-theme-label; }
-                    HorizontalLayout { spacing: 10px;
-                        Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-follow-windows; primary: root.theme-index == 0; clicked => { root.theme-index = 0; Palette.color-scheme = ColorScheme.unknown; } }
-                        Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-light; primary: root.theme-index == 1; clicked => { root.theme-index = 1; Palette.color-scheme = ColorScheme.light; } }
-                        Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-dark; primary: root.theme-index == 2; clicked => { root.theme-index = 2; Palette.color-scheme = ColorScheme.dark; } }
-                    }
-                    CheckBox { enabled: !Theme.modal-active; text: UiText.settings-appearance-help-label; checked <=> Theme.show-help; }
-                    Hint { text: UiText.settings-appearance-palette-hint; }
-                } }
+                Heading { text: root.page == 2 ? UiText.settings-title : root.page == 1 ? UiText.system-title : UiText.settings-about-title; }
+                Hint { text: root.page == 2 ? UiText.settings-preferences-notice : root.page == 1 ? UiText.system-subtitle : UiText.settings-about-subtitle; }
+                if root.page == 1 : VerticalLayout {
+                    spacing: 18px;
+                    for gpu in root.gpu-information : Surface { VerticalLayout { padding: 22px; spacing: 10px; Label { text: gpu.name; font-weight: 600; } Hint { text: gpu.description; } } }
+                }
+
+                if root.page == 2 : VerticalLayout {
+                    spacing: 18px;
+                    Surface { VerticalLayout { padding: 22px; spacing: 12px;
+                        Label { text: UiText.settings-appearance-title; font-weight: 600; }
+                        Hint { text: UiText.settings-appearance-theme-label; }
+                        HorizontalLayout { spacing: 10px;
+                            Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-follow-windows; primary: root.theme-index == 0; clicked => { root.theme-index = 0; Palette.color-scheme = ColorScheme.unknown; } }
+                            Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-light; primary: root.theme-index == 1; clicked => { root.theme-index = 1; Palette.color-scheme = ColorScheme.light; } }
+                            Button { enabled: !Theme.modal-active; text: UiText.settings-appearance-dark; primary: root.theme-index == 2; clicked => { root.theme-index = 2; Palette.color-scheme = ColorScheme.dark; } }
+                        }
+                        CheckBox { enabled: !Theme.modal-active; text: UiText.settings-appearance-help-label; checked <=> Theme.show-help; }
+                        Hint { text: UiText.settings-appearance-palette-hint; }
+                    } }
+                }
+                if root.page == 3 : VerticalLayout {
+                    spacing: 18px;
+                    Surface { VerticalLayout { padding: 24px; spacing: 14px;
+                        Heading { text: UiText.common-branding-title; }
+                        Label { text: UiText.settings-branding-version; }
+                        Hint { text: UiText.settings-about-body; }
+                        Hint { text: UiText.settings-about-cli-hint; }
+                        Label { text: UiText.settings-about-scope-heading; font-weight: 600; }
+                        Hint { text: UiText.settings-about-qualification-hint; }
+                        Button { enabled: !Theme.modal-active; text: UiText.settings-help-open-label; clicked => { root.action("shortcuts"); } }
+                    } }
+                }
+                Rectangle { min-height: 12px; vertical-stretch: 1; }
             }
-            if root.page == 3 : VerticalLayout {
-                spacing: 18px;
-                Surface { VerticalLayout { padding: 24px; spacing: 14px;
-                    Heading { text: UiText.common-branding-title; }
-                    Label { text: UiText.settings-branding-version; }
-                    Hint { text: UiText.settings-about-body; }
-                    Hint { text: UiText.settings-about-cli-hint; }
-                    Label { text: UiText.settings-about-scope-heading; font-weight: 600; }
-                    Hint { text: UiText.settings-about-qualification-hint; }
-                    Button { enabled: !Theme.modal-active; text: UiText.settings-help-open-label; clicked => { root.action("shortcuts"); } }
-                } }
+        }
+        HorizontalLayout {
+            padding: 20px; padding-left: 28px; padding-right: 28px; spacing: 10px;
+            Button {
+                enabled: !Theme.modal-active;
+                text: UiText.dashboard-navigation-system;
+                primary: root.page == 1;
+                clicked => { if self.enabled { root.page = 1; } }
             }
-            Rectangle { min-height: 12px; vertical-stretch: 1; }
+            Button {
+                enabled: !Theme.modal-active;
+                text: UiText.dashboard-navigation-about;
+                primary: root.page == 3;
+                clicked => { if self.enabled { root.page = 3; } }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                enabled: !Theme.modal-active;
+                text: UiText.dialogs-close-label;
+                clicked => { if self.enabled { root.page = 0; } }
+            }
         }
     }
 }
-
