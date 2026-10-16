@@ -159,6 +159,7 @@ pub(super) fn register(
                 }
                 with_state(&ui, &action_state, |state| {
                     state.cancel_review();
+                    ui.set_operation_dialog_active(false);
                     ui.set_dialog_kind("".into());
                     Ok(())
                 });

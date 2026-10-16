@@ -19,14 +19,23 @@ struct Step {
 #[derive(Default)]
 pub(super) struct Progress {
     steps: Vec<Step>,
+    planned: bool,
     log: Vec<String>,
     last_transfer: bool,
 }
 
 impl Progress {
     pub fn new(actions: &[PreviewAction]) -> Self {
-        let mut result = Self::default();
+        let mut result = Self {
+            planned: true,
+            ..Self::default()
+        };
         let mut add = |stage, label| {
+            // Repeated power/assignment work remains visible in the headline
+            // and log. The checklist records each reviewed milestone once.
+            if result.steps.iter().any(|step| step.stage == stage) {
+                return;
+            }
             result.steps.push(Step {
                 stage: String::from(stage),
                 label: String::from(label),
@@ -40,17 +49,40 @@ impl Progress {
             ui_text::progress::stage::WORKER_CONNECTION,
         );
         add(
+            "Check protected worker admission",
+            ui_text::progress::stage::WORKER_ADMISSION,
+        );
+        add(
             "Checking reviewed VM and driver files",
             text::CHECKING_FILES,
         );
-        add("Read current VM state", ui_text::progress::stage::READ_VM);
-        add(
-            "Read selected GPU and driver version",
-            ui_text::progress::stage::READ_GPU,
-        );
-        if actions.contains(&PreviewAction::Prepare) {
-            add("Prepare current signed payload", text::PREPARING_FILES);
-            add("Installing GPU driver files", text::INSTALLING_FILES);
+        for action in actions {
+            let (stage, label) = match action {
+                PreviewAction::CheckOs => (
+                    "Check guest OS compatibility for installation",
+                    "Check guest OS compatibility for installation",
+                ),
+                PreviewAction::Shutdown => (
+                    "Graceful guest shutdown",
+                    ui_text::progress::stage::SHUTDOWN,
+                ),
+                PreviewAction::Start => ("Start guest", ui_text::progress::stage::START),
+                PreviewAction::Detach => ("Detach selected GPU", "Detach selected GPU"),
+                PreviewAction::Prepare => ("Prepare current signed payload", text::PREPARING_FILES),
+                PreviewAction::Settings => (
+                    "Compatibility settings",
+                    ui_text::progress::stage::COMPATIBILITY,
+                ),
+                PreviewAction::Attach => ("Attach selected GPU", "Attach selected GPU"),
+                PreviewAction::Allocation => {
+                    ("Provider allocation", ui_text::progress::stage::ALLOCATION)
+                }
+                PreviewAction::Verify => (
+                    "Check guest health and hardware rendering",
+                    "Check guest health and hardware rendering",
+                ),
+            };
+            add(stage, label);
         }
         add("Publish checked VM configuration", text::FINALISING);
         result
@@ -58,6 +90,7 @@ impl Progress {
 
     pub fn record(&mut self, event: &Event, stage: &str, label: &str, now: Duration) {
         if event.reportable
+            && !self.planned
             && !event.persistence
             && event.identity != Identity::Transfer
             && !self.steps.iter().any(|step| step.stage == stage)
@@ -74,13 +107,19 @@ impl Progress {
             match event.status {
                 Status::Running => {
                     step.started.get_or_insert(now);
-                    step.status = 1;
+                    if step.status == 0 {
+                        step.status = 1;
+                    }
                 }
                 Status::Done | Status::Failed => {
                     if let Some(started) = step.started.take() {
                         step.elapsed += now.saturating_sub(started);
                     }
-                    step.status = if event.status == Status::Done { 2 } else { 3 };
+                    if event.status == Status::Failed {
+                        step.status = 3;
+                    } else if step.status != 3 {
+                        step.status = 2;
+                    }
                 }
             }
         }
@@ -105,6 +144,7 @@ impl Progress {
     }
 
     pub fn present(&self, ui: &AppWindow, now: Duration) {
+        use slint::Model;
         let rows = self
             .steps
             .iter()
@@ -119,11 +159,26 @@ impl Progress {
                 )
                 .into(),
             })
-            .collect();
-        ui.set_install_steps(super::presentation::update_model(
-            ui.get_install_steps(),
-            rows,
-        ));
+            .collect::<Vec<_>>();
+        let current = ui.get_install_steps();
+        if let Some(vector) = current
+            .as_any()
+            .downcast_ref::<slint::VecModel<InstallStep>>()
+        {
+            // Appending a discovered stage must not recreate existing rows.
+            for (index, row) in rows.into_iter().enumerate() {
+                if index == vector.row_count() {
+                    vector.push(row);
+                } else if vector.row_data(index).as_ref() != Some(&row) {
+                    vector.set_row_data(index, row);
+                }
+            }
+            while vector.row_count() > self.steps.len() {
+                vector.remove(vector.row_count() - 1);
+            }
+        } else {
+            ui.set_install_steps(model(rows));
+        }
         ui.set_dialog_details(self.log.join("\n").into());
     }
 }
@@ -428,13 +483,15 @@ mod tests {
         assert_eq!(progress.steps[0].status, 2);
         assert_eq!(progress.steps[0].elapsed, Duration::from_secs(4));
         assert_eq!(progress.steps.last().unwrap().status, 0);
-        // Repeated admission/final reads reopen the step and accumulate actual time.
+        // Repeated admission/final reads keep the milestone tick and accumulate
+        // actual time. A later failure overrides it and remains sticky.
         progress.record(
             &Event::from_worker(stage, Status::Running),
             stage,
             stage,
             Duration::from_secs(10),
         );
+        assert_eq!(progress.steps[0].status, 2);
         progress.record(
             &Event::from_worker(stage, Status::Failed),
             stage,
@@ -443,6 +500,91 @@ mod tests {
         );
         assert_eq!(progress.steps[0].status, 3);
         assert_eq!(progress.steps[0].elapsed, Duration::from_secs(7));
+        progress.record(
+            &Event::from_worker(stage, Status::Done),
+            stage,
+            stage,
+            Duration::from_secs(14),
+        );
+        assert_eq!(progress.steps[0].status, 3);
+    }
+
+    #[test]
+    fn nested_and_repeated_worker_updates_preserve_reviewed_order_and_row_identity() {
+        use slint::Model;
+        slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+        let ui = AppWindow::new().unwrap();
+        let mut progress = Progress::new(&[
+            PreviewAction::Start,
+            PreviewAction::CheckOs,
+            PreviewAction::Shutdown,
+            PreviewAction::Prepare,
+            PreviewAction::Attach,
+            PreviewAction::Allocation,
+            PreviewAction::Start,
+            PreviewAction::Verify,
+            PreviewAction::Shutdown,
+        ]);
+        let order: Vec<_> = progress
+            .steps
+            .iter()
+            .map(|step| step.stage.clone())
+            .collect();
+        assert_eq!(
+            order.iter().filter(|stage| *stage == "Start guest").count(),
+            1
+        );
+        progress.present(&ui, Duration::ZERO);
+        let original = ui.get_install_steps();
+        for (stage, status) in [
+            ("Prepare protected worker connection", Status::Running),
+            ("Prepare protected worker connection", Status::Done),
+            ("Checking reviewed VM and driver files", Status::Running),
+            ("Read current VM state", Status::Running),
+            ("Read current VM state", Status::Done),
+            ("Authenticate current signed driver files", Status::Running),
+            ("Authenticate current signed driver files", Status::Done),
+            ("Checking reviewed VM and driver files", Status::Done),
+            ("Read current VM state", Status::Running),
+            ("Read current VM state", Status::Done),
+            ("Checking reviewed VM and driver files", Status::Running),
+            ("Installing GPU driver files", Status::Running),
+            ("Installing GPU driver files", Status::Done),
+        ] {
+            progress.record(
+                &Event::from_worker(stage, status),
+                stage,
+                stage,
+                Duration::from_secs(1),
+            );
+            progress.present(&ui, Duration::from_secs(1));
+            assert_eq!(
+                progress
+                    .steps
+                    .iter()
+                    .map(|step| &step.stage)
+                    .collect::<Vec<_>>(),
+                order.iter().collect::<Vec<_>>()
+            );
+            assert_eq!(ui.get_install_steps(), original);
+            assert_eq!(original.row_count(), order.len());
+            assert_eq!(
+                original.row_data(0).unwrap().status,
+                if status == Status::Running && stage == order[0] {
+                    1
+                } else {
+                    2
+                }
+            );
+        }
+        assert_eq!(original.row_data(2).unwrap().status, 2);
+        assert!(
+            progress
+                .log
+                .iter()
+                .any(|line| line.contains("Installing GPU driver files"))
+        );
+        assert!(progress.steps.last().unwrap().status == 0);
     }
 
     #[test]

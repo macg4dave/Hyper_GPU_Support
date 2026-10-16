@@ -40,7 +40,9 @@ impl Kind {
     pub fn operation_dialog(self) -> bool {
         matches!(
             self,
-            Self::Apply
+            Self::Plan
+                | Self::VerifyPlan
+                | Self::Apply
                 | Self::Verify
                 | Self::Reconcile
                 | Self::SaveOnly

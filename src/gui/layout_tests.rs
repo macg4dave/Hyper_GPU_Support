@@ -28,6 +28,21 @@ fn control(ui: &AppWindow, label: &str) -> ItemRc {
         }
         ControlFlow::Continue(())
     });
+    // A stepper label can share its text with the corresponding action.
+    // Resolve the interactive control by role rather than its caption alone.
+    let buttons: Vec<_> = found
+        .iter()
+        .filter(|item| {
+            matches!(
+                item.accessible_role(),
+                AccessibleRole::Button | AccessibleRole::Checkbox
+            )
+        })
+        .cloned()
+        .collect();
+    if !buttons.is_empty() {
+        found = buttons;
+    }
     assert_eq!(found.len(), 1, "unique control: {label}");
     found.pop().unwrap()
 }
@@ -587,6 +602,112 @@ fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_res
 }
 
 #[test]
+fn shared_plan_and_review_dialog_preserves_cancellation_and_explicit_power_consent() {
+    use hyper_gpu_support::ui_text::{dialogs, operations, settings};
+    use std::cell::RefCell;
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_vm_name("win_26300.9457 VM1".into());
+    ui.set_install_vm_name(ui.get_vm_name());
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let captured = actions.clone();
+    ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(1240., 860.));
+    for (theme, label) in [
+        ("light", settings::appearance::LIGHT),
+        ("dark", settings::appearance::DARK),
+    ] {
+        ui.set_dialog_kind("".into());
+        ui.set_page(2);
+        draw(&window);
+        control(&ui, label).accessible_action(&AccessibilityAction::Default);
+        ui.set_page(0);
+        for (width, height) in [(1240., 860.), (700., 520.)] {
+            window.set_size(LogicalSize::new(width, height));
+            ui.set_review_preparing(true);
+            ui.set_running(true);
+            ui.set_updating(true);
+            super::dialog(
+                &ui,
+                "install-progress",
+                operations::plan::PROGRESS_TITLE,
+                operations::plan::PROGRESS_BODY,
+            );
+            ui.set_current_stage(operations::plan::AUTHENTICATE.into());
+            draw(&window);
+            actions.borrow_mut().clear();
+            control(&ui, dialogs::cancel::LABEL).accessible_action(&AccessibilityAction::Default);
+            assert_eq!(&*actions.borrow(), &["close"]);
+            // The four-phase header is present during preparation as well as review.
+            assert!(control(&ui, dialogs::install::PERMISSIONS).is_visible());
+            retain_render(&format!("plan-{theme}-{width}x{height}"));
+            ui.set_review_preparing(false);
+            ui.set_running(false);
+            ui.set_updating(false);
+            for (kind, title, label, action) in [
+                (
+                    "review",
+                    operations::apply::review::TITLE,
+                    dialogs::apply::LABEL,
+                    "confirm",
+                ),
+                (
+                    "verify-review",
+                    operations::verify::TITLE,
+                    operations::verify::TITLE,
+                    "confirm-verify",
+                ),
+            ] {
+                ui.set_execution_ready(true);
+                ui.set_needs_shutdown(true);
+                ui.set_power_consent("This operation will shut down the reviewed VM.".into());
+                super::dialog(
+                    &ui,
+                    kind,
+                    title,
+                    &"Reviewed GPU and memory changes.\n".repeat(16),
+                );
+                draw(&window);
+                actions.borrow_mut().clear();
+                control(&ui, label).accessible_action(&AccessibilityAction::Default);
+                assert!(
+                    actions.borrow().is_empty(),
+                    "power consent required: {kind}"
+                );
+                let consent = control(&ui, &ui.get_power_consent());
+                let geometry = consent.geometry();
+                let origin = consent.map_to_window(geometry.origin);
+                assert!(origin.y >= 0. && origin.y + geometry.height() <= height);
+                consent.accessible_action(&AccessibilityAction::Default);
+                control(&ui, label).accessible_action(&AccessibilityAction::Default);
+                assert_eq!(&*actions.borrow(), &[action]);
+                retain_render(&format!("review-{kind}-{theme}-{width}x{height}"));
+                // A changed review invalidates the local checkbox consent.
+                ui.set_dialog_body("Changed reviewed operation.".into());
+                draw(&window);
+                actions.borrow_mut().clear();
+                control(&ui, label).accessible_action(&AccessibilityAction::Default);
+                assert!(actions.borrow().is_empty());
+                ui.set_needs_shutdown(false);
+                draw(&window);
+                control(&ui, label).accessible_action(&AccessibilityAction::Default);
+                assert_eq!(&*actions.borrow(), &[action]);
+                ui.set_updating(true);
+                draw(&window);
+                actions.borrow_mut().clear();
+                control(&ui, label).accessible_action(&AccessibilityAction::Default);
+                assert!(actions.borrow().is_empty());
+                ui.set_updating(false);
+            }
+        }
+    }
+    ui.hide().unwrap();
+}
+
+#[test]
 fn permission_review_actions_stay_on_one_row_at_supported_sizes_in_both_themes() {
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
     slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
@@ -625,13 +746,13 @@ fn permission_review_actions_stay_on_one_row_at_supported_sizes_in_both_themes()
             draw(&window);
             for expanded in [false, true] {
                 let labels = [
-                    hyper_gpu_support::ui_text::dialogs::draft::KEEP_LABEL,
-                    hyper_gpu_support::ui_text::dialogs::enrollment::CONFIRM_LABEL,
                     if expanded {
                         hyper_gpu_support::ui_text::diagnostics::HIDE_LABEL
                     } else {
                         hyper_gpu_support::ui_text::diagnostics::SHOW_LABEL
                     },
+                    hyper_gpu_support::ui_text::dialogs::draft::KEEP_LABEL,
+                    hyper_gpu_support::ui_text::dialogs::enrollment::CONFIRM_LABEL,
                 ];
                 let mut row_y: Option<f32> = None;
                 let mut previous_right = 0.;
@@ -652,7 +773,7 @@ fn permission_review_actions_stay_on_one_row_at_supported_sizes_in_both_themes()
                     previous_right = origin.x + geometry.width();
                 }
                 retain_render(&format!("permission-{theme}-{width}x{height}-{expanded}"));
-                control(&ui, labels[2]).accessible_action(&AccessibilityAction::Default);
+                control(&ui, labels[0]).accessible_action(&AccessibilityAction::Default);
                 draw(&window);
             }
         }
@@ -846,6 +967,8 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
                 labels.retain(|label| *label != dialogs::close::LABEL);
                 labels.insert(0, hyper_gpu_support::ui_text::dialogs::install::VIEW_LOG);
                 labels.push(dialogs::close::LABEL);
+            } else if kind == "review" {
+                labels.insert(0, diagnostics::SHOW_LABEL);
             } else {
                 labels.push(diagnostics::SHOW_LABEL);
             }

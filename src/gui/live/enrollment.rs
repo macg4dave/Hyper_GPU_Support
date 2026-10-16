@@ -36,7 +36,7 @@ pub(super) fn review_enrollment(
         ui,
         busy,
         Operation::new(
-            Kind::Read,
+            Kind::Plan,
             hyper_gpu_support::ui_text::operations::enrollment::review::TITLE,
         ),
         move || {

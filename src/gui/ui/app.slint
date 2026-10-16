@@ -240,18 +240,23 @@ export component AppWindow inherits Window {
         progress: root.startup-progress;
         continue => { root.startup-loading = false; }
     }
-    private property <bool> operation-presentation: root.dialog-kind == "install-progress" || root.dialog-kind == "install-complete" || root.dialog-kind == "operation-complete" || root.dialog-kind == "operation-error" || root.dialog-kind == "save" || root.dialog-kind == "reset-complete" || root.dialog-kind == "profile-deleted";
+    private property <bool> operation-review: root.dialog-kind == "review" || root.dialog-kind == "verify-review" || root.dialog-kind == "enroll-review";
+    private property <bool> operation-presentation: root.operation-review || root.dialog-kind == "install-progress" || root.dialog-kind == "install-complete" || root.dialog-kind == "operation-complete" || root.dialog-kind == "operation-error" || root.dialog-kind == "save" || root.dialog-kind == "reset-complete" || root.dialog-kind == "profile-deleted";
     if !root.startup-loading && root.operation-presentation : InstallDialog {
-        completed: root.dialog-kind != "install-progress";
+        completed: root.dialog-kind != "install-progress" && !root.operation-review;
+        review: root.operation-review;
+        review-preparing: root.review-preparing;
+        needs-shutdown: root.needs-shutdown; power-consent: root.power-consent;
+        enrollment-heading: root.enrollment-heading; enrollment-allocation: root.enrollment-allocation;
         failed: root.dialog-kind == "operation-error" || root.dialog-kind == "save";
         kind: root.dialog-kind; action-recovery: root.action-recovery;
         dirty: root.dirty; execution-ready: root.execution-ready;
         repair-allowed: root.repair-allowed; forget-allowed: root.forget-allowed;
-        title: root.dialog-kind == "install-progress" && root.install-is-apply ? UiText.dialogs-install-applying : root.dialog-title;
-        action-title: root.install-is-apply ? UiText.dialogs-apply-label : root.install-action-title;
+        title: root.dialog-kind == "install-progress" && root.install-is-apply && !root.review-preparing ? UiText.dialogs-install-applying : root.dialog-title;
+        action-title: root.dialog-kind == "verify-review" ? UiText.operations-verify-title : root.operation-review || root.install-is-apply ? UiText.dialogs-apply-label : root.install-action-title;
         guest-work: root.install-guest-work;
         updating: root.updating;
-        vm-name: root.install-vm-name; body: root.dialog-body; details: root.dialog-details;
+        vm-name: root.operation-review ? root.vm-name : root.install-vm-name; body: root.dialog-body; details: root.dialog-details;
         current-stage: root.current-stage; transfer: root.install-transfer; transfer-fraction: root.transfer-fraction;
         steps: root.install-steps; facts: root.install-facts;
         close => { root.action("close"); }

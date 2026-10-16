@@ -52,12 +52,14 @@ fn close_callback_abandons_review_but_retains_busy_admission_and_draft() {
     ui.set_running(true);
     ui.set_review_preparing(true);
     ui.set_updating(true);
-    ui.set_dialog_kind("progress".into());
+    ui.set_dialog_kind("install-progress".into());
+    ui.set_operation_dialog_active(true);
 
     ui.invoke_action("close".into());
     assert!(!ui.get_review_preparing());
     assert!(!ui.get_running());
     assert!(ui.get_dialog_kind().is_empty());
+    assert!(!ui.get_operation_dialog_active());
     assert!(ui.get_dirty());
     assert!(ui.get_updating());
     assert!(busy.load(Ordering::Acquire));

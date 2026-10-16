@@ -141,7 +141,14 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                 ui.set_install_guest_work(false);
             }
             ui.set_install_is_apply(operation.kind == Kind::Apply);
-            ui.set_install_action_title(operation.title.into());
+            ui.set_install_action_title(
+                match operation.kind {
+                    Kind::Plan => hyper_gpu_support::ui_text::dialogs::apply::LABEL,
+                    Kind::VerifyPlan => hyper_gpu_support::ui_text::operations::verify::TITLE,
+                    _ => operation.title,
+                }
+                .into(),
+            );
         }
         let guest_message = wording::guest_progress(
             operation.kind,
@@ -226,6 +233,8 @@ mod tests {
     fn operation_dialog_covers_apply_setup_verification_recovery_save_and_removal() {
         slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
         for (kind, guest_access) in [
+            (Kind::Plan, false),
+            (Kind::VerifyPlan, false),
             (Kind::Apply, false),
             (Kind::Apply, true),
             (Kind::Verify, true),
@@ -266,13 +275,7 @@ mod tests {
             crate::gui::dialog(&ui, "error", "Unconfirmed outcome", "Failure");
             assert_eq!(ui.get_dialog_kind(), "operation-error");
         }
-        for kind in [
-            Kind::Plan,
-            Kind::VerifyPlan,
-            Kind::Read,
-            Kind::StatusRefresh,
-            Kind::Credentials,
-        ] {
+        for kind in [Kind::Read, Kind::StatusRefresh, Kind::Credentials] {
             assert!(!kind.operation_dialog());
         }
     }

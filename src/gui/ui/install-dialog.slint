@@ -1,5 +1,5 @@
 import { UiText } from "ui-text.slint";
-import { Button, ProgressIndicator, ScrollView } from "std-widgets.slint";
+import { Button, CheckBox, ProgressIndicator, ScrollView } from "std-widgets.slint";
 import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
 import { TechnicalOutput } from "technical-output.slint";
 
@@ -30,11 +30,16 @@ component StatusMark inherits Rectangle {
     if root.status == 3 : Text { text: "!"; color: Theme.stopped; font-weight: 700; }
 }
 
-// Every confirmed Apply uses this presentation; other operation dialogs retain
-// their own reviews, consent and recovery controls.
+// Shared review, execution and result presentation. Rust retains operation authority.
 export component InstallDialog inherits Rectangle {
     in property <bool> completed;
     in property <bool> failed;
+    in property <bool> review;
+    in property <bool> review-preparing;
+    in property <bool> needs-shutdown;
+    in property <string> power-consent;
+    in property <string> enrollment-heading;
+    in property <string> enrollment-allocation;
     in property <string> kind;
     in property <string> title;
     in property <string> action-title;
@@ -54,10 +59,16 @@ export component InstallDialog inherits Rectangle {
     in property <[InstallStep]> steps;
     in property <[InstallFact]> facts;
     private property <bool> technical: false;
+    private property <bool> consent: false;
+    private property <int> phase: root.review || root.review-preparing ? (root.kind == "enroll-review" ? 1 : 0) : root.completed ? 3 : 2;
+    changed kind => { root.consent = false; root.technical = false; content.content-y = 0px; root.focus-safe(); }
+    changed body => { root.consent = false; root.technical = false; }
+    changed power-consent => { root.consent = false; }
+    changed review-preparing => { root.focus-safe(); }
     changed completed => {
         root.technical = false;
         content.content-y = 0px;
-        if root.completed { close-button.focus(); } else { dialog-focus.focus(); }
+        root.focus-safe();
     }
     changed technical => {
         content.content-y = root.technical ? min(0px, content.visible-height - content.content-height) : 0px;
@@ -66,15 +77,19 @@ export component InstallDialog inherits Rectangle {
     callback action(string);
     background: #00000088;
     TouchArea { }
+    function focus-safe() {
+        if root.completed || root.review || root.review-preparing { close-button.focus(); }
+        else { dialog-focus.focus(); }
+    }
     function reveal-action(x: length, width: length) {
         if x + footer.content-x < 0px { footer.content-x = -x; }
         else if x + width + footer.content-x > footer.visible-width { footer.content-x = footer.visible-width - x - width; }
     }
-    init => { if root.completed { close-button.focus(); } else { dialog-focus.focus(); } }
+    init => { root.focus-safe(); }
     dialog-focus := FocusScope {
         capture-key-pressed(event) => {
             if event.text == Key.Escape {
-                if root.completed && !root.updating { root.close(); }
+                if root.review-preparing || ((root.completed || root.review) && !root.updating) { root.close(); }
                 accept
             } else { reject }
         }
@@ -98,10 +113,10 @@ export component InstallDialog inherits Rectangle {
                                 spacing: 6px;
                                 Rectangle {
                                     width: 28px; height: 28px; border-radius: 14px;
-                                    background: index == (root.completed ? 3 : 2) ? Theme.accent : Theme.tint;
-                                    Text { text: index + 1; color: index == (root.completed ? 3 : 2) ? Theme.checkmark : Theme.muted; font-size: 13px; font-weight: 600; }
+                                    background: index == root.phase ? Theme.accent : Theme.tint;
+                                    Text { text: index + 1; color: index == root.phase ? Theme.canvas : Theme.muted; font-size: 13px; font-weight: 600; }
                                 }
-                                Label { text: label; font-size: 13px; min-width: 0px; min-height: 28px; vertical-alignment: center; color: index == (root.completed ? 3 : 2) ? Theme.text : Theme.muted; font-weight: index == (root.completed ? 3 : 2) ? 700 : 400; }
+                                Label { text: label; font-size: 13px; min-width: 0px; min-height: 28px; vertical-alignment: center; color: index == root.phase ? Theme.text : Theme.muted; font-weight: index == root.phase ? 700 : 400; }
                                 if index < 3 : Rectangle {
                                     min-width: 8px; height: 28px; horizontal-stretch: 1;
                                     Rectangle { y: 13px; height: 1px; width: 100%; background: Theme.line; }
@@ -127,8 +142,12 @@ export component InstallDialog inherits Rectangle {
                                     VerticalLayout {
                                         spacing: 4px;
                                         Heading { text: root.title; min-width: 0px; wrap: word-wrap; overflow: clip; }
-                                        Hint { text: UiText.dialogs-install-vm + " " + root.vm-name; font-size: 14px; min-width: 0px; }
+                                        if root.kind != "enroll-review" : Hint { text: UiText.dialogs-install-vm + " " + root.vm-name; font-size: 14px; min-width: 0px; }
                                     }
+                                }
+                                if root.kind == "enroll-review" : Label {
+                                    text: root.enrollment-heading + "\n" + UiText.operations-enrollment-review-allocation-label + " " + root.enrollment-allocation;
+                                    font-size: 18px; font-weight: 600; min-width: 0px; wrap: word-wrap; overflow: clip;
                                 }
                                 Rectangle {
                                     background: root.failed ? Theme.install-error : root.completed ? Theme.install-success : Theme.install-information;
@@ -138,12 +157,12 @@ export component InstallDialog inherits Rectangle {
                                         if root.completed : StatusMark { status: root.failed ? 3 : 2; width: 24px; height: 24px; }
                                         if !root.completed : Rectangle {
                                             width: 24px; height: 24px; border-radius: 12px; background: Theme.accent;
-                                            Text { text: "i"; color: Theme.checkmark; font-weight: 700; }
+                                            Text { text: "i"; color: Theme.canvas; font-weight: 700; }
                                         }
-                                        Label { text: root.completed || !root.guest-work ? root.body : UiText.dialogs-install-wait; min-width: 0px; wrap: word-wrap; overflow: clip; font-size: 14px; }
+                                        Label { text: root.review || root.review-preparing || root.completed || !root.guest-work ? root.body : UiText.dialogs-install-wait; min-width: 0px; wrap: word-wrap; overflow: clip; font-size: 14px; font-weight: root.kind == "enroll-review" ? 700 : 400; }
                                     }
                                 }
-                                if !root.completed : Surface {
+                                if !root.completed && !root.review : Surface {
                                     background: transparent;
                                     VerticalLayout {
                                         padding: 16px; spacing: 8px;
@@ -165,6 +184,7 @@ export component InstallDialog inherits Rectangle {
                                         }
                                     }
                                 }
+                                if root.review && root.needs-shutdown && root.kind != "enroll-review" : Hint { text: root.power-consent; font-size: 14px; min-width: 0px; }
                                 if root.completed && !root.failed && root.facts.length > 0 && !root.technical : Surface {
                                     background: transparent;
                                     VerticalLayout {
@@ -195,6 +215,13 @@ export component InstallDialog inherits Rectangle {
                                 }
                             }
                         }
+                        if root.review && root.needs-shutdown && root.kind != "enroll-review" : CheckBox {
+                            text: UiText.dialogs-power-consent-label;
+                            accessible-label: root.power-consent;
+                            checked <=> root.consent;
+                            enabled: !root.updating;
+                        }
+                        if root.kind == "review" && !root.execution-ready : Hint { text: UiText.dialogs-apply-unavailable-hint; }
                         footer := ScrollView {
                             min-width: 0px; vertical-stretch: 0;
                             horizontal-scrollbar-policy: as-needed; vertical-scrollbar-policy: always-off;
@@ -220,10 +247,17 @@ export component InstallDialog inherits Rectangle {
                                 if root.kind == "save" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.operations-save-only-progress-title; enabled: root.execution-ready && !root.updating; clicked => { root.action("save-only"); } }
                                 close-button := Button {
                                     changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
-                                    text: root.completed ? UiText.dialogs-close-label : UiText.dialogs-install-cancel;
+                                    text: root.kind == "enroll-review" ? UiText.dialogs-draft-keep-label : root.review || root.review-preparing ? UiText.dialogs-cancel-label : root.completed ? UiText.dialogs-close-label : UiText.dialogs-install-cancel;
                                     primary: root.completed; min-width: root.completed ? 120px : 160px;
-                                    enabled: root.completed && !root.updating;
+                                    enabled: root.review-preparing || ((root.completed || root.review) && !root.updating);
                                     clicked => { if self.enabled { root.close(); } }
+                                }
+                                if root.review : Button {
+                                    changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+                                    text: root.kind == "enroll-review" ? UiText.dialogs-enrollment-confirm-label : root.kind == "verify-review" ? UiText.operations-verify-title : root.execution-ready ? UiText.dialogs-apply-label : UiText.dialogs-apply-unavailable-label;
+                                    primary: true;
+                                    enabled: root.execution-ready && !root.updating && (root.kind == "enroll-review" || !root.needs-shutdown || root.consent);
+                                    clicked => { if self.enabled { root.action(root.kind == "enroll-review" ? "confirm-enroll" : root.kind == "verify-review" ? "confirm-verify" : "confirm"); } }
                                 }
                             }
                         }
