@@ -19,7 +19,7 @@ use std::sync::{
 
 /// A foreground request continues directly after fresh preparation. Failed
 /// preparation or an unavailable worker never reaches the execution callback.
-#[cfg(test)]
+#[cfg(any(windows, test))]
 pub(super) fn continue_prepared(
     ui: &AppWindow,
     prepared: Result<(), String>,

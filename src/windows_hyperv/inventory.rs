@@ -242,7 +242,7 @@ pub(super) fn discover(
     };
     let gpus = match batch.providers {
         Ok(objects) => {
-            let entries = objects
+            let entries: Vec<_> = objects
                 .into_iter()
                 .map(|object| {
                     let id = object

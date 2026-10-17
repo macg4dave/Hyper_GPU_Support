@@ -104,7 +104,7 @@ Stage: R2. Implementation: Done (source). Validation: Pending milestone gate.
 
 **Outcome:** reduce duplicate complete host payload processing while keeping independently authenticated execution and final confirmation. Simplify the worker only where needed for this change, covering review findings 4 and 10 together.
 
-**Scope:** [GUI preparation](../src/gui/live/review.rs), [CLI effect dispatch](../src/main.rs), [worker](../src/worker.rs), [native payload adapter](../src/worker/runner/backend.rs), [Apply admission](../src/workflow/apply.rs), [Verify admission](../src/workflow/verification.rs), payload/trust and affected protocol callers.
+**Scope:** [GUI preparation](../src/gui/live/review.rs), [CLI effect dispatch](../src/main.rs), [worker](../src/worker/mod.rs), [native payload adapter](../src/worker/runner/backend.rs), [Apply admission](../src/workflow/apply.rs), [Verify admission](../src/workflow/verification.rs), payload/trust and affected protocol callers.
 
 Acceptance:
 
@@ -148,7 +148,7 @@ Stage: R3. Implementation: Ready. Validation: Not run.
 
 **Outcome:** bound storage growth from completed discovery audits and obsolete guest staging without discarding recovery evidence. Review finding 9 includes the retention contract and its implementation in one task.
 
-**Scope:** [runner audit/admission](../src/worker/runner/audit.rs), [runner storage](../src/worker/runner/storage.rs), [worker finalization](../src/worker.rs), [guest staging](../src/guest_transport.ps1) and the owning [security](SECURITY.md)/[configuration](CONFIGURATION.md) contracts.
+**Scope:** [runner audit/admission](../src/worker/runner/audit.rs), [runner storage](../src/worker/runner/storage.rs), [worker finalization](../src/worker/dispatch.rs), [guest staging](../src/guest_transport.ps1) and the owning [security](SECURITY.md)/[configuration](CONFIGURATION.md) contracts.
 
 Acceptance:
 

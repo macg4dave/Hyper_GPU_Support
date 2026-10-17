@@ -1,38 +1,20 @@
 //! One authenticated preparation/approval exchange, with no transferable admission token.
-use super::*;
-use crate::model::Target;
-
-pub(super) struct ReleaseGuard<'a> {
-    pub pipe: Option<Pipe>,
-    process: &'a OwnedProcess,
-    release: Option<crate::read_context::Release>,
-}
-impl<'a> ReleaseGuard<'a> {
-    pub(super) fn new(
-        process: &'a OwnedProcess,
-        pipe: Pipe,
-        release: Option<crate::read_context::Release>,
-    ) -> Self {
-        Self {
-            process,
-            pipe: Some(pipe),
-            release,
-        }
-    }
-}
-impl Drop for ReleaseGuard<'_> {
-    #[allow(unsafe_code)]
-    fn drop(&mut self) {
-        drop(self.pipe.take());
-        if let Some(release) = self.release.take() {
-            // SAFETY: retained exact launch handle; observing exit never stops a
-            // process or equates pipe cancellation with backend release.
-            if unsafe { WaitForSingleObject(self.process.0, 3_905_000) } == WAIT_OBJECT_0 {
-                release.confirm();
-            }
-        }
-    }
-}
+use super::{
+    client::submit_with_preparation,
+    operations,
+    progress::ObservedBackend,
+    protocol::{Command, Outcome, Progress},
+    runner,
+};
+use crate::{
+    configuration_store::{self, Revision},
+    credentials::Credential,
+    model::{Power, Target},
+    runner::NativeBackend,
+    workflow::{self, Plan},
+};
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

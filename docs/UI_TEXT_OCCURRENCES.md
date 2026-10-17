@@ -1,6 +1,6 @@
 # UI text occurrence register
 
-Companion to [the reviewed inventory](UI_TEXT_INVENTORY.md). Source snapshot: 13 October 2026. The live-controller and live-state links follow the current module layout; their displayed line numbers and source fingerprints retain the historical snapshot. For the moved controller, links point to the owning module rather than historical line anchors; the former `run` producer now spans lifecycle, editor, action, credential and recovery modules. These are source literals, including formatting fragments and immutable inputs, not evaluated outputs or a ready-to-use catalogue. Tests/comments are excluded. Repeated occurrences in one producer are grouped, with every line retained. The main inventory supplies consumer, branch conditions, parameter bindings, disposition rules and resolution paths.
+Companion to [the reviewed inventory](UI_TEXT_INVENTORY.md). Source snapshot: 13 October 2026. The worker, live-controller and live-state links follow the current module layout; their displayed line numbers and source fingerprints retain the historical snapshot. For moved worker and controller producers, links point to the owning module rather than historical line anchors; the former `run` producer now spans lifecycle, editor, action, credential and recovery modules. These are source literals, including formatting fragments and immutable inputs, not evaluated outputs or a ready-to-use catalogue. Tests/comments are excluded. Repeated occurrences in one producer are grouped, with every line retained. The main inventory supplies consumer, branch conditions, parameter bindings, disposition rules and resolution paths.
 
 Source spellings retain quotes, raw-literal delimiters, escapes and whitespace inside literals. HTML character references in this table protect Markdown rendering only. `{}` fields are positional arguments in source order; `{:?}` and numeric format specifications remain code-owned until LANG-002/003 resolve the typed contract. Slint concatenations are fragments of the enclosing expression, not independent whole messages. Keys are provisional semantic families with variant numbers; LANG-002/003 must assign final meaning-specific variant names and consolidate only equivalent contexts.
 
@@ -1242,34 +1242,34 @@ Classes: C = editable copy; M = mixed copy/control requiring separation; P = imm
 
 | Source lines | Producer / component | Original source template | Parameters | Proposed key | Batch | Class |
 |---|---|---|---|---|---|---|
-| [370](../src/worker.rs#L370) | <code>apply</code> | <code>"separate graceful guest shutdown approval is required"</code> | — | <code>operations.apply.variant_001</code> | B3 | M |
-| [770](../src/worker.rs#L770), [775](../src/worker.rs#L775) | <code>execute</code> | <code>"Remove inactive pairing and profile records"</code> | — | <code>operations.execute.variant_001</code> | B3 | M |
-| [791](../src/worker.rs#L791) | <code>execute</code> | <code>"Validate and enroll exact VM/GPU pair"</code> | — | <code>operations.execute.variant_002</code> | B3 | M |
-| [796](../src/worker.rs#L796) | <code>execute</code> | <code>"Exact pair authority read back; GPU support has not been applied"</code> | — | <code>operations.execute.variant_003</code> | B3 | M |
-| [929](../src/worker.rs#L929) | <code>execute</code> | <code>"Checking reviewed VM and driver files"</code> | — | <code>operations.execute.variant_004</code> | B3 | M |
-| [1006](../src/worker.rs#L1006), [1015](../src/worker.rs#L1015), [1367](../src/worker.rs#L1367), [1376](../src/worker.rs#L1376) | <code>execute</code> | <code>"Publish checked VM configuration"</code> | — | <code>operations.execute.variant_005</code> | B3 | M |
-| [1437](../src/worker.rs#L1437), [1444](../src/worker.rs#L1444), [1458](../src/worker.rs#L1458) | <code>execute</code> | <code>"Save verified configuration only"</code> | — | <code>operations.execute.variant_006</code> | B3 | M |
-| [1521](../src/worker.rs#L1521), [1539](../src/worker.rs#L1539) | <code>publish_import_record</code> | <code>"Import {filename}"</code> | <code>filename</code> | <code>operations.publish_import_record.variant_001</code> | B3 | M |
-| [1571](../src/worker.rs#L1571) | <code>guest_progress</code> | <code>"File copying complete; waiting for guest checks"</code> | — | <code>operations.guest_progress.variant_011</code> | B3 | M |
-| [1572](../src/worker.rs#L1572) | <code>guest_progress</code> | <code>"Checking copied driver files"</code> | — | <code>operations.guest_progress.variant_012</code> | B3 | M |
-| [1573](../src/worker.rs#L1573) | <code>guest_progress</code> | <code>"Installing GPU driver files"</code> | — | <code>operations.guest_progress.variant_013</code> | B3 | M |
-| [1574](../src/worker.rs#L1574) | <code>guest_progress</code> | <code>"Checking installed driver files"</code> | — | <code>operations.guest_progress.variant_014</code> | B3 | M |
-| [1575](../src/worker.rs#L1575) | <code>guest_progress</code> | <code>"Checking current guest files and setup record"</code> | — | <code>operations.guest_progress.variant_015</code> | B3 | M |
-| [1576](../src/worker.rs#L1576) | <code>guest_progress</code> | <code>"Checking device health and hardware rendering"</code> | — | <code>operations.guest_progress.variant_016</code> | B3 | M |
-| [1616](../src/worker.rs#L1616) | <code>finish_progress</code> | <code>"Progress delivery failed: {delivery}; {primary}"</code> | <code>delivery, primary</code> | <code>operations.finish_progress.variant_001</code> | B3 | M |
-| [1620](../src/worker.rs#L1620) | <code>finish_progress</code> | <code>"Stage completed but progress delivery failed; outcome uncertain: {delivery}"</code> | <code>delivery</code> | <code>operations.finish_progress.variant_002</code> | B3 | M |
-| [1645](../src/worker.rs#L1645) | <code>stage</code> | <code>"approved-worker"</code> | — | — | B3 | P |
-| [1674](../src/worker.rs#L1674) | <code>save</code> | <code>"Persist operation recovery"</code> | — | <code>operations.save.variant_001</code> | B3 | M |
-| [1679](../src/worker.rs#L1679) | <code>power</code> | <code>"Graceful guest shutdown"</code> | — | <code>operations.power.variant_001</code> | B3 | M |
-| [1681](../src/worker.rs#L1681) | <code>power</code> | <code>"Start guest"</code> | — | <code>operations.power.variant_002</code> | B3 | M |
-| [1689](../src/worker.rs#L1689) | <code>assign</code> | <code>"Attach selected GPU"</code> | — | <code>operations.assign.variant_001</code> | B3 | M |
-| [1691](../src/worker.rs#L1691) | <code>assign</code> | <code>"Detach selected GPU"</code> | — | <code>operations.assign.variant_002</code> | B3 | M |
-| [1697](../src/worker.rs#L1697) | <code>settings</code> | <code>"Compatibility settings"</code> | — | <code>operations.settings.variant_001</code> | B3 | M |
-| [1700](../src/worker.rs#L1700) | <code>allocation</code> | <code>"Provider allocation"</code> | — | <code>operations.allocation.variant_001</code> | B3 | M |
-| [1707](../src/worker.rs#L1707), [1712](../src/worker.rs#L1712), [1719](../src/worker.rs#L1719), [1728](../src/worker.rs#L1728) | <code>prepare</code> | <code>"Prepare current signed payload"</code> | — | <code>operations.prepare.variant_001</code> | B3 | M |
-| [1712](../src/worker.rs#L1712) | <code>prepare</code> | <code>"approved-worker"</code> | — | — | B3 | P |
-| [1737](../src/worker.rs#L1737) | <code>verify</code> | <code>"Check guest health and hardware rendering"</code> | — | <code>operations.verify.variant_001</code> | B3 | M |
-| [1743](../src/worker.rs#L1743) | <code>verify</code> | <code>"approved-worker"</code> | — | — | B3 | P |
+| [370](../src/worker/client.rs) | <code>apply</code> | <code>"separate graceful guest shutdown approval is required"</code> | — | <code>operations.apply.variant_001</code> | B3 | M |
+| [770](../src/worker/pairing.rs), [775](../src/worker/pairing.rs) | <code>execute</code> | <code>"Remove inactive pairing and profile records"</code> | — | <code>operations.execute.variant_001</code> | B3 | M |
+| [791](../src/worker/pairing.rs) | <code>execute</code> | <code>"Validate and enroll exact VM/GPU pair"</code> | — | <code>operations.execute.variant_002</code> | B3 | M |
+| [796](../src/worker/pairing.rs) | <code>execute</code> | <code>"Exact pair authority read back; GPU support has not been applied"</code> | — | <code>operations.execute.variant_003</code> | B3 | M |
+| [929](../src/worker/operations.rs) | <code>execute</code> | <code>"Checking reviewed VM and driver files"</code> | — | <code>operations.execute.variant_004</code> | B3 | M |
+| [1006](../src/worker/operations.rs), [1015](../src/worker/operations.rs), [1367](../src/worker/operations.rs), [1376](../src/worker/operations.rs) | <code>execute</code> | <code>"Publish checked VM configuration"</code> | — | <code>operations.execute.variant_005</code> | B3 | M |
+| [1437](../src/worker/recovery.rs), [1444](../src/worker/recovery.rs), [1458](../src/worker/recovery.rs) | <code>execute</code> | <code>"Save verified configuration only"</code> | — | <code>operations.execute.variant_006</code> | B3 | M |
+| [1521](../src/worker/configuration_import.rs), [1539](../src/worker/configuration_import.rs) | <code>publish_import_record</code> | <code>"Import {filename}"</code> | <code>filename</code> | <code>operations.publish_import_record.variant_001</code> | B3 | M |
+| [1571](../src/worker/progress.rs) | <code>guest_progress</code> | <code>"File copying complete; waiting for guest checks"</code> | — | <code>operations.guest_progress.variant_011</code> | B3 | M |
+| [1572](../src/worker/progress.rs) | <code>guest_progress</code> | <code>"Checking copied driver files"</code> | — | <code>operations.guest_progress.variant_012</code> | B3 | M |
+| [1573](../src/worker/progress.rs) | <code>guest_progress</code> | <code>"Installing GPU driver files"</code> | — | <code>operations.guest_progress.variant_013</code> | B3 | M |
+| [1574](../src/worker/progress.rs) | <code>guest_progress</code> | <code>"Checking installed driver files"</code> | — | <code>operations.guest_progress.variant_014</code> | B3 | M |
+| [1575](../src/worker/progress.rs) | <code>guest_progress</code> | <code>"Checking current guest files and setup record"</code> | — | <code>operations.guest_progress.variant_015</code> | B3 | M |
+| [1576](../src/worker/progress.rs) | <code>guest_progress</code> | <code>"Checking device health and hardware rendering"</code> | — | <code>operations.guest_progress.variant_016</code> | B3 | M |
+| [1616](../src/worker/progress.rs) | <code>finish_progress</code> | <code>"Progress delivery failed: {delivery}; {primary}"</code> | <code>delivery, primary</code> | <code>operations.finish_progress.variant_001</code> | B3 | M |
+| [1620](../src/worker/progress.rs) | <code>finish_progress</code> | <code>"Stage completed but progress delivery failed; outcome uncertain: {delivery}"</code> | <code>delivery</code> | <code>operations.finish_progress.variant_002</code> | B3 | M |
+| [1645](../src/worker/progress.rs) | <code>stage</code> | <code>"approved-worker"</code> | — | — | B3 | P |
+| [1674](../src/worker/progress.rs) | <code>save</code> | <code>"Persist operation recovery"</code> | — | <code>operations.save.variant_001</code> | B3 | M |
+| [1679](../src/worker/progress.rs) | <code>power</code> | <code>"Graceful guest shutdown"</code> | — | <code>operations.power.variant_001</code> | B3 | M |
+| [1681](../src/worker/progress.rs) | <code>power</code> | <code>"Start guest"</code> | — | <code>operations.power.variant_002</code> | B3 | M |
+| [1689](../src/worker/progress.rs) | <code>assign</code> | <code>"Attach selected GPU"</code> | — | <code>operations.assign.variant_001</code> | B3 | M |
+| [1691](../src/worker/progress.rs) | <code>assign</code> | <code>"Detach selected GPU"</code> | — | <code>operations.assign.variant_002</code> | B3 | M |
+| [1697](../src/worker/progress.rs) | <code>settings</code> | <code>"Compatibility settings"</code> | — | <code>operations.settings.variant_001</code> | B3 | M |
+| [1700](../src/worker/progress.rs) | <code>allocation</code> | <code>"Provider allocation"</code> | — | <code>operations.allocation.variant_001</code> | B3 | M |
+| [1707](../src/worker/progress.rs), [1712](../src/worker/progress.rs), [1719](../src/worker/progress.rs), [1728](../src/worker/progress.rs) | <code>prepare</code> | <code>"Prepare current signed payload"</code> | — | <code>operations.prepare.variant_001</code> | B3 | M |
+| [1712](../src/worker/progress.rs) | <code>prepare</code> | <code>"approved-worker"</code> | — | — | B3 | P |
+| [1737](../src/worker/progress.rs) | <code>verify</code> | <code>"Check guest health and hardware rendering"</code> | — | <code>operations.verify.variant_001</code> | B3 | M |
+| [1743](../src/worker/progress.rs) | <code>verify</code> | <code>"approved-worker"</code> | — | — | B3 | P |
 ## src/windows_hyperv.rs
 
 | Source lines | Producer / component | Original source template | Parameters | Proposed key | Batch | Class |

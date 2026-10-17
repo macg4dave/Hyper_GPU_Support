@@ -1,5 +1,16 @@
 //! Locked Apply/Verify execution and their shared publication boundary.
-use super::*;
+use super::{
+    progress::ObservedBackend,
+    protocol::{Outcome, Progress, StageStatus},
+    runner,
+};
+use crate::{
+    configuration_store::{self, Revision, SavePhase, SaveRecord},
+    credentials::Credential,
+    model::{Configuration, Gpu, Power, VmState},
+    runner::NativeBackend,
+    workflow::{self, Backend, OperationResult, Plan},
+};
 
 pub(super) struct Context<'a> {
     pub enrollment: &'a runner::Enrollment,

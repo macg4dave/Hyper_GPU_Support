@@ -12,7 +12,7 @@ This page owns product authority/trust boundaries and recovery semantics. [AGENT
 - Installed artifacts are hash-bound to enrollment. Driver payload trust uses Windows signatures/catalog membership and per-file integrity; the mere presence of a catalog is insufficient.
 - Effects revalidate fresh enrollment, target identity, provider limits, power, conflicts, driver/payload identity, and the reviewed plan under the protected operation lock. Never execute an old approved plan merely because its displayed summary has not changed.
 
-The relevant implementations are [runner](../src/worker/runner/mod.rs), [worker](../src/worker.rs), [setup](../src/setup.rs), [session pipes](../src/windows_pipe/session.rs), [security](../src/security.rs), and [trust](../src/trust.rs). APP-007 audits concrete trust/recovery gaps in the agreed workflow; APP-008 validates meaningful failure coverage.
+The relevant implementations are [runner](../src/worker/runner/mod.rs), [worker](../src/worker/mod.rs), [setup](../src/setup.rs), [session pipes](../src/windows_pipe/session.rs), [security](../src/security.rs), and [trust](../src/trust.rs). APP-007 audits concrete trust/recovery gaps in the agreed workflow; APP-008 validates meaningful failure coverage.
 
 ## Guest OS eligibility before installation
 
