@@ -29,7 +29,7 @@ Legacy mock/snapshot GUI tooling has been removed under APP-001 and passed the M
 
 Running the executable without arguments opens the live GUI and can request elevated first-install discovery. CLI and fixed internal modes share the backend; source entrypoints are not authorization to perform live operations.
 
-The cancellation/startup feedback follow-up shows a modal "Cancelling, please wait..." dialog until an abandoned read releases its block, then closes it automatically, and names each startup read. Regression coverage has been added; compilation, automated regression execution, protected installation and installed GUI validation of this follow-up remain pending.
+The cancellation/startup feedback follow-up shows a modal "Cancelling, please wait..." dialog until an abandoned read releases its block, then closes it automatically, and names each startup read. Validation passed on 17 October 2026: the complete non-hardware gate passed 410 product tests and 12 catalogue tests, strict lint, binary builds and API documentation (`local/evidence/m1-gate-20261017T102122120Z/`). Protected installation passed with all four build/installed/enrollment hashes matching, both enrolled targets and all 1,239 existing persistent files preserved, and the runner enabled and Ready (`local/evidence/install-20261017T102257896Z/verification.json`). Installed GUI and VM/GPU/guest acceptance remain pending.
 
 ## Project guidance
 

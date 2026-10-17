@@ -241,6 +241,7 @@ export component AppWindow inherits Window {
     private property <bool> operation-presentation: root.dialog-kind == "install-progress" || root.dialog-kind == "install-complete" || root.dialog-kind == "operation-complete" || root.dialog-kind == "operation-error" || root.dialog-kind == "save" || root.dialog-kind == "reset-complete" || root.dialog-kind == "profile-deleted";
     if !root.startup-loading && root.operation-presentation : InstallDialog {
         completed: root.dialog-kind != "install-progress";
+        running: root.running;
         review-preparing: root.review-preparing;
         failed: root.dialog-kind == "operation-error" || root.dialog-kind == "save";
         kind: root.dialog-kind; action-recovery: root.action-recovery;

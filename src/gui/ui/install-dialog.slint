@@ -34,6 +34,7 @@ component StatusMark inherits Rectangle {
 // Shared preparation, execution and result presentation. Rust retains operation authority.
 export component InstallDialog inherits Rectangle {
     in property <bool> completed;
+    in property <bool> running;
     in property <bool> failed;
     in property <bool> review-preparing;
     in property <string> kind;

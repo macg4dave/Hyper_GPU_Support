@@ -282,7 +282,15 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                 actions.borrow_mut().clear();
                 ui.set_updating(true);
                 right.accessible_action(&AccessibilityAction::Default);
-                assert!(actions.borrow().is_empty());
+                assert_eq!(
+                    actions.borrow().as_slice(),
+                    if completed {
+                        &["close"]
+                    } else {
+                        &[] as &[&str]
+                    },
+                    "read-only refresh must not trap a terminal dialog"
+                );
                 ui.set_updating(false);
                 left.accessible_action(&AccessibilityAction::Default);
                 render();
@@ -959,7 +967,10 @@ fn cancelled_reads_leave_dialog_close_usable_while_new_operations_stay_disabled(
         draw(&window);
         actions.borrow_mut().clear();
         if kind == "more" {
-            for label in [dialogs::verify::LABEL, dialogs::repair::LABEL] {
+            for label in [
+                hyper_gpu_support::ui_text::operations::verify::title().as_str(),
+                dialogs::repair::LABEL,
+            ] {
                 control(&ui, label).accessible_action(&AccessibilityAction::Default);
             }
             assert!(actions.borrow().is_empty(), "new work remains disabled");
