@@ -145,6 +145,7 @@ fn multiple_vm_holds_preserve_independent_editing_and_save_only_selection() {
         "second-operation",
         true,
         Ok(OperationReadback {
+            observation: None,
             committed,
             recovery: vec![failed],
         }),
@@ -421,6 +422,7 @@ fn lost_terminal_reply_uses_durable_phase_without_inventing_completion() {
     let mut record = save_record(&s);
     record.phase = SavePhase::EffectsStarted;
     s.finish_readback(Ok(OperationReadback {
+        observation: None,
         committed: Default::default(),
         recovery: vec![record],
     }))

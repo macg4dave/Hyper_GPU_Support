@@ -775,16 +775,14 @@ fn execute_inner(
                 }
                 if record.reset.is_none() {
                     let mut fresh = NativeBackend {
+                        reads: None,
                         credential: None,
                         manifest: None,
                         data: data.clone(),
                     };
-                    if serde_json::to_value(fresh.inspect(&record.target)?)
-                        .map_err(|e| e.to_string())?
-                        != serde_json::to_value(&approved.observed).map_err(|e| e.to_string())?
-                        || serde_json::to_value(fresh.gpu(&record.target)?)
-                            .map_err(|e| e.to_string())?
-                            != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
+                    if fresh.inspect(&record.target)?.operational()
+                        != approved.observed.operational()
+                        || fresh.gpu(&record.target)?.operational() != approved.gpu.operational()
                         || serde_json::to_value(fresh.journal(&record.target)?)
                             .map_err(|e| e.to_string())?
                             != serde_json::to_value(Some(&approved.journal))
@@ -828,6 +826,7 @@ fn execute_inner(
                 };
                 check_binding()?;
                 let mut backend = NativeBackend {
+                    reads: None,
                     credential: None,
                     manifest: None,
                     data: data.clone(),
@@ -1029,6 +1028,7 @@ fn execute_inner(
                     ))?;
                 }
                 let mut backend = NativeBackend {
+                    reads: None,
                     credential: request.credential,
                     manifest: None,
                     data: data.clone(),
@@ -1114,9 +1114,8 @@ fn execute_inner(
                     "Confirm final VM state and signed driver files",
                     |backend| {
                         crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
-                        if serde_json::to_value(backend.inspect(&record.target)?)
-                            .map_err(|e| e.to_string())?
-                            != serde_json::to_value(&result.effective).map_err(|e| e.to_string())?
+                        if backend.inspect(&record.target)?.operational()
+                            != result.effective.operational()
                         {
                             return Err(
                             "final independent readback changed; manual reconciliation required"
@@ -1203,6 +1202,7 @@ fn execute_inner(
                     return Err("verification target is outside enrollment".into());
                 }
                 let mut backend = NativeBackend {
+                    reads: None,
                     credential: request.credential,
                     manifest: None,
                     data: data.clone(),
@@ -1267,12 +1267,8 @@ fn execute_inner(
                     admitted,
                 )?;
                 crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
-                if serde_json::to_value(backend.inspect(&record.target)?)
-                    .map_err(|e| e.to_string())?
-                    != serde_json::to_value(&record.initial).map_err(|e| e.to_string())?
-                    || serde_json::to_value(backend.gpu(&record.target)?)
-                        .map_err(|e| e.to_string())?
-                        != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
+                if backend.inspect(&record.target)?.operational() != record.initial.operational()
+                    || backend.gpu(&record.target)?.operational() != approved.gpu.operational()
                     || backend.payload(&record.target)? != approved.payload_digest
                 {
                     return Err(
@@ -1324,6 +1320,7 @@ fn execute_inner(
                     );
                 }
                 let mut backend = NativeBackend {
+                    reads: None,
                     credential: request.credential,
                     manifest: None,
                     data: data.clone(),
@@ -1442,8 +1439,7 @@ fn execute_inner(
                 // The wrapper marks EffectsStarted before every guest/Hyper-V
                 // adapter, so this phase proves no such effect was dispatched.
                 crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)?;
-                if serde_json::to_value(&before).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&record.initial).map_err(|e| e.to_string())?
+                if before.operational() != record.initial.operational()
                     || configuration_store::protected::revision(&record.target.vm_id)?
                         != record.expected
                 {
@@ -1477,8 +1473,7 @@ fn execute_inner(
                 && let SavePhase::Verified(verified) | SavePhase::Published(verified) =
                     &record.phase
             {
-                if serde_json::to_value(&before).map_err(|e| e.to_string())?
-                    != serde_json::to_value(verified).map_err(|e| e.to_string())?
+                if before.operational() != verified.operational()
                     || backend.gpu(&record.target)?.driver_version != record.driver_version
                     || backend.journal(&record.target)?.is_some_and(|j| j.pending)
                 {
@@ -1596,6 +1591,7 @@ fn execute_inner(
                     return Err("save-only pair no longer enrolled".into());
                 }
                 let mut backend = NativeBackend {
+                    reads: None,
                     credential: None,
                     manifest: None,
                     data: data.clone(),
@@ -2094,6 +2090,7 @@ mod tests {
     fn admission_progress_is_visible_before_work_and_delivery_failure_prevents_work() {
         for fail_delivery in [false, true] {
             let mut backend = NativeBackend {
+                reads: None,
                 credential: None,
                 manifest: None,
                 data: std::path::PathBuf::new(),
@@ -2140,6 +2137,7 @@ mod tests {
         ] {
             // No native read may run: the progress sink refuses the start event.
             let mut backend = NativeBackend {
+                reads: None,
                 credential: None,
                 manifest: None,
                 data: std::path::PathBuf::new(),
@@ -2171,6 +2169,7 @@ mod tests {
     fn parent_check_contains_nested_read_outcomes_in_order_and_preserves_failure() {
         for fail_read in [false, true] {
             let mut backend = NativeBackend {
+                reads: None,
                 credential: None,
                 manifest: None,
                 data: std::path::PathBuf::new(),
@@ -2282,6 +2281,7 @@ mod tests {
     }
 
     fn ordinary_disabled_plan() -> Plan {
+        use crate::workflow::Backend;
         let settings = Settings {
             low_mmio: 0,
             high_mmio: 0,
@@ -2298,6 +2298,7 @@ mod tests {
             decode: None,
         };
         Plan {
+            gpu: crate::workflow::test_support::fake().gpu(&target).unwrap(),
             authentication_deferred: false,
             reinstall: false,
             initial_setup: false,

@@ -3,6 +3,18 @@ use super::State;
 use hyper_gpu_support::{gui_model::Inventory, model::Target};
 
 impl State {
+    /// A selected completion refreshes only its VM; other rows await a poll.
+    pub fn observation_historical(&self, id: &str) -> bool {
+        self.view.needs_readback
+            || self.observation.as_ref().is_some_and(|provenance| {
+                provenance.mode == hyper_gpu_support::observation::Mode::Completion
+                    && provenance
+                        .selected
+                        .as_ref()
+                        .is_none_or(|target| target.vm_id != id)
+            })
+    }
+
     /// First-install discovery is explicit; it has no protected enrollment to poll.
     pub fn can_poll(&self) -> bool {
         self.view

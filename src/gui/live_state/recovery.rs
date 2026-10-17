@@ -19,7 +19,7 @@ impl State {
             // stale presentation must never cause an unnecessary guest sign-in.
             return Ok(true);
         }
-        if self.view.needs_readback {
+        if self.observation_historical(&record.target.vm_id) {
             return Ok(false);
         }
         let vm = self
@@ -70,11 +70,13 @@ impl State {
         self.finish_readback(readback)?;
         if let Some(record) = self.recovery_for_vm(&target.vm_id) {
             if record.operation_id != operation_id || record.target != *target {
+                self.view.needs_readback = true;
                 return Err(
                     "The protected recovery receipt changed after completion. Inspect the loaded operation before any retry.".into(),
                 );
             }
         } else if !saved && self.view.unsaved {
+            self.view.needs_readback = true;
             return Err("Applied changes were confirmed, but their bound save-only receipt is unavailable. Refresh and inspect recovery; do not repeat Apply.".into());
         }
         if saved
@@ -85,6 +87,7 @@ impl State {
                     .get(&target.vm_id)
                     .is_none_or(|d| d.target != *target))
         {
+            self.view.needs_readback = true;
             return Err("Publication completed, but current saved intent changed or is unreadable. Refresh before editing; do not repeat GPU work.".into());
         }
         Ok(())
@@ -97,13 +100,58 @@ impl State {
         self.view.needs_readback = true;
         self.cancel_review();
         let readback = readback?;
-        let configuration_error = self.load_committed(readback.committed).err();
-        self.sync_recovery(
-            readback.recovery,
-            self.import_recovery.clone(),
-            self.enrollment_recovery.clone(),
-        )?;
-        configuration_error.map_or(Ok(()), Err)
+        let mut committed = readback.committed;
+        let mut recovery = readback.recovery;
+        let mut selected_error = None;
+        let (import, enrollment) = if let Some(observation) = readback.observation {
+            observation.validate()?;
+            let selected = observation
+                .provenance
+                .selected
+                .as_ref()
+                .ok_or("Completion identity missing")?;
+            if observation.provenance.mode != hyper_gpu_support::observation::Mode::Completion
+                || self.view.selected.as_deref() != Some(selected.vm_id.as_str())
+            {
+                return Err("Completion identity differs from the selected VM".into());
+            }
+            if !observation
+                .inventory
+                .discovery
+                .vms
+                .iter()
+                .any(|vm| vm.vm_id == selected.vm_id)
+                || !observation
+                    .inventory
+                    .discovery
+                    .gpus
+                    .iter()
+                    .any(|gpu| gpu.interface == selected.gpu_interface)
+            {
+                selected_error = Some("Selected VM/GPU completion read is unavailable; Refresh before another operation".to_owned());
+            }
+            let inventory = observation.inventory_with_display(self.view.inventory.as_ref())?;
+            let selected_id = selected.vm_id.clone();
+            self.refresh(inventory);
+            self.view.selected = Some(selected_id);
+            self.worker_available = observation.worker_available;
+            self.observation = Some(observation.provenance);
+            committed = observation.committed;
+            recovery = observation.recovery;
+            (observation.import, observation.enrollment)
+        } else {
+            (
+                self.import_recovery.clone(),
+                self.enrollment_recovery.clone(),
+            )
+        };
+        let configuration_error = self.load_committed(committed).err();
+        self.sync_recovery(recovery, import, enrollment)?;
+        if let Some(error) = selected_error.or(configuration_error) {
+            self.view.needs_readback = true;
+            return Err(error);
+        }
+        Ok(())
     }
 
     /// Only the loaded, completed publication receipt can be offered for save-only.

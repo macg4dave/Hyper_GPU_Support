@@ -3,7 +3,7 @@ use super::{Backend, EffectPreview, Journal, PreviewAction};
 use crate::model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState};
 use crate::work_counts::{Counter, Counts};
 
-pub(super) struct Fake {
+pub(crate) struct Fake {
     pub(super) work: Counts,
     pub(super) os_checks: usize,
     pub(super) os_check_traces: Vec<Vec<&'static str>>,
@@ -83,7 +83,7 @@ impl Fake {
     }
 }
 
-pub(super) fn target() -> Target {
+pub(crate) fn target() -> Target {
     Target {
         compute: None,
         encode: None,
@@ -95,7 +95,7 @@ pub(super) fn target() -> Target {
     }
 }
 
-pub(super) fn fake() -> Fake {
+pub(crate) fn fake() -> Fake {
     Fake {
         work: Counts::default(),
         os_checks: 0,

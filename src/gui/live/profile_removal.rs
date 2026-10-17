@@ -25,6 +25,7 @@ pub(super) fn review_forget_live(
     let delete_busy = busy.clone();
     background(
         ui,
+        state,
         busy,
         Operation::new(
             Kind::Read,
@@ -82,6 +83,7 @@ pub(super) fn forget_live(
     let refresh_busy = busy.clone();
     background(
         ui,
+        state,
         busy,
         Operation::new(
             Kind::Forget,

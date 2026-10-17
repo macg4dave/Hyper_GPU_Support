@@ -108,6 +108,12 @@ impl State {
     }
 
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
+        if !self.view.needs_readback && self.observation_historical(id) {
+            return Err(
+                "Current VM status is unavailable. Refresh before editing or reviewing changes."
+                    .into(),
+            );
+        }
         if self.authority_conflict.as_deref() == Some(id) {
             return Err("Protected enrollment changed. Draft preserved; discard and Refresh before a new enrollment review.".into());
         }

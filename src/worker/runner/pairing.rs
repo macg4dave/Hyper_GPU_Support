@@ -120,6 +120,7 @@ pub(crate) fn enroll_pair(
         return Err("enrollment requires a stable VM with no unrelated GPU assignment".into());
     }
     let mut reader = NativeBackend {
+        reads: None,
         credential: None,
         manifest: None,
         data: data_directory()?,

@@ -6,7 +6,6 @@ use super::{
     credentials::credential_request_cancelled,
     presentation::present,
     progress::progress_to_ui,
-    source::protected_worker_available,
     state_access::{with_completion_state, with_state},
 };
 use crate::gui::AppWindow;
@@ -41,20 +40,27 @@ pub(super) fn review_verification(
     let expected = target.clone();
     background(
         ui,
+        state,
         busy,
         Operation::new(
             Kind::VerifyPlan,
             hyper_gpu_support::ui_text::operations::verify::review::PROGRESS_TITLE,
         ),
         move || {
-            let value = hyper_gpu_support::runner::submit(hyper_gpu_support::runner::request(
+            let mut request = hyper_gpu_support::runner::request(
                 hyper_gpu_support::runner::Operation::VerifyPlan,
                 Some(target),
                 None,
-            ))?;
-            serde_json::from_value::<hyper_gpu_support::workflow::VerificationPlan>(value)
-                .map_err(|e| e.to_string())
-                .map(|plan| (plan, protected_worker_available()))
+            );
+            request.include_observation = true;
+            let value = hyper_gpu_support::runner::submit(request)?;
+            serde_json::from_value::<
+                hyper_gpu_support::observation::Prepared<
+                    hyper_gpu_support::workflow::VerificationPlan,
+                >,
+            >(value)
+            .map_err(|e| e.to_string())
+            .map(|prepared| (prepared.value, prepared.worker_available))
         },
         move |ui, result| match result {
             Ok((plan, worker_available)) => {

@@ -16,10 +16,12 @@ mod guest_payload;
 mod guest_transfer;
 pub mod gui_model;
 pub mod model;
+pub mod observation;
 pub mod payload;
 pub mod probe;
 #[cfg(windows)]
 pub mod process;
+pub mod read_context;
 pub mod reporting;
 #[cfg(windows)]
 pub use worker::runner;

@@ -1,10 +1,10 @@
 # Optimization backlog
 
-Updated 17 October 2026. These tasks implement the [optimization roadmap](roadmap.md). The earlier release backlog was closed by user confirmation on 15 October; the optimization tasks are new work, not reopened QA cases. OPT-001 is implemented in source with validation pending the milestone gate. Other implementation has not started. Source work does not authorize installation or live effects.
+Updated 17 October 2026. These tasks implement the [optimization roadmap](roadmap.md). The earlier release backlog was closed by user confirmation on 15 October; the optimization tasks are new work, not reopened QA cases. OPT-001 and OPT-002 are implemented in source with validation pending the milestone gate. Other implementation has not started. Source work does not authorize installation or live effects.
 
 ## Next action
 
-The next source task is **OPT-002**, using OPT-001's [measurement contract and frozen expectations](ENGINEERING.md#optimization-measurements). OPT-001 automated execution remains pending the coherent integration checkpoint. Then deliver **OPT-003 + OPT-004** together and **OPT-005 + OPT-006** together when requested; adjacent batches can be combined when their shared contracts are ready.
+The next source batch is **OPT-003 + OPT-004**, when requested, followed by **OPT-005 + OPT-006**. OPT-001 and OPT-002 automated execution remains pending the coherent integration checkpoint, using the [measurement contract and frozen expectations](ENGINEERING.md#optimization-measurements). Adjacent batches can be combined when their shared contracts are ready.
 
 OPT-001 through OPT-006 have no hard source prerequisites. Work on their independent parts can be prepared without waiting for live measurements or another stage to close. Coordinate shared-file changes within the requested batch. OPT-007 is an optional measurement-driven extension; OPT-008 is the required final integration/acceptance task.
 
@@ -15,7 +15,7 @@ Priority expresses delivery order/value, not defect severity. Dependencies are h
 | ID | Stage | Task | Priority | Implementation | Dependencies | Validation |
 | --- | --- | --- | --- | --- | --- | --- |
 | OPT-001 | R0 | Baseline, counters and comparison contract | High | Done (source) | None | Pending milestone gate |
-| OPT-002 | R1 | Protected read pipeline and GUI coordination | High | Ready | None | Not run |
+| OPT-002 | R1 | Protected read pipeline and GUI coordination | High | Done (source) | None | Pending milestone gate |
 | OPT-003 | R2 | Setup lifecycle and changed-resource writes | High | Ready | None | Not run |
 | OPT-004 | R2 | Payload admission and focused worker handlers | High | Ready | None | Not run |
 | OPT-005 | R3 | Validated helper reuse and transport measurement | Medium | Ready | None | Not run |
@@ -51,7 +51,7 @@ Source delivered 17 October 2026: fixed aggregate counters on existing opt-in di
 ### OPT-002 - Protected read pipeline and GUI coordination
 
 Dependencies: None.
-Stage: R1. Implementation: Ready. Validation: Not run.
+Stage: R1. Implementation: Done (source). Validation: Pending milestone gate.
 
 **Outcome:** cheap, bounded routine status updates and fresh operational checks, with one coherent completion read and foreground priority. Review findings 1, 2, 5 and 7 are implemented together because they share the same read contracts.
 
@@ -68,6 +68,10 @@ Acceptance:
 - Explicit Refresh, discovery before installation, VM-scoped/global recovery blockers and final result truthfulness retain their existing authority boundaries.
 
 Integration: agree the operational facts/status/observation bundle first, then deliver its native and GUI consumers as one task. OPT-001 supplies comparison counts but is not a prerequisite for independent implementation.
+
+Implemented 17 October 2026: operational equality excludes optional names/capacity/OS metadata; operation-scoped connections re-query current objects; inventory batches exact provider relationships. Full Refresh obtains display metadata; polling retains it only for matching identities and driver versions. One locked observation supplies current authority, saved intent, recovery and selected completion facts. Foreground requests cancel polls and wait for confirmed release of the exact runner instance; read budgets/cancellation reach provider, hash and pipe waits without cancelling effects. Authenticated reads hash the current enrolled artifacts once under the common lock, and readiness comes from that response without a separate GUI hash pass. Completion preserves drafts/conflicts, marks unrelated rows historical until a later poll, and never substitutes an old selected row for a missing current read. See [architecture](ARCHITECTURE.md#protected-read-pipeline) and [security](SECURITY.md#protected-read-admission).
+
+Regression source covers operational/display drift, fixed batch-query counts and relationship failures, artifact-authentication counts/failure, topology/display invalidation, cancellation/deadline/release tracking, stale poll races, disconnected clients, selected completion failures and disappearing save receipts. Static formatting, UI-copy and documentation/whitespace checks pass. Rust compilation, regression execution, the complete non-hardware gate, native measurements, installation and installed/live acceptance have not run for this task. R1 remains open.
 
 ### OPT-003 - Setup lifecycle and changed-resource writes
 

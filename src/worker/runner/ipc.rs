@@ -17,6 +17,23 @@ const PIPE: &str = r"\\.\pipe\HyperGpuSupport-Product-v2";
 /// Submit a request through the installed authenticated runner.
 #[allow(unsafe_code)]
 pub fn submit(request: Request) -> Result<serde_json::Value, String> {
+    let control = crate::read_context::request();
+    control.scope(|| submit_read(request, &control))
+}
+
+#[allow(unsafe_code)]
+fn submit_read(
+    mut request: Request,
+    control: &crate::read_context::ReadControl,
+) -> Result<serde_json::Value, String> {
+    if !control.backend_released() {
+        return Err("A protected reader has not confirmed release".into());
+    }
+    if matches!(request.operation, Operation::Apply | Operation::Verify)
+        || request.credential.is_some()
+    {
+        return Err("Runner reads cannot dispatch effects or accept guest credentials".into());
+    }
     let e = enrollment()?;
     if !(e.artifacts.len() == 3
         || (e.artifacts.len() == 4 && e.artifacts.contains_key("hyper-gpu-support.exe")))
@@ -37,26 +54,55 @@ pub fn submit(request: Request) -> Result<serde_json::Value, String> {
     windows_pipe::wait_for_task_ready(r"\", TASK, Duration::from_secs(30))
         .map_err(|e| e.to_string())?;
     let (_a, service) = scheduler()?;
+    control.check()?;
+    let release = control.submitted();
     // SAFETY: fixed registered task; no caller-controlled executable or arguments.
-    (|| unsafe {
+    let launched = (|| unsafe {
         service
             .GetFolder(&BSTR::from(r"\"))?
             .GetTask(&BSTR::from(TASK))?
             .Run(&VARIANT::default())
     })()
-    .map_err(|e: windows::core::Error| e.to_string())?;
-    let bytes = zeroize::Zeroizing::new(serde_json::to_vec(&request).map_err(|e| e.to_string())?);
-    let reply = windows_pipe::transact(PIPE, "S-1-5-18", &bytes, Duration::from_secs(3900))
-        .map_err(|e| e.to_string())?;
-    let reply: Reply = serde_json::from_slice(&reply).map_err(|e| e.to_string())?;
-    if reply.nonce != request.nonce {
-        return Err("runner response identity mismatch".into());
+    .map_err(|e: windows::core::Error| e.to_string());
+    let instance = launched.map_err(|_| {
+        "Protected reader launch outcome is unconfirmed; foreground admission remains held"
+            .to_owned()
+    })?;
+    let response = (|| {
+        control.check()?;
+        request.read_budget_ms = Some(
+            control
+                .remaining()
+                .as_millis()
+                .min(360_000)
+                .try_into()
+                .unwrap_or(360_000),
+        );
+        let bytes =
+            zeroize::Zeroizing::new(serde_json::to_vec(&request).map_err(|e| e.to_string())?);
+        let reply = windows_pipe::transact_read(PIPE, "S-1-5-18", &bytes, control)
+            .map_err(|e| e.to_string())?;
+        let reply: Reply = serde_json::from_slice(&reply).map_err(|e| e.to_string())?;
+        if reply.nonce != request.nonce {
+            return Err("runner response identity mismatch".into());
+        }
+        reply.result.ok_or_else(|| {
+            reply
+                .error
+                .unwrap_or_else(|| "runner returned no result".into())
+        })
+    })();
+    // Cancellation/disconnect never implies release. Keep the caller's read
+    // admission until the one-shot task is independently Ready after exit.
+    match windows_pipe::wait_for_read_release(&instance, Duration::from_secs(3905)) {
+        Ok(()) => {
+            release.confirm();
+            response
+        }
+        Err(_) => {
+            Err("Protected reader release is unconfirmed; foreground admission remains held".into())
+        }
     }
-    reply.result.ok_or_else(|| {
-        reply
-            .error
-            .unwrap_or_else(|| "runner returned no result".into())
-    })
 }
 /// Run exactly one authenticated request; parent task and watchdog bound its lifetime.
 pub fn serve() -> Result<(), String> {
@@ -68,7 +114,6 @@ pub fn serve() -> Result<(), String> {
         return Err("runner must execute from its protected installation as SYSTEM".into());
     }
     let e = enrollment()?;
-    verify_artifacts(&e)?;
     // Specific client rights exclude FILE_CREATE_PIPE_INSTANCE, which generic
     // write would grant. Clients cannot create a competing server instance.
     let sddl = format!("O:SYG:SYD:P(A;;GA;;;SY)(A;;0x0012008b;;;{})", e.client_sid);
@@ -94,8 +139,14 @@ pub fn serve() -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 fn execute(e: &Enrollment, request: Request) -> Result<serde_json::Value, String> {
+    let control = crate::read_context::request().shortened(Duration::from_millis(
+        request.read_budget_ms.unwrap_or(360_000).min(360_000),
+    ));
     let name = match request.operation {
         Operation::Discover => "Discover",
+        Operation::Observe => "Observe",
+        Operation::Poll => "Poll",
+        Operation::Completion => "Completion",
         Operation::Status => "Status",
         Operation::Plan => "Plan",
         Operation::PreliminaryPlan => "PreliminaryPlan",
@@ -105,7 +156,7 @@ fn execute(e: &Enrollment, request: Request) -> Result<serde_json::Value, String
         Operation::Apply => "Apply",
         Operation::Verify => "Verify",
     };
-    crate::diagnostics::run("runner-request", name, || execute_inner(e, request))
+    control.scope(|| crate::diagnostics::run("runner-request", name, || execute_inner(e, request)))
 }
 
 fn execute_inner(e: &Enrollment, request: Request) -> Result<serde_json::Value, String> {
@@ -135,12 +186,7 @@ fn execute_inner(e: &Enrollment, request: Request) -> Result<serde_json::Value, 
     let data = data_directory()?;
     let _lock = operation_lock()?;
     let current = enrollment()?;
-    if serde_json::to_value(e).map_err(|e| e.to_string())?
-        != serde_json::to_value(&current).map_err(|e| e.to_string())?
-    {
-        return Err("enrollment changed before admission; retry discovery".into());
-    }
-    verify_artifacts(&current)?;
+    super::policy::authenticate_read(e, &current, verify_artifacts)?;
     let nonces = data.join("nonces");
     fs::create_dir_all(&nonces).map_err(|e| e.to_string())?;
     crate::security::verify(&nonces)?;
@@ -171,15 +217,67 @@ fn execute_inner(e: &Enrollment, request: Request) -> Result<serde_json::Value, 
         || execute_operation(e, request, data),
     )
 }
+#[cfg(test)]
+mod read_tests {
+    use super::*;
+    #[test]
+    fn read_transport_rejects_effects_and_guest_credentials_before_native_or_artifact_work() {
+        for (operation, credential) in [
+            (Operation::Apply, None),
+            (Operation::Verify, None),
+            (
+                Operation::Poll,
+                Some(crate::credentials::Credential {
+                    username: "fixture".into(),
+                    password: "not-a-real-secret".into(),
+                }),
+            ),
+        ] {
+            let before = crate::work_counts::snapshot();
+            let control = crate::read_context::ReadControl::new(Duration::from_secs(60));
+            let error = control
+                .scope(|| submit(super::super::protocol::request(operation, None, credential)))
+                .unwrap_err();
+            assert!(error.contains("cannot dispatch effects"));
+            assert!(control.backend_released());
+            assert_eq!(
+                crate::work_counts::snapshot().since(before),
+                crate::work_counts::Counts::default()
+            );
+        }
+    }
+}
+
 fn execute_operation(
     e: &Enrollment,
     request: Request,
     data: PathBuf,
 ) -> Result<serde_json::Value, String> {
+    if matches!(
+        request.operation,
+        Operation::Observe | Operation::Poll | Operation::Completion
+    ) {
+        let mode = match request.operation {
+            Operation::Observe => crate::observation::Mode::Full,
+            Operation::Poll => crate::observation::Mode::Poll,
+            _ => crate::observation::Mode::Completion,
+        };
+        if request.credential.is_some() {
+            return Err("Observations do not accept guest credentials".into());
+        }
+        let selected = if mode == crate::observation::Mode::Completion {
+            request.target
+        } else {
+            None
+        };
+        return serde_json::to_value(super::observation::read(e, data, mode, selected)?)
+            .map_err(|e| e.to_string());
+    }
     if matches!(request.operation, Operation::Discover) {
         let mut inventory =
             serde_json::to_value(windows_hyperv::discover()?).map_err(|e| e.to_string())?;
         let mut reader = NativeBackend {
+            reads: None,
             credential: None,
             manifest: None,
             data,
@@ -218,6 +316,7 @@ fn execute_operation(
         return Err("target is outside administrator enrollment".into());
     }
     let mut backend = NativeBackend {
+        reads: None,
         credential: request.credential,
         manifest: None,
         data,
@@ -235,7 +334,7 @@ fn execute_operation(
         }
     }
     let output = match request.operation {
-        Operation::Discover => return Err("invalid operation".into()),
+        Operation::Discover | Operation::Observe | Operation::Poll | Operation::Completion => return Err("invalid operation".into()),
         Operation::Status => {
             let observed = backend.inspect(&target)?;
             let mut issues = Vec::new();
@@ -259,5 +358,14 @@ fn execute_operation(
         Operation::Apply | Operation::Verify => return Err("mutation requires the reviewed per-operation worker; update the frontend and installation".into()),
     }
     .map_err(|e| e.to_string())?;
-    Ok(output)
+    if request.include_observation {
+        serde_json::to_value(crate::observation::Prepared {
+            value: output,
+            authority: super::policy::enrollment_revision(e)?,
+            worker_available: e.artifacts.contains_key("hyper-gpu-support.exe"),
+        })
+        .map_err(|e| e.to_string())
+    } else {
+        Ok(output)
+    }
 }

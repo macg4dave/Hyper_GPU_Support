@@ -1,5 +1,8 @@
 //! Operator intent and fresh observations; no laboratory or driver integrity pins.
 use serde::{Deserialize, Serialize};
+mod operational;
+pub(crate) use operational::review_facts;
+pub use operational::{GpuFacts, VmFacts};
 
 /// Runtime operator configuration. Enrollment is separately administrator protected.
 #[derive(Clone, Debug, Deserialize, Serialize)]

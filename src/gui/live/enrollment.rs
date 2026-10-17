@@ -28,6 +28,7 @@ pub(super) fn review_enrollment(
     let enroll_busy = busy.clone();
     background(
         ui,
+        state,
         busy,
         Operation::new(
             Kind::PermissionPlan,
@@ -112,6 +113,7 @@ pub(super) fn enroll_live(
     let progress = progress_to_ui(ui.as_weak());
     background(
         ui,
+        state,
         busy,
         Operation::new(
             if artifacts.is_some() {
@@ -211,6 +213,7 @@ pub(super) fn reconcile_enrollment_live(
     let progress = progress_to_ui(ui.as_weak());
     background(
         ui,
+        state,
         busy,
         Operation::new(
             Kind::PermissionRecovery,

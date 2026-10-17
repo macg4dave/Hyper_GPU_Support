@@ -301,8 +301,7 @@ impl SaveRecord {
         }
         if driver != self.driver_version
             || revision != &self.expected
-            || serde_json::to_value(state).map_err(|e| e.to_string())?
-                != serde_json::to_value(&restored_baseline).map_err(|e| e.to_string())?
+            || state.operational() != restored_baseline.operational()
             || journal.schema != 1
             || journal.vm_id != self.target.vm_id
             || journal.gpu_interface != self.target.gpu_interface
@@ -310,8 +309,7 @@ impl SaveRecord {
             return Err("negative completion facts changed; retain recovery".into());
         }
         if let Some(retirement) = &self.retirement {
-            if serde_json::to_value(state).map_err(|e| e.to_string())?
-                != serde_json::to_value(&retirement.observed).map_err(|e| e.to_string())?
+            if state.operational() != retirement.observed.operational()
                 || (!equal(journal, &retirement.before)? && !equal(journal, &retirement.after)?)
             {
                 return Err("negative completion journal changed; retain recovery".into());
@@ -515,8 +513,7 @@ impl SaveRecord {
         if verified.vm_id != self.target.vm_id
             || effective.power != self.final_power()?
             || effective.vm_id != self.target.vm_id
-            || serde_json::to_value(verified).map_err(|e| e.to_string())?
-                != serde_json::to_value(effective).map_err(|e| e.to_string())?
+            || verified.operational() != effective.operational()
             || effective.generation != 2
             || (self.target.enabled && effective.gpus != vec![self.target.gpu_interface.clone()])
             || (!self.target.enabled && !effective.gpus.is_empty())

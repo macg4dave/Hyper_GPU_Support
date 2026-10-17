@@ -1,7 +1,7 @@
 //! Foreground admission, background execution and event-loop completion delivery.
-use super::polling;
+use super::{SharedState, polling};
 #[cfg(windows)]
-use super::{SharedState, progress, refresh::refresh_after_result, source::Source};
+use super::{progress, refresh::finish_result_observation, source::Source};
 #[cfg(windows)]
 use crate::gui::live_state::OperationReadback;
 use crate::gui::{
@@ -41,7 +41,10 @@ pub(super) fn continue_prepared(
 }
 
 /// Abandon preparation without pretending the underlying read has stopped.
-pub(super) fn cancel_preparation(ui: &AppWindow) {
+pub(super) fn cancel_preparation(ui: &AppWindow, state: &SharedState) {
+    if let Ok(state) = state.lock() {
+        state.polling.cancel_preparation();
+    }
     ui.set_review_preparing(false);
     ui.set_operation_dialog_active(false);
     ui.set_running(true);
@@ -68,17 +71,19 @@ pub(super) fn finish_cancelled_preparation(ui: &AppWindow, preparing: bool) -> b
 
 pub(super) fn background<T: Send + 'static>(
     ui: &AppWindow,
+    state: &SharedState,
     busy: &Arc<AtomicBool>,
     operation: Operation<'_>,
     task: impl FnOnce() -> Result<T, String> + Send + 'static,
     complete: impl FnOnce(&AppWindow, Result<T, String>) + Send + 'static,
 ) -> Result<(), String> {
-    background_for_vm(ui, busy, operation, None, false, task, complete)
+    background_for_vm(ui, state, busy, operation, None, false, task, complete)
 }
 
 /// Automatic reads leave foreground admission and visible UI state untouched.
 pub(super) fn background_refresh<T: Send + 'static>(
     ui: &AppWindow,
+    state: &SharedState,
     busy: &Arc<AtomicBool>,
     poll: Option<polling::Ticket>,
     operation: Operation<'_>,
@@ -86,14 +91,15 @@ pub(super) fn background_refresh<T: Send + 'static>(
     complete: impl FnOnce(&AppWindow, Result<T, String>) + Send + 'static,
 ) -> Result<(), String> {
     let Some(ticket) = poll else {
-        return background(ui, busy, operation, task, complete);
+        return background(ui, state, busy, operation, task, complete);
     };
     let weak = ui.as_weak();
     let foreground_busy = busy.clone();
     std::thread::Builder::new()
         .name("gui-status-poll".into())
         .spawn(move || {
-            let result = run_background_task(task);
+            let result = run_background_task(|| ticket.read(task));
+            ticket.backend_finished();
             let _ = weak.upgrade_in_event_loop(move |ui| {
                 if ticket.can_publish(
                     foreground_busy.load(Ordering::Acquire),
@@ -133,10 +139,14 @@ pub(super) fn background_operation<T: Send + 'static>(
     + 'static,
 ) -> Result<(), String> {
     let finished_state = state.clone();
-    let refresh_busy = busy.clone();
+    let target = state
+        .lock()
+        .map_err(|_| "Presentation state unavailable")?
+        .target(ui.get_selected_id().as_str())?;
     let readback_ui = ui.as_weak();
     background_for_vm(
         ui,
+        state,
         busy,
         operation,
         vm_name,
@@ -148,20 +158,25 @@ pub(super) fn background_operation<T: Send + 'static>(
                 ui.set_current_stage(hyper_gpu_support::ui_text::dialogs::install::READBACK.into());
                 ui.set_transfer_fraction(-1.0);
             });
-            Ok((outcome, Source.operation_readback()))
+            Ok((outcome, Source.operation_readback(target)))
         },
         move |ui, result| {
             match result {
                 Ok((outcome, readback)) => complete(ui, outcome, readback),
                 Err(error) => complete(ui, Err(error.clone()), Err(error)),
             }
-            refresh_after_result(ui, &finished_state, &refresh_busy);
+            finish_result_observation(ui, &finished_state);
         },
     )
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep read admission, operation identity and foreground completion explicit"
+)]
 pub(super) fn background_for_vm<T: Send + 'static>(
     ui: &AppWindow,
+    state: &SharedState,
     busy: &Arc<AtomicBool>,
     operation: Operation<'_>,
     vm_name: Option<&str>,
@@ -172,10 +187,22 @@ pub(super) fn background_for_vm<T: Send + 'static>(
     if busy.swap(true, Ordering::AcqRel) {
         return Err("Another GUI operation is still running.".into());
     }
+    let admission = match state
+        .lock()
+        .map_err(|_| "Read admission unavailable".to_owned())
+        .and_then(|state| state.polling.foreground())
+    {
+        Ok(admission) => admission,
+        Err(error) => {
+            busy.store(false, Ordering::Release);
+            return Err(error);
+        }
+    };
     ui.set_updating(true);
     let silent =
         operation.kind.silent() || (ui.get_startup_loading() && operation.kind == Kind::Read);
     let preparing = operation.kind.review_preparation();
+    let readonly = preparing || matches!(operation.kind, Kind::Read | Kind::StatusRefresh);
     ui.set_review_preparing(preparing);
     if !silent {
         ui.set_running(true);
@@ -229,12 +256,25 @@ pub(super) fn background_for_vm<T: Send + 'static>(
     if let Err(error) = std::thread::Builder::new()
         .name("gui-backend-read".into())
         .spawn(move || {
-            let result = run_background_task(task);
+            let result = run_background_task(|| admission.run(readonly, task));
+            let released = admission.backend_released();
+            drop(admission);
             let completion_busy = worker_busy.clone();
             if weak
                 .upgrade_in_event_loop(move |ui| {
-                    completion_busy.store(false, Ordering::Release);
+                    if released {
+                        completion_busy.store(false, Ordering::Release);
+                    }
                     ui.set_updating(false);
+                    if preparing && !released {
+                        ui.set_review_preparing(false);
+                        ui.set_running(false);
+                        ui.set_execution_ready(false);
+                        ui.set_operation_dialog_active(false);
+                        dialog(&ui, "error", hyper_gpu_support::ui_text::operations::action::UNAVAILABLE_TITLE,
+                            "The protected reader has not confirmed release. New actions remain blocked; no operation was retried.");
+                        return;
+                    }
                     // Cancel abandons this read's result, including failures. It
                     // never terminates a protected effect or publishes a late plan.
                     if finish_cancelled_preparation(&ui, preparing) {
@@ -246,10 +286,13 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                         ui.set_dialog_kind("".into());
                     }
                     complete(&ui, result);
+                    if !released { ui.set_execution_ready(false); }
                 })
                 .is_err()
             {
-                worker_busy.store(false, Ordering::Release);
+                if released {
+                    worker_busy.store(false, Ordering::Release);
+                }
             }
         })
     {
@@ -329,9 +372,13 @@ mod tests {
         ] {
             let ui = AppWindow::new().unwrap();
             let busy = Arc::new(AtomicBool::new(false));
+            let state = Arc::new(std::sync::Mutex::new(
+                crate::gui::live_state::State::default(),
+            ));
             // Only an isolated no-op background task; no worker or inventory calls.
             background_for_vm(
                 &ui,
+                &state,
                 &busy,
                 Operation::new(kind, "Operation"),
                 Some("VM2"),

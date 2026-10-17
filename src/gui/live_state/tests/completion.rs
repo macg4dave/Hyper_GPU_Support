@@ -1,4 +1,105 @@
 use super::*;
+use hyper_gpu_support::configuration_store::Revision;
+
+fn completion_observation(s: &State) -> hyper_gpu_support::observation::Bundle {
+    use hyper_gpu_support::observation::{Bundle, Mode, Provenance};
+    let inventory = s.view.inventory.clone().unwrap();
+    let committed = s.committed.clone();
+    Bundle {
+        inventory,
+        committed: committed.clone(),
+        recovery: s.recoveries.clone(),
+        import: None,
+        enrollment: None,
+        worker_available: true,
+        provenance: Provenance {
+            schema: 1,
+            authority: Revision::of(b"policy"),
+            configuration: Revision::of(&serde_json::to_vec(&committed).unwrap()),
+            mode: Mode::Completion,
+            selected: Some(s.target(id(s)).unwrap()),
+        },
+    }
+}
+
+#[test]
+fn selected_completion_uses_fresh_rows_and_retains_draft_and_revision_conflicts() {
+    let mut s = state();
+    let original = s.target(id(&s)).unwrap();
+    s.load_committed(committed(vec![original.clone()], "before"))
+        .unwrap();
+    let mut draft = original.clone();
+    draft.enabled = !draft.enabled;
+    s.view.draft = Some(draft.clone());
+    let mut observation = completion_observation(&s);
+    observation.inventory.discovery.vms[0].settings.high_mmio += 1;
+    let wanted = observation.inventory.discovery.vms[0].clone();
+    s.finish_readback(Ok(OperationReadback {
+        committed: observation.committed.clone(),
+        recovery: vec![],
+        observation: Some(observation),
+    }))
+    .unwrap();
+    assert_eq!(s.view.draft, Some(draft));
+    assert_eq!(
+        s.view.vm(&original.vm_id).unwrap().operational(),
+        wanted.operational()
+    );
+    assert!(!s.view.needs_readback);
+    assert!(s.observation.is_some());
+    assert!(!s.observation_historical(&original.vm_id));
+    assert!(s.observation_historical("12345678-1234-1234-1234-000000000002"));
+    assert!(
+        s.editor_eligibility("12345678-1234-1234-1234-000000000002")
+            .is_err()
+    );
+    let mut changed = completion_observation(&s);
+    changed.committed = committed(vec![original.clone()], "externally changed");
+    changed.provenance.configuration =
+        Revision::of(&serde_json::to_vec(&changed.committed).unwrap());
+    assert!(
+        s.finish_readback(Ok(OperationReadback {
+            committed: changed.committed.clone(),
+            recovery: vec![],
+            observation: Some(changed)
+        }))
+        .is_err()
+    );
+    assert!(s.view.needs_readback);
+}
+
+#[test]
+fn failed_selected_completion_and_disappearing_save_receipt_never_reuse_stale_success() {
+    let mut s = state();
+    let mut observation = completion_observation(&s);
+    observation.inventory.discovery.vms.clear();
+    assert!(
+        s.finish_readback(Ok(OperationReadback {
+            committed: observation.committed.clone(),
+            recovery: vec![],
+            observation: Some(observation)
+        }))
+        .is_err()
+    );
+    assert!(s.view.needs_readback);
+    let mut s = state();
+    let applied = s.target(id(&s)).unwrap();
+    let observation = completion_observation(&s);
+    assert!(
+        s.finish_apply(
+            &applied,
+            "missing-receipt",
+            false,
+            Ok(OperationReadback {
+                committed: observation.committed.clone(),
+                recovery: vec![],
+                observation: Some(observation)
+            })
+        )
+        .is_err()
+    );
+    assert!(s.view.needs_readback && s.view.unsaved);
+}
 
 #[test]
 fn completed_unsaved_apply_keeps_saved_observed_and_applied_state_distinct() {
@@ -17,6 +118,7 @@ fn completed_unsaved_apply_keeps_saved_observed_and_applied_state_distinct() {
         "test-operation",
         false,
         Ok(OperationReadback {
+            observation: None,
             committed: store,
             recovery: vec![record],
         }),
@@ -75,6 +177,7 @@ fn completed_apply_rejects_a_replaced_operation_receipt() {
                 "test-operation",
                 false,
                 Ok(OperationReadback {
+                    observation: None,
                     committed: Default::default(),
                     recovery: vec![record],
                 })
@@ -104,6 +207,7 @@ fn save_only_completion_updates_selected_intent_and_preserves_another_vm_draft()
         "test-operation",
         true,
         Ok(OperationReadback {
+            observation: None,
             committed: store.clone(),
             recovery: vec![],
         }),

@@ -136,8 +136,8 @@ impl ResetReview {
         } else {
             self.journal.clone()
         };
-        if !same(&backend.inspect(&record.target)?, expected)?
-            || !same(&backend.gpu(&record.target)?, &self.gpu)?
+        if backend.inspect(&record.target)?.operational() != expected.operational()
+            || backend.gpu(&record.target)?.operational() != self.gpu.operational()
             || !same(&backend.journal(&record.target)?, &Some(journal))?
         {
             return Err(
@@ -166,7 +166,7 @@ pub(crate) fn reset_partial(
     }
     let mut state = backend.inspect(&record.target)?;
     let restored = review.restored(record);
-    if same(&state, &restored)?
+    if state.operational() == restored.operational()
         && same(
             &backend.journal(&record.target)?,
             &Some(review.ended(record)),
@@ -174,23 +174,25 @@ pub(crate) fn reset_partial(
     {
         return review.check(backend, record, &restored, true);
     }
-    if same(&state, &review.observed)? && state.power == Power::Running {
+    if state.operational() == review.observed.operational() && state.power == Power::Running {
         review.check(backend, record, &review.observed, false)?;
         backend.power(&record.target, Power::Off)?;
         review.check(backend, record, &review.stopped(), false)?;
         state = backend.inspect(&record.target)?;
     }
     // Resume only a separately recorded expected stage; never recreate an adapter.
-    if same(&state, &review.stopped())? {
+    if state.operational() == review.stopped().operational() {
         review.check(backend, record, &review.stopped(), false)?;
         if !state.gpus.is_empty() {
             backend.assign(&record.target, false)?;
         }
-    } else if !same(&state, &review.detached())? && !same(&state, &restored)? {
+    } else if state.operational() != review.detached().operational()
+        && state.operational() != restored.operational()
+    {
         return Err("Partial GPU removal host state changed; retain recovery.".into());
     }
     let current = backend.inspect(&record.target)?;
-    if !same(&current, &restored)? {
+    if current.operational() != restored.operational() {
         review.check(backend, record, &review.detached(), false)?;
         backend.settings(&record.target, &record.initial.settings)?;
     }

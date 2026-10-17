@@ -13,7 +13,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::{
-    CloseHandle, ERROR_INSUFFICIENT_BUFFER, ERROR_PIPE_CONNECTED, HANDLE, HLOCAL, LocalFree,
+    CloseHandle, ERROR_INSUFFICIENT_BUFFER, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, HANDLE,
+    HLOCAL, LocalFree,
 };
 use windows::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
@@ -31,8 +32,8 @@ use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
 };
 use windows::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, ImpersonateNamedPipeClient, PIPE_REJECT_REMOTE_CLIENTS,
-    PeekNamedPipe,
+    ConnectNamedPipe, CreateNamedPipeW, ImpersonateNamedPipeClient, PIPE_NOWAIT,
+    PIPE_REJECT_REMOTE_CLIENTS, PIPE_WAIT, PeekNamedPipe, SetNamedPipeHandleState,
 };
 use windows::Win32::System::TaskScheduler::{
     ITaskService, TASK_STATE_READY, TASK_STATE_RUNNING, TaskScheduler,
@@ -44,7 +45,8 @@ use windows::Win32::System::Variant::VARIANT;
 use windows::core::BSTR;
 use windows::core::{PCWSTR, PWSTR};
 
-use crate::runner::{FRAME_LIMIT, FrameError, read_frame, write_frame};
+use crate::read_context::ReadControl;
+use crate::runner::{FRAME_LIMIT, FrameError, write_frame};
 
 const PIPE_BUFFER: u32 = 64 * 1024;
 const CLIENT_PIPE_ACCESS: u32 = FILE_GENERIC_READ.0 | FILE_WRITE_DATA.0;
@@ -119,6 +121,34 @@ pub fn wait_for_task_ready(task_path: &str, task_name: &str, timeout: Duration) 
     }
 }
 
+/// Observe the exact instance returned by Run; a registered task's transient
+/// Ready state before a queued instance starts is not a release acknowledgement.
+#[allow(unsafe_code)]
+pub(crate) fn wait_for_read_release(
+    instance: &windows::Win32::System::TaskScheduler::IRunningTask,
+    timeout: Duration,
+) -> io::Result<()> {
+    use windows::Win32::System::TaskScheduler::TASK_STATE_QUEUED;
+    let deadline = Instant::now() + timeout;
+    loop {
+        // SAFETY: same live apartment and exact instance returned by fixed Run.
+        match unsafe { instance.State() }.map_err(windows_error)? {
+            TASK_STATE_READY => return Ok(()),
+            state
+                if (state == TASK_STATE_RUNNING || state == TASK_STATE_QUEUED)
+                    && Instant::now() < deadline =>
+            {
+                thread::sleep(Duration::from_millis(25))
+            }
+            _ => {
+                return Err(io::Error::other(
+                    "Protected reader instance release is unconfirmed",
+                ));
+            }
+        }
+    }
+}
+
 /// Serve exactly one authenticated request and response, then close the pipe.
 ///
 /// The supplied handler runs only after the client SID is verified. A single
@@ -159,7 +189,7 @@ pub fn serve_one(
         CreateNamedPipeW(
             PCWSTR(wide.as_ptr()),
             PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
-            PIPE_REJECT_REMOTE_CLIENTS,
+            PIPE_REJECT_REMOTE_CLIENTS | PIPE_NOWAIT,
             1,
             PIPE_BUFFER,
             PIPE_BUFFER,
@@ -172,21 +202,41 @@ pub fn serve_one(
     if handle.is_invalid() {
         return Err(io::Error::last_os_error());
     }
-    // SAFETY: `handle` is a valid newly-created pipe. ERROR_PIPE_CONNECTED is a
-    // successful early-client race documented by ConnectNamedPipe.
-    if let Err(error) = unsafe { ConnectNamedPipe(handle, None) }
-        && error.code() != ERROR_PIPE_CONNECTED.to_hresult()
-    {
-        // SAFETY: the checked handle is owned here and has not been transferred.
-        let _ = unsafe { CloseHandle(handle) };
-        return Err(io::Error::from_raw_os_error(error.code().0));
-    }
-    // SAFETY: ownership of the valid connected pipe moves into exactly one File.
+    // SAFETY: ownership of the valid pipe moves into exactly one File, including
+    // failure/timeout while waiting for a client.
     let mut pipe = unsafe { File::from_raw_handle(handle.0) };
+    let accepting = Instant::now() + Duration::from_secs(30);
+    loop {
+        if Instant::now() >= accepting {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "runner client connection deadline exceeded",
+            ));
+        }
+        // SAFETY: owned nonblocking server handle; client races are explicit.
+        match unsafe { ConnectNamedPipe(handle, None) } {
+            // Nonblocking success only establishes listening. Only the
+            // documented ERROR_PIPE_CONNECTED status confirms a client.
+            Ok(()) => thread::sleep(Duration::from_millis(10)),
+            Err(error) if error.code() == ERROR_PIPE_CONNECTED.to_hresult() => break,
+            Err(error) if error.code() == ERROR_PIPE_LISTENING.to_hresult() => {
+                thread::sleep(Duration::from_millis(10))
+            }
+            Err(error) => return Err(windows_error(error)),
+        }
+    }
+    // SAFETY: connected owned byte pipe; restore blocking framing after bounded accept.
+    unsafe { SetNamedPipeHandleState(handle, Some(&PIPE_WAIT), None, None) }
+        .map_err(windows_error)?;
     (|| {
-        let request = zeroize::Zeroizing::new(read_frame(&mut pipe).map_err(frame_error)?);
+        let request = zeroize::Zeroizing::new(wait_for_frame_controlled(
+            &mut pipe,
+            handle,
+            Instant::now() + Duration::from_secs(30),
+            None,
+        )?);
         verify_pipe_client(handle, expected_client_sid)?;
-        let response = handler(&request)?;
+        let response = with_peer_read(&pipe, || handler(&request))?;
         write_frame(&mut pipe, &response).map_err(frame_error)
     })()
 }
@@ -197,15 +247,44 @@ pub fn serve_one(
 /// Returns the last native open/security error after `timeout`, or a bounded
 /// framing error.
 #[allow(unsafe_code)]
+#[cfg(test)]
 pub fn transact(
     pipe_name: &str,
     expected_server_sid: &str,
     request: &[u8],
     timeout: Duration,
 ) -> io::Result<Vec<u8>> {
+    transact_inner(pipe_name, expected_server_sid, request, timeout, None)
+}
+
+pub(crate) fn transact_read(
+    pipe_name: &str,
+    expected_server_sid: &str,
+    request: &[u8],
+    control: &ReadControl,
+) -> io::Result<Vec<u8>> {
+    transact_inner(
+        pipe_name,
+        expected_server_sid,
+        request,
+        control.remaining(),
+        Some(control),
+    )
+}
+
+fn transact_inner(
+    pipe_name: &str,
+    expected_server_sid: &str,
+    request: &[u8],
+    timeout: Duration,
+    control: Option<&ReadControl>,
+) -> io::Result<Vec<u8>> {
     let deadline = Instant::now() + timeout;
     let mut last_error;
     let mut pipe = loop {
+        if let Some(control) = control {
+            control.check().map_err(io::Error::other)?;
+        }
         match OpenOptions::new()
             .access_mode(CLIENT_PIPE_ACCESS)
             .security_qos_flags(CLIENT_PIPE_SQOS)
@@ -224,12 +303,22 @@ pub fn transact(
     let handle = HANDLE(pipe.as_raw_handle());
     verify_pipe_owner(handle, expected_server_sid)?;
     write_frame(&mut pipe, request).map_err(frame_error)?;
-    wait_for_frame(&mut pipe, handle, deadline)
+    wait_for_frame_controlled(&mut pipe, handle, deadline, control)
 }
 
 #[allow(unsafe_code)]
+#[cfg(test)]
 fn wait_for_frame(pipe: &mut File, handle: HANDLE, deadline: Instant) -> io::Result<Vec<u8>> {
-    wait_for_available(handle, 4, deadline)?;
+    wait_for_frame_controlled(pipe, handle, deadline, None)
+}
+
+fn wait_for_frame_controlled(
+    pipe: &mut File,
+    handle: HANDLE,
+    deadline: Instant,
+    control: Option<&ReadControl>,
+) -> io::Result<Vec<u8>> {
+    wait_for_available(handle, 4, deadline, control)?;
     let mut header = [0_u8; 4];
     pipe.read_exact(&mut header)?;
     let frame_length = u32::from_le_bytes(header) as usize;
@@ -239,18 +328,26 @@ fn wait_for_frame(pipe: &mut File, handle: HANDLE, deadline: Instant) -> io::Res
             "runner protocol frame exceeds limit",
         ));
     }
-    wait_for_available(handle, frame_length, deadline)?;
+    wait_for_available(handle, frame_length, deadline, control)?;
     let mut payload = vec![0_u8; frame_length];
     pipe.read_exact(&mut payload)?;
     Ok(payload)
 }
 
 #[allow(unsafe_code)]
-fn wait_for_available(handle: HANDLE, required: usize, deadline: Instant) -> io::Result<()> {
+fn wait_for_available(
+    handle: HANDLE,
+    required: usize,
+    deadline: Instant,
+    control: Option<&ReadControl>,
+) -> io::Result<()> {
     if required == 0 {
         return Ok(());
     }
     loop {
+        if let Some(control) = control {
+            control.check().map_err(io::Error::other)?;
+        }
         let mut available = 0;
         // SAFETY: `handle` remains owned by the caller and `available` is a valid
         // writable counter for this non-consuming query.
@@ -267,6 +364,51 @@ fn wait_for_available(handle: HANDLE, required: usize, deadline: Instant) -> io:
         }
         thread::sleep(Duration::from_millis(10));
     }
+}
+
+fn with_peer_read<T>(pipe: &File, action: impl FnOnce() -> io::Result<T>) -> io::Result<T> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    struct Stop<'a>(&'a AtomicBool);
+    impl Drop for Stop<'_> {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Release);
+        }
+    }
+    let peer = pipe.try_clone()?;
+    let control = ReadControl::new(Duration::from_secs(360));
+    let stopped = AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            while !stopped.load(Ordering::Acquire) {
+                if !read_peer_connected(&peer) {
+                    control.cancel();
+                    break;
+                }
+                thread::sleep(Duration::from_millis(25));
+            }
+        });
+        let _stop = Stop(&stopped);
+        control
+            .scope(|| action().map_err(|e| e.to_string()))
+            .map_err(io::Error::other)
+    })
+}
+
+#[allow(unsafe_code)]
+fn read_peer_connected(pipe: &File) -> bool {
+    let mut available = 0;
+    // SAFETY: the watcher owns a duplicate connected pipe until it has joined.
+    unsafe {
+        PeekNamedPipe(
+            HANDLE(pipe.as_raw_handle()),
+            None,
+            0,
+            None,
+            Some(&mut available),
+            None,
+        )
+    }
+    .is_ok()
 }
 
 #[allow(unsafe_code)]
@@ -446,6 +588,52 @@ mod tests {
     use windows::Win32::System::Pipes::CreatePipe;
     use windows::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 
+    #[test]
+    fn a_disconnected_read_cancels_provider_work_without_another_dispatch() {
+        let sid = current_user_sid_string().unwrap();
+        let pipe = format!(
+            r"\\.\pipe\HyperGpuSupport-read-cancel-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let server_pipe = pipe.clone();
+        let server_sid = sid.clone();
+        let (entered, started) = std::sync::mpsc::channel();
+        let (cancelled, observed) = std::sync::mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let sddl = format!("O:{server_sid}G:{server_sid}D:P(A;;GA;;;{server_sid})");
+            serve_one(&server_pipe, &server_sid, &sddl, |_| {
+                entered.send(()).unwrap();
+                let deadline = std::time::Instant::now() + Duration::from_secs(2);
+                while std::time::Instant::now() < deadline {
+                    if crate::read_context::check().is_err() {
+                        cancelled.send(()).unwrap();
+                        return Err(std::io::Error::other(
+                            "fixture read cancelled before next dispatch",
+                        ));
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(std::io::Error::other(
+                    "fixture cancellation was not observed",
+                ))
+            })
+        });
+        let control = crate::read_context::ReadControl::new(Duration::from_secs(5));
+        let reader_control = control.clone();
+        let client = std::thread::spawn(move || {
+            super::transact_read(&pipe, &sid, b"request", &reader_control)
+        });
+        started.recv_timeout(Duration::from_secs(2)).unwrap();
+        control.cancel();
+        assert!(client.join().unwrap().is_err());
+        observed.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(server.join().unwrap().is_err());
+    }
+
     #[allow(unsafe_code)]
     fn assert_not_impersonating() {
         let mut token = HANDLE::default();
@@ -477,6 +665,8 @@ mod tests {
                 Ok(b"response".to_vec())
             })
         });
+        // Let the nonblocking server listen without a connected client first.
+        std::thread::sleep(Duration::from_millis(50));
         assert_eq!(
             transact(&pipe, &sid, b"request", Duration::from_secs(5)).unwrap(),
             b"response"

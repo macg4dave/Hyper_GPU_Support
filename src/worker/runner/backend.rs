@@ -9,9 +9,20 @@ use crate::{
 use std::{fs, io::Read, path::PathBuf, time::Duration};
 
 pub(crate) struct NativeBackend {
+    pub(crate) reads: Option<windows_hyperv::ReadSession>,
     pub(crate) credential: Option<Credential>,
     pub(crate) manifest: Option<payload::Manifest>,
     pub(crate) data: PathBuf,
+}
+impl NativeBackend {
+    fn reads(&mut self) -> Result<&mut windows_hyperv::ReadSession, String> {
+        if self.reads.is_none() {
+            self.reads = Some(windows_hyperv::ReadSession::new()?);
+        }
+        self.reads
+            .as_mut()
+            .ok_or_else(|| "operation read session unavailable".into())
+    }
 }
 impl Backend for NativeBackend {
     fn check_installation_os(&mut self, t: &Target) -> Result<(), String> {
@@ -27,11 +38,11 @@ impl Backend for NativeBackend {
     }
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
         crate::work_counts::add(crate::work_counts::Counter::VmReads, 1);
-        crate::diagnostics::run("inspect-vm", &t.vm_id, || windows_hyperv::inspect(&t.vm_id))
+        crate::diagnostics::run("inspect-vm", &t.vm_id, || self.reads()?.inspect(&t.vm_id))
     }
     fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
         crate::work_counts::add(crate::work_counts::Counter::GpuReads, 1);
-        crate::diagnostics::run("selected-gpu", &t.vm_id, || windows_hyperv::selected_gpu(t))
+        crate::diagnostics::run("selected-gpu", &t.vm_id, || self.reads()?.gpu(t))
     }
     fn payload(&mut self, t: &Target) -> Result<String, String> {
         crate::diagnostics::run("payload-processing", &t.vm_id, || {

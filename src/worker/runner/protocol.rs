@@ -41,6 +41,12 @@ pub fn write_frame(w: &mut impl Write, b: &[u8]) -> Result<(), FrameError> {
 pub enum Operation {
     /// Enumerate host GPUs and existing VMs.
     Discover,
+    /// Complete locked GUI observation, including optional display metadata.
+    Observe,
+    /// Lightweight locked status observation, without DXGI/KVP display reads.
+    Poll,
+    /// Selected-target completion with saved state, recovery and authority.
+    Completion,
     /// Inspect an enrolled target.
     Status,
     /// Inspect desired changes and authenticate the current preparation payload without effects.
@@ -72,6 +78,12 @@ pub struct Request {
     pub target: Option<Target>,
     /// Ephemeral guest credential, obtained by the unprivileged client.
     pub credential: Option<Credential>,
+    /// Remaining whole-read budget; cannot extend the server's fixed maximum.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_budget_ms: Option<u64>,
+    /// Wrap a plan with readiness from this same authenticated read invocation.
+    #[serde(default)]
+    pub include_observation: bool,
 }
 #[derive(Serialize, Deserialize)]
 pub(super) struct Reply {
@@ -100,5 +112,7 @@ pub fn request(
         operation,
         target,
         credential,
+        read_budget_ms: None,
+        include_observation: false,
     }
 }

@@ -107,6 +107,7 @@ fn install_inner(
             managed: Default::default(),
         });
         let mut reader = NativeBackend {
+            reads: None,
             credential: None,
             manifest: None,
             data: data.clone(),

@@ -138,7 +138,7 @@ pub(in crate::gui) fn present(ui: &AppWindow, state: &State, reset_draft: bool) 
                 .discovery
                 .vms
                 .iter()
-                .map(|vm| observed_row(vm, inventory, state.view.needs_readback))
+                .map(|vm| observed_row(vm, inventory, state.observation_historical(&vm.vm_id)))
                 .collect(),
         ));
     }
@@ -369,7 +369,8 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(inventory) = state.view.inventory.as_ref() else {
         return;
     };
-    let row = observed_row(vm, inventory, state.view.needs_readback);
+    let historical = state.observation_historical(id);
+    let row = observed_row(vm, inventory, historical);
     ui.set_vm_name(row.name);
     ui.set_power(row.power);
     let enrolled = state.target(id).ok();
@@ -380,7 +381,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_observed(
         format!(
             "{}{}; {}; {}",
-            if state.view.needs_readback {
+            if historical {
                 hyper_gpu_support::ui_text::dashboard::observation::HISTORICAL_PREFIX
             } else {
                 ""
@@ -427,7 +428,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     );
     ui.set_verification(recorded.graphics.into());
     ui.set_support_summary(
-        if state.view.needs_readback {
+        if historical {
             hyper_gpu_support::ui_text::dashboard::support::HOST_UNAVAILABLE.to_owned()
         } else if vm_recovery(state, id) {
             recovery_summary(state, id).unwrap_or_else(|| {

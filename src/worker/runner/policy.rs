@@ -117,8 +117,24 @@ pub(crate) fn verify_artifacts(e: &Enrollment) -> Result<(), String> {
     })
 }
 
+/// Invoked once under the operation lock, before any observation/reply. There is
+/// no earlier unlocked attestation to reuse or persistent digest cache.
+pub(super) fn authenticate_read(
+    expected: &Enrollment,
+    current: &Enrollment,
+    authenticate: impl FnOnce(&Enrollment) -> Result<(), String>,
+) -> Result<(), String> {
+    if serde_json::to_value(expected).map_err(|e| e.to_string())?
+        != serde_json::to_value(current).map_err(|e| e.to_string())?
+    {
+        return Err("enrollment changed before admission; retry discovery".into());
+    }
+    authenticate(current)
+}
+
 fn verify_artifacts_inner(e: &Enrollment) -> Result<(), String> {
     for (name, hash) in &e.artifacts {
+        crate::read_context::check()?;
         if ![
             "hyper-gpu-runner.exe",
             "hyper-gpu-guest.exe",
@@ -142,6 +158,51 @@ fn verify_artifacts_inner(e: &Enrollment) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::model::{Allocation, Gpu, Power, Settings, VmState};
+
+    #[test]
+    fn read_admission_authenticates_once_and_never_reuses_a_changed_policy() {
+        let policy = Enrollment {
+            schema: 2,
+            client_sid: "fixture".into(),
+            targets: vec![],
+            artifacts: [
+                "hyper-gpu-runner.exe",
+                "hyper-gpu-guest.exe",
+                "d3d11-probe.exe",
+                "hyper-gpu-support.exe",
+            ]
+            .into_iter()
+            .map(|name| (name.into(), "hash".into()))
+            .collect(),
+        };
+        let hashes = std::cell::Cell::new(0);
+        authenticate_read(&policy, &policy, |current| {
+            hashes.set(hashes.get() + current.artifacts.len());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(
+            hashes.get(),
+            4,
+            "one isolated authentication pass, without the previous preliminary pass or GUI availability rehash"
+        );
+        let mut changed = policy.clone();
+        changed.artifacts.insert(
+            "hyper-gpu-support.exe".into(),
+            "same-version different bytes".into(),
+        );
+        assert!(
+            authenticate_read(&policy, &changed, |_| {
+                hashes.set(99);
+                Ok(())
+            })
+            .is_err()
+        );
+        assert_eq!(hashes.get(), 4);
+        assert!(
+            authenticate_read(&policy, &policy, |_| Err("fixture hash mismatch".into())).is_err()
+        );
+    }
 
     #[test]
     fn enrollment_read_stops_at_its_limit_before_parsing() {

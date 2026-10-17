@@ -1,6 +1,6 @@
 # Optimization roadmap
 
-Updated 17 October 2026. The functional and architectural review is complete. OPT-001 baseline instrumentation, isolated fixtures and the comparison procedure are implemented in source; automated validation is pending the milestone gate. Other optimization implementation and live performance validation have not started. The findings establish repeated work in current execution paths, not measured speedups or new release failures. Previous accepted work remains historical context and is not reopened by this plan.
+Updated 17 October 2026. The functional and architectural review is complete. OPT-001 baseline instrumentation/fixtures and OPT-002's integrated protected read pipeline are implemented in source; automated validation is pending the milestone gate. R1 is not closed. Remaining optimization implementation and live performance validation have not started. The findings establish repeated work in execution paths, not measured speedups or new release failures. Previous accepted work remains historical context and is not reopened by this plan.
 
 This page owns outcomes, delivery stages and gates. The [backlog](backlog.md) owns tasks, dependencies and implementation/validation status. The [agreed workflow](../README.md#agreed-workflow), [architecture](ARCHITECTURE.md), [security](SECURITY.md) and [engineering validation](ENGINEERING.md#validation-and-live-acceptance) remain authoritative.
 

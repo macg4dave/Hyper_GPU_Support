@@ -57,6 +57,14 @@ pub struct VerificationPlan {
     /// Current authenticated host manifest, bound into the explicit review.
     pub payload_digest: String,
 }
+impl VerificationPlan {
+    /// Match request, history, payload and operational facts without display data.
+    pub fn same_operation(&self, other: &Self) -> Result<bool, String> {
+        Ok(crate::model::review_facts(self, &self.observed, &self.gpu)?
+            == crate::model::review_facts(other, &other.observed, &other.gpu)?)
+    }
+}
+
 /// Preview verification without guest, journal or power effects.
 pub fn plan_verification(
     backend: &mut impl Backend,
@@ -110,9 +118,7 @@ pub(crate) fn admit_verification(
     approved: &VerificationPlan,
 ) -> Result<super::AdmittedVerification, String> {
     let current = plan_verification(backend, &approved.target)?;
-    if serde_json::to_value(&current).map_err(|e| e.to_string())?
-        != serde_json::to_value(approved).map_err(|e| e.to_string())?
-    {
+    if !current.same_operation(approved)? {
         return Err("verification observations changed; Refresh and review".into());
     }
     Ok(AdmittedVerification { plan: current })
@@ -145,10 +151,8 @@ fn verify_current_payload(
     if gpu.interface != target.gpu_interface {
         return Err("selected GPU identity changed".into());
     }
-    if serde_json::to_value(&before).map_err(|e| e.to_string())?
-        != serde_json::to_value(&approved.observed).map_err(|e| e.to_string())?
-        || serde_json::to_value(&gpu).map_err(|e| e.to_string())?
-            != serde_json::to_value(&approved.gpu).map_err(|e| e.to_string())?
+    if before.operational() != approved.observed.operational()
+        || gpu.operational() != approved.gpu.operational()
         || serde_json::to_value(&old).map_err(|e| e.to_string())?
             != serde_json::to_value(&approved.managed).map_err(|e| e.to_string())?
     {
@@ -192,10 +196,8 @@ fn verify_current_payload(
         let mut expected = before.clone();
         expected.power = current.power.clone();
         if !matches!(current.power, Power::Off | Power::Running)
-            || serde_json::to_value(&current).map_err(|e| e.to_string())?
-                != serde_json::to_value(&expected).map_err(|e| e.to_string())?
-            || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
-                != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+            || current.operational() != expected.operational()
+            || backend.gpu(target)?.operational() != gpu.operational()
         {
             return Err("verification facts changed; unsafe power restoration blocked".into());
         }
@@ -206,10 +208,8 @@ fn verify_current_payload(
         restore_guest_power(backend, target, &journal.restore_power)?;
         require_journal(backend, target, &journal)?;
         expected.power = journal.restore_power.clone();
-        if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
-            != serde_json::to_value(&expected).map_err(|e| e.to_string())?
-            || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
-                != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+        if backend.inspect(target)?.operational() != expected.operational()
+            || backend.gpu(target)?.operational() != gpu.operational()
         {
             return Err("verification restoration facts changed; retain recovery".into());
         }

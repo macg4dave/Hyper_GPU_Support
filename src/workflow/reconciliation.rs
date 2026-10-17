@@ -44,9 +44,7 @@ pub(crate) fn reconcile_with_graphics(
             "operation journal does not prove the reviewed preparation and power intent".into(),
         );
     }
-    if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
-        != serde_json::to_value(observed).map_err(|e| e.to_string())?
-    {
+    if backend.inspect(target)?.operational() != observed.operational() {
         return Err("state changed during reconciliation".into());
     }
     if check_graphics {
@@ -68,10 +66,8 @@ pub(crate) fn reconcile_with_graphics(
             let mut expected = observed.clone();
             expected.power = current.power.clone();
             if !matches!(current.power, Power::Off | Power::Running)
-                || serde_json::to_value(&current).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&expected).map_err(|e| e.to_string())?
-                || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+                || current.operational() != expected.operational()
+                || backend.gpu(target)?.operational() != gpu.operational()
                 || payload.is_some_and(|digest| backend.payload(target).as_deref() != Ok(digest))
             {
                 return Err(
@@ -89,10 +85,8 @@ pub(crate) fn reconcile_with_graphics(
             require_journal(backend, target, &journal)?;
             let mut expected = observed.clone();
             expected.power = restore.clone();
-            if serde_json::to_value(backend.inspect(target)?).map_err(|e| e.to_string())?
-                != serde_json::to_value(&expected).map_err(|e| e.to_string())?
-                || serde_json::to_value(backend.gpu(target)?).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&gpu).map_err(|e| e.to_string())?
+            if backend.inspect(target)?.operational() != expected.operational()
+                || backend.gpu(target)?.operational() != gpu.operational()
             {
                 return Err("reconciliation restoration facts changed; retain recovery".into());
             }
@@ -120,9 +114,7 @@ pub(crate) fn reconcile_with_graphics(
     let effective = backend.inspect(target)?;
     let mut expected = observed.clone();
     expected.power = restore;
-    if serde_json::to_value(&effective).map_err(|e| e.to_string())?
-        != serde_json::to_value(&expected).map_err(|e| e.to_string())?
-    {
+    if effective.operational() != expected.operational() {
         return Err("reconciliation independent readback changed".into());
     }
     require_journal(backend, target, &journal)?;

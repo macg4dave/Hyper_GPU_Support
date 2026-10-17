@@ -142,7 +142,7 @@ pub(super) fn register(
                     Ok(())
                 }) {
                     if cancelling {
-                        super::background::cancel_preparation(&ui);
+                        super::background::cancel_preparation(&ui, &action_state);
                     } else {
                         ui.set_operation_dialog_active(false);
                         ui.set_dialog_kind("".into());

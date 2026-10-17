@@ -104,6 +104,8 @@ impl Drop for Apartment {
 
 #[allow(unsafe_code)]
 pub(crate) fn connect(namespace: &str) -> Result<IWbemServices, DriverDiscoveryError> {
+    crate::read_context::check()
+        .map_err(|_| DriverDiscoveryError::Invalid("read-only request interrupted"))?;
     // SAFETY: COM apartment is initialized; COM owns/refcounts the returned interface.
     let locator: IWbemLocator =
         unsafe { CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER) }
@@ -123,6 +125,8 @@ pub(crate) fn connect(namespace: &str) -> Result<IWbemServices, DriverDiscoveryE
         )
     }
     .map_err(|error| native("connect local WMI", error))?;
+    crate::read_context::check()
+        .map_err(|_| DriverDiscoveryError::Invalid("read-only request interrupted"))?;
     // RPC_C_AUTHN_WINNT=10 / RPC_C_AUTHZ_NONE=0 are Windows RPC protocol constants.
     // SAFETY: services is a live COM proxy. Impersonation uses the current token,
     // without changing its rights or providing an alternative identity.
@@ -189,6 +193,17 @@ pub(crate) fn query(
     properties: &[&str],
     deadline: Instant,
 ) -> Result<Vec<BTreeMap<String, String>>, DriverDiscoveryError> {
+    query_with_optional(services, wql, properties, &[], deadline)
+}
+
+#[allow(unsafe_code)]
+pub(crate) fn query_with_optional(
+    services: &IWbemServices,
+    wql: &str,
+    properties: &[&str],
+    optional: &[&str],
+    deadline: Instant,
+) -> Result<Vec<BTreeMap<String, String>>, DriverDiscoveryError> {
     let mut trace = crate::diagnostics::Span::start("driver-wmi-query", wql)
         .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
     let result = (|| {
@@ -207,6 +222,8 @@ pub(crate) fn query(
         .map_err(|error| native(format!("execute driver WMI query ({wql})"), error))?;
         let mut rows = Vec::new();
         loop {
+            crate::read_context::check()
+                .map_err(|_| DriverDiscoveryError::Invalid("read-only request interrupted"))?;
             if Instant::now() >= deadline {
                 return Err(DriverDiscoveryError::Timeout);
             }
@@ -240,6 +257,11 @@ pub(crate) fn query(
             let mut row = BTreeMap::new();
             for name in properties {
                 row.insert((*name).to_owned(), property(&object, name)?);
+            }
+            for name in optional {
+                if let Ok(value) = property(&object, name) {
+                    row.insert((*name).to_owned(), value);
+                }
             }
             rows.push(row);
         }

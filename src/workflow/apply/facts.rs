@@ -25,8 +25,8 @@ impl ApplyFacts {
     }
 
     pub(super) fn check(&self, backend: &mut impl Backend, target: &Target) -> Result<(), String> {
-        if !equal(&backend.inspect(target)?, &self.state)?
-            || !equal(&backend.gpu(target)?, &self.gpu)?
+        if backend.inspect(target)?.operational() != self.state.operational()
+            || backend.gpu(target)?.operational() != self.gpu.operational()
             || !equal(&backend.journal(target)?, &self.journal)?
         {
             return Err("Apply facts changed or independent final state verification failed; retain recovery before further effects".into());

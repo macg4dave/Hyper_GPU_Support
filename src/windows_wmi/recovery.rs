@@ -73,7 +73,7 @@ impl Scope {
         if self.before.vm_id != self.target.vm_id {
             return Err("Native VM binding changed".into());
         }
-        if same(state, &self.before)? {
+        if state.operational() == self.before.operational() {
             return Ok(());
         }
         let mut expected = self.before.clone();
@@ -107,7 +107,7 @@ impl Scope {
             },
             Effect::Power(power) => expected.power = power.clone(),
         }
-        if same(state, &expected)? {
+        if state.operational() == expected.operational() {
             Ok(())
         } else {
             Err("Native before/after facts conflict; retain provider and workflow recovery".into())
@@ -307,7 +307,7 @@ pub(crate) fn reconcile(token: &crate::configuration_store::Revision) -> Result<
     require_quiescent(&s, &review.job.vm_id)?;
     let state = crate::windows_hyperv::inspect(&review.job.vm_id)?;
     validate(&pending, &review.job, &state)?;
-    if !same(&state, &review.observed)? {
+    if state.operational() != review.observed.operational() {
         return Err("Native reviewed readback changed; retain recovery".into());
     }
     // Protected terminal evidence survives job expiry. A still-existing job must

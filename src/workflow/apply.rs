@@ -50,9 +50,7 @@ pub(crate) fn admit_approved(
     // Only this presentation marker differs. Every reviewed host, journal,
     // payload and effect fact must still match the freshly authenticated plan.
     reviewed.authentication_deferred = false;
-    if serde_json::to_value(&actual).map_err(|e| e.to_string())?
-        != serde_json::to_value(&reviewed).map_err(|e| e.to_string())?
-    {
+    if !actual.same_operation(&reviewed)? {
         return Err("approved plan is stale; refresh and review before effects".into());
     }
     if d.journal.pending {
@@ -91,10 +89,8 @@ pub(crate) fn apply_admitted(
     let current = backend.inspect(&target)?;
     let gpu = backend.gpu(&target)?;
     let journal = backend.journal(&target)?;
-    if serde_json::to_value(&current).map_err(|e| e.to_string())?
-        != serde_json::to_value(&d.initial).map_err(|e| e.to_string())?
-        || serde_json::to_value(&gpu).map_err(|e| e.to_string())?
-            != serde_json::to_value(&d.gpu).map_err(|e| e.to_string())?
+    if current.operational() != d.initial.operational()
+        || gpu.operational() != d.gpu.operational()
         || serde_json::to_value(&journal).map_err(|e| e.to_string())?
             != serde_json::to_value(&d.managed).map_err(|e| e.to_string())?
     {

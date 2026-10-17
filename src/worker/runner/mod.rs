@@ -9,6 +9,7 @@ mod audit;
 mod backend;
 mod installation;
 mod ipc;
+mod observation;
 mod pairing;
 mod policy;
 mod profile_removal;

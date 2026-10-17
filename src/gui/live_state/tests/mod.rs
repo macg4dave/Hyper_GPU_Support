@@ -148,6 +148,7 @@ fn review_plan() -> Plan {
         initial_setup: false,
         desired: target.clone(),
         observed: s.view.vm(id(&s)).unwrap().clone(),
+        gpu: s.view.inventory.as_ref().unwrap().discovery.gpus[0].clone(),
         managed: None,
         preparation: None,
         preview: EffectPreview {

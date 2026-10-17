@@ -78,6 +78,7 @@ pub(crate) fn validate(manifest: &Manifest) -> Result<(), String> {
             return Err("driver catalogs are missing".into());
         }
         for catalog in &manifest.catalogs {
+            crate::read_context::check()?;
             if !embedded(catalog) {
                 return Err("driver catalog signature is invalid".into());
             }
@@ -89,6 +90,7 @@ pub(crate) fn validate(manifest: &Manifest) -> Result<(), String> {
         let mut authenticated = std::collections::BTreeSet::new();
         let mut caches = Vec::new();
         for source in &manifest.files {
+            crate::read_context::check()?;
             let mut trace =
                 crate::diagnostics::Span::start("trust-file", &source.source.to_string_lossy())?;
             crate::payload::no_reparse(&source.source)?;

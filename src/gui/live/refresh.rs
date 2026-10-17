@@ -4,7 +4,7 @@ use super::{
     background::background_refresh,
     presentation::{self, draft_target, observed_row, present, update_model},
     review::review,
-    source::{Source, discover_status, protected_worker_available},
+    source::{Source, protected_worker_available},
     state_access::with_state,
 };
 use crate::gui::{
@@ -95,6 +95,62 @@ pub(super) fn refresh_after_result(ui: &AppWindow, state: &SharedState, busy: &A
     }
 }
 
+/// The selected completion bundle was gathered before foreground release. Publish
+/// it without immediately repeating all reads; the next poll handles other VMs.
+pub(super) fn finish_result_observation(ui: &AppWindow, state: &SharedState) {
+    let notice = capture_result(ui);
+    with_state(ui, state, |state| {
+        if let Some(inventory) = &state.view.inventory {
+            publish_inventory_models(ui, inventory, state.view.needs_readback);
+        }
+        ui.set_execution_ready(!state.view.needs_readback && state.worker_available);
+        let gpu = state
+            .view
+            .draft
+            .as_ref()
+            .map(|target| target.gpu_interface.clone())
+            .or_else(|| state.draft_gpu.clone())
+            .or_else(|| {
+                state
+                    .target(ui.get_selected_id().as_str())
+                    .ok()
+                    .map(|target| target.gpu_interface)
+            });
+        ui.set_presenting(true);
+        ui.set_gpu_index(
+            state
+                .view
+                .inventory
+                .as_ref()
+                .and_then(|inventory| {
+                    inventory
+                        .discovery
+                        .gpus
+                        .iter()
+                        .position(|current| Some(&current.interface) == gpu.as_ref())
+                })
+                .map_or(-1, |index| index as i32),
+        );
+        ui.set_presenting(false);
+        present(ui, state, false);
+        if state.view.needs_readback {
+            state.result_notice = Some(notice.clone());
+            dialog(
+                ui,
+                "status-error",
+                &notice.title,
+                &notice.unavailable_body(
+                    "Completion readback is incomplete. Refresh before another operation.",
+                ),
+            );
+            ui.set_dialog_details(notice.details.clone().into());
+        } else {
+            state.result_notice = None;
+        }
+        Ok(())
+    });
+}
+
 pub(super) fn refresh_with_result(
     ui: &AppWindow,
     state: &SharedState,
@@ -120,6 +176,12 @@ pub(super) fn refresh_with_result(
             None
         }
     };
+    let previous = state
+        .lock()
+        .map_err(|_| "Presentation state unavailable")?
+        .view
+        .inventory
+        .clone();
     let state = state.clone();
     let source = source.clone();
     let review_source = source.clone();
@@ -128,6 +190,7 @@ pub(super) fn refresh_with_result(
     let startup_ui = ui.as_weak();
     background_refresh(
         ui,
+        &state.clone(),
         busy,
         poll,
         if automatic || notice.is_some() {
@@ -155,11 +218,31 @@ pub(super) fn refresh_with_result(
             };
             use hyper_gpu_support::ui_text::dashboard::startup as text;
             report(0, text::INVENTORY);
-            let (inventory, warning) = if automatic {
-                discover_status()?
+            let mode = if automatic {
+                hyper_gpu_support::observation::Mode::Poll
             } else {
-                source.discover()?
+                hyper_gpu_support::observation::Mode::Full
             };
+            if let Some(bundle) = source.observe(mode, None)? {
+                let inventory = bundle.inventory_with_display(previous.as_ref())?;
+                report(6, text::WORKER);
+                return Ok((
+                    inventory,
+                    None,
+                    Some(bundle.committed),
+                    bundle.recovery,
+                    bundle.import,
+                    bundle.enrollment,
+                    bundle.worker_available,
+                    Some(bundle.provenance),
+                ));
+            }
+            // First-install discovery remains explicit and retains its existing
+            // permission/continuation path; automatic polls never enter it.
+            if automatic {
+                return Err("Installed polling requires a protected observation".into());
+            }
+            let (inventory, warning) = source.discover()?;
             report(1, text::CONFIGURATION);
             let committed = source.committed();
             report(2, text::RECOVERY);
@@ -179,6 +262,7 @@ pub(super) fn refresh_with_result(
                 import_recovery,
                 enrollment_recovery,
                 worker_available,
+                None,
             ))
         },
         move |ui, result| {
@@ -193,7 +277,10 @@ pub(super) fn refresh_with_result(
                         import_recovery,
                         enrollment_recovery,
                         worker_available,
+                        provenance,
                     )) => {
+                        state.observation = provenance;
+                        state.worker_available = worker_available;
                         ui.set_execution_ready(false);
                         state.enrollment_review = None;
                         state.setup_artifacts = None;
@@ -205,28 +292,7 @@ pub(super) fn refresh_with_result(
                         // observations or readable intent for other VMs.
                         let configuration_warning =
                             committed.and_then(|committed| state.load_committed(committed).err());
-                        ui.set_presenting(true);
-                        let rows = inventory
-                            .discovery
-                            .vms
-                            .iter()
-                            .map(|vm| observed_row(vm, &inventory, false))
-                            .collect();
-                        ui.set_vms(update_model(ui.get_vms(), rows));
-                        ui.set_gpu_information(update_model(ui.get_gpu_information(), inventory.discovery.gpus.iter().map(|gpu| GpuRow {
-                        name: gpu.name.clone().into(),
-                        description: format!("Interface: {}\nDriver: {}\n{}\nPreparation adapter: {}\nAttachment does not prove guest graphics health; sharing is not qualified.", gpu.interface, gpu.driver_version, Resource::ALL.into_iter().map(|resource| gpu.resource_text(resource)).collect::<Vec<_>>().join("\n"), if gpu.preparation_supported { "available" } else { hyper_gpu_support::ui_text::system::PREPARATION_UNSUPPORTED }).into(),
-                    }).collect()));
-                        ui.set_gpu_options(update_model(
-                            ui.get_gpu_options(),
-                            inventory
-                                .discovery
-                                .gpus
-                                .iter()
-                                .map(|gpu| gpu.name.clone().into())
-                                .collect(),
-                        ));
-                        ui.set_presenting(false);
+                        publish_inventory_models(ui, &inventory, false);
                         state.refresh(inventory);
                         let recovery_warning = state
                             .sync_recovery(recovery, import_recovery, enrollment_recovery)
@@ -404,4 +470,33 @@ pub(super) fn refresh_with_result(
             }
         },
     )
+}
+
+fn publish_inventory_models(
+    ui: &AppWindow,
+    inventory: &hyper_gpu_support::gui_model::Inventory,
+    stale: bool,
+) {
+    ui.set_presenting(true);
+    let rows = inventory
+        .discovery
+        .vms
+        .iter()
+        .map(|vm| observed_row(vm, inventory, stale))
+        .collect();
+    ui.set_vms(update_model(ui.get_vms(), rows));
+    ui.set_gpu_information(update_model(ui.get_gpu_information(), inventory.discovery.gpus.iter().map(|gpu| GpuRow {
+    name: gpu.name.clone().into(),
+    description: format!("Interface: {}\nDriver: {}\n{}\nPreparation adapter: {}\nAttachment does not prove guest graphics health; sharing is not qualified.", gpu.interface, gpu.driver_version, Resource::ALL.into_iter().map(|resource| gpu.resource_text(resource)).collect::<Vec<_>>().join("\n"), if gpu.preparation_supported { "available" } else { hyper_gpu_support::ui_text::system::PREPARATION_UNSUPPORTED }).into(),
+                    }).collect()));
+    ui.set_gpu_options(update_model(
+        ui.get_gpu_options(),
+        inventory
+            .discovery
+            .gpus
+            .iter()
+            .map(|gpu| gpu.name.clone().into())
+            .collect(),
+    ));
+    ui.set_presenting(false);
 }

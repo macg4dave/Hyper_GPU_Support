@@ -7,6 +7,47 @@ use crate::workflow::{
 };
 
 #[test]
+fn optional_display_changes_do_not_invalidate_apply_or_verify_but_required_facts_do() {
+    for invalid in [None, Some("driver"), Some("capability")] {
+        let mut backend = fake();
+        let mut target = target();
+        target.vram = Some(Allocation {
+            minimum: 0,
+            optimal: 50,
+            maximum: 90,
+        });
+        let mut reviewed = plan(&mut backend, &target).unwrap();
+        reviewed.observed.name = "Presentation renamed".into();
+        reviewed.gpu.name = "Optional display metadata".into();
+        reviewed.gpu.physical_vram_bytes = Some(1);
+        reviewed.gpu.total_vram = Some(2);
+        match invalid {
+            Some("driver") => reviewed.gpu.driver_version.push_str("-changed"),
+            Some(_) => reviewed.gpu.vram = crate::model::ResourceCapability::Unknown,
+            None => {}
+        }
+        let result = apply_approved(&mut backend, &reviewed);
+        assert_eq!(result.is_err(), invalid.is_some());
+        if invalid.is_some() {
+            assert!(backend.events.is_empty());
+            assert!(backend.journal.is_none());
+        } else {
+            backend.events.clear();
+            let mut verification = super::plan_verification(&mut backend, &target).unwrap();
+            verification.observed.name.clear();
+            verification.gpu.name.clear();
+            verification.gpu.physical_vram_bytes = Some(123);
+            assert!(
+                super::verify_approved(&mut backend, &verification)
+                    .unwrap()
+                    .verified
+            );
+            assert_eq!(backend.state.power, Power::Off);
+        }
+    }
+}
+
+#[test]
 fn changed_check_journals_block_power_restoration_and_completion() {
     use crate::workflow::test_support::Drift;
     for reconciliation in [false, true] {

@@ -1,12 +1,7 @@
 //! Draft planning and acceptance of fresh ordinary or reinstall reviews.
 #[cfg(windows)]
 use super::enrollment::review_enrollment;
-use super::{
-    SharedState,
-    background::background,
-    presentation::draft_target,
-    source::{Source, protected_worker_available},
-};
+use super::{SharedState, background::background, presentation::draft_target, source::Source};
 use crate::gui::{
     AppWindow, dialog, failure_dialog,
     operation::{Kind, Operation},
@@ -69,6 +64,7 @@ pub(super) fn review_operation(
     let review_ui = ui.as_weak();
     background(
         ui,
+        state,
         busy,
         Operation::new(
             Kind::Plan,
@@ -90,12 +86,12 @@ pub(super) fn review_operation(
                     hyper_gpu_support::ui_text::operations::plan::READ_HISTORY
                 },
             );
-            let plan = source.plan(target, reinstall, authenticate)?;
+            let prepared = source.plan(target, reinstall, authenticate)?;
             review_stage(
                 &review_ui,
                 hyper_gpu_support::ui_text::operations::plan::CHECK_WORKER,
             );
-            Ok((plan, protected_worker_available()))
+            Ok(prepared)
         },
         move |ui, result| match result {
             Ok((plan, worker_available))

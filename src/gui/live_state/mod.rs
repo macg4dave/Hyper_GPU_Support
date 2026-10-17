@@ -17,6 +17,8 @@ use hyper_gpu_support::{gui_model::View, model::Configuration, workflow::Plan};
 
 pub(super) struct State {
     pub polling: std::sync::Arc<super::live::polling::Polling>,
+    pub observation: Option<hyper_gpu_support::observation::Provenance>,
+    pub worker_available: bool,
     pub view: View,
     pub result_notice: Option<super::result_notice::ResultNotice>,
     pub pending_selection: Option<String>,
@@ -52,6 +54,7 @@ pub(super) struct ReviewedPlan {
 
 /// Protected reads gathered off the UI thread after an operation attempt.
 pub(super) struct OperationReadback {
+    pub observation: Option<hyper_gpu_support::observation::Bundle>,
     pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
     pub recovery: Vec<hyper_gpu_support::configuration_store::SaveRecord>,
 }
@@ -60,6 +63,8 @@ impl Default for State {
     fn default() -> Self {
         Self {
             polling: Default::default(),
+            observation: None,
+            worker_available: false,
             view: View::new(Configuration {
                 schema: 2,
                 targets: vec![],

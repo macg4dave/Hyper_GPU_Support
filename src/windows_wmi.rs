@@ -16,7 +16,7 @@ use windows::{
             WbemObjectTextSrc,
         },
     },
-    core::{BSTR, PCWSTR},
+    core::{BSTR, HRESULT, Interface, PCWSTR},
 };
 
 pub(crate) mod recovery;
@@ -408,11 +408,17 @@ impl Session {
         })
     }
     pub(crate) fn check_deadline(&self) -> Result<()> {
+        crate::read_context::check()?;
         if Instant::now() >= self.deadline {
             Err("Hyper-V native deadline expired; reconcile before retry".into())
         } else {
             Ok(())
         }
+    }
+    pub(crate) fn renew_deadline(&mut self, timeout: Duration) -> Result<()> {
+        crate::read_context::check()?;
+        self.deadline = Instant::now() + timeout;
+        Ok(())
     }
     pub(crate) fn query(&self, wql: &str) -> Result<Vec<Object>> {
         self.check_deadline()?;
@@ -462,20 +468,45 @@ impl Session {
     pub(crate) fn get_optional(&self, path: &str) -> Result<Option<Object>> {
         self.check_deadline()?;
         crate::work_counts::add(crate::work_counts::Counter::ProviderGets, 1);
-        let mut object = None;
+        let mut pending = None;
         // SAFETY: writable interface output, live secured services; output owns its reference.
         match unsafe {
             self.services.GetObject(
                 &BSTR::from(path),
-                WBEM_GENERIC_FLAG_TYPE(0),
+                WBEM_FLAG_RETURN_IMMEDIATELY,
                 None,
-                Some(&mut object),
                 None,
+                Some(&mut pending),
             )
         } {
-            Ok(()) => Ok(Some(Object(object.ok_or("missing WMI object output")?))),
-            Err(e) if e.code().0 == 0x80041002u32 as i32 => Ok(None),
-            Err(e) => Err(win(e)),
+            Ok(()) => {}
+            Err(e) if e.code().0 == 0x80041002u32 as i32 => return Ok(None),
+            Err(e) => return Err(win(e)),
+        }
+        let pending = pending.ok_or("missing WMI object call result")?;
+        loop {
+            self.check_deadline()?;
+            let mut operation = 0;
+            // SAFETY: live scoped call result and writable HRESULT; bounded wait.
+            let status =
+                unsafe { (pending.vtable().GetCallStatus)(pending.as_raw(), 1000, &mut operation) };
+            status.ok().map_err(win)?;
+            if status.0 == 0x40004 {
+                continue;
+            }
+            if status.0 != 0 {
+                return Err("Unexpected WMI object completion status".into());
+            }
+            if operation == 0x80041002u32 as i32 {
+                return Ok(None);
+            }
+            HRESULT(operation).ok().map_err(win)?;
+            self.check_deadline()?;
+            // SAFETY: successful terminal call status; zero forbids another wait.
+            return unsafe { pending.GetResultObject(0) }
+                .map(Object)
+                .map(Some)
+                .map_err(win);
         }
     }
     pub(crate) fn related(&self, object: &Object, class: &str) -> Result<Vec<Object>> {

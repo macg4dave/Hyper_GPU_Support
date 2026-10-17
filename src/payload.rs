@@ -15,6 +15,8 @@ const MAX_PAYLOAD_BYTES: u64 = 16 * 1024 * 1024 * 1024;
 const PAYLOAD_PROCESSING_TIMEOUT: Duration = Duration::from_secs(300);
 
 fn within_deadline(deadline: Instant) -> Result<(), String> {
+    #[cfg(windows)]
+    crate::read_context::check()?;
     if Instant::now() >= deadline {
         return Err("payload expansion/hashing exceeded its safety deadline".into());
     }
@@ -178,6 +180,8 @@ pub fn destination(relative: &str) -> Result<String, String> {
 /// Hash a file without loading the complete payload into memory.
 pub fn hash_file(path: &Path) -> Result<String, String> {
     #[cfg(windows)]
+    crate::read_context::check()?;
+    #[cfg(windows)]
     let mut trace = crate::diagnostics::Span::start("hash-file", &path.to_string_lossy())?;
     #[cfg(windows)]
     crate::work_counts::add(crate::work_counts::Counter::FileHashes, 1);
@@ -186,6 +190,8 @@ pub fn hash_file(path: &Path) -> Result<String, String> {
     let mut buffer = [0; 65536];
     loop {
         let n = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        #[cfg(windows)]
+        crate::read_context::check()?;
         if n == 0 {
             break;
         }

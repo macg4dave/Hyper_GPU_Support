@@ -285,6 +285,8 @@ pub struct Plan {
     pub desired: Target,
     /// Fresh Hyper-V observation, not fresh guest receipt or graphics health.
     pub observed: VmState,
+    /// Current GPU identity, driver and capability observation, rechecked at admission.
+    pub gpu: Gpu,
     /// Existing durable state before the read-only preview.
     pub managed: Option<Journal>,
     /// Payload comparison; historical when authentication is deferred, absent on disable.
@@ -295,6 +297,15 @@ pub struct Plan {
     pub allocation_units: String,
     /// Whether the currently running guest needs a shutdown/start cycle.
     pub automatic_guest_restart: bool,
+}
+
+impl Plan {
+    /// Match the complete reviewed request/effect scope and current operational
+    /// facts. Optional display metadata never participates in admission.
+    pub fn same_operation(&self, other: &Self) -> Result<bool, String> {
+        Ok(crate::model::review_facts(self, &self.observed, &self.gpu)?
+            == crate::model::review_facts(other, &other.observed, &other.gpu)?)
+    }
 }
 
 /// Preview apply using the same validation and decisions, without saving or mutating guest/VM state.
@@ -475,6 +486,7 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
         initial_setup: d.initial_setup,
         desired: target.clone(),
         observed: d.initial,
+        gpu: d.gpu.clone(),
         managed: d.managed,
         preparation: d.digest.map(|digest| PreparationPreview {
             current_driver: d.gpu.driver_version,

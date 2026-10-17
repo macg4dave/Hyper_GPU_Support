@@ -1,5 +1,8 @@
 //! Protected reads and planning; availability observations never grant authority.
 use crate::gui::live_state::OperationReadback;
+#[cfg(windows)]
+use hyper_gpu_support::observation::Prepared;
+use hyper_gpu_support::observation::{Bundle, Mode};
 use hyper_gpu_support::{gui_model::Inventory, model::Target, workflow::Plan};
 
 type InventoryRead = (Inventory, Option<String>);
@@ -77,19 +80,70 @@ impl Source {
         target: Target,
         reinstall: bool,
         authenticate: bool,
-    ) -> Result<Plan, String> {
+    ) -> Result<(Plan, bool), String> {
         plan(target, reinstall, authenticate)
     }
     pub(super) fn credentials(&self, id: &str, name: &str) -> Result<bool, String> {
         credential_dialog(id, name)
     }
 
-    pub(super) fn operation_readback(&self) -> Result<OperationReadback, String> {
+    pub(super) fn observe(
+        &self,
+        mode: Mode,
+        target: Option<Target>,
+    ) -> Result<Option<Bundle>, String> {
+        #[cfg(windows)]
+        {
+            use hyper_gpu_support::runner::{self, Operation};
+            if runner::pending_setup()?.is_some() || !runner::installed()? {
+                if mode == Mode::Full {
+                    return Ok(None);
+                }
+                return Err("Setup requires attention. Use Refresh to continue.".into());
+            }
+            let operation = match mode {
+                Mode::Full => Operation::Observe,
+                Mode::Poll => Operation::Poll,
+                Mode::Completion => Operation::Completion,
+            };
+            let expected = target.clone();
+            let value = match runner::submit(runner::request(operation, target, None)) {
+                Ok(value) => value,
+                Err(_)
+                    if mode == Mode::Full
+                        && hyper_gpu_support::read_context::tracked_backend_released()
+                        && hyper_gpu_support::process::is_elevated()? =>
+                {
+                    return Ok(None);
+                }
+                Err(error) => return Err(error),
+            };
+            let mut bundle: Bundle = serde_json::from_value(value)
+                .map_err(|e| format!("Invalid protected observation: {e}"))?;
+            bundle.validate()?;
+            if bundle.provenance.mode != mode || bundle.provenance.selected != expected {
+                return Err("Protected observation mode differs".into());
+            }
+            if mode == Mode::Full {
+                bundle.inventory = remember_os((bundle.inventory, None)).0;
+            }
+            Ok(Some(bundle))
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (mode, target);
+            Ok(None)
+        }
+    }
+
+    pub(super) fn operation_readback(&self, target: Target) -> Result<OperationReadback, String> {
+        let bundle = self
+            .observe(Mode::Completion, Some(target))?
+            .ok_or("Protected completion unavailable")?;
         Ok(OperationReadback {
-            committed: self
-                .committed()
-                .ok_or("Saved configuration requires Windows")?,
-            recovery: self.recovery()?,
+            committed: bundle.committed.clone(),
+            recovery: bundle.recovery.clone(),
+            observation: Some(bundle),
         })
     }
 }
@@ -125,7 +179,10 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
         Ok(value) => serde_json::from_value(value)
             .map(|i| (i, None))
             .map_err(|e| format!("Invalid protected inventory reply: {e}")),
-        Err(error) if process::is_elevated()? => {
+        Err(error)
+            if hyper_gpu_support::read_context::tracked_backend_released()
+                && process::is_elevated()? =>
+        {
             // Preserve standalone elevated discovery; attachment never grants enrollment.
             Ok((
                 Inventory {
@@ -150,26 +207,8 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
     Err("Hyper-V discovery requires Windows x64".into())
 }
 
-/// Poll only installed inventory; never initiate first-install elevation.
 #[cfg(windows)]
-pub(super) fn discover_status() -> Result<InventoryRead, String> {
-    use hyper_gpu_support::runner;
-    if runner::pending_setup()?.is_some() || !runner::installed()? {
-        return Err("Setup requires attention. Use Refresh to continue.".into());
-    }
-    let value = runner::submit(runner::request(runner::Operation::Discover, None, None))?;
-    serde_json::from_value(value)
-        .map(|inventory| remember_os((inventory, None)))
-        .map_err(|e| format!("Invalid protected inventory reply: {e}"))
-}
-
-#[cfg(not(windows))]
-pub(super) fn discover_status() -> Result<InventoryRead, String> {
-    Err("Hyper-V discovery requires Windows x64".into())
-}
-
-#[cfg(windows)]
-fn plan(target: Target, reinstall: bool, authenticate: bool) -> Result<Plan, String> {
+fn plan(target: Target, reinstall: bool, authenticate: bool) -> Result<(Plan, bool), String> {
     use hyper_gpu_support::runner::{self, Operation};
     let operation = if reinstall {
         Operation::ReinstallPlan
@@ -178,11 +217,15 @@ fn plan(target: Target, reinstall: bool, authenticate: bool) -> Result<Plan, Str
     } else {
         Operation::PreliminaryPlan
     };
-    let value = runner::submit(runner::request(operation, Some(target), None))?;
-    serde_json::from_value(value).map_err(|e| format!("Invalid plan reply: {e}"))
+    let mut request = runner::request(operation, Some(target), None);
+    request.include_observation = true;
+    let value = runner::submit(request)?;
+    let prepared: Prepared<Plan> =
+        serde_json::from_value(value).map_err(|e| format!("Invalid plan reply: {e}"))?;
+    Ok((prepared.value, prepared.worker_available))
 }
 #[cfg(not(windows))]
-fn plan(_: Target, _: bool, _: bool) -> Result<Plan, String> {
+fn plan(_: Target, _: bool, _: bool) -> Result<(Plan, bool), String> {
     Err("Planning requires Windows x64".into())
 }
 

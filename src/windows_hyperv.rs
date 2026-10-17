@@ -2,7 +2,7 @@
 use crate::{
     model::*,
     payload::physical_device_id,
-    windows_com::{Apartment, connect, query, quoted},
+    windows_com::quoted,
     windows_wmi::{
         Object, Session, one,
         recovery::{Effect, Scope},
@@ -12,6 +12,9 @@ use crate::{
 use std::time::{Duration, Instant};
 use windows::{Win32::System::Variant::VARIANT, core::BSTR};
 mod guest_os;
+mod inventory;
+mod reads;
+pub(crate) use reads::ReadSession;
 
 const TIMEOUT: Duration = Duration::from_secs(120);
 fn settings(s: &Session, id: &str) -> Result<Object, String> {
@@ -19,7 +22,10 @@ fn settings(s: &Session, id: &str) -> Result<Object, String> {
 }
 /// Read one VM by stable GUID with fresh provider objects.
 pub fn inspect(id: &str) -> Result<VmState, String> {
-    let s = Session::new(TIMEOUT)?;
+    ReadSession::new()?.inspect(id)
+}
+
+fn inspect_in(s: &Session, id: &str) -> Result<VmState, String> {
     let vm = s.one(&format!(
         "SELECT * FROM Msvm_ComputerSystem WHERE Caption='Virtual Machine' AND Name='{}'",
         quoted(id)
@@ -49,7 +55,7 @@ pub fn inspect(id: &str) -> Result<VmState, String> {
         encode: observed_resource(gpus.first(), Resource::Encode),
         decode: observed_resource(gpus.first(), Resource::Decode),
         vm_id: vm.string("Name")?.to_ascii_lowercase(),
-        name: vm.string("ElementName")?,
+        name: vm.string("ElementName").unwrap_or_else(|_| id.to_owned()),
         power: match vm.number("EnabledState")? {
             2 => Power::Running,
             3 => Power::Off,
@@ -141,83 +147,26 @@ fn resource_capability(o: &Object, resource: Resource) -> ResourceCapability {
 }
 /// Enumerate all partitionable GPUs, without claiming preparation support for unimplemented vendors.
 pub fn discover() -> Result<Discovery, String> {
-    let s = Session::new(TIMEOUT)?;
-    let entries = s
-        .query("SELECT * FROM Msvm_ComputerSystem WHERE Caption='Virtual Machine'")?
-        .into_iter()
-        .map(|v| {
-            let id = v.string("Name")?.to_ascii_lowercase();
-            let result = inspect(&id);
-            Ok((id, result))
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    let (vms, mut issues) = crate::reporting::collect_observations("VM inspection", entries);
-    let gpus = match discover_gpus(&s, "SELECT * FROM Msvm_PartitionableGpu") {
-        Ok(gpus) => gpus,
-        Err(error) => {
-            issues.push(crate::reporting::Diagnostic::observation(
-                "GPU provider",
-                None,
-                &error,
-            ));
-            Vec::new()
-        }
-    };
-    // Optional host inventory only: never enter/start a guest to obtain an icon.
-    // Integration-service metadata may be absent (including for stopped guests).
-    let guest_os = vms
-        .iter()
-        .filter_map(|vm| {
-            let component = s
-                .one(&format!(
-                    "SELECT * FROM Msvm_KvpExchangeComponent WHERE SystemName='{}'",
-                    quoted(&vm.vm_id)
-                ))
-                .ok()?;
-            let items = component.strings("GuestIntrinsicExchangeItems").ok()?;
-            let name = guest_os::name(&items)?;
-            Some((vm.vm_id.clone(), name))
-        })
-        .collect();
-    Ok(Discovery {
-        issues,
-        vms,
-        gpus,
-        guest_os,
-    })
+    ReadSession::new()?.discover(true)
 }
-pub(crate) fn selected_gpu(t: &Target) -> Result<Gpu, String> {
-    t.validate()?;
-    let s = Session::new(TIMEOUT)?;
-    let mut gpus = discover_gpus(
-        &s,
-        &format!(
-            "SELECT * FROM Msvm_PartitionableGpu WHERE Name='{}'",
-            quoted(&t.gpu_interface)
-        ),
-    )?;
-    if gpus.len() != 1 {
-        return Err("selected GPU is absent or ambiguous".into());
-    }
-    gpus.pop().ok_or("selected GPU disappeared".into())
-}
-fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
-    let _apartment = Apartment::initialize().map_err(|e| e.to_string())?;
-    let cim = connect(r"ROOT\cimv2").map_err(|e| e.to_string())?;
-    // Physical capacity is independent read-only inventory. Its failure leaves
-    // capacity unknown without suppressing otherwise valid provider information.
-    let identities = crate::windows_probe::enumerate_adapter_identities().ok();
+fn read_gpus(
+    objects: Vec<Object>,
+    cim: &windows::Win32::System::Wmi::IWbemServices,
+    display: bool,
+    identities: Option<&[crate::probe::AdapterIdentity]>,
+) -> Result<Vec<Gpu>, String> {
     let mut gpus = Vec::new();
-    for o in s.query(gpu_query)? {
+    for o in objects {
         let interface = o.string("Name")?;
         let physical = physical_device_id(&interface)?;
-        let rows = query(
-            &cim,
+        let rows = crate::windows_com::query_with_optional(
+            cim,
             &format!(
-                "SELECT DeviceName,DriverVersion FROM Win32_PNPSignedDriver WHERE DeviceID='{}'",
+                "SELECT DriverVersion FROM Win32_PNPSignedDriver WHERE DeviceID='{}'",
                 quoted(&physical)
             ),
-            &["DeviceName", "DriverVersion"],
+            &["DriverVersion"],
+            &[],
             Instant::now() + TIMEOUT,
         )
         .map_err(|e| e.to_string())?;
@@ -232,7 +181,7 @@ fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
         };
         let vendor = pci("VEN_", 4)?;
         let device = pci("DEV_", 4)?;
-        let physical_vram_bytes = identities.as_ref().and_then(|identities| {
+        let physical_vram_bytes = identities.and_then(|identities| {
             crate::windows_probe::physical_memory_for_pci(
                 identities,
                 vendor,
@@ -241,20 +190,42 @@ fn discover_gpus(s: &Session, gpu_query: &str) -> Result<Vec<Gpu>, String> {
                 pci("REV_", 2).ok()?,
             )
         });
+        let display_name = if display {
+            crate::windows_com::query_with_optional(
+                cim,
+                &format!(
+                    "SELECT DeviceName FROM Win32_PNPSignedDriver WHERE DeviceID='{}'",
+                    quoted(&physical)
+                ),
+                &[],
+                &["DeviceName"],
+                Instant::now() + TIMEOUT,
+            )
+            .ok()
+            .filter(|rows| rows.len() == 1)
+            .and_then(|rows| rows[0].get("DeviceName").cloned())
+        } else {
+            None
+        };
         gpus.push(Gpu {
             compute: resource_capability(&o, Resource::Compute),
             encode: resource_capability(&o, Resource::Encode),
             decode: resource_capability(&o, Resource::Decode),
-            interface,
-            name: row.get("DeviceName").ok_or("missing GPU name")?.clone(),
+            interface: interface.clone(),
+            name: display_name.unwrap_or_else(|| interface.clone()),
             driver_version: row
                 .get("DriverVersion")
+                .filter(|version| !version.trim().is_empty())
                 .ok_or("missing driver version")?
                 .clone(),
             vendor,
             device,
             physical_vram_bytes,
-            total_vram: o.optional_number("TotalVRAM").ok().flatten(),
+            total_vram: if display {
+                o.optional_number("TotalVRAM").ok().flatten()
+            } else {
+                None
+            },
             vram: resource_capability(&o, Resource::Vram),
             preparation_supported: vendor == 0x10de,
         });

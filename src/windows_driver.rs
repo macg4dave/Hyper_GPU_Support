@@ -179,6 +179,8 @@ fn dependent_file_name(
 }
 
 fn lookup_wait_ms(deadline: Instant, now: Instant) -> Result<i32, DriverDiscoveryError> {
+    crate::read_context::check()
+        .map_err(|_| DriverDiscoveryError::Invalid("read-only request interrupted"))?;
     let remaining = deadline.saturating_duration_since(now);
     if remaining.is_zero() {
         return Err(DriverDiscoveryError::Timeout);
