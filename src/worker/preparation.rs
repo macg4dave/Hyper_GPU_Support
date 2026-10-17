@@ -91,6 +91,10 @@ impl Intent {
 /// Fully authenticated review from the still-running, locked worker session.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "One frame-bounded review per worker; retain the owned public plan contract"
+)]
 pub enum PreparedReview {
     /// Apply/reinstall scope, including current payload, lifecycle and exact saved revision.
     Apply {

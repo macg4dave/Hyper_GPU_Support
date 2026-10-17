@@ -3,10 +3,8 @@
 pub(super) enum Kind {
     Read,
     StatusRefresh,
-    Plan,
     PermissionPlan,
     PermissionRecovery,
-    VerifyPlan,
     Apply,
     Verify,
     Reconcile,
@@ -43,10 +41,8 @@ impl Kind {
     pub fn operation_dialog(self) -> bool {
         matches!(
             self,
-            Self::Plan
-                | Self::PermissionPlan
+            Self::PermissionPlan
                 | Self::PermissionRecovery
-                | Self::VerifyPlan
                 | Self::Apply
                 | Self::Verify
                 | Self::Reconcile
@@ -58,7 +54,7 @@ impl Kind {
         )
     }
     pub fn review_preparation(self) -> bool {
-        matches!(self, Self::Plan | Self::PermissionPlan | Self::VerifyPlan)
+        self == Self::PermissionPlan
     }
     pub fn silent(self) -> bool {
         self == Self::StatusRefresh
@@ -88,9 +84,7 @@ mod tests {
             (Kind::Reconcile, GuestPurpose::Reconcile),
             (Kind::Credentials, GuestPurpose::Credentials),
             (Kind::Read, GuestPurpose::Reviewed),
-            (Kind::Plan, GuestPurpose::Reviewed),
             (Kind::PermissionPlan, GuestPurpose::Reviewed),
-            (Kind::VerifyPlan, GuestPurpose::Reviewed),
             (Kind::SaveOnly, GuestPurpose::Reviewed),
             (Kind::StatusRefresh, GuestPurpose::Reviewed),
         ] {
@@ -99,7 +93,7 @@ mod tests {
             assert_eq!(operation.kind.silent(), kind == Kind::StatusRefresh);
             assert_eq!(
                 operation.kind.review_preparation(),
-                matches!(kind, Kind::Plan | Kind::PermissionPlan | Kind::VerifyPlan)
+                kind == Kind::PermissionPlan
             );
         }
     }

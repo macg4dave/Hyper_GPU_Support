@@ -226,37 +226,6 @@ fn execute_inner(e: &Enrollment, request: Request) -> Result<serde_json::Value, 
     }
     result
 }
-#[cfg(test)]
-mod read_tests {
-    use super::*;
-    #[test]
-    fn read_transport_rejects_effects_and_guest_credentials_before_native_or_artifact_work() {
-        for (operation, credential) in [
-            (Operation::Apply, None),
-            (Operation::Verify, None),
-            (
-                Operation::Poll,
-                Some(crate::credentials::Credential {
-                    username: "fixture".into(),
-                    password: "not-a-real-secret".into(),
-                }),
-            ),
-        ] {
-            let before = crate::work_counts::snapshot();
-            let control = crate::read_context::ReadControl::new(Duration::from_secs(60));
-            let error = control
-                .scope(|| submit(super::super::protocol::request(operation, None, credential)))
-                .unwrap_err();
-            assert!(error.contains("cannot dispatch effects"));
-            assert!(control.backend_released());
-            assert_eq!(
-                crate::work_counts::snapshot().since(before),
-                crate::work_counts::Counts::default()
-            );
-        }
-    }
-}
-
 fn execute_operation(
     e: &Enrollment,
     request: Request,
@@ -379,5 +348,36 @@ fn execute_operation(
         .map_err(|e| e.to_string())
     } else {
         Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod read_tests {
+    use super::*;
+    #[test]
+    fn read_transport_rejects_effects_and_guest_credentials_before_native_or_artifact_work() {
+        for (operation, credential) in [
+            (Operation::Apply, None),
+            (Operation::Verify, None),
+            (
+                Operation::Poll,
+                Some(crate::credentials::Credential {
+                    username: "fixture".into(),
+                    password: "not-a-real-secret".into(),
+                }),
+            ),
+        ] {
+            let before = crate::work_counts::snapshot();
+            let control = crate::read_context::ReadControl::new(Duration::from_secs(60));
+            let error = control
+                .scope(|| submit(super::super::protocol::request(operation, None, credential)))
+                .unwrap_err();
+            assert!(error.contains("cannot dispatch effects"));
+            assert!(control.backend_released());
+            assert_eq!(
+                crate::work_counts::snapshot().since(before),
+                crate::work_counts::Counts::default()
+            );
+        }
     }
 }

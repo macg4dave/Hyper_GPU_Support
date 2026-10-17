@@ -1,10 +1,10 @@
 # Optimization backlog
 
-Updated 17 October 2026. These tasks implement the [optimization roadmap](roadmap.md). The earlier release backlog was closed by user confirmation on 15 October; the optimization tasks are new work, not reopened QA cases. OPT-001 through OPT-006 are implemented in source with validation pending the milestone gate. The user-selected OPT-007 change to 16 MiB is implemented in source, with validation and performance measurement pending. Source work does not authorize installation or live effects.
+Updated 17 October 2026. These tasks implement the [optimization roadmap](roadmap.md). The earlier release backlog was closed by user confirmation on 15 October; the optimization tasks are new work, not reopened QA cases. OPT-001 through OPT-006 and the user-selected OPT-007 16 MiB scope passed the complete non-hardware gate and protected installation on 17 October 2026. Live acceptance and performance measurements remain pending. Source work does not authorize installation or live effects.
 
 ## Next action
 
-The next task is **OPT-008** integration review and validation, when requested. OPT-001 through OPT-006 automated execution remains pending the coherent integration checkpoint, using the [measurement contract and frozen expectations](ENGINEERING.md#optimization-measurements). Source completion does not close R1/R2/R3 or candidate acceptance. Include the user-selected OPT-007 16 MiB change in candidate validation; broader transport redesign remains deferred pending measurements.
+The next task is **OPT-008 live qualification**, after exact targets/effects are prepared and authorized. The [integrated checkpoint](ENGINEERING.md#optimization-validation-checkpoint) passed 471 product tests and 12 catalogue tests, strict lint/build/docs, and protected installation with matching artifact hashes and preserved state. R1/R2/R3 automated scope is established; installed GUI, native measurements, VM/GPU/guest acceptance and 16 MiB throughput/memory qualification remain pending. Include the selected OPT-007 chunk size; broader transport redesign stays deferred.
 
 OPT-001 through OPT-006 have no hard source prerequisites. Work on their independent parts can be prepared without waiting for live measurements or another stage to close. Coordinate shared-file changes within the requested batch. OPT-007 is an optional measurement-driven extension; OPT-008 is the required final integration/acceptance task.
 
@@ -14,23 +14,23 @@ Priority expresses delivery order/value, not defect severity. Dependencies are h
 
 | ID | Stage | Task | Priority | Implementation | Dependencies | Validation |
 | --- | --- | --- | --- | --- | --- | --- |
-| OPT-001 | R0 | Baseline, counters and comparison contract | High | Done (source) | None | Pending milestone gate |
-| OPT-002 | R1 | Protected read pipeline and GUI coordination | High | Done (source) | None | Pending milestone gate |
-| OPT-003 | R2 | Setup lifecycle and changed-resource writes | High | Done (source) | None | Pending milestone gate |
-| OPT-004 | R2 | Payload admission and focused worker handlers | High | Done (source) | None | Pending milestone gate |
-| OPT-005 | R3 | Validated helper reuse and transport measurement | Medium | Done (source) | None | Pending milestone gate |
-| OPT-006 | R3 | Completed audit and staging retention | Medium | Done (source) | None | Pending milestone gate |
-| OPT-007 | R3 extension | Conditional bounded transfer optimization | User selected 16 MiB | Done (source: chunk size) | OPT-005 | Pending milestone gate and measurement |
-| OPT-008 | R4 | Integrated candidate validation and acceptance | Required gate | Blocked | OPT-001, OPT-002, OPT-003, OPT-004, OPT-005, OPT-006, OPT-007 | Not run |
+| OPT-001 | R0 | Baseline, counters and comparison contract | High | Done (source) | None | Passed (non-hardware); live pending |
+| OPT-002 | R1 | Protected read pipeline and GUI coordination | High | Done (source) | None | Passed (non-hardware); live pending |
+| OPT-003 | R2 | Setup lifecycle and changed-resource writes | High | Done (source) | None | Passed (non-hardware); live pending |
+| OPT-004 | R2 | Payload admission and focused worker handlers | High | Done (source) | None | Passed (non-hardware); live pending |
+| OPT-005 | R3 | Validated helper reuse and transport measurement | Medium | Done (source) | None | Passed (non-hardware); live pending |
+| OPT-006 | R3 | Completed audit and staging retention | Medium | Done (source) | None | Passed (non-hardware); live pending |
+| OPT-007 | R3 extension | Conditional bounded transfer optimization | User selected 16 MiB | Done (source: chunk size) | OPT-005 | Passed (non-hardware); measurements pending |
+| OPT-008 | R4 | Integrated candidate validation and acceptance | Required gate | In progress | OPT-001, OPT-002, OPT-003, OPT-004, OPT-005, OPT-006, OPT-007 | Passed (gate/install); live pending |
 
-OPT-008 is blocked only from closing acceptance before its core prerequisites finish; its review/scenario preparation can start earlier. The user selected the narrow OPT-007 chunk-size change for the candidate, so its changes and validation are part of OPT-008. Broader transfer redesign remains deferred.
+OPT-008 has passed its integrated non-hardware and protected-install portions; final acceptance still requires authorized live evidence and the user's decision. The user selected the narrow OPT-007 chunk-size change for the candidate, so its changes and validation are part of OPT-008. Broader transfer redesign remains deferred.
 
 ## Tasks
 
 ### OPT-001 - Baseline, counters and comparison contract
 
 Dependencies: None.
-Stage: R0. Implementation: Done (source). Validation: Pending milestone gate.
+Stage: R0. Implementation: Done (source). Validation: Passed (non-hardware); live pending.
 
 **Outcome:** reproducible before/after work counts and a small measurement contract shared by every optimization, without requiring a new benchmark framework or live access before source work.
 
@@ -46,12 +46,12 @@ Acceptance:
 
 Integration: establish counter names/attribution at the start of the first batch; other tasks can prepare their own fixtures before this card finishes. Run the full non-hardware gate at the agreed batch checkpoint.
 
-Source delivered 17 October 2026: fixed aggregate counters on existing opt-in diagnostic summaries; native provider/hash/mutation and acknowledged transfer attribution; original workflow call/effect fixtures; and the [comparison/failure procedure](ENGINEERING.md#optimization-measurements). Fixture numbers are source-derived expectations, not executed results. Builds/Rust tests and the full gate have not run for this source package. No installed/native timing, guest, VM or GPU validation ran; those remain pending under OPT-008.
+Source delivered 17 October 2026: fixed aggregate counters on existing opt-in diagnostic summaries; native provider/hash/mutation and acknowledged transfer attribution; original workflow call/effect fixtures; and the [comparison/failure procedure](ENGINEERING.md#optimization-measurements). Isolated fixture expectations passed at the [integrated checkpoint](ENGINEERING.md#optimization-validation-checkpoint), including builds/Rust tests and the complete gate. Native timing and installed GUI/guest/VM/GPU acceptance remain pending under OPT-008.
 
 ### OPT-002 - Protected read pipeline and GUI coordination
 
 Dependencies: None.
-Stage: R1. Implementation: Done (source). Validation: Pending milestone gate.
+Stage: R1. Implementation: Done (source). Validation: Passed (non-hardware); live pending.
 
 **Outcome:** cheap, bounded routine status updates and fresh operational checks, with one coherent completion read and foreground priority. Review findings 1, 2, 5 and 7 are implemented together because they share the same read contracts.
 
@@ -71,12 +71,12 @@ Integration: agree the operational facts/status/observation bundle first, then d
 
 Implemented 17 October 2026: operational equality excludes optional names/capacity/OS metadata; operation-scoped connections re-query current objects; inventory batches exact provider relationships. Full Refresh obtains display metadata; polling retains it only for matching identities and driver versions. One locked observation supplies current authority, saved intent, recovery and selected completion facts. Foreground requests cancel polls and wait for confirmed release of the exact runner instance; read budgets/cancellation reach provider, hash and pipe waits without cancelling effects. Authenticated reads hash the current enrolled artifacts once under the common lock, and readiness comes from that response without a separate GUI hash pass. Completion preserves drafts/conflicts, marks unrelated rows historical until a later poll, and never substitutes an old selected row for a missing current read. See [architecture](ARCHITECTURE.md#protected-read-pipeline) and [security](SECURITY.md#protected-read-admission).
 
-Regression source covers operational/display drift, fixed batch-query counts and relationship failures, artifact-authentication counts/failure, topology/display invalidation, cancellation/deadline/release tracking, stale poll races, disconnected clients, selected completion failures and disappearing save receipts. Static formatting, UI-copy and documentation/whitespace checks pass. Rust compilation, regression execution, the complete non-hardware gate, native measurements, installation and installed/live acceptance have not run for this task. R1 remains open.
+Regression source covers operational/display drift, fixed batch-query counts and relationship failures, artifact-authentication counts/failure, topology/display invalidation, cancellation/deadline/release tracking, stale poll races, disconnected clients, selected completion failures and disappearing save receipts. Static formatting, UI-copy and documentation/whitespace checks pass. Compilation, regressions, the complete non-hardware gate and protected installation passed at the integrated checkpoint. Native measurements and installed/live acceptance remain pending.
 
 ### OPT-003 - Setup lifecycle and changed-resource writes
 
 Dependencies: None.
-Stage: R2. Implementation: Done (source). Validation: Pending milestone gate.
+Stage: R2. Implementation: Done (source). Validation: Passed (non-hardware); live pending.
 
 **Outcome:** remove an unnecessary setup power cycle on eligible unattached VMs and skip proven unchanged resource writes. Review findings 3 and 6 share workflow planning, execution and effect-order tests.
 
@@ -95,12 +95,12 @@ Integration: deliver with OPT-004 as a requested R2 batch to update shared workf
 
 Implemented 17 October 2026 with OPT-004. Successful OS identification keeps an unattached guest running for preparation; Off setup requests two starts/two shutdowns, and Running setup one start/two shutdowns. Attached cases retain the shutdown/detachment boundary. Identification refusal/uncertainty still uses guarded restoration, and actual preparation/guest-local eligibility checks remain. Retained adapters write only differing requested categories; recreated adapters write all specified categories. Previews, the authenticated progress checklist and execution use the same decisions. Regression source covers these reductions, required/omitted categories, existing failure/restoration cases and prepared admission drift. Candidate comparison assertions explicitly replace the affected original counts; the original table remains in engineering documentation.
 
-Validation: static formatting, copy and documentation/whitespace checks pass. Compilation, Rust regression execution, the full non-hardware gate and installed/live validation have not run for this batch. No transition, timing or GPU acceptance is claimed from these source expectations.
+Validation: static formatting, copy and documentation/whitespace checks pass. Compilation, Rust regressions, the complete non-hardware gate and protected installation passed at the integrated checkpoint; installed/live acceptance remains pending. No transition, timing or GPU acceptance is claimed from these source expectations.
 
 ### OPT-004 - Payload admission and focused worker handlers
 
 Dependencies: None.
-Stage: R2. Implementation: Done (source). Validation: Pending milestone gate.
+Stage: R2. Implementation: Done (source). Validation: Passed (non-hardware); live pending.
 
 **Outcome:** reduce duplicate complete host payload processing while keeping independently authenticated execution and final confirmation. Simplify the worker only where needed for this change, covering review findings 4 and 10 together.
 
@@ -119,12 +119,12 @@ Integration: combine with OPT-003; agree any completion acknowledgement needed b
 
 Implemented 17 October 2026: the process-bound worker now prepares an authenticated Apply/Verify plan, binds its exact review revision into audit, waits for a matching session/scope acknowledgement and local credentials, then consumes the retained in-process admission token and manifest under the same common lock. Source handles deny write/delete sharing from hashing through final confirmation, and package membership is re-enumerated before effects. Final authentication remains a separate complete pass. GUI setup/reinstall/Verify and CLI setup/Verify therefore request two complete host passes; ordinary GUI remains two, eligible CLI uses the existing preliminary mechanism and also requests two. Explicit CLI `plan` remains a full read-only pass. Cancellation/disconnect closes the preparation connection and retains admission until exact launched-process exit; effect approval disables read cancellation. Apply/Verify handlers and their common final confirmation/publication code are private focused modules; recovery, save-only, import and enrollment admission remain separate. See [architecture](ARCHITECTURE.md#prepared-worker-execution) and [security](SECURITY.md#prepared-payload-lifetime).
 
-Regression source covers scope/session/revision/credential mismatches, same-version byte replacement locks, changed package/catalog membership, cancelled overlapped reads, final authentication failures, draft binding, checklist continuity and existing verified-unsaved recovery. `Complete` remains a session-bound terminal reply; process exit is release proof, not a client/guest cleanup acknowledgement. OPT-006 supplies separate durable completion/readback criteria and preserves unresolved records. Static checks pass; compilation, regression execution, the R2 gate and installed/live qualification remain pending.
+Regression source covers scope/session/revision/credential mismatches, same-version byte replacement locks, changed package/catalog membership, cancelled overlapped reads, final authentication failures, draft binding, checklist continuity and existing verified-unsaved recovery. `Complete` remains a session-bound terminal reply; process exit is release proof, not a client/guest cleanup acknowledgement. OPT-006 supplies separate durable completion/readback criteria and preserves unresolved records. Compilation, regression execution, the complete non-hardware gate and protected installation passed at the integrated checkpoint; installed/live qualification remains pending.
 
 ### OPT-005 - Validated helper reuse and transport measurement
 
 Dependencies: None.
-Stage: R3. Implementation: Done (source). Validation: Pending milestone gate.
+Stage: R3. Implementation: Done (source). Validation: Passed (non-hardware); live pending.
 
 **Outcome:** avoid transferring/replacing already matching guest helpers and determine whether chunk/remoting overhead warrants OPT-007. Review finding 8's helper optimization is core scope; transfer redesign is conditional.
 
@@ -141,12 +141,12 @@ Acceptance:
 
 Integration: independent of R1/R2 source completion. Share transport fixtures/counters with OPT-001 and protocol edits with OPT-006; validate once for the requested guest/storage batch.
 
-Source outcome: helpers are selected only after fresh path/owner/ACL/length/hash checks; unsafe leaves/parents refuse replacement. Matching helpers skip transfer/publication, while launch still holds both independently checked files against writing/deletion. The transfer monitor validates one selection before ordered byte acknowledgements and reports only selected files. Existing preparation/Verify receipt and phase requirements remain mandatory. Isolated production-script and monitor regression source covers reuse, missing/changed/mixed helpers, unsafe ownership/writers/links/directories, publication/ACL failure, launch drift, zero-transfer Verify and existing partial/invalid terminal cases. Transport timing preparation is in [engineering](ENGINEERING.md#helper-and-transport-measurement-preparation); OPT-007 now includes the user-selected 16 MiB chunk size, with the existing transport retained and measurements pending. Compilation, regression execution and live timing remain unrun.
+Source outcome: helpers are selected only after fresh path/owner/ACL/length/hash checks; unsafe leaves/parents refuse replacement. Matching helpers skip transfer/publication, while launch still holds both independently checked files against writing/deletion. The transfer monitor validates one selection before ordered byte acknowledgements and reports only selected files. Existing preparation/Verify receipt and phase requirements remain mandatory. Isolated production-script and monitor regression source covers reuse, missing/changed/mixed helpers, unsafe ownership/writers/links/directories, publication/ACL failure, launch drift, zero-transfer Verify and existing partial/invalid terminal cases. Transport timing preparation is in [engineering](ENGINEERING.md#helper-and-transport-measurement-preparation); OPT-007 now includes the user-selected 16 MiB chunk size, with the existing transport retained and measurements pending. Compilation, regressions and protected installation passed at the integrated checkpoint; live timing remains unrun.
 
 ### OPT-006 - Completed audit and staging retention
 
 Dependencies: None.
-Stage: R3. Implementation: Done (source). Validation: Pending milestone gate.
+Stage: R3. Implementation: Done (source). Validation: Passed (non-hardware); live pending.
 
 **Outcome:** bound storage growth from completed discovery audits and obsolete guest staging without discarding recovery evidence. Review finding 9 includes the retention contract and its implementation in one task.
 
@@ -163,12 +163,12 @@ Acceptance:
 
 Integration: policy and eligibility tests can begin immediately. Design the shared acknowledgement alongside OPT-004/OPT-005 and integrate overlapping worker/guest changes once; this is contract coordination, not a dependency on unrelated task completion.
 
-Source outcome: the owning [retention contract](SECURITY.md#completed-record-retention) defines eligibility, bounds and safety exclusions. Successful read audits have conservative retention under the common lock after terminal publication. New unique guest bundles have protected pending descriptors before transfer; only independently verified, durably audited operations with exact recovery retirement can publish completion acknowledgements. A later already-authorized session delivers VM-bound acknowledgements; guest cleanup holds the preparation lock, preflights the complete deletion set and removes identity last. Exact cleanup readback retires host acknowledgements; partial failure/lost replies remain resumable without replaying effects. Legacy, unacknowledged, uncertain, retained and unrelated evidence remains protected. Added source regressions cover bounds, terminal eligibility, scope/duplicates, preflight failure and interruption/resume. Static checks pass; compilation, regression execution, full gate and live deletion remain pending. Source validation removes no operational records.
+Source outcome: the owning [retention contract](SECURITY.md#completed-record-retention) defines eligibility, bounds and safety exclusions. Successful read audits have conservative retention under the common lock after terminal publication. New unique guest bundles have protected pending descriptors before transfer; only independently verified, durably audited operations with exact recovery retirement can publish completion acknowledgements. A later already-authorized session delivers VM-bound acknowledgements; guest cleanup holds the preparation lock, preflights the complete deletion set and removes identity last. Exact cleanup readback retires host acknowledgements; partial failure/lost replies remain resumable without replaying effects. Legacy, unacknowledged, uncertain, retained and unrelated evidence remains protected. Added source regressions cover bounds, terminal eligibility, scope/duplicates, preflight failure and interruption/resume. Compilation, regressions, the complete gate and protected installation passed at the integrated checkpoint; live deletion remains pending. Isolated cleanup validation removes no operational records.
 
 ### OPT-007 - Conditional bounded transfer optimization
 
 Dependencies: OPT-005.
-Stage: R3 extension. Implementation: Done (source: 16 MiB chunk size). Validation: Pending milestone gate and measurement.
+Stage: R3 extension. Implementation: Done (source: 16 MiB chunk size). Validation: Passed (non-hardware); measurements pending.
 
 **Selected scope:** on 17 October 2026 the user explicitly chose 16 MiB chunks before measurement, retaining the option to return to 4 MiB if qualification finds problems. This overrides the measurement-first entry condition for this bounded constant change. Broader batching, streaming or transport replacement still requires evidence of a material bottleneck.
 
@@ -181,12 +181,12 @@ Acceptance if selected:
 - Test reordered/duplicate/missing acknowledgements, truncation/growth, slow/no-progress transfer, cancellation/disconnect and worker failure. Confirm no concurrent VM/GPU mutations.
 - Show comparable transfer and whole-workflow measurements, including instrumentation overhead, with no correctness/resource regression. Run the non-hardware gate at the integration checkpoint and include selected changes in OPT-008.
 
-Source outcome: the shared Rust constant now selects 16 MiB for both sender buffering and acknowledgement validation. Boundary/tail and failure fixtures follow the constant; deadlines, integrity checks and remoting caps are unchanged. Static checks pass; compilation, regression execution and live qualification remain pending. Use qualification evidence to retain or downgrade this candidate size without blindly retrying an interrupted transfer. Broader optimization remains deferred.
+Source outcome: the shared Rust constant now selects 16 MiB for both sender buffering and acknowledgement validation. Boundary/tail and failure fixtures follow the constant; deadlines, integrity checks and remoting caps are unchanged. Compilation, regressions, the complete gate and protected installation passed at the integrated checkpoint; live qualification remains pending. Use qualification evidence to retain or downgrade this candidate size without blindly retrying an interrupted transfer. Broader optimization remains deferred.
 
 ### OPT-008 - Integrated candidate validation and acceptance
 
 Dependencies: OPT-001, OPT-002, OPT-003, OPT-004, OPT-005, OPT-006, OPT-007 (selected 16 MiB scope).
-Stage: R4. Implementation: Blocked. Validation: Not run.
+Stage: R4. Implementation: In progress. Validation: Passed (non-hardware gate and protected installation); live acceptance pending.
 
 **Outcome:** one reviewable candidate with demonstrated reductions in work and preserved product behavior, using the [roadmap acceptance gate](roadmap.md#validation-and-acceptance). Prerequisites block final closure, not early scenario preparation.
 

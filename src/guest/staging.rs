@@ -609,7 +609,7 @@ mod tests {
         assert_eq!(
             clean_with(
                 &current,
-                &[ack.clone()],
+                std::slice::from_ref(&ack),
                 |_| Ok(Some(Vec::new())),
                 |_, _| Ok(())
             )

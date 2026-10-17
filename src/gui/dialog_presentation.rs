@@ -7,10 +7,8 @@ pub(super) fn task(kind: Kind) -> &'static str {
     use dialogs::workflow as text;
     match kind {
         Kind::Read | Kind::StatusRefresh => text::READ,
-        Kind::Plan => text::PLAN,
         Kind::PermissionPlan => text::PERMISSION_REVIEW,
         Kind::PermissionRecovery => text::PERMISSION_RECOVERY,
-        Kind::VerifyPlan => text::VERIFY_PLAN,
         Kind::Apply => text::APPLY,
         Kind::Verify => text::VERIFY,
         Kind::Reconcile => text::RECOVER,
@@ -77,10 +75,8 @@ mod tests {
         let ui = AppWindow::new().unwrap();
         for kind in [
             Kind::Read,
-            Kind::Plan,
             Kind::PermissionPlan,
             Kind::PermissionRecovery,
-            Kind::VerifyPlan,
             Kind::Apply,
             Kind::Verify,
             Kind::Reconcile,

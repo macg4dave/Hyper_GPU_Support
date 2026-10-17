@@ -269,37 +269,36 @@ pub(super) fn discover(
         }
     };
     let mut guest_os = std::collections::BTreeMap::new();
-    if display && !vms.is_empty() {
-        if let Ok(components) =
+    if display
+        && !vms.is_empty()
+        && let Ok(components) =
             s.query("SELECT SystemName,GuestIntrinsicExchangeItems FROM Msvm_KvpExchangeComponent")
-        {
-            let known: std::collections::BTreeSet<_> =
-                vms.iter().map(|vm| vm.vm_id.as_str()).collect();
-            let mut observed = std::collections::BTreeMap::<String, Option<String>>::new();
-            for component in components {
-                s.check_deadline()?;
-                let Ok(id) = component.string("SystemName") else {
-                    continue;
-                };
-                let id = id.to_ascii_lowercase();
-                if !known.contains(id.as_str()) {
-                    continue;
-                }
-                let name = component
-                    .strings("GuestIntrinsicExchangeItems")
-                    .ok()
-                    .and_then(|items| guest_os::name(&items));
-                observed
-                    .entry(id)
-                    .and_modify(|value| *value = None)
-                    .or_insert(name);
+    {
+        let known: std::collections::BTreeSet<_> = vms.iter().map(|vm| vm.vm_id.as_str()).collect();
+        let mut observed = std::collections::BTreeMap::<String, Option<String>>::new();
+        for component in components {
+            s.check_deadline()?;
+            let Ok(id) = component.string("SystemName") else {
+                continue;
+            };
+            let id = id.to_ascii_lowercase();
+            if !known.contains(id.as_str()) {
+                continue;
             }
-            guest_os.extend(
-                observed
-                    .into_iter()
-                    .filter_map(|(id, name)| name.map(|name| (id, name))),
-            );
+            let name = component
+                .strings("GuestIntrinsicExchangeItems")
+                .ok()
+                .and_then(|items| guest_os::name(&items));
+            observed
+                .entry(id)
+                .and_modify(|value| *value = None)
+                .or_insert(name);
         }
+        guest_os.extend(
+            observed
+                .into_iter()
+                .filter_map(|(id, name)| name.map(|name| (id, name))),
+        );
     }
     Ok(Discovery {
         vms,

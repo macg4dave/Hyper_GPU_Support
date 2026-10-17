@@ -28,6 +28,10 @@ pub struct Progress {
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "One frame-bounded command per worker; owned plans are consumed without extra indirection"
+)]
 pub(super) enum Command {
     Prepare {
         intent: preparation::Intent,

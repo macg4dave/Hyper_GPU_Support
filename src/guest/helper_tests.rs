@@ -13,7 +13,7 @@ fn helper_reuse_replacement_and_failure_paths_do_not_enter_hyperv_or_launch_a_wo
         .unwrap()
         .0;
     let fixture = r#"
-function Invoke-Command { param($Session, $ArgumentList, $ScriptBlock) & $ScriptBlock @ArgumentList }
+function Invoke-Command { param($Session, [object[]]$ArgumentList, [scriptblock]$ScriptBlock) & $ScriptBlock @ArgumentList }
 function Get-Acl {
     param($LiteralPath)
     $acl = [Security.AccessControl.DirectorySecurity]::new()

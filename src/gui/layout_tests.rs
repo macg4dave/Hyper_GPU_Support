@@ -782,8 +782,6 @@ fn operation_preparation_and_execution_have_no_review_confirmation_controls() {
         for (width, height) in [(1240., 860.), (700., 520.)] {
             window.set_size(LogicalSize::new(width, height));
             for kind in [
-                super::operation::Kind::Plan,
-                super::operation::Kind::VerifyPlan,
                 super::operation::Kind::PermissionPlan,
                 super::operation::Kind::Apply,
                 super::operation::Kind::Verify,

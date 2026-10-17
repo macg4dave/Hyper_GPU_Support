@@ -271,8 +271,6 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                 hyper_gpu_support::ui_text::operations::apply::HOST_PROGRESS
             } else if operation.kind == Kind::Reconcile {
                 hyper_gpu_support::ui_text::operations::recovery::HOST_PROGRESS
-            } else if matches!(operation.kind, Kind::Plan | Kind::VerifyPlan) {
-                hyper_gpu_support::ui_text::operations::plan::PROGRESS_BODY
             } else if operation.kind == Kind::SaveOnly {
                 hyper_gpu_support::ui_text::operations::save_only::PROGRESS_BODY
             } else {
@@ -329,10 +327,9 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                     if !released { ui.set_execution_ready(false); }
                 })
                 .is_err()
+                && released
             {
-                if released {
-                    worker_busy.store(false, Ordering::Release);
-                }
+                worker_busy.store(false, Ordering::Release);
             }
         })
     {
@@ -415,10 +412,8 @@ mod tests {
     fn operation_dialog_covers_apply_setup_verification_recovery_save_and_removal() {
         slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
         for (kind, guest_access) in [
-            (Kind::Plan, false),
             (Kind::PermissionPlan, false),
             (Kind::PermissionRecovery, false),
-            (Kind::VerifyPlan, false),
             (Kind::Apply, false),
             (Kind::Apply, true),
             (Kind::Verify, true),

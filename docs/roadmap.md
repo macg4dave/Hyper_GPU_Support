@@ -1,6 +1,6 @@
 # Optimization roadmap
 
-Updated 17 October 2026. The functional and architectural review is complete. OPT-001 through OPT-006 are implemented in source, including the protected read pipeline, R2 lifecycle/resource/payload changes and R3 helper/retention work. Automated validation is pending the milestone gate; R1, R2 and R3 are not closed. The user-selected OPT-007 change to 16 MiB is implemented in source, with validation and measurements pending. Live performance validation has not started. The findings establish repeated work in execution paths, not measured speedups or new release failures. Previous accepted work remains historical context and is not reopened by this plan.
+Updated 17 October 2026. The functional and architectural review is complete. OPT-001 through OPT-006 are implemented in source, including the protected read pipeline, R2 lifecycle/resource/payload changes and R3 helper/retention work. The integrated non-hardware gate and protected installation passed on 17 October 2026, covering R1/R2/R3 automated scope and the user-selected OPT-007 16 MiB change; see the [checkpoint](ENGINEERING.md#optimization-validation-checkpoint). Live acceptance and measurements remain pending under R4/OPT-008. Live performance validation has not started. The findings establish repeated work in execution paths, not measured speedups or new release failures. Previous accepted work remains historical context and is not reopened by this plan.
 
 This page owns outcomes, delivery stages and gates. The [backlog](backlog.md) owns tasks, dependencies and implementation/validation status. The [agreed workflow](../README.md#agreed-workflow), [architecture](ARCHITECTURE.md), [security](SECURITY.md) and [engineering validation](ENGINEERING.md#validation-and-live-acceptance) remain authoritative.
 
@@ -58,7 +58,7 @@ The [security contract](SECURITY.md) remains in force: exact operator/VM/GPU/rev
 - Retain independent final payload/guest checks. Profile deletion stays record-only, save-only never replays Apply, and recovery remains an explicit foreground action.
 - Cleanup needs positive durable completion and exact ownership/scope. Age alone cannot authorize staging or recovery deletion.
 
-R3 source status: OPT-005/OPT-006 helper selection and completed-record retention are implemented with regression source. Static checks alone do not close R3; compilation, regression execution, the full non-hardware gate and separately authorized live scenarios remain pending. OPT-007 retains the current chunk protocol with a user-selected 16 MiB bound; its validation and actual transport measurements remain pending.
+R3 automated status: helper tampering, cleanup eligibility, interrupted deletion and uncertain-outcome regressions passed with the complete non-hardware gate. Protected installation preserved enrolled authority and persistent state. OPT-007 retains the current protocol with 16 MiB chunks and passed isolated transport tests; native throughput/memory and live guest cleanup remain pending. R4 candidate acceptance is still open.
 
 ## Validation and acceptance
 

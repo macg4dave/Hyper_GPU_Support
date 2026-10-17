@@ -504,29 +504,40 @@ mod tests {
     #[test]
     fn preparation_drift_blocks_later_shutdown_settings_and_attachment() {
         use crate::workflow::test_support::Drift;
-        for drift in [
-            Drift::Settings,
-            Drift::Gpu,
-            Drift::Assignment,
-            Drift::Resource,
-            Drift::Power,
-            Drift::Journal,
-            Drift::Unavailable,
-        ] {
-            let mut backend = fake();
-            let original = backend.state.settings.clone();
-            backend.drift_at = Some(("prepare", drift));
-            let error = apply(&mut backend, &target()).unwrap_err();
-            assert!(
-                error.contains("changed") || error.contains("unavailable"),
-                "{error}"
-            );
-            assert_eq!(backend.events, ["shutdown", "start", "prepare"]);
-            assert_eq!(backend.settings_writes, 0);
-            assert_eq!(backend.allocation_writes, 0);
-            assert!(backend.journal.as_ref().unwrap().pending);
-            if !matches!(drift, Drift::Journal) {
-                assert_eq!(backend.journal.as_ref().unwrap().original, original);
+        for initial_power in [Power::Off, Power::Running] {
+            for drift in [
+                Drift::Settings,
+                Drift::Gpu,
+                Drift::Assignment,
+                Drift::Resource,
+                Drift::Power,
+                Drift::Journal,
+                Drift::Unavailable,
+            ] {
+                let mut backend = fake();
+                backend.state.power = initial_power.clone();
+                let original = backend.state.settings.clone();
+                backend.drift_at = Some(("prepare", drift));
+                let error = apply(&mut backend, &target()).unwrap_err();
+                assert!(
+                    error.contains("changed") || error.contains("unavailable"),
+                    "{error}"
+                );
+                // Successful OS identification retains Running through preparation.
+                // Drift must stop before shutdown, settings or attachment changes.
+                let expected = if initial_power == Power::Off {
+                    vec!["start", "prepare"]
+                } else {
+                    vec!["prepare"]
+                };
+                assert_eq!(backend.events, expected);
+                assert_eq!(backend.os_checks, 1);
+                assert_eq!(backend.settings_writes, 0);
+                assert_eq!(backend.allocation_writes, 0);
+                assert!(backend.journal.as_ref().unwrap().pending);
+                if !matches!(drift, Drift::Journal) {
+                    assert_eq!(backend.journal.as_ref().unwrap().original, original);
+                }
             }
         }
     }
@@ -1482,7 +1493,7 @@ mod tests {
     }
 
     #[test]
-    fn shutdown_failure_never_prepares_or_detaches() {
+    fn shutdown_failure_after_preparation_never_changes_host_settings_or_attachment() {
         let mut f = fake();
         f.fail_shutdown = true;
         assert!(
@@ -1490,8 +1501,13 @@ mod tests {
                 .unwrap_err()
                 .contains("shutdown refused")
         );
-        assert_eq!(f.events, ["shutdown"]);
+        assert_eq!(f.events, ["prepare", "shutdown"]);
         assert_eq!(f.state.power, Power::Running);
+        assert!(f.state.gpus.is_empty());
+        assert_eq!(f.settings_writes, 0);
+        assert_eq!(f.allocation_writes, 0);
+        assert!(f.journal.as_ref().unwrap().prepared.is_none());
+        assert_eq!(f.journal.as_ref().unwrap().preparation_started, Some(true));
         assert!(f.journal.as_ref().unwrap().pending);
     }
 

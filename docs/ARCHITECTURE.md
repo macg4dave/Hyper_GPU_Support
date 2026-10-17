@@ -68,7 +68,7 @@ Enabled Apply writes compatibility settings only when admitted initial settings 
 
 Operation modules depend on the shared contracts/helpers; Verify and reconciliation do not depend on each other's execution. Admission-token fields remain private to their operation modules; planning internals and shared primitives are visible only within the workflow family. The worker still owns authority, authentication, locks, protected receipts, publication and audit. Backend adapters and transport remain outside this family.
 
-Focused tests live inline with their owning module. [Shared doubles/fixtures](../src/workflow/test_support.rs) and [cross-operation scenarios](../src/workflow/tests.rs) are compiled only under `#[cfg(test)]`. Current automated checkpoints and their exclusions are recorded in backlog clearance evidence (historical record; page retired).
+Focused tests live inline with their owning module. [Shared doubles/fixtures](../src/workflow/test_support.rs) and [cross-operation scenarios](../src/workflow/tests.rs) are compiled only under `#[cfg(test)]`. Current automated checkpoints and exclusions are recorded in [engineering](ENGINEERING.md#optimization-validation-checkpoint).
 
 ## Protected read pipeline
 
@@ -80,7 +80,7 @@ Focused tests live inline with their owning module. [Shared doubles/fixtures](..
 
 [Read control](../src/read_context.rs) propagates cancellation and a whole-read budget through native/provider, file/hash and pipe waits. [GUI coordination](../src/gui/live/polling.rs) gives foreground work priority, cancels an existing poll and waits for backend release before dispatch. Poll IDs and generations suppress obsolete delivery without claiming foreground busy/progress. Cancellation closes the read pipe; disconnect cancels server reads. Admission remains held until the exact scheduled runner instance confirms release, including failed/cancelled reads. Effects are tracked separately and are never cancelled by these read controls.
 
-Completion gathers selected VM/GPU facts, saved intent, recovery and authority before releasing foreground admission. The GUI merges only this selected observation, preserves drafts/revision conflicts and the terminal result, and marks unrelated inventory historical until a subsequent poll or explicit Refresh. Failed/missing selected readback remains unknown and blocks new review; it never resurrects the previous row or selects another VM. Configuration publication still has independent durable readback, and recovery/enrollment continuation retains its existing authority checks. Readiness is presentation data, never execution permission. OPT-002 is implemented in source; compilation, regressions, the R1 gate and installed/live acceptance remain pending.
+Completion gathers selected VM/GPU facts, saved intent, recovery and authority before releasing foreground admission. The GUI merges only this selected observation, preserves drafts/revision conflicts and the terminal result, and marks unrelated inventory historical until a subsequent poll or explicit Refresh. Failed/missing selected readback remains unknown and blocks new review; it never resurrects the previous row or selects another VM. Configuration publication still has independent durable readback, and recovery/enrollment continuation retains its existing authority checks. Readiness is presentation data, never execution permission. OPT-002 passed compilation, regressions, the integrated non-hardware gate and protected installation; installed/live acceptance remains pending. See the [checkpoint](ENGINEERING.md#optimization-validation-checkpoint).
 
 ## Prepared worker execution
 
@@ -92,7 +92,7 @@ The GUI keeps foreground admission for preparation, credentials, effects and com
 
 The planner and executor keep successful OS identification and preparation in one running boot when the guest is unattached. An Off guest then needs two setup starts rather than three; a Running guest avoids a shutdown/restart solely between these phases. Attached cases retain explicit shutdown/detachment. Refused/uncertain identification still attempts only guarded restoration, and actual preparation and guest-local OS checks remain independent. A per-category allocation write set skips matching requests on retained adapters and includes every specified request after recreation; drift guards and final requested-value readback remain mandatory.
 
-OPT-003/OPT-004 are implemented in source. Compilation, regression execution, the R2 gate, native count/timing comparison and installed/visual/VM/GPU acceptance remain pending. `Complete` is a session-bound terminal outcome; exact process exit proves release, not acknowledgement for guest/staging cleanup. Future retention must use its own durable completion/readback criteria and preserve unresolved evidence.
+OPT-003/OPT-004 passed compilation, regressions, the integrated non-hardware gate and protected installation. Native count/timing comparisons and installed GUI/visual/VM/GPU acceptance remain pending. `Complete` is a session-bound terminal outcome; exact process exit proves release, not acknowledgement for guest/staging cleanup. OPT-006 retention uses its own durable completion/readback criteria and preserves unresolved evidence.
 
 ## State separation
 

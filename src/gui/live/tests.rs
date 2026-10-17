@@ -74,8 +74,8 @@ fn cancellation_waits_for_admission_release_then_closes_without_continuing() {
     let busy = Arc::new(AtomicBool::new(true));
     actions::register(&ui, &state, &busy, &Source);
     for kind in [
-        crate::gui::operation::Kind::VerifyPlan,
-        crate::gui::operation::Kind::Plan,
+        crate::gui::operation::Kind::Verify,
+        crate::gui::operation::Kind::Apply,
     ] {
         busy.store(true, Ordering::Release);
         ui.set_running(true);
