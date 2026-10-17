@@ -44,6 +44,8 @@ mod windows_pipe;
 pub mod windows_probe;
 #[cfg(windows)]
 mod windows_wmi;
+#[cfg(any(windows, test))]
+mod work_counts;
 #[cfg(windows)]
 pub mod worker;
 pub mod workflow;

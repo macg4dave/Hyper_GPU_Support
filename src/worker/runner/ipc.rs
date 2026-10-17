@@ -94,6 +94,21 @@ pub fn serve() -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 fn execute(e: &Enrollment, request: Request) -> Result<serde_json::Value, String> {
+    let name = match request.operation {
+        Operation::Discover => "Discover",
+        Operation::Status => "Status",
+        Operation::Plan => "Plan",
+        Operation::PreliminaryPlan => "PreliminaryPlan",
+        Operation::ReinstallPlan => "ReinstallPlan",
+        Operation::RemovalPlan => "RemovalPlan",
+        Operation::VerifyPlan => "VerifyPlan",
+        Operation::Apply => "Apply",
+        Operation::Verify => "Verify",
+    };
+    crate::diagnostics::run("runner-request", name, || execute_inner(e, request))
+}
+
+fn execute_inner(e: &Enrollment, request: Request) -> Result<serde_json::Value, String> {
     if request.schema != 2
         || request.nonce.is_empty()
         || request.nonce.len() > 96

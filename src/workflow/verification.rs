@@ -228,6 +228,8 @@ fn verify_current_payload(
         }
         (Ok(()), Ok(())) => {}
     }
+    #[cfg(windows)]
+    crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
     let effective = backend.inspect(target)?;
     if effective.power != journal.restore_power || effective.gpus != before.gpus {
         return Err("verification lifecycle readback failed".into());

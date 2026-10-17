@@ -149,6 +149,7 @@ pub(super) fn check(
             return Ok(Some((bytes, String::new())));
         }
         let mut hash = Sha256::new();
+        crate::work_counts::add(crate::work_counts::Counter::FileHashes, 1);
         let mut buffer = [0_u8; 65536];
         let mut read = 0_u64;
         loop {
@@ -164,6 +165,7 @@ pub(super) fn check(
                 .filter(|n| *n <= bytes)
                 .ok_or_else(|| failure(Component::GuestPayload, FailureCause::FileChanged))?;
             hash.update(&buffer[..count]);
+            crate::work_counts::add(crate::work_counts::Counter::HashedBytes, count as u64);
         }
         deadline_check(deadline)?;
         if read != bytes {

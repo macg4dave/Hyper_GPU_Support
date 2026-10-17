@@ -1,5 +1,5 @@
 # QA plan navigation
 
-The consolidated [QA roadmap](roadmap.md) owns scope, test stages, report/fix workflow and acceptance gates. The [QA backlog](backlog.md) owns task IDs, dependencies and actual results. This page preserves existing links; it contains no separate plan or validation claims.
+The current [optimization roadmap](roadmap.md) owns delivery scope and acceptance gates. The [backlog](backlog.md) owns task IDs, dependencies and actual results. This page preserves historical QA links; it contains no separate active plan or validation claims.
 
-Start with the [QA guide](../qa/README.md) for submitting observations. Exact candidate recording is deferred until regression and acceptance; early testing follows the preparation task in the backlog.
+Use the [QA guide](../qa/README.md) for submitting observations. Candidate preparation and acceptance now belong to OPT-008; exploratory observations do not establish candidate acceptance. Planning and source work do not authorize live effects.

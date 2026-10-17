@@ -112,6 +112,12 @@ fn parse_enrollment(input: impl Read) -> Result<Enrollment, String> {
     Ok(value)
 }
 pub(crate) fn verify_artifacts(e: &Enrollment) -> Result<(), String> {
+    crate::diagnostics::run("artifact-authentication", "enrolled-product", || {
+        verify_artifacts_inner(e)
+    })
+}
+
+fn verify_artifacts_inner(e: &Enrollment) -> Result<(), String> {
     for (name, hash) in &e.artifacts {
         if ![
             "hyper-gpu-runner.exe",

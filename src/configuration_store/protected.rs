@@ -266,6 +266,7 @@ fn publish_document(
         crate::guest::replace_file(&temp, &path)?;
     }
     security::verify(&path)?;
+    crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
     if revision(&target.vm_id)? != Revision::of(source.as_bytes()) {
         return Err("configuration publication readback mismatch".into());
     }

@@ -28,6 +28,8 @@ pub(crate) use reconciliation::reconcile_with_graphics;
 pub(crate) use verification::{AdmittedVerification, admit_verification, verify_admitted};
 
 #[cfg(test)]
+mod baseline_tests;
+#[cfg(test)]
 mod test_support;
 #[cfg(test)]
 mod tests;

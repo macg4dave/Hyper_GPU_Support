@@ -1,65 +1,93 @@
-# QA roadmap
+# Optimization roadmap
 
-**Completed, 15 October 2026:** the user confirmed that all tests are complete and requested closure and removal of every backlog task. The [backlog](backlog.md#next-action) is empty. This records the user's completion confirmation; the workflow guidance below remains available for future changes.
+Updated 17 October 2026. The functional and architectural review is complete. OPT-001 baseline instrumentation, isolated fixtures and the comparison procedure are implemented in source; automated validation is pending the milestone gate. Other optimization implementation and live performance validation have not started. The findings establish repeated work in current execution paths, not measured speedups or new release failures. Previous accepted work remains historical context and is not reopened by this plan.
 
-**Build and installation checkpoint:** revision `d4565b9a7dbc8c5dc28269d4683d4fc36586229c` passed the full non-hardware gate (367 product tests, 12 catalogue tests, copy/docs/format checks, strict Clippy, binary builds and API documentation). The protected installation was repeated successfully, with all four artifact hashes matching, both enrolled targets and the operator preserved, persistent settings/history/recovery records unchanged, and the runner enabled and Ready. Evidence: `local/evidence/m1-gate-20261015T100454631Z/` and `local/evidence/install-20261015T100906705Z/verification.json`.
+This page owns outcomes, delivery stages and gates. The [backlog](backlog.md) owns tasks, dependencies and implementation/validation status. The [agreed workflow](../README.md#agreed-workflow), [architecture](ARCHITECTURE.md), [security](SECURITY.md) and [engineering validation](ENGINEERING.md#validation-and-live-acceptance) remain authoritative.
 
-Qualify the installed Windows application through the [agreed user workflow](../README.md#agreed-workflow): discover an existing VM/GPU, configure, review, enrol, Apply, Verify and make everyday changes. Preserve the existing Slint UI, shared Rust core and protected operation architecture. Use the [backlog](backlog.md) for any future requested tasks, the [QA guide](../qa/README.md) for observations, and the [case index](../qa/INDEX.md) only when explicitly requested.
+## Objectives and scope
 
-This page owns the QA scope and acceptance gates. [Engineering](ENGINEERING.md) owns repository status/evidence conventions and check timing; [AGENTS.md](../AGENTS.md) owns authorisation. Earlier APP work and language-extraction records remain historical context, not proof of current behaviour. Address defects in existing workflows; new features and broad refactors need their own requested scope.
+Reduce the work required to discover status, prepare an operation, apply a change and confirm its outcome. Prefer fewer provider calls, payload passes, guest writes and power transitions over small local code optimizations. Preserve the existing Slint design, shared Rust core, protected worker architecture and normal user-facing behavior.
 
-## Test stages
+The core scope is six cohesive work packages, OPT-001 through OPT-006, followed by candidate acceptance in OPT-008. Transfer redesign, OPT-007, is conditional on measurements from OPT-005. Dependency upgrades, a general service rewrite, UI redesign and broader guest support are outside scope.
 
-| Stage | Focus | Complete when |
-|---|---|---|
-| 1. Prepare | Choose resettable test VMs, starting states, allowed effects, stop conditions and evidence location | Sessions can be run safely; an exact release candidate is not required |
-| 2. Core workflows | Discovery, initial setup, GPU toggle, VRAM, Apply and Verify | Actual GUI outcomes and guest health/final power state are recorded |
-| 3. Failure and UI checks | Cancellation, recovery, stale state, responsiveness, layout, keyboard access and wording | Failures have supported next actions; actions remain readable and reachable |
-| 4. Regression and acceptance | Identify the installed candidate, retest fixes and core journeys, run the existing automated gate and review open defects | Candidate-specific results and limitations support the user's acceptance decision |
+| Outcome | Target and evidence |
+| --- | --- |
+| Lower idle cost | Routine polling uses bounded status reads instead of repeating complete inventory and package-availability work. Count provider calls, connections, hashes and process starts; explicit Refresh still obtains complete observations. |
+| Cheaper fresh safety checks | Operational facts exclude optional display metadata. Reuse connections and batch inventory while fetching fresh mutable provider objects at safety boundaries. |
+| Fewer setup power transitions | Combine OS identification and preparation for eligible unattached VMs. Target two boot cycles instead of three for first setup from Off; running and already-attached cases retain their own valid lifecycle. |
+| Fewer payload passes | Target two complete host payload passes instead of three on eligible setup/reinstall/Verify paths, retaining independent final authentication. Eligible CLI ordinary changes should match the GUI's two-pass path. Disable remains payload-free. Prove feasibility and counts before claiming these targets. |
+| Fewer mutations and repeated reads | Write only changed requested resource categories on retained adapters; apply all specified categories after recreation. Consolidate independent completion readback and reuse matching, freshly validated guest helpers. |
+| Bounded waits and storage | Coordinate foreground work with polling; end read-only cancellation only after confirmed backend release. Bound completed audit/staging retention without deleting unresolved evidence. |
+| Simpler orchestration | Extract affected worker handlers while changing their contracts. Preserve distinct Apply, Verify, reconciliation, save-only and authority operations. |
 
-Early exploratory sessions may use the current installed app. Record the version/build if readily available; unknown identity does not block early testing. Exact installed build/revision and automated evidence become required at candidate regression, before final acceptance. Early passes do not transfer automatically to that candidate.
+OPT-001 establishes reproducible baseline counts and measurement conditions. Set wall-clock targets from measurements rather than invented percentage gains. Distinguish source-backed reductions, isolated test results, installed timings and VM/GPU acceptance.
 
-## Test journeys
+## Delivery stages
 
-| Journey | What to check |
-|---|---|
-| Open/close and discovery | Correct VM/GPU identity, installation/enrolment state, preserved selection and drafts across refresh/reopening |
-| Initial setup | Enable GPU, choose VRAM, review actual changes and power transitions, consent/enrolment, Apply and Verify; confirm guest health and agreed final power state |
-| Everyday changes | VRAM from 1 GB to selected-card physical capacity; disable/re-enable without repeating setup; saved and observed state agree after refresh/reopening |
-| Verify, repair and profile removal | Missing drivers, stale enrolment/state, missing VM/GPU and configuration mismatch produce truthful results and supported next steps; profile removal is clearly distinguished from GPU/guest effects |
-| Cancellation and recovery | Cancel review/credentials, reject guest access, interrupt authorised work, reopen with unresolved records; retain warnings and evidence without silent retry or clearing holds |
-| Usability | Minimum window size, long names/text, DPI/themes, keyboard focus, scrolling, reachable actions, progress and useful error wording |
-| Responsiveness | Observe several periodic refresh cycles while editing and during dialogs; check progress, repeated actions, bounded waits, diagnostics and repaint behaviour |
+Stages group shared contracts and validation. Their preferred order minimizes rework; it is not a chain of prerequisites for every task.
 
-Use known resettable VMs for negative scenarios. Record the starting state/reset method before introducing one fault per scenario. Candidate faults include checkpoint-restored missing drivers, unavailable GPU, stale plan, rejected credentials, interrupted transfer and publication/readback failure. Prepare each scenario and obtain the applicable authorisation before running it; the checklist is not authorisation.
+| Stage | Joint delivery scope | Tasks | Exit gate |
+| --- | --- | --- | --- |
+| R0 - Baseline and contracts | Bounded counters/timing through existing diagnostics and fixtures; comparable journeys and safety boundaries. | OPT-001 | Original work counts are reproducible; unauthorized live measurements remain explicitly pending. |
+| R1 - Protected read pipeline | Narrow operational facts, batched discovery, lightweight polling, foreground coordination, read cancellation/deadlines and completion observation. | OPT-002 | Freshness, contention, cancellation and partial-read regressions pass; reduced read/hash counts and the full non-hardware gate support the integrated batch. |
+| R2 - Operation execution | Lifecycle planning/execution and per-category writes together; payload preparation/admission with extraction of affected worker handlers. | OPT-003, OPT-004 | Plan/effect agreement, payload binding, restoration and interruption regressions pass; the full non-hardware gate passes for the batch. |
+| R3 - Guest and storage efficiency | Validated helper reuse, transport measurement and retention based on durable completion. Coordinate shared worker/guest acknowledgement fields with R2. | OPT-005, OPT-006 | Helper tampering, cleanup eligibility, interrupted deletion and uncertain-outcome regressions pass; the full non-hardware gate passes for the batch. |
+| R4 - Candidate acceptance | Baseline comparison, protected installation/state preservation and affected user journeys under separately prepared authorization. | OPT-008; OPT-007 only if selected | Required scope meets the acceptance criteria below with actual results and disclosed exclusions. |
 
-For crashes/hangs, record the last action, elapsed time, whether the app or host stopped responding, and whether the outcome is uncertain. Stop further affected modification tests until state is safely reconciled; preserve recovery evidence.
+## Scheduling with few blockers
 
-## Repository report and fix workflow
+- OPT-001 through OPT-006 are ready for source work when requested. Baseline collection is the recommended first step, but live timing, installation and optional experiments do not block independent design, fixtures or implementation.
+- Keep OPT-002 as one read-pipeline task. Agree its small shared read contract first, then integrate native discovery, polling, cancellation and GUI readback together instead of handing them through separate waiting tasks.
+- Deliver OPT-003 and OPT-004 as the R2 batch when requested. They share workflow decisions, admission, worker handlers and failure coverage. Their independent work need not wait for R1.
+- OPT-005 and OPT-006 can be prepared alongside R1/R2. Coordinate overlapping worker/transport edits and integrate a shared protocol change once. File overlap alone is not a hard dependency.
+- OPT-007 requires OPT-005's transport measurements and a justified design. Retaining the current transport leaves it deferred and does not delay the core release. If selected for the candidate, it must meet the same validation gate.
+- OPT-008 is the single required fan-in from OPT-001 through OPT-006. Scenario preparation and source review can start earlier; acceptance cannot close before the integrated scope and evidence are complete.
 
-1. The user tests through the normal GUI and submits a [questionnaire](../qa/templates/USER_QUESTIONNAIRE.md) or [bug report](../qa/templates/BUG_REPORT_CARD.md) in `qa/inbox/`. Record the failed GUI path before using developer diagnostics; shell/configuration workarounds do not establish GUI acceptance.
-2. On request, Codex processes current reports using the [intake prompt](../qa/prompts/PROCESS_QA_INBOX.md) and returns concise fix/check results in chat. Reports are temporary inputs that the user deletes when finished. Separate reports, case files and index updates require an explicit request; do not recreate or archive deleted reports. There is no automatic inbox watcher.
-3. Fix only authorised defects, one requested case or scoped batch at a time. Include tightly related corrections and meaningful failure regressions; preserve unrelated edits. Use existing components and do not expand into unrelated backlog work or delegate unless requested.
-4. At the coherent fix/checkpoint, record source changes, focused checks and build outcome. Installation/live testing require separate applicable authorisation. Record installed/not-installed status and return short GUI-only retest steps with the starting state and expected result.
-5. The user retests. Summarise Pass, Still broken, Different result or Not tested in chat; update optional case tracking only if requested. Positive user acceptance is required for acceptance; report deletion alone does not establish it.
+Independent preparation does not require concurrent edits to the same files or delegation. Keep one requested task or explicitly requested cohesive batch active under [AGENTS.md](../AGENTS.md). Resolve shared contract decisions inside the owning task rather than adding separate refactor or approval prerequisites. This plan authorizes no automatic progression into implementation.
 
-**Case states:** New -> Triaged -> Fixing -> Ready for user retest -> User verified -> Closed. Also use Needs information, Blocked, Duplicate or Deferred. Keep implementation, automated validation, installation and user retest distinct. The backlog tracks test tasks; optional BUG cases track product defects only when requested. Report actual evidence without marking unrun journeys passed. Follow the [report lifecycle](ENGINEERING.md#status-and-evidence); permanent QA reports are not required.
+Run the full non-hardware gate once per agreed coherent integration checkpoint, not after every substep. Adjacent stages may share a checkpoint when delivered as one requested batch. Reuse a passing gate for the exact unchanged candidate; rerun after changes that invalidate it. Source tasks can finish with installed/live validation pending; that work belongs to OPT-008 and does not block other source tasks.
 
-## Severity and acceptance
+## Safety and design constraints
 
-| Severity | Meaning | Gate |
-|---|---|---|
-| P0 | Unsafe effects, data loss, host instability or secret exposure | Stop affected live tests; block release |
-| P1 | Broken core workflow, false success or unusable critical recovery | Block release |
-| P2 | Secondary failure or confusing workaround | Fix when practical or explicitly defer |
-| P3 | Cosmetic or nonblocking wording/layout | May defer with a recorded reason |
+The [security contract](SECURITY.md) remains in force: exact operator/VM/GPU/revision binding, fresh capability/conflict checks, artifact authentication, independent terminal readback, durable recovery, credential handling and publication ordering must survive every optimization.
 
-Record each scenario as Passed, Failed, Blocked or Not tested, with evidence and build identity where known. Keep secrets out of tracked reports; use ignored `local/evidence/qa/` for suitable local evidence. Live GUI launches, installation, credentials/guest access, protected writes and VM/GPU/driver effects follow [AGENTS.md](../AGENTS.md) and [security](SECURITY.md). Never request passwords in chat, blindly replay effects, clear uncertain recovery or force power-off/restart.
+- Package attestation reuse requires protected file identity/handles and enrollment-revision binding. Presentation caches never grant effect authority.
+- Keep VM/GPU mutations serialized. Batch reads first; introduce bounded read parallelism only if measurement and partial-failure handling justify it.
+- OS eligibility precedes installation writes. Retain actual preparation-session and guest-local OS checks across reboot/session boundaries.
+- Cancel only read-only preparation through this work. Hold admission until confirmed backend release. Timeout, disconnect or matching instantaneous state never establishes completion or permits replay.
+- Retain independent final payload/guest checks. Profile deletion stays record-only, save-only never replays Apply, and recovery remains an explicit foreground action.
+- Cleanup needs positive durable completion and exact ownership/scope. Age alone cannot authorize staging or recovery deletion.
 
-At an agreed checkpoint, inspect effects and run the existing non-hardware gate: `powershell -NoProfile -File scripts/testing/check.ps1`, following [engineering validation](ENGINEERING.md#validation-and-live-acceptance). Do not run full tests after individual edits. Automated checks do not prove live GUI, guest or GPU behaviour.
+## Validation and acceptance
 
-Final acceptance requires the exact installed candidate recorded during candidate regression, successful core journeys and fix retests on that candidate, recorded automated results, no unresolved P0/P1, a usable critical recovery route, disclosed untested/deferred scenarios and the user's explicit acceptance decision.
+Each source package adds meaningful regression and failure coverage and updates the owning architecture/security/configuration documents when its contract changes. Tests should prove reduced work counts and unchanged permitted/forbidden effects.
 
-## Plan maintenance validation
+At an integration checkpoint run `powershell -NoProfile -File scripts/testing/check.ps1` after inspecting its effects, following [engineering](ENGINEERING.md#validation-and-live-acceptance). Fix failures within the requested batch and rerun the complete gate. A passing gate establishes non-hardware validation only.
 
-Consolidated 13 October 2026. Documentation/tooling checks passed: `python -B scripts/testing/test_check_docs.py` (14 isolated tests), `python -B scripts/testing/check-docs.py` (39 Markdown files, 10 QA cards, zero errors), and `git diff --check`. No product build, full automated gate, installation or live QA ran for that historical consolidation. Current completion is recorded above.
+Candidate acceptance requires:
+
+1. Exact revision, working-tree/build identity and passing automated scope. Existing accepted work is not relabeled as a new optimization result.
+2. Comparable before/after VM states, GPU/driver/payload identities, VM/file counts, cache conditions and diagnostics settings. Account for durable diagnostic-flush overhead. Record work counts, whole-operation/stage durations, bytes, power transitions and terminal outcomes; disclose variability and regressions.
+3. Authorized installed journeys covering open/poll/Refresh, first setup from Off and Running, ordinary VRAM/toggle changes, disable, Verify, repair, enrollment continuation, recovery, save-only and profile deletion. Include cancellation, stale state, changed payload/helper, publication failure and interruption scenarios where safely prepared.
+4. Independent saved/current-state readback, final power and retained recovery where applicable. Completed progress stages are insufficient.
+5. Protected installation preserving operator/pair authority, configuration, managed history and unresolved recovery; no failed safety regression or unexplained critical workflow regression.
+6. Explicit unrun scenarios and conditional scope decisions, followed by the user's acceptance. Implementation, automated validation, installation and live acceptance remain separate statuses.
+
+No live launch, guest access, protected installation/write or VM/GPU operation is authorized by this roadmap. Prepare exact targets, effects, stop conditions and evidence before that work. Summarize results in chat and task status; create separate QA reports, cases or archives only when requested.
+
+## Review traceability
+
+| Review finding | Delivery task |
+| --- | --- |
+| 1 - Narrow routine refresh | OPT-002 |
+| 2 - Operational GPU facts and batched inventory | OPT-002 |
+| 3 - Merge eligible identification/preparation boots | OPT-003 |
+| 4 - Reduce payload passes | OPT-004 |
+| 5 - Foreground priority, cancellation and deadlines | OPT-002 |
+| 6 - Skip unchanged resource writes | OPT-003 |
+| 7 - Consolidate completion observations | OPT-002 |
+| 8 - Reuse helpers and measure transfer | OPT-005; conditional redesign in OPT-007 |
+| 9 - Bound completed audit/staging retention | OPT-006 |
+| 10 - Simplify worker orchestration | OPT-004, limited to affected handlers |
+
+OPT-001 supplies the baseline and OPT-008 supplies integrated acceptance for all findings. Source entrypoints, detailed acceptance criteria and current status live in the [backlog](backlog.md).

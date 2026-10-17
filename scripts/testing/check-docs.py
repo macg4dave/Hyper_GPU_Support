@@ -6,6 +6,7 @@ import sys
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
+TASK_ID = r"(?:QA|LANG|OPT)-\d{3}"
 
 
 def anchors(text):
@@ -44,8 +45,8 @@ def main():
             elif fragment and destination.suffix == ".md" and fragment not in anchors(destination.read_text(encoding="utf-8")):
                 errors.append(f"{path.relative_to(ROOT)}: missing anchor {target}")
     backlog = (ROOT / "docs/backlog.md").read_text(encoding="utf-8")
-    cards = re.findall(r"^### ((?:QA|LANG)-\d{3})\b", backlog, re.M)
-    registered = re.findall(r"^\| ((?:QA|LANG)-\d{3}) \|", backlog, re.M)
+    cards = re.findall(rf"^### ({TASK_ID})\b", backlog, re.M)
+    registered = re.findall(rf"^\| ({TASK_ID}) \|", backlog, re.M)
     if (
         len(cards) != len(set(cards))
         or len(registered) != len(set(registered))
@@ -57,7 +58,7 @@ def main():
     # Validate task families registered in the active plan; other IDs are historical.
     families = {task.split("-", 1)[0] for task in cards + registered}
     for name in ("roadmap.md", "backlog.md"):
-        for task in set(re.findall(r"(?:QA|LANG)-\d{3}", (ROOT / "docs" / name).read_text(encoding="utf-8"))):
+        for task in set(re.findall(TASK_ID, (ROOT / "docs" / name).read_text(encoding="utf-8"))):
             if task.split("-", 1)[0] in families and task not in cards:
                 errors.append(f"{name}: unknown task {task}")
     header = next(
@@ -68,7 +69,7 @@ def main():
     if (cards or registered) and dependency_column is None:
         errors.append("Backlog register must declare a Dependencies column")
     graph = {}
-    for row in re.findall(r"^\| (?:QA|LANG)-\d{3} \|.*$", backlog, re.M):
+    for row in re.findall(rf"^\| {TASK_ID} \|.*$", backlog, re.M):
         cells = row.split("|")
         task = cells[1].strip()
         if dependency_column is None or dependency_column >= len(cells) - 1:
@@ -76,14 +77,14 @@ def main():
             dependencies = ""
         else:
             dependencies = cells[dependency_column].strip()
-        graph[task] = re.findall(r"(?:QA|LANG)-\d{3}", dependencies)
+        graph[task] = re.findall(TASK_ID, dependencies)
         for dependency in graph[task]:
             if dependency not in cards or dependency == task:
                 errors.append(f"{task}: invalid dependency {dependency}")
         card = re.search(rf"^### {task}\b.*?(?=^### |\Z)", backlog, re.M | re.S)
         if card:
             declared = re.search(r"^Dependencies: (.+)$", card.group(), re.M)
-            actual = re.findall(r"(?:QA|LANG)-\d{3}", declared.group(1)) if declared else []
+            actual = re.findall(TASK_ID, declared.group(1)) if declared else []
             if not declared or set(actual) != set(graph[task]):
                 errors.append(f"{task}: card and register dependencies differ")
     # Stable IDs need not be chronological; reject cycles rather than forward IDs.

@@ -265,6 +265,14 @@ pub(crate) fn random_session() -> Result<String, String> {
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 fn trusted_executable() -> Result<std::path::PathBuf, String> {
+    crate::diagnostics::run(
+        "worker-availability",
+        "fixed-product",
+        trusted_executable_inner,
+    )
+}
+
+fn trusted_executable_inner() -> Result<std::path::PathBuf, String> {
     let enrollment = runner::enrollment()?;
     runner::verify_artifacts(&enrollment)?;
     let path = runner::install_directory()?.join("hyper-gpu-support.exe");
@@ -352,6 +360,7 @@ fn launch_fixed(
         nShow: SW_HIDE.0,
         ..Default::default()
     };
+    crate::work_counts::add(crate::work_counts::Counter::ProcessStarts, 1);
     // SAFETY: fixed installed-worker or same-package setup executable; callers
     // select one fixed internal mode and bounded numeric/session arguments.
     unsafe { ShellExecuteExW(&mut info) }
@@ -595,6 +604,17 @@ pub fn serve(session: &str, frontend: u32) -> Result<(), String> {
 }
 
 fn execute(
+    enrollment: &runner::Enrollment,
+    session: &str,
+    request: Request,
+    notify: impl FnMut(Progress) -> Result<(), String>,
+) -> Result<Outcome, String> {
+    crate::diagnostics::run("worker-command", session, || {
+        execute_inner(enrollment, session, request, notify)
+    })
+}
+
+fn execute_inner(
     enrollment: &runner::Enrollment,
     session: &str,
     request: Request,
@@ -1093,6 +1113,7 @@ fn execute(
                 .stage_observed(
                     "Confirm final VM state and signed driver files",
                     |backend| {
+                        crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
                         if serde_json::to_value(backend.inspect(&record.target)?)
                             .map_err(|e| e.to_string())?
                             != serde_json::to_value(&result.effective).map_err(|e| e.to_string())?
@@ -1245,6 +1266,7 @@ fn execute(
                     },
                     admitted,
                 )?;
+                crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
                 if serde_json::to_value(backend.inspect(&record.target)?)
                     .map_err(|e| e.to_string())?
                     != serde_json::to_value(&record.initial).map_err(|e| e.to_string())?
@@ -1594,6 +1616,7 @@ fn execute(
                         "signed payload changed since verification; reconcile before saving".into(),
                     );
                 }
+                crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
                 record.validate_save_only(
                     &backend.inspect(&record.target)?,
                     &backend.gpu(&record.target)?.driver_version,

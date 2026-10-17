@@ -119,6 +119,7 @@ pub(crate) fn validate(manifest: &Manifest) -> Result<(), String> {
                 return Err("invalid catalog hash length".into());
             }
             let mut hash = vec![0; size as usize];
+            crate::work_counts::add(crate::work_counts::Counter::CatalogHashes, 1);
             // SAFETY: sized writable hash buffer and live source handle.
             unsafe {
                 CryptCATAdminCalcHashFromFileHandle2(

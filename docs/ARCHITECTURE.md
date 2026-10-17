@@ -23,7 +23,7 @@ This page owns component and data-flow boundaries. The [roadmap](roadmap.md) and
 | Native Windows adapters | Hyper-V WMI/COM, driver inventory, path/security/trust, local pipes/processes | [Hyper-V](../src/windows_hyperv.rs), [WMI](../src/windows_wmi.rs), [pipe](../src/windows_pipe.rs) |
 | Guest preparation/verification | Authenticated payload, bounded PowerShell Direct bridge, fixed guest helper and checked D3D11 probe | [guest](../src/guest.rs), [guest helper](../src/bin/hyper-gpu-guest.rs), [transport](../src/guest_transport.ps1) |
 | Protected persistence | Revision-checked per-VM intent, publication receipts, distinct import records | [store](../src/configuration_store.rs), [protected writer](../src/configuration_store/protected.rs) |
-| Diagnostics/reporting | Bounded public failure context and opt-in protected tracing | [reporting](../src/reporting.rs), [diagnostics](../src/diagnostics.rs) |
+| Diagnostics/reporting | Bounded public failure context and opt-in protected tracing with fixed aggregate work counters | [reporting](../src/reporting.rs), [diagnostics](../src/diagnostics.rs), [counter schema](../src/work_counts.rs) |
 
 The default application is `hyper-gpu-support.exe`. Setup currently expects that executable plus `hyper-gpu-runner.exe`, `hyper-gpu-guest.exe`, and `d3d11-probe.exe` in the same package directory. Internal setup/worker modes reuse the application executable; they are fixed protocol entrypoints, not general command execution. The installed runner is separate from the initiating user frontend.
 

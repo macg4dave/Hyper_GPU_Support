@@ -137,6 +137,7 @@ fn dependent_file_name(
     let result = (|| {
         lookup_wait_ms(deadline, Instant::now())?;
         let mut pending = None;
+        crate::work_counts::add(crate::work_counts::Counter::ProviderGets, 1);
         // SAFETY: live services, provider-returned path and initialized output. WMI
         // resolves quoted/backslash-containing file references rather than our parser.
         unsafe {

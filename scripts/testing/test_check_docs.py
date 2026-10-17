@@ -138,6 +138,38 @@ class PlanChecks(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("Empty backlog must explicitly state", output)
 
+    def test_optimization_plan_accepts_independent_work_and_forward_dependencies(self):
+        result, output = self.check_plan(
+            {"OPT-001": [], "OPT-002": [], "OPT-008": ["OPT-001", "OPT-002", "OPT-004"], "OPT-004": []},
+            roadmap="OPT-001, OPT-002, OPT-004 and OPT-008; QA-014 and LANG-006 are historical.",
+            qa_layout=True,
+        )
+        self.assertEqual(result, 0, output)
+        self.assertIn("4 task cards; 0 errors", output)
+
+    def test_optimization_unknown_tasks_and_dependencies_fail(self):
+        cases = [
+            ({"OPT-001": []}, {"roadmap": "OPT-099"}, "unknown task OPT-099"),
+            ({"OPT-001": ["OPT-099"]}, {}, "invalid dependency OPT-099"),
+        ]
+        for dependencies, options, expected in cases:
+            with self.subTest(expected=expected):
+                result, output = self.check_plan(dependencies, **options)
+                self.assertEqual(result, 1, output)
+                self.assertIn(expected, output)
+
+    def test_optimization_cycles_duplicates_and_dependency_disagreement_fail(self):
+        cases = [
+            ({"OPT-001": ["OPT-002"], "OPT-002": ["OPT-001"]}, {}, "cyclic task dependency"),
+            ({"OPT-001": []}, {"extra": "\n| OPT-001 | Ready | Not run | None | R0 |\n"}, "same unique task IDs"),
+            ({"OPT-001": [], "OPT-002": ["OPT-001"]}, {"card_dependencies": {"OPT-002": []}}, "card and register dependencies differ"),
+        ]
+        for dependencies, options, expected in cases:
+            with self.subTest(expected=expected):
+                result, output = self.check_plan(dependencies, **options)
+                self.assertEqual(result, 1, output)
+                self.assertIn(expected, output)
+
     def test_explicitly_empty_backlog_is_valid(self):
         result, output = self.check_plan({}, extra="\nNo open tasks.\n")
         self.assertEqual(result, 0, output)

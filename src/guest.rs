@@ -207,6 +207,7 @@ fn bridge(
                 },
                 windows_11_builds: crate::guest_compatibility::WINDOWS_11_BUILDS,
             };
+            let helper_count = request.artifacts.len();
             let bytes =
                 zeroize::Zeroizing::new(serde_json::to_vec(&request).map_err(|e| e.to_string())?);
             let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
@@ -258,8 +259,9 @@ fn bridge(
                         Ok(())
                     },
                 )
-            }
-            .map_err(supervision_failure)?;
+            };
+            monitor.record_work(helper_count);
+            let result = result.map_err(supervision_failure)?;
             if result.exit_code != Some(0) {
                 if let Ok(reply) = serde_json::from_str::<BridgeResult>(result.stdout.trim())
                     && let Some(failure) = crate::reporting::ComponentFailure::decode(&reply.output)
@@ -456,6 +458,23 @@ pub fn worker_with_progress(
     progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
 ) -> Result<String, String> {
     let _deadline = process::WorkerDeadline::start(Duration::from_secs(3500));
+    let context = match mode {
+        "prepare" => "prepare",
+        "verify" => "verify",
+        _ => "invalid",
+    };
+    crate::diagnostics::run("guest-worker", context, || {
+        worker_inner(mode, bundle, vendor, device, progress)
+    })
+}
+
+fn worker_inner(
+    mode: &str,
+    bundle: &Path,
+    vendor: u32,
+    device: u32,
+    progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
+) -> Result<String, String> {
     if !process::is_elevated()? {
         return Err("guest worker requires administrator rights".into());
     }

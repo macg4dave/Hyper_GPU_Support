@@ -109,6 +109,7 @@ pub(crate) fn connect(namespace: &str) -> Result<IWbemServices, DriverDiscoveryE
         unsafe { CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER) }
             .map_err(|error| native("create WMI locator", error))?;
     let empty = BSTR::new();
+    crate::work_counts::add(crate::work_counts::Counter::ProviderConnections, 1);
     // SAFETY: all BSTRs live throughout the call; no credentials/context are supplied.
     let services = unsafe {
         locator.ConnectServer(
@@ -191,6 +192,7 @@ pub(crate) fn query(
     let mut trace = crate::diagnostics::Span::start("driver-wmi-query", wql)
         .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
     let result = (|| {
+        crate::work_counts::add(crate::work_counts::Counter::ProviderQueries, 1);
         // SAFETY: services is live; query BSTRs remain alive until the call returns.
         let enumerator = unsafe {
             services.ExecQuery(

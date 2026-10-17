@@ -404,6 +404,7 @@ fn supervise(
         windows::Win32::System::Threading::CREATE_SUSPENDED.0
             | windows::Win32::System::Threading::CREATE_NO_WINDOW.0,
     );
+    crate::work_counts::add(crate::work_counts::Counter::ProcessStarts, 1);
     let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

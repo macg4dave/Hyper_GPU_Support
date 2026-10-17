@@ -26,13 +26,16 @@ impl Backend for NativeBackend {
         }
     }
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
+        crate::work_counts::add(crate::work_counts::Counter::VmReads, 1);
         crate::diagnostics::run("inspect-vm", &t.vm_id, || windows_hyperv::inspect(&t.vm_id))
     }
     fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
+        crate::work_counts::add(crate::work_counts::Counter::GpuReads, 1);
         crate::diagnostics::run("selected-gpu", &t.vm_id, || windows_hyperv::selected_gpu(t))
     }
     fn payload(&mut self, t: &Target) -> Result<String, String> {
         crate::diagnostics::run("payload-processing", &t.vm_id, || {
+            crate::work_counts::add(crate::work_counts::Counter::PayloadPasses, 1);
             let manifest = process::background_work(|| {
                 let discovery =
                     crate::windows_driver::discover_driver_environment(t, Duration::from_secs(300))
@@ -50,6 +53,7 @@ impl Backend for NativeBackend {
         })
     }
     fn journal(&mut self, t: &Target) -> Result<Option<Journal>, String> {
+        crate::work_counts::add(crate::work_counts::Counter::JournalReads, 1);
         let path = self
             .data
             .join(format!("{}.json", t.vm_id.to_ascii_lowercase()));
@@ -76,6 +80,7 @@ impl Backend for NativeBackend {
             .map_err(|e| e.to_string())
     }
     fn save(&mut self, t: &Target, j: &Journal) -> Result<(), String> {
+        crate::work_counts::add(crate::work_counts::Counter::JournalWrites, 1);
         atomic_json(
             &self
                 .data

@@ -34,6 +34,7 @@ struct State {
     reported: Instant,
     phase_index: usize,
     phases: VecDeque<PreparationProgress>,
+    chunks: u64,
 }
 
 pub(crate) struct Monitor {
@@ -73,6 +74,7 @@ impl Monitor {
                 reported: now,
                 phase_index: 0,
                 phases: VecDeque::new(),
+                chunks: 0,
             }),
         })
     }
@@ -103,6 +105,7 @@ impl Monitor {
                     && bytes - s.bytes <= CHUNK_BYTES =>
             {
                 s.bytes = bytes;
+                s.chunks = s.chunks.saturating_add(1);
                 s.advanced = now;
             }
             "end" if s.started.is_some() && bytes == s.bytes && bytes == self.sizes[index] => {
@@ -125,6 +128,23 @@ impl Monitor {
             done: s.done,
         });
         Ok(())
+    }
+
+    /// Snapshot only validated acknowledgements, including partial transfer. Called
+    /// on the supervising thread after supervision returns. Exceptional supervision
+    /// failure can leave a partial snapshot; counts never certify completion and
+    /// never change an operation result if diagnostics are unavailable.
+    pub(crate) fn record_work(&self, helpers: usize) {
+        let Ok(state) = self.state.lock() else {
+            return;
+        };
+        let helper_total = self.sizes.iter().take(helpers).copied().sum::<u64>();
+        let acknowledged = state.completed + state.bytes;
+        let helper_bytes = acknowledged.min(helper_total);
+        use crate::work_counts::{self, Counter};
+        work_counts::add(Counter::HelperBytes, helper_bytes);
+        work_counts::add(Counter::PayloadBytes, acknowledged - helper_bytes);
+        work_counts::add(Counter::TransferChunks, state.chunks);
     }
 
     fn accept_phase(&self, code: &str) -> Result<(), String> {
@@ -266,6 +286,35 @@ impl Monitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aggregate_bytes_include_partial_acknowledgements_and_exclude_invalid_records() {
+        use crate::work_counts::{self, Counter};
+        let now = Instant::now();
+        let monitor = Monitor::new(vec![3, 5, 11], now).unwrap();
+        for text in [
+            "begin 0 0",
+            "bytes 0 3",
+            "end 0 3",
+            "begin 1 0",
+            "bytes 1 5",
+            "end 1 5",
+            "begin 2 0",
+            "bytes 2 4",
+        ] {
+            monitor.accept(text, now).unwrap();
+        }
+        assert!(monitor.accept("bytes 2 12", now).is_err());
+        assert!(monitor.accept("end 2 11", now).is_err());
+        let before = work_counts::snapshot();
+        monitor.record_work(2);
+        let measured = work_counts::snapshot().since(before);
+        assert_eq!(measured.get(Counter::HelperBytes), 8);
+        assert_eq!(measured.get(Counter::PayloadBytes), 4);
+        assert_eq!(measured.get(Counter::TransferChunks), 3);
+        assert!(!monitor.state.lock().unwrap().done);
+        assert!(monitor.require_worker_phases().is_err());
+    }
 
     #[test]
     fn malformed_records_and_deadlines_retain_safe_transport_diagnostics() {

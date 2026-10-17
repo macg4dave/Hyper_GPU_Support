@@ -48,6 +48,8 @@ fn hash_payload_reader(
             .filter(|sum| *sum <= expected)
             .ok_or("preparation file grew while hashing")?;
         digest.update(&buffer[..n]);
+        #[cfg(windows)]
+        crate::work_counts::add(crate::work_counts::Counter::HashedBytes, n as u64);
     }
     if bytes != expected {
         return Err("preparation file length changed while hashing".into());
@@ -177,6 +179,8 @@ pub fn destination(relative: &str) -> Result<String, String> {
 pub fn hash_file(path: &Path) -> Result<String, String> {
     #[cfg(windows)]
     let mut trace = crate::diagnostics::Span::start("hash-file", &path.to_string_lossy())?;
+    #[cfg(windows)]
+    crate::work_counts::add(crate::work_counts::Counter::FileHashes, 1);
     let mut file = fs::File::open(path).map_err(|e| format!("read preparation file: {e}"))?;
     let mut digest = Sha256::new();
     let mut buffer = [0; 65536];
@@ -186,6 +190,8 @@ pub fn hash_file(path: &Path) -> Result<String, String> {
             break;
         }
         digest.update(&buffer[..n]);
+        #[cfg(windows)]
+        crate::work_counts::add(crate::work_counts::Counter::HashedBytes, n as u64);
     }
     let result: Result<String, String> = Ok(hex(&digest.finalize()));
     #[cfg(windows)]
@@ -301,6 +307,8 @@ pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, Str
         let mapped = destination(&rel)?;
         #[cfg(windows)]
         let mut trace = crate::diagnostics::Span::start("hash-file", &source.to_string_lossy())?;
+        #[cfg(windows)]
+        crate::work_counts::add(crate::work_counts::Counter::FileHashes, 1);
         let result = hash_payload_reader(
             &mut fs::File::open(&source).map_err(|e| format!("read preparation file: {e}"))?,
             bytes,
@@ -344,6 +352,33 @@ pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, Str
 }
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    #[test]
+    fn aggregate_hash_counts_distinguish_attempts_and_actual_bytes() {
+        use crate::work_counts::{self, Counter};
+        let path = std::env::temp_dir().join(format!(
+            "hypergpu-counted-hash-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, b"driver").unwrap();
+        let before = work_counts::snapshot();
+        let result = super::hash_file(&path);
+        std::fs::remove_file(&path).unwrap();
+        result.unwrap();
+        let measured = work_counts::snapshot().since(before);
+        assert_eq!(measured.get(Counter::FileHashes), 1);
+        assert_eq!(measured.get(Counter::HashedBytes), 6);
+        let before = work_counts::snapshot();
+        assert!(super::hash_file(&path).is_err());
+        let failed = work_counts::snapshot().since(before);
+        assert_eq!(failed.get(Counter::FileHashes), 1);
+        assert_eq!(failed.get(Counter::HashedBytes), 0);
+    }
+
     use super::*;
     #[test]
     fn payload_byte_admission_rejects_excess_and_overflow() {

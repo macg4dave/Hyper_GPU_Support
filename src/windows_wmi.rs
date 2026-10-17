@@ -416,6 +416,7 @@ impl Session {
     }
     pub(crate) fn query(&self, wql: &str) -> Result<Vec<Object>> {
         self.check_deadline()?;
+        crate::work_counts::add(crate::work_counts::Counter::ProviderQueries, 1);
         // SAFETY: live secured services and query BSTRs; returned enumerator owns refs.
         let e = unsafe {
             self.services.ExecQuery(
@@ -460,6 +461,7 @@ impl Session {
     /// Only provider WBEM_E_NOT_FOUND means absence; transport/access failures remain errors.
     pub(crate) fn get_optional(&self, path: &str) -> Result<Option<Object>> {
         self.check_deadline()?;
+        crate::work_counts::add(crate::work_counts::Counter::ProviderGets, 1);
         let mut object = None;
         // SAFETY: writable interface output, live secured services; output owns its reference.
         match unsafe {
@@ -536,6 +538,11 @@ impl Session {
             return Err("Native invocation binding exceeds input limit".into());
         }
         crate::runner::atomic_json(&operation_path, &pending)?;
+        // Count attempted native mutations only after durable admission, immediately
+        // before invoking the provider. Rejection/unknown outcome is not success.
+        if let Some(scope) = &pending.scope {
+            scope.count_attempt();
+        }
         // SAFETY: secured services, live input, initialized output; fixed target method.
         let invoked = unsafe {
             self.services.ExecMethod(

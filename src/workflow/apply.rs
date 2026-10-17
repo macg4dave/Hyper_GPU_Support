@@ -239,6 +239,8 @@ fn execute_decision(
             verified = true;
         }
         facts.restore(backend, target, &restore_power)?;
+        #[cfg(windows)]
+        crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
         let effective = backend.inspect(target)?;
         let expected_gpus = if target.enabled {
             vec![target.gpu_interface.clone()]

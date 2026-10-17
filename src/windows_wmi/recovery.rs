@@ -22,6 +22,19 @@ pub(crate) enum Effect {
 }
 
 impl Scope {
+    pub(super) fn count_attempt(&self) {
+        use crate::work_counts::{self, Counter};
+        let counter = match self.effect {
+            Effect::Assignment(true) => Counter::AttachWrites,
+            Effect::Assignment(false) => Counter::DetachWrites,
+            Effect::Settings(_) => Counter::SettingsWrites,
+            Effect::Allocation(resource, _) => work_counts::allocation(resource),
+            Effect::Power(Power::Running) => Counter::PowerStarts,
+            Effect::Power(_) => Counter::PowerShutdowns,
+        };
+        work_counts::add(counter, 1);
+    }
+
     pub(crate) fn new(target: &Target, effect: Effect) -> Result<Self> {
         target.validate()?;
         Ok(Self {

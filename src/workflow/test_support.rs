@@ -1,8 +1,10 @@
 //! Shared isolated backend and fixtures, compiled only for tests.
 use super::{Backend, EffectPreview, Journal, PreviewAction};
 use crate::model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState};
+use crate::work_counts::{Counter, Counts};
 
 pub(super) struct Fake {
+    pub(super) work: Counts,
     pub(super) os_checks: usize,
     pub(super) os_check_traces: Vec<Vec<&'static str>>,
     pub(super) os_failure: Option<String>,
@@ -95,6 +97,7 @@ pub(super) fn target() -> Target {
 
 pub(super) fn fake() -> Fake {
     Fake {
+        work: Counts::default(),
         os_checks: 0,
         os_check_traces: vec![],
         os_failure: None,
@@ -195,12 +198,14 @@ impl Backend for Fake {
         self.os_failure.clone().map_or(Ok(()), Err)
     }
     fn inspect(&mut self, _: &Target) -> Result<VmState, String> {
+        self.work.add(Counter::VmReads, 1);
         if self.inspect_unavailable {
             return Err("host readback unavailable".into());
         }
         Ok(self.state.clone())
     }
     fn gpu(&mut self, t: &Target) -> Result<Gpu, String> {
+        self.work.add(Counter::GpuReads, 1);
         Ok(Gpu {
             compute: self.resource_capability.clone(),
             encode: self.resource_capability.clone(),
@@ -222,6 +227,7 @@ impl Backend for Fake {
         })
     }
     fn payload(&mut self, _: &Target) -> Result<String, String> {
+        self.work.add(Counter::PayloadPasses, 1);
         self.payload_reads += 1;
         if self.fail_payload {
             return Err("payload unavailable".into());
@@ -229,6 +235,7 @@ impl Backend for Fake {
         Ok(self.driver.into())
     }
     fn journal(&mut self, _: &Target) -> Result<Option<Journal>, String> {
+        self.work.add(Counter::JournalReads, 1);
         if self.fail_read_after_save_at == Some(self.journal_writes) {
             return Err("journal readback unavailable".into());
         }
@@ -241,6 +248,7 @@ impl Backend for Fake {
         Ok(journal)
     }
     fn save(&mut self, _: &Target, j: &Journal) -> Result<(), String> {
+        self.work.add(Counter::JournalWrites, 1);
         self.journal_writes += 1;
         if self.fail_save_at == Some(self.journal_writes) {
             return Err("journal publication denied".into());
@@ -249,6 +257,14 @@ impl Backend for Fake {
         Ok(())
     }
     fn power(&mut self, _: &Target, p: Power) -> Result<(), String> {
+        self.work.add(
+            if p == Power::Running {
+                Counter::PowerStarts
+            } else {
+                Counter::PowerShutdowns
+            },
+            1,
+        );
         self.events.push(if p == Power::Running {
             "start"
         } else {
@@ -283,6 +299,14 @@ impl Backend for Fake {
         Ok(())
     }
     fn assign(&mut self, t: &Target, e: bool) -> Result<(), String> {
+        self.work.add(
+            if e {
+                Counter::AttachWrites
+            } else {
+                Counter::DetachWrites
+            },
+            1,
+        );
         self.events.push(if e { "attach" } else { "detach" });
         self.state.gpus = if e {
             vec![t.gpu_interface.clone()]
@@ -296,6 +320,7 @@ impl Backend for Fake {
         Ok(())
     }
     fn settings(&mut self, _: &Target, s: &Settings) -> Result<(), String> {
+        self.work.add(Counter::SettingsWrites, 1);
         self.settings_writes += 1;
         if self.fail_settings {
             return Err("settings interrupted".into());
@@ -305,6 +330,7 @@ impl Backend for Fake {
         Ok(())
     }
     fn allocation(&mut self, _: &Target, resource: Resource, v: &Allocation) -> Result<(), String> {
+        self.work.add(crate::work_counts::allocation(resource), 1);
         self.allocation_calls.push(resource);
         if self.fail_allocation == Some(resource) {
             return Err("provider category write failed".into());
