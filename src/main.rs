@@ -349,48 +349,66 @@ fn execute(args: &[String]) -> Result<(), String> {
             let snapshot = hyper_gpu_support::configuration_store::read_committed();
             let expected = snapshot.revision(&t.vm_id)?;
             if command == "verify" {
-                let approved: hyper_gpu_support::workflow::VerificationPlan =
+                serde_json::to_value(hyper_gpu_support::worker::verify_prepared(t.clone(), expected, |review| {
+                    let hyper_gpu_support::worker::PreparedReview::Verify {plan, ..} = review else {return Err("Unexpected prepared operation".into());};
+                    if plan.observed.power == hyper_gpu_support::model::Power::Off && !shutdown_approved {
+                        return Err("verification temporarily starts and stops this guest; supply --approve-shutdown after reviewing the lifecycle".into());
+                    }
+                    let credential = credentials::read(&t.vm_id)?.map_or_else(|| prompt(&t.vm_id), Ok)?;
+                    Ok(hyper_gpu_support::worker::Authorization {shutdown_approved, credential: Some(credential)})
+                }, |stage| eprintln!("{:?}: {}", stage.status, stage.stage))?).map_err(|e| e.to_string())?
+            } else {
+                let ordinary: Option<hyper_gpu_support::workflow::Plan> =
                     serde_json::from_value(runner::submit(runner::request(
-                        Operation::VerifyPlan,
+                        Operation::OrdinaryPlan,
                         Some(t.clone()),
                         None,
                     ))?)
                     .map_err(|e| e.to_string())?;
-                if approved.observed.power == hyper_gpu_support::model::Power::Off
-                    && !shutdown_approved
-                {
-                    return Err("verification temporarily starts and stops this guest; supply --approve-shutdown after reviewing the lifecycle".into());
-                }
-                let credential =
-                    credentials::read(&t.vm_id)?.map_or_else(|| prompt(&t.vm_id), Ok)?;
-                serde_json::to_value(hyper_gpu_support::worker::verify(
-                    approved,
-                    shutdown_approved,
-                    credential,
-                    |stage| eprintln!("{:?}: {}", stage.status, stage.stage),
-                )?)
-                .map_err(|e| e.to_string())?
-            } else {
-                let approved: hyper_gpu_support::workflow::Plan = serde_json::from_value(
-                    runner::submit(runner::request(Operation::Plan, Some(t.clone()), None))?,
-                )
-                .map_err(|e| e.to_string())?;
-                if approved.preview.guest_downtime && !shutdown_approved {
-                    return Err("this plan requires graceful guest shutdown; review with plan, then supply --approve-shutdown".into());
-                }
-                let credential = if approved.preview.credentials_required {
-                    Some(credentials::read(&t.vm_id)?.map_or_else(|| prompt(&t.vm_id), Ok)?)
+                let outcome = if let Some(approved) = ordinary {
+                    if approved.preview.guest_downtime && !shutdown_approved {
+                        return Err("this plan requires graceful guest shutdown; review with plan, then supply --approve-shutdown".into());
+                    }
+                    // Completed ordinary changes need no guest credential. The
+                    // worker authenticates current payload/scope before effects.
+                    hyper_gpu_support::worker::apply(
+                        approved,
+                        expected,
+                        shutdown_approved,
+                        None,
+                        |stage| eprintln!("{:?}: {}", stage.status, stage.stage),
+                    )?
                 } else {
-                    None
+                    hyper_gpu_support::worker::apply_prepared(
+                        t.clone(),
+                        false,
+                        expected,
+                        |review| {
+                            let hyper_gpu_support::worker::PreparedReview::Apply { plan, .. } =
+                                review
+                            else {
+                                return Err("Unexpected prepared operation".into());
+                            };
+                            if plan.preview.guest_downtime && !shutdown_approved {
+                                return Err("this plan requires graceful guest shutdown; review with plan, then supply --approve-shutdown".into());
+                            }
+                            let credential = if plan.preview.credentials_required {
+                                Some(
+                                    credentials::read(&t.vm_id)?
+                                        .map_or_else(|| prompt(&t.vm_id), Ok)?,
+                                )
+                            } else {
+                                None
+                            };
+                            Ok(hyper_gpu_support::worker::Authorization {
+                                shutdown_approved,
+                                credential,
+                            })
+                        },
+                        |stage| eprintln!("{:?}: {}", stage.status, stage.stage),
+                    )?
                 };
-                serde_json::to_value(hyper_gpu_support::worker::apply(
-                    approved,
-                    expected,
-                    shutdown_approved,
-                    credential,
-                    |stage| eprintln!("{:?}: {}", stage.status, stage.stage),
-                )?)
-                .map_err(|e| e.to_string())?
+                serde_json::to_value(outcome).map_err(|e| e.to_string())?
             }
         } else {
             runner::submit(runner::request(operation, Some(t.clone()), None))?

@@ -1,4 +1,5 @@
-//! Original workflow-call expectations for OPT-001. These are isolated doubles,
+//! Candidate comparisons against the frozen OPT-001 table in ENGINEERING.md.
+//! Updated expectations name each removed cycle/category check; isolated doubles are
 //! not provider queries, native writes, worker final authentication, or timings.
 use super::test_support::{Fake, extended_target, fake, recovery_record, trace};
 use super::{Backend, apply, apply_approved, plan, plan_preliminary, plan_reinstall};
@@ -34,7 +35,10 @@ fn assert_counts(name: &str, measured: Counts, expected: Expected) {
     for (resource, value) in Resource::ALL.into_iter().zip(expected.allocations) {
         counts.add(crate::work_counts::allocation(resource), value);
     }
-    assert_eq!(measured, counts, "original isolated baseline: {name}");
+    assert_eq!(
+        measured, counts,
+        "candidate compared with original isolated baseline: {name}"
+    );
 }
 
 fn requested() -> Target {
@@ -58,10 +62,10 @@ fn established() -> (Fake, Target) {
 }
 
 #[test]
-fn original_setup_from_off_and_running_counts_and_final_state() {
+fn setup_removes_one_unattached_boot_cycle_against_original_counts() {
     for (power, reads, cycles) in [
-        (Power::Off, [47, 43, 49], [3, 3]),
-        (Power::Running, [41, 38, 44], [2, 3]),
+        (Power::Off, [40, 37, 43], [2, 2]),
+        (Power::Running, [37, 34, 40], [1, 2]),
     ] {
         let mut backend = fake();
         backend.state.power = power;
@@ -89,7 +93,7 @@ fn original_setup_from_off_and_running_counts_and_final_state() {
 }
 
 #[test]
-fn original_ordinary_gui_and_cli_apply_and_reinstall_counts() {
+fn retained_category_reduction_and_attached_reinstall_compared_with_original() {
     for full_plan in [false, true] {
         let (mut backend, mut target) = established();
         target.vram.as_mut().unwrap().maximum = 95;
@@ -108,13 +112,13 @@ fn original_ordinary_gui_and_cli_apply_and_reinstall_counts() {
             "ordinary Apply",
             backend.work,
             Expected {
-                reads: [21, 19, 19],
+                reads: [15, 13, 13],
                 journals: 3,
                 payloads: if full_plan { 2 } else { 1 },
                 power: [0, 0],
                 adapters: [0, 0],
                 settings: 0,
-                allocations: [1; 4],
+                allocations: [1, 0, 0, 0], // Three matching categories each remove two fact checks.
             },
         );
     }
@@ -127,7 +131,7 @@ fn original_ordinary_gui_and_cli_apply_and_reinstall_counts() {
         "reinstall",
         backend.work,
         Expected {
-            reads: [48, 43, 49],
+            reads: [45, 41, 47],
             journals: 7,
             payloads: 2,
             power: [3, 3],
@@ -314,13 +318,14 @@ fn baseline_read_only_plan_has_no_mutations_and_counts_failed_payload_attempts()
 fn failed_category_counts_attempt_without_claiming_success_or_later_writes() {
     let (mut backend, mut target) = established();
     target.vram.as_mut().unwrap().maximum = 95;
+    target.encode.as_mut().unwrap().maximum = 95;
     let reviewed = plan_preliminary(&mut backend, &target).unwrap();
     backend.fail_allocation = Some(Resource::Encode);
     let writes_before = backend.allocation_writes;
     assert!(apply_approved(&mut backend, &reviewed).is_err());
     assert_eq!(backend.work.get(Counter::EncodeWrites), 1);
     assert_eq!(backend.work.get(Counter::DecodeWrites), 0);
-    assert_eq!(backend.allocation_writes - writes_before, 2);
+    assert_eq!(backend.allocation_writes - writes_before, 1);
     assert!(backend.journal.as_ref().unwrap().pending);
     assert!(!backend.events.contains(&"graphics"));
 }

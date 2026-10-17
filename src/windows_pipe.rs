@@ -86,6 +86,7 @@ impl Drop for ComApartment {
 /// timeout while the preceding invocation is still running.
 #[allow(unsafe_code)]
 pub fn wait_for_task_ready(task_path: &str, task_name: &str, timeout: Duration) -> io::Result<()> {
+    crate::read_context::check().map_err(io::Error::other)?;
     let _apartment = ComApartment::initialize()?;
     // SAFETY: COM is initialized on this thread; no aggregation is requested.
     let service: ITaskService =
@@ -100,6 +101,7 @@ pub fn wait_for_task_ready(task_path: &str, task_name: &str, timeout: Duration) 
     let task = unsafe { folder.GetTask(&BSTR::from(task_name)) }.map_err(windows_error)?;
     let deadline = Instant::now() + timeout;
     loop {
+        crate::read_context::check().map_err(io::Error::other)?;
         // SAFETY: the registered-task interface remains valid in this apartment.
         match unsafe { task.State() }.map_err(windows_error)? {
             TASK_STATE_READY => return Ok(()),

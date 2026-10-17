@@ -88,19 +88,30 @@ fn complete(
     {
         return Err(windows_error(error));
     }
-    let mut count = 0;
-    // SAFETY: boxed OVERLAPPED/event and heap buffer remain alive until kernel completion.
-    unsafe {
-        GetOverlappedResultEx(
-            handle,
-            &*transfer.overlapped,
-            &mut count,
-            timeout.as_millis().min(u128::from(u32::MAX)) as u32,
-            false,
-        )
+    let deadline = Instant::now() + timeout;
+    loop {
+        crate::read_context::check().map_err(io::Error::other)?;
+        let wait = remaining(deadline)?.min(Duration::from_millis(100));
+        let mut count = 0;
+        // SAFETY: stable OVERLAPPED/event and buffer survive every bounded wait.
+        match unsafe {
+            GetOverlappedResultEx(
+                handle,
+                &*transfer.overlapped,
+                &mut count,
+                wait.as_millis().max(1) as u32,
+                false,
+            )
+        } {
+            Ok(()) => return Ok(count as usize),
+            Err(error)
+                if error.code()
+                    == windows::core::HRESULT::from_win32(
+                        windows::Win32::Foundation::WAIT_TIMEOUT.0,
+                    ) => {}
+            Err(error) => return Err(windows_error(error)),
+        }
     }
-    .map_err(windows_error)?;
-    Ok(count as usize)
 }
 #[allow(unsafe_code)]
 fn perform(
@@ -432,6 +443,27 @@ mod tests {
         let (server, _client) = connected(std::process::id());
         let start = Instant::now();
         assert!(server.receive(Duration::from_millis(100)).is_err());
+        assert!(start.elapsed() < Duration::from_secs(2));
+    }
+    #[test]
+    fn read_only_preparation_cancellation_drains_pending_overlapped_io() {
+        let (server, client) = connected(std::process::id());
+        let _client = client.unwrap();
+        let control = crate::read_context::ReadControl::new(Duration::from_secs(10));
+        let cancelled = control.clone();
+        let cancel = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            cancelled.cancel();
+        });
+        let start = Instant::now();
+        assert!(
+            control
+                .scope(|| server
+                    .receive(Duration::from_secs(10))
+                    .map_err(|e| e.to_string()))
+                .is_err()
+        );
+        cancel.join().unwrap();
         assert!(start.elapsed() < Duration::from_secs(2));
     }
     #[test]

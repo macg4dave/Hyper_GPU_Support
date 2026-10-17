@@ -112,6 +112,15 @@ pub(crate) struct AdmittedVerification {
     plan: VerificationPlan,
 }
 
+/// Keep the read-only plan and its current payload in one locked worker session.
+pub(crate) fn prepare_verification(
+    backend: &mut impl Backend,
+    target: &Target,
+) -> Result<(VerificationPlan, super::AdmittedVerification), String> {
+    let plan = plan_verification(backend, target)?;
+    Ok((plan.clone(), AdmittedVerification { plan }))
+}
+
 /// Authenticate the reviewed manifest once before recording the operation hold.
 pub(crate) fn admit_verification(
     backend: &mut impl Backend,

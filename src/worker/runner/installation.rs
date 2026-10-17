@@ -110,6 +110,7 @@ fn install_inner(
             reads: None,
             credential: None,
             manifest: None,
+            payload_hold: Vec::new(),
             data: data.clone(),
         };
         for target in &configuration.targets {

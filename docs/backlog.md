@@ -1,10 +1,10 @@
 # Optimization backlog
 
-Updated 17 October 2026. These tasks implement the [optimization roadmap](roadmap.md). The earlier release backlog was closed by user confirmation on 15 October; the optimization tasks are new work, not reopened QA cases. OPT-001 and OPT-002 are implemented in source with validation pending the milestone gate. Other implementation has not started. Source work does not authorize installation or live effects.
+Updated 17 October 2026. These tasks implement the [optimization roadmap](roadmap.md). The earlier release backlog was closed by user confirmation on 15 October; the optimization tasks are new work, not reopened QA cases. OPT-001 through OPT-004 are implemented in source with validation pending the milestone gate. Other implementation has not started. Source work does not authorize installation or live effects.
 
 ## Next action
 
-The next source batch is **OPT-003 + OPT-004**, when requested, followed by **OPT-005 + OPT-006**. OPT-001 and OPT-002 automated execution remains pending the coherent integration checkpoint, using the [measurement contract and frozen expectations](ENGINEERING.md#optimization-measurements). Adjacent batches can be combined when their shared contracts are ready.
+The next source batch is **OPT-005 + OPT-006**, when requested. OPT-001 through OPT-004 automated execution remains pending the coherent integration checkpoint, using the [measurement contract and frozen expectations](ENGINEERING.md#optimization-measurements). Source completion does not close R1/R2 or candidate acceptance.
 
 OPT-001 through OPT-006 have no hard source prerequisites. Work on their independent parts can be prepared without waiting for live measurements or another stage to close. Coordinate shared-file changes within the requested batch. OPT-007 is an optional measurement-driven extension; OPT-008 is the required final integration/acceptance task.
 
@@ -16,8 +16,8 @@ Priority expresses delivery order/value, not defect severity. Dependencies are h
 | --- | --- | --- | --- | --- | --- | --- |
 | OPT-001 | R0 | Baseline, counters and comparison contract | High | Done (source) | None | Pending milestone gate |
 | OPT-002 | R1 | Protected read pipeline and GUI coordination | High | Done (source) | None | Pending milestone gate |
-| OPT-003 | R2 | Setup lifecycle and changed-resource writes | High | Ready | None | Not run |
-| OPT-004 | R2 | Payload admission and focused worker handlers | High | Ready | None | Not run |
+| OPT-003 | R2 | Setup lifecycle and changed-resource writes | High | Done (source) | None | Pending milestone gate |
+| OPT-004 | R2 | Payload admission and focused worker handlers | High | Done (source) | None | Pending milestone gate |
 | OPT-005 | R3 | Validated helper reuse and transport measurement | Medium | Ready | None | Not run |
 | OPT-006 | R3 | Completed audit and staging retention | Medium | Ready | None | Not run |
 | OPT-007 | R3 extension | Conditional bounded transfer optimization | Conditional | Deferred | OPT-005 | Not run |
@@ -76,7 +76,7 @@ Regression source covers operational/display drift, fixed batch-query counts and
 ### OPT-003 - Setup lifecycle and changed-resource writes
 
 Dependencies: None.
-Stage: R2. Implementation: Ready. Validation: Not run.
+Stage: R2. Implementation: Done (source). Validation: Pending milestone gate.
 
 **Outcome:** remove an unnecessary setup power cycle on eligible unattached VMs and skip proven unchanged resource writes. Review findings 3 and 6 share workflow planning, execution and effect-order tests.
 
@@ -93,10 +93,14 @@ Acceptance:
 
 Integration: deliver with OPT-004 as a requested R2 batch to update shared workflow/worker tests once. Existing backend contracts suffice to begin before OPT-002 closes; coordinate any later facts-type migration.
 
+Implemented 17 October 2026 with OPT-004. Successful OS identification keeps an unattached guest running for preparation; Off setup requests two starts/two shutdowns, and Running setup one start/two shutdowns. Attached cases retain the shutdown/detachment boundary. Identification refusal/uncertainty still uses guarded restoration, and actual preparation/guest-local eligibility checks remain. Retained adapters write only differing requested categories; recreated adapters write all specified categories. Previews, the authenticated progress checklist and execution use the same decisions. Regression source covers these reductions, required/omitted categories, existing failure/restoration cases and prepared admission drift. Candidate comparison assertions explicitly replace the affected original counts; the original table remains in engineering documentation.
+
+Validation: static formatting, copy and documentation/whitespace checks pass. Compilation, Rust regression execution, the full non-hardware gate and installed/live validation have not run for this batch. No transition, timing or GPU acceptance is claimed from these source expectations.
+
 ### OPT-004 - Payload admission and focused worker handlers
 
 Dependencies: None.
-Stage: R2. Implementation: Ready. Validation: Not run.
+Stage: R2. Implementation: Done (source). Validation: Pending milestone gate.
 
 **Outcome:** reduce duplicate complete host payload processing while keeping independently authenticated execution and final confirmation. Simplify the worker only where needed for this change, covering review findings 4 and 10 together.
 
@@ -112,6 +116,10 @@ Acceptance:
 - Test same-version byte changes, changed manifest membership/catalogs, stale request/revision, scope expansion, lost connection, journal/effect admission ordering, final authentication failure and verified-unsaved recovery. Existing four-to-three-pass admission work must not be duplicated.
 
 Integration: combine with OPT-003; agree any completion acknowledgement needed by OPT-006 in this batch. Protocol consumers migrate together, without requiring another work package to close first.
+
+Implemented 17 October 2026: the process-bound worker now prepares an authenticated Apply/Verify plan, binds its exact review revision into audit, waits for a matching session/scope acknowledgement and local credentials, then consumes the retained in-process admission token and manifest under the same common lock. Source handles deny write/delete sharing from hashing through final confirmation, and package membership is re-enumerated before effects. Final authentication remains a separate complete pass. GUI setup/reinstall/Verify and CLI setup/Verify therefore request two complete host passes; ordinary GUI remains two, eligible CLI uses the existing preliminary mechanism and also requests two. Explicit CLI `plan` remains a full read-only pass. Cancellation/disconnect closes the preparation connection and retains admission until exact launched-process exit; effect approval disables read cancellation. Apply/Verify handlers and their common final confirmation/publication code are private focused modules; recovery, save-only, import and enrollment admission remain separate. See [architecture](ARCHITECTURE.md#prepared-worker-execution) and [security](SECURITY.md#prepared-payload-lifetime).
+
+Regression source covers scope/session/revision/credential mismatches, same-version byte replacement locks, changed package/catalog membership, cancelled overlapped reads, final authentication failures, draft binding, checklist continuity and existing verified-unsaved recovery. `Complete` remains a session-bound terminal reply; process exit is release proof, not a client/guest cleanup acknowledgement. OPT-006 must retain unresolved records and require its own durable completion/readback criteria. Static checks pass; compilation, regression execution, the R2 gate and installed/live qualification remain pending.
 
 ### OPT-005 - Validated helper reuse and transport measurement
 

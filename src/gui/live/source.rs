@@ -1,9 +1,7 @@
 //! Protected reads and planning; availability observations never grant authority.
 use crate::gui::live_state::OperationReadback;
-#[cfg(windows)]
-use hyper_gpu_support::observation::Prepared;
 use hyper_gpu_support::observation::{Bundle, Mode};
-use hyper_gpu_support::{gui_model::Inventory, model::Target, workflow::Plan};
+use hyper_gpu_support::{gui_model::Inventory, model::Target};
 
 type InventoryRead = (Inventory, Option<String>);
 
@@ -74,14 +72,6 @@ impl Source {
     }
     pub(super) fn discover(&self) -> Result<InventoryRead, String> {
         discover().map(remember_os)
-    }
-    pub(super) fn plan(
-        &self,
-        target: Target,
-        reinstall: bool,
-        authenticate: bool,
-    ) -> Result<(Plan, bool), String> {
-        plan(target, reinstall, authenticate)
     }
     pub(super) fn credentials(&self, id: &str, name: &str) -> Result<bool, String> {
         credential_dialog(id, name)
@@ -205,28 +195,6 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
 #[cfg(not(windows))]
 fn discover() -> Result<(Inventory, Option<String>), String> {
     Err("Hyper-V discovery requires Windows x64".into())
-}
-
-#[cfg(windows)]
-fn plan(target: Target, reinstall: bool, authenticate: bool) -> Result<(Plan, bool), String> {
-    use hyper_gpu_support::runner::{self, Operation};
-    let operation = if reinstall {
-        Operation::ReinstallPlan
-    } else if authenticate {
-        Operation::Plan
-    } else {
-        Operation::PreliminaryPlan
-    };
-    let mut request = runner::request(operation, Some(target), None);
-    request.include_observation = true;
-    let value = runner::submit(request)?;
-    let prepared: Prepared<Plan> =
-        serde_json::from_value(value).map_err(|e| format!("Invalid plan reply: {e}"))?;
-    Ok((prepared.value, prepared.worker_available))
-}
-#[cfg(not(windows))]
-fn plan(_: Target, _: bool, _: bool) -> Result<(Plan, bool), String> {
-    Err("Planning requires Windows x64".into())
 }
 
 #[cfg(windows)]

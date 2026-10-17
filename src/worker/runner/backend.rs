@@ -12,9 +12,28 @@ pub(crate) struct NativeBackend {
     pub(crate) reads: Option<windows_hyperv::ReadSession>,
     pub(crate) credential: Option<Credential>,
     pub(crate) manifest: Option<payload::Manifest>,
+    pub(crate) payload_hold: Vec<fs::File>,
     pub(crate) data: PathBuf,
 }
 impl NativeBackend {
+    /// Re-enumerate package membership while original authenticated source
+    /// handles still exclude byte changes/replacement. This is not a hash cache.
+    pub(crate) fn confirm_payload_inventory(&self, target: &Target) -> Result<(), String> {
+        let Some(manifest) = &self.manifest else {
+            return Ok(());
+        };
+        if self.payload_hold.len() != manifest.files.len() {
+            return Err("Prepared payload handles are incomplete".into());
+        }
+        let discovery =
+            crate::windows_driver::discover_driver_environment(target, Duration::from_secs(300))
+                .map_err(|e| e.to_string())?;
+        payload::validate_inventory(
+            &crate::windows_paths::windows_directory().map_err(|e| e.to_string())?,
+            &discovery,
+            manifest,
+        )
+    }
     fn reads(&mut self) -> Result<&mut windows_hyperv::ReadSession, String> {
         if self.reads.is_none() {
             self.reads = Some(windows_hyperv::ReadSession::new()?);
@@ -47,19 +66,20 @@ impl Backend for NativeBackend {
     fn payload(&mut self, t: &Target) -> Result<String, String> {
         crate::diagnostics::run("payload-processing", &t.vm_id, || {
             crate::work_counts::add(crate::work_counts::Counter::PayloadPasses, 1);
-            let manifest = process::background_work(|| {
+            let (manifest, held) = process::background_work(|| {
                 let discovery =
                     crate::windows_driver::discover_driver_environment(t, Duration::from_secs(300))
                         .map_err(|e| e.to_string())?;
-                let manifest = payload::discover(
+                let (manifest, held) = payload::discover_locked(
                     &crate::windows_paths::windows_directory().map_err(|e| e.to_string())?,
                     discovery,
                 )?;
                 crate::guest::validate_trust(&manifest)?;
-                Ok(manifest)
+                Ok((manifest, held))
             })?;
             let digest = manifest.digest()?;
             self.manifest = Some(manifest);
+            self.payload_hold = held;
             Ok(digest)
         })
     }

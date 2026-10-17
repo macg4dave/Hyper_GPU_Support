@@ -25,6 +25,20 @@ pub(super) struct Progress {
 }
 
 impl Progress {
+    /// Add the worker's authenticated checklist without losing preparation events.
+    pub fn set_plan(&mut self, actions: &[PreviewAction]) {
+        let mut planned = Self::new(actions);
+        for step in &mut planned.steps {
+            if let Some(old) = self.steps.iter().find(|old| old.stage == step.stage) {
+                step.status = old.status;
+                step.started = old.started;
+                step.elapsed = old.elapsed;
+            }
+        }
+        planned.log = std::mem::take(&mut self.log);
+        planned.last_transfer = self.last_transfer;
+        *self = planned;
+    }
     pub fn new(actions: &[PreviewAction]) -> Self {
         let mut result = Self {
             planned: true,
@@ -455,6 +469,52 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn authenticated_plan_keeps_completed_preparation_events_and_adds_only_its_effects() {
+        let mut progress = Progress::default();
+        let stage = "Prepare protected worker connection";
+        progress.record(
+            &Event::from_worker(stage, Status::Done),
+            stage,
+            stage,
+            Duration::ZERO,
+        );
+        progress.set_plan(&[
+            PreviewAction::CheckOs,
+            PreviewAction::Prepare,
+            PreviewAction::Verify,
+        ]);
+        assert!(progress.planned);
+        assert_eq!(
+            progress
+                .steps
+                .iter()
+                .find(|step| step.stage == stage)
+                .unwrap()
+                .status,
+            2
+        );
+        assert!(
+            progress
+                .steps
+                .iter()
+                .any(|step| step.stage == "Check guest OS compatibility for installation")
+        );
+        assert!(
+            progress
+                .steps
+                .iter()
+                .any(|step| step.stage == "Prepare current signed payload")
+        );
+        assert!(
+            !progress
+                .steps
+                .iter()
+                .any(|step| step.stage == "Detach selected GPU")
+        );
+        assert!(!progress.log.is_empty());
     }
 
     #[test]

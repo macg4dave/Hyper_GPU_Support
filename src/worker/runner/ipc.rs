@@ -150,6 +150,7 @@ fn execute(e: &Enrollment, request: Request) -> Result<serde_json::Value, String
         Operation::Status => "Status",
         Operation::Plan => "Plan",
         Operation::PreliminaryPlan => "PreliminaryPlan",
+        Operation::OrdinaryPlan => "OrdinaryPlan",
         Operation::ReinstallPlan => "ReinstallPlan",
         Operation::RemovalPlan => "RemovalPlan",
         Operation::VerifyPlan => "VerifyPlan",
@@ -280,6 +281,7 @@ fn execute_operation(
             reads: None,
             credential: None,
             manifest: None,
+            payload_hold: Vec::new(),
             data,
         };
         let mut managed = std::collections::BTreeMap::new();
@@ -319,6 +321,7 @@ fn execute_operation(
         reads: None,
         credential: request.credential,
         manifest: None,
+        payload_hold: Vec::new(),
         data,
     };
     if matches!(request.operation, Operation::Apply | Operation::Verify) {
@@ -352,6 +355,7 @@ fn execute_operation(
         },
         Operation::Plan => serde_json::to_value(crate::workflow::plan(&mut backend, &target)?),
         Operation::PreliminaryPlan => serde_json::to_value(crate::workflow::plan_preliminary(&mut backend, &target)?),
+        Operation::OrdinaryPlan => serde_json::to_value(crate::workflow::plan_if_ordinary(&mut backend, &target)?),
         Operation::ReinstallPlan => serde_json::to_value(crate::workflow::plan_reinstall(&mut backend, &target)?),
         Operation::RemovalPlan => serde_json::to_value(profile_removal::plan(&target, &e.client_sid)?),
         Operation::VerifyPlan => serde_json::to_value(crate::workflow::plan_verification(&mut backend, &target)?),

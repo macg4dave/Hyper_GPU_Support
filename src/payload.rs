@@ -230,7 +230,113 @@ pub fn no_reparse(path: &Path) -> Result<(), String> {
 }
 /// Expand the complete associated payload without historical package pins or file counts.
 pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, String> {
+    discover_with_sources(root, discovery, &mut Vec::new(), false)
+}
+
+/// Keep every authenticated source open without write/delete sharing until the
+/// worker consumes its admission and completes independent final confirmation.
+#[cfg(windows)]
+pub(crate) fn discover_locked(
+    root: &Path,
+    discovery: DriverDiscovery,
+) -> Result<(Manifest, Vec<fs::File>), String> {
+    let mut held = Vec::new();
+    let manifest = discover_with_sources(root, discovery, &mut held, true)?;
+    Ok((manifest, held))
+}
+
+fn discover_with_sources(
+    root: &Path,
+    discovery: DriverDiscovery,
+    held: &mut Vec<fs::File>,
+    locked: bool,
+) -> Result<Manifest, String> {
     let deadline = Instant::now() + PAYLOAD_PROCESSING_TIMEOUT;
+    let prefix = format!("{}\\", root.to_string_lossy().trim_end_matches('\\'));
+    let relative = |path: &Path| -> Result<String, String> {
+        let text = path.to_string_lossy();
+        if !text
+            .get(..prefix.len())
+            .is_some_and(|p| p.eq_ignore_ascii_case(&prefix))
+        {
+            return Err("associated source is outside Windows".into());
+        }
+        let value = text[prefix.len()..].to_owned();
+        validate_relative(&value)?;
+        Ok(value)
+    };
+    let sources = source_inventory(root, &discovery, deadline)?;
+    // Admit the complete deduplicated byte total before any payload hashing.
+    let mut total = 0;
+    let mut sized_sources = Vec::with_capacity(sources.len());
+    for source in sources {
+        within_deadline(deadline)?;
+        no_reparse(&source)?;
+        let file = open_source(&source, locked)?;
+        let metadata = file.metadata().map_err(|e| e.to_string())?;
+        if !metadata.is_file() {
+            return Err("non-file driver input".into());
+        }
+        total = add_payload_bytes(total, metadata.len())?;
+        sized_sources.push((source, metadata.len(), file));
+    }
+    let mut files = BTreeMap::new();
+    let mut catalogs = Vec::new();
+    for (source, bytes, mut file) in sized_sources {
+        within_deadline(deadline)?;
+        no_reparse(&source)?;
+        let rel = relative(&source)?;
+        let mapped = destination(&rel)?;
+        #[cfg(windows)]
+        let mut trace = crate::diagnostics::Span::start("hash-file", &source.to_string_lossy())?;
+        #[cfg(windows)]
+        crate::work_counts::add(crate::work_counts::Counter::FileHashes, 1);
+        let result = hash_payload_reader(&mut file, bytes, deadline);
+        #[cfg(windows)]
+        trace.finish(&result)?;
+        let entry = CopyFile {
+            bytes,
+            sha256: result?,
+            source: source.clone(),
+            destination: mapped.clone(),
+        };
+        if locked {
+            held.push(file);
+        }
+        if let Some(previous) = files.insert(mapped.to_lowercase(), entry)
+            && !previous
+                .source
+                .to_string_lossy()
+                .eq_ignore_ascii_case(&source.to_string_lossy())
+        {
+            return Err("conflicting guest destinations".into());
+        }
+        if source
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("cat"))
+        {
+            catalogs.push(source);
+        }
+    }
+    catalogs.sort();
+    catalogs.dedup();
+    if catalogs.is_empty() {
+        return Err("installed driver has no discovered signed catalog".into());
+    }
+    Ok(Manifest {
+        schema: 1,
+        device_id: discovery.device_id,
+        driver_version: discovery.version,
+        catalogs,
+        files: files.into_values().collect(),
+    })
+}
+
+fn source_inventory(
+    root: &Path,
+    discovery: &DriverDiscovery,
+    deadline: Instant,
+) -> Result<Vec<PathBuf>, String> {
     let prefix = format!("{}\\", root.to_string_lossy().trim_end_matches('\\'));
     let relative = |path: &Path| -> Result<String, String> {
         let text = path.to_string_lossy();
@@ -252,7 +358,7 @@ pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, Str
         package_root(&relative(&discovery.service_binary)?)?
             .ok_or("service is outside DriverStore")?,
     );
-    let mut sources = discovery.associated_files;
+    let mut sources = discovery.associated_files.clone();
     for source in &sources {
         if let Some(package) = package_root(&relative(source)?)? {
             packages.insert(package);
@@ -291,73 +397,86 @@ pub fn discover(root: &Path, discovery: DriverDiscovery) -> Result<Manifest, Str
         a.to_string_lossy()
             .eq_ignore_ascii_case(&b.to_string_lossy())
     });
-    // Admit the complete deduplicated byte total before any payload hashing.
-    let mut total = 0;
-    let mut sized_sources = Vec::with_capacity(sources.len());
-    for source in sources {
+    Ok(sources)
+}
+
+#[cfg(windows)]
+pub(crate) fn validate_inventory(
+    root: &Path,
+    discovery: &DriverDiscovery,
+    manifest: &Manifest,
+) -> Result<(), String> {
+    let deadline = Instant::now() + PAYLOAD_PROCESSING_TIMEOUT;
+    if discovery.device_id != manifest.device_id || discovery.version != manifest.driver_version {
+        return Err("Prepared driver identity changed before effects".into());
+    }
+    let mut current = BTreeMap::new();
+    for source in source_inventory(root, discovery, deadline)? {
         within_deadline(deadline)?;
         no_reparse(&source)?;
         let metadata = fs::metadata(&source).map_err(|e| e.to_string())?;
         if !metadata.is_file() {
-            return Err("non-file driver input".into());
+            return Err("Prepared source is no longer a file".into());
         }
-        total = add_payload_bytes(total, metadata.len())?;
-        sized_sources.push((source, metadata.len()));
-    }
-    let mut files = BTreeMap::new();
-    let mut catalogs = Vec::new();
-    for (source, bytes) in sized_sources {
-        within_deadline(deadline)?;
-        no_reparse(&source)?;
-        let rel = relative(&source)?;
-        let mapped = destination(&rel)?;
-        #[cfg(windows)]
-        let mut trace = crate::diagnostics::Span::start("hash-file", &source.to_string_lossy())?;
-        #[cfg(windows)]
-        crate::work_counts::add(crate::work_counts::Counter::FileHashes, 1);
-        let result = hash_payload_reader(
-            &mut fs::File::open(&source).map_err(|e| format!("read preparation file: {e}"))?,
-            bytes,
-            deadline,
+        current.insert(
+            source.to_string_lossy().to_ascii_lowercase(),
+            metadata.len(),
         );
-        #[cfg(windows)]
-        trace.finish(&result)?;
-        let entry = CopyFile {
-            bytes,
-            sha256: result?,
-            source: source.clone(),
-            destination: mapped.clone(),
-        };
-        if let Some(previous) = files.insert(mapped.to_lowercase(), entry)
-            && !previous
-                .source
-                .to_string_lossy()
-                .eq_ignore_ascii_case(&source.to_string_lossy())
-        {
-            return Err("conflicting guest destinations".into());
-        }
-        if source
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("cat"))
-        {
-            catalogs.push(source);
-        }
     }
-    catalogs.sort();
-    catalogs.dedup();
-    if catalogs.is_empty() {
-        return Err("installed driver has no discovered signed catalog".into());
+    let expected: BTreeMap<_, _> = manifest
+        .files
+        .iter()
+        .map(|file| {
+            (
+                file.source.to_string_lossy().to_ascii_lowercase(),
+                file.bytes,
+            )
+        })
+        .collect();
+    if current != expected {
+        return Err("Prepared payload membership changed before effects".into());
     }
-    Ok(Manifest {
-        schema: 1,
-        device_id: discovery.device_id,
-        driver_version: discovery.version,
-        catalogs,
-        files: files.into_values().collect(),
-    })
+    Ok(())
+}
+
+fn open_source(path: &Path, locked: bool) -> Result<fs::File, String> {
+    let mut options = fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(windows)]
+    if locked {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.share_mode(1); // FILE_SHARE_READ; deny writers and replacement.
+    }
+    #[cfg(not(windows))]
+    let _ = locked;
+    options
+        .open(path)
+        .map_err(|e| format!("Open preparation source: {e}"))
 }
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    #[test]
+    fn held_sources_reject_same_version_byte_changes_and_replacement_until_release() {
+        let path = std::env::temp_dir().join(format!(
+            "hypergpu-payload-hold-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, b"original").unwrap();
+        let held = super::open_source(&path, true).unwrap();
+        let original = super::hash_file(&path).unwrap();
+        assert!(std::fs::write(&path, b"modified").is_err());
+        assert!(std::fs::remove_file(&path).is_err());
+        assert_eq!(super::hash_file(&path).unwrap(), original);
+        drop(held);
+        std::fs::write(&path, b"modified").unwrap();
+        assert_ne!(super::hash_file(&path).unwrap(), original);
+        std::fs::remove_file(path).unwrap();
+    }
     #[cfg(windows)]
     #[test]
     fn aggregate_hash_counts_distinguish_attempts_and_actual_bytes() {
@@ -469,10 +588,21 @@ mod tests {
         };
         let first = discover(&root, discovery()).unwrap();
         assert_eq!(first.files.len(), 2);
+        #[cfg(windows)]
+        validate_inventory(&root, &discovery(), &first).unwrap();
         fs::write(package.join("new-runtime.dll"), b"new associated payload").unwrap();
+        #[cfg(windows)]
+        assert!(validate_inventory(&root, &discovery(), &first).is_err());
         let second = discover(&root, discovery()).unwrap();
         assert_eq!(second.files.len(), 3);
         assert_ne!(first.digest().unwrap(), second.digest().unwrap());
+        fs::write(
+            package.join("additional.cat"),
+            b"changed catalog membership",
+        )
+        .unwrap();
+        #[cfg(windows)]
+        assert!(validate_inventory(&root, &discovery(), &second).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 }

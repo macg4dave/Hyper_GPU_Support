@@ -14,7 +14,7 @@ pub use apply::{apply, apply_approved};
 pub use journal::{GuestCheck, Journal};
 pub use planning::{
     EffectPreview, Plan, PreparationPreview, PreviewAction, SettingsPreview, plan,
-    plan_preliminary, plan_reinstall,
+    plan_if_ordinary, plan_preliminary, plan_reinstall,
 };
 pub use reconciliation::reconcile_observed;
 pub use reset::ResetReview;
@@ -23,12 +23,16 @@ pub use verification::{
     VerificationPlan, plan_verification, verification_power, verify, verify_approved,
 };
 
-pub(crate) use apply::{AdmittedApply, admit_approved, apply_admitted};
+pub(crate) use apply::{AdmittedApply, admit_approved, apply_admitted, prepare_apply};
 pub(crate) use reconciliation::reconcile_with_graphics;
-pub(crate) use verification::{AdmittedVerification, admit_verification, verify_admitted};
+pub(crate) use verification::{
+    AdmittedVerification, admit_verification, prepare_verification, verify_admitted,
+};
 
 #[cfg(test)]
 mod baseline_tests;
+#[cfg(test)]
+mod optimization_tests;
 #[cfg(test)]
 pub(crate) mod test_support;
 #[cfg(test)]

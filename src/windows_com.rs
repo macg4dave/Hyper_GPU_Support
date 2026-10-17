@@ -204,6 +204,8 @@ pub(crate) fn query_with_optional(
     optional: &[&str],
     deadline: Instant,
 ) -> Result<Vec<BTreeMap<String, String>>, DriverDiscoveryError> {
+    crate::read_context::check()
+        .map_err(|_| DriverDiscoveryError::Invalid("read-only request interrupted"))?;
     let mut trace = crate::diagnostics::Span::start("driver-wmi-query", wql)
         .map_err(|_| DriverDiscoveryError::Invalid("diagnostic logging unavailable"))?;
     let result = (|| {

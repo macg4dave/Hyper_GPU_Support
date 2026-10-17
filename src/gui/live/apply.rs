@@ -6,7 +6,7 @@ use super::{
     credentials::credential_request_cancelled,
     install_dialog, installation,
     presentation::{draft_target, present},
-    progress::{progress_to_ui, progress_with_install},
+    progress::{progress_prepared, progress_to_ui},
     state_access::{with_completion_state, with_state},
 };
 use crate::gui::AppWindow;
@@ -24,49 +24,48 @@ pub(super) fn apply_live(
     ui: &AppWindow,
     state: &SharedState,
     busy: &Arc<AtomicBool>,
+    reinstall: bool,
 ) -> Result<(), String> {
     if !ui.get_execution_ready() {
         return Err("The reviewed protected worker is not available.".into());
     }
-    let (approved, revision, gpu_name) = {
+    let (selected, revision, gpu_name, vm_name) = {
         let state = state.lock().map_err(|_| "Presentation state unavailable")?;
-        let reviewed = state.reviewed_plan(&draft_target(ui, &state)?)?;
-        let gpu_name = state
+        let target = draft_target(ui, &state)?;
+        state.editor_eligibility(&target.vm_id)?;
+        let revision = state.committed.revision(&target.vm_id)?;
+        let inventory = state
             .view
             .inventory
             .as_ref()
-            .and_then(|inventory| {
-                inventory
-                    .discovery
-                    .gpus
-                    .iter()
-                    .find(|gpu| gpu.interface == reviewed.plan.desired.gpu_interface)
-            })
-            .map_or_else(
-                || reviewed.plan.desired.gpu_interface.clone(),
-                |gpu| gpu.name.clone(),
-            );
-        (reviewed.plan, reviewed.revision, gpu_name)
+            .ok_or("Inventory unavailable")?;
+        let gpu_name = inventory
+            .discovery
+            .gpus
+            .iter()
+            .find(|gpu| gpu.interface == target.gpu_interface)
+            .map_or_else(|| target.gpu_interface.clone(), |gpu| gpu.name.clone());
+        let vm_name = state
+            .view
+            .vm(&target.vm_id)
+            .ok_or(hyper_gpu_support::ui_text::dashboard::selection::VM_UNAVAILABLE)?
+            .name
+            .clone();
+        (target, revision, gpu_name, vm_name)
     };
-    let selected = approved.desired.clone();
     let finished_state = state.clone();
-    let vm_name = approved.observed.name.clone();
     let result_vm_name = vm_name.clone();
-    let setup_required = approved
-        .preview
-        .actions
-        .contains(&hyper_gpu_support::workflow::PreviewAction::Verify);
-    let final_power = approved.preview.restore_power.clone();
-    let progress_body = format!(
-        "{}\nPhysical GPU: {}\n{}\n{}",
-        crate::gui::live_state::review_summary(&approved),
-        gpu_name,
-        crate::gui::live_state::memory_review(&approved),
-        crate::gui::wording::apply_consent(&approved)
-    );
-    let progress_details = crate::gui::live_state::review_text(&approved);
-    let install_progress = install_dialog::prepare(ui, &vm_name, &approved.preview.actions);
-    let progress = progress_with_install(ui.as_weak(), Some(install_progress));
+    let prepared_plan = Arc::new(std::sync::Mutex::new(
+        None::<hyper_gpu_support::workflow::Plan>,
+    ));
+    let result_plan = prepared_plan.clone();
+    let approval_state = state.clone();
+    let approval_ui = ui.as_weak();
+    let requested = selected.clone();
+    let expected = revision.clone();
+    let preparation_gpu = gpu_name.clone();
+    install_dialog::prepare(ui, &vm_name, &[]);
+    let (progress, set_plan) = progress_prepared(ui.as_weak());
     let started = background_operation(
         ui,
         state,
@@ -76,151 +75,218 @@ pub(super) fn apply_live(
             hyper_gpu_support::ui_text::operations::apply::PROGRESS_TITLE,
         ),
         Some(&vm_name),
-        setup_required,
+        true,
         move || {
-            let credential =
-                installation::credentials(approved.preview.credentials_required, || {
-                    hyper_gpu_support::credentials::read(&approved.desired.vm_id)?.map_or_else(
-                        || {
-                            hyper_gpu_support::credentials::prompt_named(
-                                &approved.desired.vm_id,
-                                &approved.observed.name,
-                                windows::Win32::Foundation::HWND::default(),
-                            )
-                        },
-                        Ok,
-                    )
-                })?;
-            let shutdown = approved.preview.guest_downtime;
-            hyper_gpu_support::worker::apply(approved, revision, shutdown, credential, progress)
-        },
-        move |ui, result, readback| match result {
-            Ok(outcome) => {
-                let mut published = outcome.saved;
-                if !with_state(ui, &finished_state, |state| {
-                    let status = state.finish_apply(
-                        &selected,
-                        &outcome.operation_id,
-                        outcome.saved,
-                        readback,
-                    );
-                    published = state.publication_confirmed(&selected);
-                    ui.set_dirty(state.view.draft.is_some());
-                    present(ui, state, !ui.get_dirty() && published);
-                    status
-                }) {
-                    return;
-                }
-                if published {
-                    match install_dialog::completion(
-                        &selected,
-                        outcome.operation.as_ref(),
-                        outcome.finished,
-                        outcome.saved && published,
-                        &gpu_name,
-                        &final_power,
-                        setup_required,
-                    ) {
-                        Ok((body, facts)) => {
-                            let log = ui.get_dialog_details();
-                            dialog(
-                                ui,
-                                "install-complete",
-                                hyper_gpu_support::ui_text::dialogs::install::COMPLETED,
-                                &body,
-                            );
-                            ui.set_install_facts(model(facts));
-                            ui.set_dialog_details(log);
+            hyper_gpu_support::worker::apply_prepared(
+                requested,
+                reinstall,
+                expected,
+                |review| {
+                    let hyper_gpu_support::worker::PreparedReview::Apply { plan, expected } =
+                        review
+                    else {
+                        return Err("Unexpected prepared operation".into());
+                    };
+                    let revision = expected.clone();
+                    let accepted = plan.clone();
+                    let state = approval_state.clone();
+                    let gpu = preparation_gpu.clone();
+                    let plan = super::background::accept_prepared(&approval_ui, move |ui| {
+                        if !ui.get_review_preparing() {
+                            return Err("Read-only preparation cancelled".into());
                         }
-                        Err(error) => failure_dialog(
-                            ui,
-                            hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE,
-                            &error,
-                            "Changes may have completed. Inspect current status and recovery before another operation.",
-                        ),
+                        let mut state =
+                            state.lock().map_err(|_| "Presentation state unavailable")?;
+                        let current = draft_target(ui, &state)?;
+                        state.accept_review(accepted.clone(), &current, revision)?;
+                        let reviewed = state.reviewed_plan(&current)?;
+                        ui.set_review_preparing(false);
+                        ui.set_install_vm_name(accepted.observed.name.clone().into());
+                        ui.set_install_guest_work(accepted.preview.credentials_required);
+                        ui.set_dialog_body(
+                            format!(
+                                "{}\nPhysical GPU: {}\n{}\n{}",
+                                crate::gui::live_state::review_summary(&accepted),
+                                gpu,
+                                crate::gui::live_state::memory_review(&accepted),
+                                crate::gui::wording::apply_consent(&accepted)
+                            )
+                            .into(),
+                        );
+                        ui.set_dialog_details(
+                            crate::gui::live_state::review_text(&accepted).into(),
+                        );
+                        Ok(reviewed.plan)
+                    })?;
+                    set_plan(&plan.preview.actions);
+                    *prepared_plan
+                        .lock()
+                        .map_err(|_| "Prepared result unavailable")? = Some(plan.clone());
+                    let credential =
+                        installation::credentials(plan.preview.credentials_required, || {
+                            hyper_gpu_support::credentials::read(&plan.desired.vm_id)?.map_or_else(
+                                || {
+                                    hyper_gpu_support::credentials::prompt_named(
+                                        &plan.desired.vm_id,
+                                        &plan.observed.name,
+                                        windows::Win32::Foundation::HWND::default(),
+                                    )
+                                },
+                                Ok,
+                            )
+                        })?;
+                    Ok(hyper_gpu_support::worker::Authorization {
+                        shutdown_approved: plan.preview.guest_downtime,
+                        credential,
+                    })
+                },
+                progress,
+            )
+        },
+        move |ui, result, readback| {
+            let plan = result_plan.lock().ok().and_then(|plan| plan.clone());
+            let setup_required = plan.as_ref().is_some_and(|plan| {
+                plan.preview
+                    .actions
+                    .contains(&hyper_gpu_support::workflow::PreviewAction::Verify)
+            });
+            let final_power = plan
+                .as_ref()
+                .map_or(hyper_gpu_support::model::Power::Off, |plan| {
+                    plan.preview.restore_power.clone()
+                });
+            if ui.get_dialog_kind() == "cancelling" {
+                ui.set_operation_dialog_active(false);
+                ui.set_dialog_kind("".into());
+                return;
+            }
+            match result {
+                Ok(outcome) => {
+                    let mut published = outcome.saved;
+                    if !with_state(ui, &finished_state, |state| {
+                        let status = state.finish_apply(
+                            &selected,
+                            &outcome.operation_id,
+                            outcome.saved,
+                            readback,
+                        );
+                        published = state.publication_confirmed(&selected);
+                        ui.set_dirty(state.view.draft.is_some());
+                        present(ui, state, !ui.get_dirty() && published);
+                        status
+                    }) {
+                        return;
                     }
-                } else {
+                    if published {
+                        match install_dialog::completion(
+                            &selected,
+                            outcome.operation.as_ref(),
+                            outcome.finished,
+                            outcome.saved && published,
+                            &gpu_name,
+                            &final_power,
+                            setup_required,
+                        ) {
+                            Ok((body, facts)) => {
+                                let log = ui.get_dialog_details();
+                                dialog(
+                                    ui,
+                                    "install-complete",
+                                    hyper_gpu_support::ui_text::dialogs::install::COMPLETED,
+                                    &body,
+                                );
+                                ui.set_install_facts(model(facts));
+                                ui.set_dialog_details(log);
+                            }
+                            Err(error) => failure_dialog(
+                                ui,
+                                hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE,
+                                &error,
+                                "Changes may have completed. Inspect current status and recovery before another operation.",
+                            ),
+                        }
+                    } else {
+                        dialog(
+                            ui,
+                            "save",
+                            if setup_required {
+                                hyper_gpu_support::ui_text::operations::setup::unsaved::TITLE
+                            } else {
+                                hyper_gpu_support::ui_text::operations::apply::unsaved::TITLE
+                            },
+                            &format!(
+                                "{}{}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply.",
+                                if setup_required {
+                                    hyper_gpu_support::ui_text::operations::setup::unsaved::effect_summary(&(result_vm_name)).into_string()
+                                } else {
+                                    hyper_gpu_support::ui_text::operations::apply::unsaved::effect_summary(&(result_vm_name)).into_string()
+                                },
+                                outcome.save_error.unwrap_or_default(),
+                            ),
+                        );
+                    }
+                }
+                Err(error) => {
+                    if credential_request_cancelled(ui, &error, false) {
+                        with_state(ui, &finished_state, |state| {
+                            state.approved_plan = None;
+                            Ok(())
+                        });
+                        return;
+                    }
+                    let stages: Vec<_> = ui.get_stages().iter().collect();
+                    let reportable = ui.get_stage_reportable();
+                    if !with_completion_state(
+                        ui,
+                        &finished_state,
+                        &Err::<(), _>(error.clone()),
+                        |state| {
+                            state.view.needs_readback = true;
+                            state.approved_plan = None;
+                            let status = state.finish_readback(readback);
+                            present(ui, state, false);
+                            status
+                        },
+                    ) {
+                        return;
+                    }
+                    ui.set_stages(model(stages));
+                    ui.set_stage_reportable(reportable);
+                    if hyper_gpu_support::reporting::installation_preflight_blocked(&error) {
+                        failure_dialog(
+                            ui,
+                            "GPU support installation blocked",
+                            &error,
+                            "This attempt stopped before driver installation or VM power changes. Your draft is retained.",
+                        );
+                        return;
+                    }
+                    let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
                     dialog(
                         ui,
-                        "save",
+                        "error",
                         if setup_required {
-                            hyper_gpu_support::ui_text::operations::setup::unsaved::TITLE
+                            hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE
                         } else {
-                            hyper_gpu_support::ui_text::operations::apply::unsaved::TITLE
+                            hyper_gpu_support::ui_text::operations::apply::incomplete::TITLE
                         },
-                        &format!(
-                            "{}{}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply.",
-                            if setup_required {
-                                hyper_gpu_support::ui_text::operations::setup::unsaved::effect_summary(&(result_vm_name)).into_string()
-                            } else {
-                                hyper_gpu_support::ui_text::operations::apply::unsaved::effect_summary(&(result_vm_name)).into_string()
-                            },
-                            outcome.save_error.unwrap_or_default(),
-                        ),
-                    );
-                }
-            }
-            Err(error) => {
-                if credential_request_cancelled(ui, &error, false) {
-                    with_state(ui, &finished_state, |state| {
-                        state.approved_plan = None;
-                        Ok(())
-                    });
-                    return;
-                }
-                let stages: Vec<_> = ui.get_stages().iter().collect();
-                let reportable = ui.get_stage_reportable();
-                if !with_completion_state(
-                    ui,
-                    &finished_state,
-                    &Err::<(), _>(error.clone()),
-                    |state| {
-                        state.view.needs_readback = true;
-                        state.approved_plan = None;
-                        state.require_authenticated_review = true;
-                        let status = state.finish_readback(readback);
-                        present(ui, state, false);
-                        status
-                    },
-                ) {
-                    return;
-                }
-                ui.set_stages(model(stages));
-                ui.set_stage_reportable(reportable);
-                if hyper_gpu_support::reporting::installation_preflight_blocked(&error) {
-                    failure_dialog(
-                        ui,
-                        "GPU support installation blocked",
                         &error,
-                        "This attempt stopped before driver installation or VM power changes. Your draft is retained.",
                     );
-                    return;
-                }
-                let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
-                dialog(
-                    ui,
-                    "error",
-                    if setup_required {
-                        hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE
-                    } else {
-                        hyper_gpu_support::ui_text::operations::apply::incomplete::TITLE
-                    },
-                    &error,
-                );
-                let reason = hyper_gpu_support::reporting::operator_error(
-                    hyper_gpu_support::ui_text::operations::apply::FAILURE_STAGE,
-                    &error,
-                );
-                ui.set_dialog_body(format!(
+                    let reason = hyper_gpu_support::reporting::operator_error(
+                        hyper_gpu_support::ui_text::operations::apply::FAILURE_STAGE,
+                        &error,
+                    );
+                    ui.set_dialog_body(format!(
                     "{reason}\n{}\nYour draft is retained. Changes may have started; the final VM state has not been confirmed. Use Refresh and inspect recovery before trying again. Do not repeat Apply while recovery is required.",
                     last_stage.map_or_else(|| hyper_gpu_support::ui_text::operations::apply::STAGE_ABSENT.into(), |stage| format!("Last reported step: {stage}")),
                 ).into());
+                }
             }
         },
     );
     if started.is_ok() {
-        ui.set_dialog_body(progress_body.into());
-        ui.set_dialog_details(progress_details.into());
+        ui.set_review_preparing(true);
+        ui.set_dialog_body(hyper_gpu_support::ui_text::operations::plan::PROGRESS_BODY.into());
     }
     started
 }
@@ -309,6 +375,7 @@ pub(super) fn apply_live(
     _: &AppWindow,
     _: &SharedState,
     _: &Arc<AtomicBool>,
+    _: bool,
 ) -> Result<(), String> {
     Err("GPU operations require Windows".into())
 }

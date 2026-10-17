@@ -30,7 +30,7 @@ fn inspect_in(s: &Session, id: &str) -> Result<VmState, String> {
         "SELECT * FROM Msvm_ComputerSystem WHERE Caption='Virtual Machine' AND Name='{}'",
         quoted(id)
     ))?;
-    let cfg = settings(&s, id)?;
+    let cfg = settings(s, id)?;
     let gpus = s.related(&cfg, "Msvm_GpuPartitionSettingData")?;
     let providers = if gpus.is_empty() {
         Vec::new()

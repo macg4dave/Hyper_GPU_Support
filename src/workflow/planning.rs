@@ -113,20 +113,21 @@ fn decision_inputs(
     let setup_required = target.enabled && (stale || !journal.setup_eligible());
     let assignment = !initial.gpus.is_empty();
     let settings_change = target.enabled && initial.settings != desired;
-    let allocation_change = target.enabled && !target.allocations_match(&initial);
+    let allocation_writes: Vec<_> = Resource::ALL
+        .into_iter()
+        .filter(|resource| {
+            target.enabled
+                && target.allocation(*resource).is_some_and(|value| {
+                    !assignment || stale || initial.allocation(*resource) != Some(value)
+                })
+        })
+        .collect();
     let needs_changes = assignment != target.enabled
         || stale
         || settings_change
-        || allocation_change
+        || !allocation_writes.is_empty()
         || (journal.pending && !journal.verification_only)
         || (!target.enabled && initial.settings != disabled_settings);
-    // Any changed enabled path writes the requested allocation after attachment,
-    // including refresh when the old adapter already had matching raw values.
-    let allocation_change = needs_changes
-        && target.enabled
-        && Resource::ALL
-            .into_iter()
-            .any(|r| target.allocation(r).is_some());
     Ok(Decision {
         authentication_deferred,
         reinstall,
@@ -141,7 +142,7 @@ fn decision_inputs(
         digest,
         stale,
         assignment,
-        allocation_change,
+        allocation_writes,
         needs_changes,
         initial_setup,
         setup_required,
@@ -163,7 +164,7 @@ pub(super) struct Decision {
     pub(super) digest: Option<String>,
     pub(super) stale: bool,
     pub(super) assignment: bool,
-    allocation_change: bool,
+    pub(super) allocation_writes: Vec<Resource>,
     pub(super) needs_changes: bool,
     initial_setup: bool,
     pub(super) setup_required: bool,
@@ -320,6 +321,31 @@ pub fn plan_preliminary(backend: &mut impl Backend, target: &Target) -> Result<P
     let d = decision_inputs(backend, target, false, true)?;
     Ok(plan_from_decision(d, target))
 }
+
+/// Predict only a completed ordinary change. Missing/adverse history returns no
+/// plan so callers can prepare/authenticate once in the effect worker instead.
+pub fn plan_if_ordinary(
+    backend: &mut impl Backend,
+    target: &Target,
+) -> Result<Option<Plan>, String> {
+    target.validate()?;
+    if !target.enabled {
+        return plan_preliminary(backend, target).map(Some);
+    }
+    if !backend.journal(target)?.is_some_and(|journal| {
+        journal.setup_eligible()
+            && !journal.pending
+            && journal.vm_id == target.vm_id
+            && journal.gpu_interface == target.gpu_interface
+    }) {
+        return Ok(None);
+    }
+    let plan = plan_preliminary(backend, target)?;
+    if !plan.authentication_deferred || plan.preview.credentials_required {
+        return Ok(None);
+    }
+    Ok(Some(plan))
+}
 /// Preview an explicit full reinstall through the ordinary protected operation path.
 pub fn plan_reinstall(backend: &mut impl Backend, target: &Target) -> Result<Plan, String> {
     let d = decision_for_operation(backend, target, true)?;
@@ -331,14 +357,12 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     if d.stale {
         if power == Power::Off {
             actions.push(PreviewAction::Start);
+            power = Power::Running;
         }
         actions.push(PreviewAction::CheckOs);
-        if power == Power::Off {
-            actions.push(PreviewAction::Shutdown);
-        }
     }
     if d.needs_changes {
-        if power == Power::Running {
+        if power == Power::Running && (!d.stale || d.assignment) {
             actions.push(PreviewAction::Shutdown);
             power = Power::Off;
         }
@@ -346,11 +370,10 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
             if d.assignment {
                 actions.push(PreviewAction::Detach);
             }
-            actions.extend([
-                PreviewAction::Start,
-                PreviewAction::Prepare,
-                PreviewAction::Shutdown,
-            ]);
+            if power != Power::Running {
+                actions.push(PreviewAction::Start);
+            }
+            actions.extend([PreviewAction::Prepare, PreviewAction::Shutdown]);
             power = Power::Off;
         }
         if target.enabled {
@@ -360,7 +383,7 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
             if !d.assignment || d.stale {
                 actions.push(PreviewAction::Attach);
             }
-            if d.allocation_change {
+            if !d.allocation_writes.is_empty() {
                 actions.push(PreviewAction::Allocation);
             }
         } else {
@@ -407,7 +430,7 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     let pending = d.journal.pending;
     let mut summary = Vec::new();
     if d.stale {
-        summary.push("Identify the current running guest OS before GPU or installation changes. Only Windows 11 clients are supported. An off VM is temporarily started for this read-only authenticated check, then gracefully stopped. Failed identification blocks installation; failed power restoration retains recovery. Disks are never mounted or unlocked by detection.".into());
+        summary.push("Identify the current running guest OS before GPU or installation changes. Only Windows 11 clients are supported. An unattached VM continues into preparation within this boot after successful identification; an attached GPU requires graceful shutdown and detachment first. Failed identification blocks installation; failed power restoration retains recovery. Disks are never mounted or unlocked by detection.".into());
     }
     if d.reinstall {
         summary.push("Repair / Reinstall explicitly runs complete signed guest driver preparation, even when historical host receipts match. Files independently confirmed to match may be retained. Complete preparation and selected-hardware graphics verification are required; successful completion leaves the VM off. This is a one-operation request, not an automatic repair policy.".into());
@@ -455,9 +478,9 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     if !target.enabled {
         summary.push("Remove host GPU support for this exact managed pair, even if guest drivers or the adapter are absent. Keep guest driver files, product authorization and historical records. No guest credentials, preparation, boot or graphics check is required. Publish disabled intent only after independent host and final-off readback.".into());
     }
-    if d.allocation_change {
-        for resource in Resource::ALL {
-            if let Some(value) = target.allocation(resource) {
+    if !d.allocation_writes.is_empty() {
+        for resource in &d.allocation_writes {
+            if let Some(value) = target.allocation(*resource) {
                 summary.push(format!(
                     "{} write (Minimum / Optimal / Maximum): {} / {} / {}; raw provider units, no enforcement claim.",
                     resource.name(), value.minimum, value.optimal, value.maximum
@@ -495,15 +518,28 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
         }),
         preview: EffectPreview {
             compute: d
-                .allocation_change
+                .allocation_writes
+                .contains(&Resource::Compute)
                 .then(|| target.compute.clone())
                 .flatten(),
-            encode: d.allocation_change.then(|| target.encode.clone()).flatten(),
-            decode: d.allocation_change.then(|| target.decode.clone()).flatten(),
+            encode: d
+                .allocation_writes
+                .contains(&Resource::Encode)
+                .then(|| target.encode.clone())
+                .flatten(),
+            decode: d
+                .allocation_writes
+                .contains(&Resource::Decode)
+                .then(|| target.decode.clone())
+                .flatten(),
             actions,
             settings,
             settings_preserved: d.settings_preserved,
-            allocation: d.allocation_change.then(|| target.vram.clone()).flatten(),
+            allocation: d
+                .allocation_writes
+                .contains(&Resource::Vram)
+                .then(|| target.vram.clone())
+                .flatten(),
             credentials_required: d.setup_required,
             guest_downtime: downtime,
             restore_power: d.restore_power,
@@ -787,8 +823,14 @@ mod tests {
     fn plan_round_trip_preserves_shared_frontend_summary_and_observations() {
         let mut f = fake();
         let p = plan(&mut f, &target()).unwrap();
-        let json = serde_json::to_value(&p).unwrap();
-        let frontend: Plan = serde_json::from_value(json).unwrap();
+        let mut json = serde_json::to_value(&p).unwrap();
+        let frontend: Plan = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(frontend.gpu.operational(), p.gpu.operational());
+        json.as_object_mut().unwrap().remove("gpu");
+        assert!(
+            serde_json::from_value::<Plan>(json).is_err(),
+            "legacy plans must be reviewed again"
+        );
         assert_eq!(frontend.preview.summary, p.preview.summary);
         assert_eq!(frontend.preview.actions, p.preview.actions);
         assert_eq!(frontend.desired, target());

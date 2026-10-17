@@ -19,6 +19,7 @@ use std::sync::{
 
 /// A foreground request continues directly after fresh preparation. Failed
 /// preparation or an unavailable worker never reaches the execution callback.
+#[cfg(test)]
 pub(super) fn continue_prepared(
     ui: &AppWindow,
     prepared: Result<(), String>,
@@ -38,6 +39,27 @@ pub(super) fn continue_prepared(
             &error,
         );
     }
+}
+
+/// Validate the still-current selection/draft on the event loop before sending
+/// the exact worker preparation acknowledgement. Expired delivery does nothing.
+#[cfg(windows)]
+pub(super) fn accept_prepared<T: Send + 'static>(
+    weak: &slint::Weak<AppWindow>,
+    action: impl FnOnce(&AppWindow) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let (sent, result) = std::sync::mpsc::sync_channel(1);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    weak.upgrade_in_event_loop(move |ui| {
+        if std::time::Instant::now() >= deadline {
+            return;
+        }
+        let _ = sent.send(action(&ui));
+    })
+    .map_err(|e| e.to_string())?;
+    result
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .map_err(|_| "Prepared operation acknowledgement expired".to_owned())?
 }
 
 /// Abandon preparation without pretending the underlying read has stopped.
@@ -66,6 +88,20 @@ pub(super) fn finish_cancelled_preparation(ui: &AppWindow, preparing: bool) -> b
         ui.set_running(false);
         ui.set_dialog_kind("".into());
     }
+    true
+}
+
+fn finish_cancelled_worker_preparation(ui: &AppWindow, kind: Kind, released: bool) -> bool {
+    if !released
+        || ui.get_dialog_kind() != "cancelling"
+        || !matches!(kind, Kind::Apply | Kind::Verify)
+    {
+        return false;
+    }
+    ui.set_review_preparing(false);
+    ui.set_running(false);
+    ui.set_operation_dialog_active(false);
+    ui.set_dialog_kind("".into());
     true
 }
 
@@ -253,6 +289,7 @@ pub(super) fn background_for_vm<T: Send + 'static>(
     }
     let weak = ui.as_weak();
     let worker_busy = busy.clone();
+    let operation_kind = operation.kind;
     if let Err(error) = std::thread::Builder::new()
         .name("gui-backend-read".into())
         .spawn(move || {
@@ -273,6 +310,9 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                         ui.set_operation_dialog_active(false);
                         dialog(&ui, "error", hyper_gpu_support::ui_text::operations::action::UNAVAILABLE_TITLE,
                             "The protected reader has not confirmed release. New actions remain blocked; no operation was retried.");
+                        return;
+                    }
+                    if finish_cancelled_worker_preparation(&ui, operation_kind, released) {
                         return;
                     }
                     // Cancel abandons this read's result, including failures. It
@@ -311,6 +351,25 @@ pub(super) fn background_for_vm<T: Send + 'static>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cancelled_worker_preparation_waits_for_release_and_never_hides_effect_results() {
+        slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+        let ui = AppWindow::new().unwrap();
+        ui.set_running(true);
+        ui.set_dialog_kind("cancelling".into());
+        assert!(!finish_cancelled_worker_preparation(
+            &ui,
+            Kind::Apply,
+            false
+        ));
+        assert!(ui.get_running());
+        assert!(finish_cancelled_worker_preparation(&ui, Kind::Apply, true));
+        assert!(!ui.get_running());
+        ui.set_dialog_kind("install-complete".into());
+        assert!(!finish_cancelled_worker_preparation(&ui, Kind::Apply, true));
+        assert_eq!(ui.get_dialog_kind(), "install-complete");
+    }
 
     #[test]
     fn direct_continuation_requires_successful_preparation_and_an_available_worker() {

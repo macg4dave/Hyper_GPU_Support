@@ -60,7 +60,6 @@ impl State {
         saved: bool,
         readback: Result<OperationReadback, String>,
     ) -> Result<(), String> {
-        self.require_authenticated_review = false;
         self.view.needs_readback = true;
         self.approved_plan = None;
         self.view.applied(target)?;

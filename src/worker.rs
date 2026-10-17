@@ -1,6 +1,9 @@
 //! One restricted elevated instance of the product executable for an approved plan.
 //! Private process-bound IPC; fixed paths, exact enrollment and durable admission.
+mod operations;
+mod preparation;
 pub mod runner;
+pub use preparation::{Authorization, PreparedReview, apply_prepared, verify_prepared};
 
 use crate::{
     configuration_store::{self, Revision, SavePhase, SaveRecord},
@@ -58,6 +61,9 @@ pub struct Progress {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 enum Command {
+    Prepare {
+        intent: preparation::Intent,
+    },
     ResetPartial {
         operation_id: String,
         record_revision: Revision,
@@ -120,6 +126,7 @@ impl Command {
             return Err(invalid());
         }
         match self {
+            Self::Prepare { .. } => return Err(invalid()),
             Self::ResetPartial { .. } => {
                 if outcome.operation.is_some() || outcome.saved || !outcome.finished {
                     return Err(invalid());
@@ -206,6 +213,10 @@ struct Request {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 enum Message {
+    Prepared {
+        session: String,
+        review: Box<PreparedReview>,
+    },
     Progress {
         session: String,
         progress: Progress,
@@ -470,8 +481,23 @@ fn submit(
     credential: Option<Credential>,
     mut progress: impl FnMut(Progress),
 ) -> Result<Outcome, String> {
+    submit_with_preparation(
+        command,
+        credential,
+        |_: &PreparedReview| Err("Unexpected worker preparation".into()),
+        &mut progress,
+    )
+}
+
+#[allow(unsafe_code)]
+fn submit_with_preparation(
+    command: Command,
+    credential: Option<Credential>,
+    mut authorize: impl FnMut(&PreparedReview) -> Result<Authorization, String>,
+    mut progress: impl FnMut(Progress),
+) -> Result<Outcome, String> {
     let session = random_session()?;
-    let (pipe, _process) = preparation_stage(
+    let (pipe, process) = preparation_stage(
         "Prepare protected worker connection",
         &mut |update| {
             progress(update);
@@ -496,6 +522,14 @@ fn submit(
             Ok((pipe, process))
         },
     )?;
+    let preparing = matches!(command, Command::Prepare { .. });
+    let read = crate::read_context::request();
+    let connection =
+        preparation::ReleaseGuard::new(&process, pipe, preparing.then(|| read.submitted()));
+    let pipe = connection
+        .pipe
+        .as_ref()
+        .ok_or("Missing worker connection")?;
     let request = Request {
         schema: 1,
         session: session.clone(),
@@ -506,14 +540,43 @@ fn submit(
     pipe.send(&bytes)
         .map_err(|e| format!("worker request outcome uncertain: {e}"))?;
     let deadline = Instant::now() + Duration::from_secs(3900);
+    let mut prepared_command = None;
     loop {
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or("worker timed out; inspect durable recovery before retry")?;
-        let bytes = pipe.receive(remaining).map_err(|e| {
-            format!("worker disconnected; outcome uncertain; inspect recovery: {e}")
-        })?;
+        let bytes = (if preparing && prepared_command.is_none() {
+            read.scope(|| {
+                pipe.receive(remaining.min(read.remaining()))
+                    .map_err(|e| e.to_string())
+            })
+        } else {
+            pipe.receive(remaining).map_err(|e| e.to_string())
+        })
+        .map_err(|e| format!("worker disconnected; outcome uncertain; inspect recovery: {e}"))?;
         match serde_json::from_slice::<Message>(&bytes).map_err(|e| e.to_string())? {
+            Message::Prepared {
+                session: actual,
+                review,
+            } if actual == session => {
+                if prepared_command.is_some() {
+                    return Err("Repeated worker preparation".into());
+                }
+                let Command::Prepare { intent } = &request.command else {
+                    return Err("Unrequested worker preparation".into());
+                };
+                intent.validate_review(&review)?;
+                read.check()?;
+                let authorization = authorize(&review)?;
+                read.check()?;
+                prepared_command = Some(review.command(authorization.shutdown_approved)?);
+                let approval = preparation::Approval::new(&session, &review, authorization)?;
+                let bytes = zeroize::Zeroizing::new(
+                    serde_json::to_vec(&approval).map_err(|e| e.to_string())?,
+                );
+                pipe.send(&bytes)
+                    .map_err(|e| format!("Prepared worker approval outcome uncertain: {e}"))?;
+            }
             Message::Progress {
                 session: actual,
                 progress: update,
@@ -523,7 +586,10 @@ fn submit(
                 result,
             } if actual == session => {
                 return (*result).and_then(|mut outcome| {
-                    request.command.validate_outcome(&outcome, &session)?;
+                    prepared_command
+                        .as_ref()
+                        .unwrap_or(&request.command)
+                        .validate_outcome(&outcome, &session)?;
                     outcome.save_error = outcome.save_error.map(|error| {
                         crate::reporting::operator_error("Configuration publication", &error)
                     });
@@ -592,7 +658,24 @@ pub fn serve(session: &str, frontend: u32) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())
     };
-    let result = execute(&enrollment, session, request, notify);
+    let exchange = |review: &PreparedReview| {
+        pipe.send(
+            &serde_json::to_vec(&Message::Prepared {
+                session: session.into(),
+                review: Box::new(review.clone()),
+            })
+            .map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        let bytes = zeroize::Zeroizing::new(
+            pipe.receive(Duration::from_secs(300))
+                .map_err(|e| e.to_string())?,
+        );
+        let approval: preparation::Approval =
+            serde_json::from_slice(&bytes).map_err(|_| "Invalid preparation approval")?;
+        approval.validate(session, review)
+    };
+    let result = execute(&enrollment, session, request, notify, exchange);
     pipe.send(
         &serde_json::to_vec(&Message::Complete {
             session: session.into(),
@@ -608,9 +691,10 @@ fn execute(
     session: &str,
     request: Request,
     notify: impl FnMut(Progress) -> Result<(), String>,
+    exchange: impl FnMut(&PreparedReview) -> Result<Authorization, String>,
 ) -> Result<Outcome, String> {
     crate::diagnostics::run("worker-command", session, || {
-        execute_inner(enrollment, session, request, notify)
+        execute_inner(enrollment, session, request, notify, exchange)
     })
 }
 
@@ -619,6 +703,7 @@ fn execute_inner(
     session: &str,
     request: Request,
     mut notify: impl FnMut(Progress) -> Result<(), String>,
+    mut exchange: impl FnMut(&PreparedReview) -> Result<Authorization, String>,
 ) -> Result<Outcome, String> {
     let (data, _lock) = preparation_stage("Check protected worker admission", &mut notify, || {
         let data = runner::data_directory()?;
@@ -644,6 +729,7 @@ fn execute_inner(
         return Err("replayed worker session".into());
     }
     let operation_name = match &request.command {
+        Command::Prepare { intent } => intent.operation_name(),
         Command::ResetPartial { .. } => "ResetPartial",
         Command::ForgetPair { .. } => "ForgetPair",
         Command::EnrollPair { .. } => "EnrollPair",
@@ -655,7 +741,8 @@ fn execute_inner(
         Command::Import { .. } => "ImportConfiguration",
         Command::ImportResume { .. } => "ReconcileImport",
     };
-    let binding = match &request.command {
+    let mut binding = match &request.command {
+        Command::Prepare { intent } => serde_json::to_value(intent).map_err(|e| e.to_string())?,
         Command::ResetPartial {
             operation_id,
             record_revision,
@@ -711,7 +798,8 @@ fn execute_inner(
     let result = (|| {
         if matches!(
             &request.command,
-            Command::Apply { .. }
+            Command::Prepare { .. }
+                | Command::Apply { .. }
                 | Command::Verify { .. }
                 | Command::Reconcile { .. }
                 | Command::SaveOnly { .. }
@@ -721,6 +809,7 @@ fn execute_inner(
         }
         // Bind every write and final retirement to this command's own receipt.
         recovery_path = match &request.command {
+            Command::Prepare { intent } => Some(runner::new_recovery_path(&intent.target().vm_id)?),
             Command::Apply { approved, .. } => {
                 Some(runner::new_recovery_path(&approved.desired.vm_id)?)
             }
@@ -736,6 +825,32 @@ fn execute_inner(
             _ => None,
         };
         match request.command {
+            Command::Prepare { intent } => {
+                if request.credential.is_some() {
+                    return Err("Preparation does not accept credentials".into());
+                }
+                preparation::execute(
+                    &operations::Context {
+                        enrollment,
+                        session,
+                        data: &data,
+                        recovery_path: recovery_path
+                            .as_deref()
+                            .ok_or("missing bound recovery path")?,
+                    },
+                    intent,
+                    &mut notify,
+                    |review| {
+                        binding["prepared_revision"] =
+                            serde_json::to_value(review.revision()?).map_err(|e| e.to_string())?;
+                        runner::atomic_json(
+                            &audit,
+                            &serde_json::json!({"schema":1,"session":session,"operation":operation_name,"binding":binding,"outcome":"Started"}),
+                        )?;
+                        exchange(review)
+                    },
+                )
+            }
             Command::ResetPartial {
                 operation_id,
                 record_revision,
@@ -778,6 +893,7 @@ fn execute_inner(
                         reads: None,
                         credential: None,
                         manifest: None,
+                        payload_hold: Vec::new(),
                         data: data.clone(),
                     };
                     if fresh.inspect(&record.target)?.operational()
@@ -829,6 +945,7 @@ fn execute_inner(
                     reads: None,
                     credential: None,
                     manifest: None,
+                    payload_hold: Vec::new(),
                     data: data.clone(),
                 };
                 workflow::reset_partial(
@@ -1004,292 +1121,40 @@ fn execute_inner(
                 approved,
                 expected,
                 shutdown_approved,
-            } => {
-                runner::require_no_vm_recovery(&approved.desired.vm_id)?;
-                crate::windows_wmi::require_no_pending_operation_for(&approved.desired.vm_id)?;
-                approved.desired.validate()?;
-                if !enrollment.targets.iter().any(|target| {
-                    target.vm_id == approved.desired.vm_id
-                        && target.gpu_interface == approved.desired.gpu_interface
-                }) {
-                    return Err(
-                        "selected pair requires administrator enrollment before Apply".into(),
-                    );
-                }
-                if approved.preview.guest_downtime && !shutdown_approved {
-                    return Err("graceful guest shutdown was not separately approved".into());
-                }
-                if configuration_store::protected::revision(&approved.desired.vm_id)? != expected {
-                    return Err("committed configuration changed before admission; Refresh".into());
-                }
-                if expected == Revision::Missing {
-                    configuration_store::protected::check_capacity(std::slice::from_ref(
-                        &approved.desired.vm_id,
-                    ))?;
-                }
-                let mut backend = NativeBackend {
-                    reads: None,
-                    credential: request.credential,
-                    manifest: None,
-                    data: data.clone(),
-                };
-                let (current, admitted) = ObservedBackend {
-                    backend: &mut backend,
-                    notify: &mut notify,
-                    before_effect: None,
-                }
-                .stage_observed("Checking reviewed VM and driver files", |backend| {
-                    workflow::admit_approved(backend, &approved)
-                })?;
-                let driver_version = admitted.driver_version().to_owned();
-                let mut record = SaveRecord {
-                    schema: 1,
-                    retirement: None,
-                    reset: None,
-                    operation_id: session.into(),
-                    target: approved.desired.clone(),
-                    expected,
-                    driver_version: driver_version.clone(),
-                    payload_digest: current.preparation.as_ref().map(|p| p.digest.clone()),
-                    plan_revision: Revision::of(
-                        &serde_json::to_vec(&current).map_err(|e| e.to_string())?,
-                    ),
-                    intended_source: Configuration {
-                        schema: 3,
-                        targets: vec![approved.desired.clone()],
-                    }
-                    .vm_documents()?
-                    .into_values()
-                    .next()
-                    .ok_or("missing output document")?,
-                    publication_required: true,
-                    initial: current.observed.clone(),
-                    expected_power: Some(current.preview.restore_power.clone()),
-                    graphics_required: Some(
-                        current
-                            .preview
-                            .actions
-                            .contains(&workflow::PreviewAction::Verify),
-                    ),
-                    initial_journal: current.managed.clone(),
-                    expected_settings: current
-                        .preview
-                        .settings
-                        .as_ref()
-                        .map_or_else(|| current.observed.settings.clone(), |s| s.after.clone()),
-                    phase: SavePhase::Admitted,
-                };
-                runner::write_recovery_at(
-                    recovery_path
+            } => operations::apply(
+                &operations::Context {
+                    enrollment,
+                    session,
+                    data: &data,
+                    recovery_path: recovery_path
                         .as_deref()
                         .ok_or("missing bound recovery path")?,
-                    &record,
-                )?;
-                let mut mark_effects = || {
-                    if matches!(record.phase, SavePhase::Admitted) {
-                        record.phase = SavePhase::EffectsStarted;
-                        runner::write_recovery_at(
-                            recovery_path
-                                .as_deref()
-                                .ok_or("missing bound recovery path")?,
-                            &record,
-                        )?;
-                    }
-                    Ok(())
-                };
-                let result = workflow::apply_admitted(
-                    &mut ObservedBackend {
-                        backend: &mut backend,
-                        notify: &mut notify,
-                        before_effect: Some(&mut mark_effects),
-                    },
-                    admitted,
-                )?;
-                ObservedBackend {
-                    backend: &mut backend,
-                    notify: &mut notify,
-                    before_effect: None,
-                }
-                .stage_observed(
-                    "Confirm final VM state and signed driver files",
-                    |backend| {
-                        crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
-                        if backend.inspect(&record.target)?.operational()
-                            != result.effective.operational()
-                        {
-                            return Err(
-                            "final independent readback changed; manual reconciliation required"
-                                .into(),
-                        );
-                        }
-                        if backend.gpu(&record.target)?.driver_version != driver_version {
-                            return Err(
-                                "driver changed during effects; manual reconciliation required"
-                                    .into(),
-                            );
-                        }
-                        if let Some(digest) = &record.payload_digest
-                            && backend.payload(&record.target)? != *digest
-                        {
-                            return Err(
-                            "signed payload changed during effects; manual reconciliation required"
-                                .into(),
-                        );
-                        }
-                        Ok(())
-                    },
-                )?;
-                record.phase = SavePhase::Verified(result.effective.clone());
-                runner::write_recovery_at(
-                    recovery_path
-                        .as_deref()
-                        .ok_or("missing bound recovery path")?,
-                    &record,
-                )?;
-                notify(Progress {
-                    stage: "Publish checked VM configuration".into(),
-                    status: StageStatus::Running,
-                })?;
-                let saved =
-                    configuration_store::protected::publish(&record, &enrollment.client_sid);
-                if saved.is_ok() {
-                    record.phase = SavePhase::Published(result.effective.clone());
-                    runner::write_recovery_at(
-                        recovery_path
-                            .as_deref()
-                            .ok_or("missing bound recovery path")?,
-                        &record,
-                    )?;
-                }
-                let delivery = notify(Progress {
-                    stage: "Publish checked VM configuration".into(),
-                    status: if saved.is_ok() {
-                        StageStatus::Done
-                    } else {
-                        StageStatus::Failed
-                    },
-                });
-                if let Err(delivery) = delivery {
-                    return Err(saved.err().map_or_else(
-                    || format!("Publication completed but progress delivery failed; outcome uncertain: {delivery}"),
-                    |primary| format!("Progress delivery failed: {delivery}; {primary}"),
-                ));
-                }
-                Ok(Outcome {
-                    operation: Some(result),
-                    saved: saved.is_ok(),
-                    finished: saved.is_ok(),
-                    operation_id: record.operation_id,
-                    save_error: saved.err(),
-                })
-            }
+                },
+                approved,
+                expected,
+                shutdown_approved,
+                request.credential,
+                None,
+                &mut notify,
+            ),
             Command::Verify {
                 approved,
                 shutdown_approved,
-            } => {
-                runner::require_no_vm_recovery(&approved.target.vm_id)?;
-                crate::windows_wmi::require_no_pending_operation_for(&approved.target.vm_id)?;
-                approved.target.validate()?;
-                if approved.observed.power == Power::Off && !shutdown_approved {
-                    return Err(
-                        "temporary guest start and graceful shutdown were not approved".into(),
-                    );
-                }
-                if !enrollment.targets.iter().any(|target| {
-                    target.vm_id == approved.target.vm_id
-                        && target.gpu_interface == approved.target.gpu_interface
-                }) {
-                    return Err("verification target is outside enrollment".into());
-                }
-                let mut backend = NativeBackend {
-                    reads: None,
-                    credential: request.credential,
-                    manifest: None,
-                    data: data.clone(),
-                };
-                let admitted = workflow::admit_verification(&mut backend, &approved)?;
-                let mut record = SaveRecord {
-                    schema: 1,
-                    retirement: None,
-                    reset: None,
-                    operation_id: session.into(),
-                    target: approved.target.clone(),
-                    expected: configuration_store::protected::revision(&approved.target.vm_id)?,
-                    driver_version: approved.gpu.driver_version.clone(),
-                    payload_digest: Some(approved.payload_digest.clone()),
-                    plan_revision: Revision::of(
-                        &serde_json::to_vec(&approved).map_err(|e| e.to_string())?,
-                    ),
-                    intended_source: Configuration {
-                        schema: 3,
-                        targets: vec![approved.target.clone()],
-                    }
-                    .vm_documents()?
-                    .into_values()
-                    .next()
-                    .ok_or("missing receipt intent")?,
-                    publication_required: false,
-                    initial: approved.observed.clone(),
-                    expected_power: Some(workflow::verification_power(
-                        &approved.target,
-                        &approved.observed,
-                        approved.managed.as_ref(),
-                    )?),
-                    graphics_required: Some(true),
-                    initial_journal: approved.managed.clone(),
-                    expected_settings: approved.observed.settings.clone(),
-                    phase: SavePhase::Admitted,
-                };
-                runner::write_recovery_at(
-                    recovery_path
+            } => operations::verify(
+                &operations::Context {
+                    enrollment,
+                    session,
+                    data: &data,
+                    recovery_path: recovery_path
                         .as_deref()
                         .ok_or("missing bound recovery path")?,
-                    &record,
-                )?;
-                let mut mark_effects = || {
-                    if matches!(record.phase, SavePhase::Admitted) {
-                        record.phase = SavePhase::EffectsStarted;
-                        runner::write_recovery_at(
-                            recovery_path
-                                .as_deref()
-                                .ok_or("missing bound recovery path")?,
-                            &record,
-                        )?;
-                    }
-                    Ok(())
-                };
-                let result = workflow::verify_admitted(
-                    &mut ObservedBackend {
-                        backend: &mut backend,
-                        notify: &mut notify,
-                        before_effect: Some(&mut mark_effects),
-                    },
-                    admitted,
-                )?;
-                crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
-                if backend.inspect(&record.target)?.operational() != record.initial.operational()
-                    || backend.gpu(&record.target)?.operational() != approved.gpu.operational()
-                    || backend.payload(&record.target)? != approved.payload_digest
-                {
-                    return Err(
-                        "verification final facts changed; manual reconciliation required".into(),
-                    );
-                }
-                record.phase = SavePhase::Verified(result.effective.clone());
-                runner::write_recovery_at(
-                    recovery_path
-                        .as_deref()
-                        .ok_or("missing bound recovery path")?,
-                    &record,
-                )?;
-                Ok(Outcome {
-                    operation: Some(result),
-                    saved: false,
-                    finished: true,
-                    operation_id: record.operation_id,
-                    save_error: None,
-                })
-            }
+                },
+                approved,
+                shutdown_approved,
+                request.credential,
+                None,
+                &mut notify,
+            ),
             Command::Reconcile {
                 operation_id,
                 shutdown_approved,
@@ -1323,6 +1188,7 @@ fn execute_inner(
                     reads: None,
                     credential: request.credential,
                     manifest: None,
+                    payload_hold: Vec::new(),
                     data: data.clone(),
                 };
                 let mut backend = ObservedBackend {
@@ -1541,36 +1407,7 @@ fn execute_inner(
                 &backend.gpu(&record.target)?.driver_version,
                 &configuration_store::protected::revision(&record.target.vm_id)?,
             )?;
-            (backend.notify)(Progress {
-                stage: "Publish checked VM configuration".into(),
-                status: StageStatus::Running,
-            })?;
-            let saved = configuration_store::protected::publish(&record, &enrollment.client_sid);
-            if saved.is_ok() {
-                record.phase = SavePhase::Published(result.effective.clone());
-                runner::write_recovery_at(recovery_path.as_deref().ok_or("missing bound recovery path")?, &record)?;
-            }
-            let delivery = (backend.notify)(Progress {
-                stage: "Publish checked VM configuration".into(),
-                status: if saved.is_ok() {
-                    StageStatus::Done
-                } else {
-                    StageStatus::Failed
-                },
-            });
-            if let Err(delivery) = delivery {
-                return Err(saved.err().map_or_else(
-                    || format!("Publication completed but progress delivery failed; outcome uncertain: {delivery}"),
-                    |primary| format!("Progress delivery failed: {delivery}; {primary}"),
-                ));
-            }
-            Ok(Outcome {
-                operation: Some(result),
-                saved: saved.is_ok(),
-                finished: saved.is_ok(),
-                operation_id,
-                save_error: saved.err(),
-            })
+            operations::publish(&operations::Context { enrollment, session, data: &data, recovery_path: recovery_path.as_deref().ok_or("missing bound recovery path")? }, record, result, &mut *backend.notify)
             })
             }
             Command::SaveOnly { operation_id } => {
@@ -1594,6 +1431,7 @@ fn execute_inner(
                     reads: None,
                     credential: None,
                     manifest: None,
+                    payload_hold: Vec::new(),
                     data: data.clone(),
                 };
                 if backend
@@ -2093,6 +1931,7 @@ mod tests {
                 reads: None,
                 credential: None,
                 manifest: None,
+                payload_hold: Vec::new(),
                 data: std::path::PathBuf::new(),
             };
             let mut updates = Vec::new();
@@ -2140,6 +1979,7 @@ mod tests {
                 reads: None,
                 credential: None,
                 manifest: None,
+                payload_hold: Vec::new(),
                 data: std::path::PathBuf::new(),
             };
             let mut updates = Vec::new();
@@ -2172,6 +2012,7 @@ mod tests {
                 reads: None,
                 credential: None,
                 manifest: None,
+                payload_hold: Vec::new(),
                 data: std::path::PathBuf::new(),
             };
             let mut updates = Vec::new();

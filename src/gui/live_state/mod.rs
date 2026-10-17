@@ -24,8 +24,6 @@ pub(super) struct State {
     pub pending_selection: Option<String>,
     pub draft_gpu: Option<String>,
     pub approved_plan: Option<ReviewedPlan>,
-    /// A rejected Apply needs a full fresh review rather than repeating a prediction.
-    pub require_authenticated_review: bool,
     pub removal_review: Option<hyper_gpu_support::enrollment::RemovalReview>,
     pub reset_review: Option<(
         hyper_gpu_support::configuration_store::Revision,
@@ -73,7 +71,6 @@ impl Default for State {
             pending_selection: None,
             draft_gpu: None,
             approved_plan: None,
-            require_authenticated_review: false,
             removal_review: None,
             reset_review: None,
             verification_plan: None,

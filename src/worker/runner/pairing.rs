@@ -123,6 +123,7 @@ pub(crate) fn enroll_pair(
         reads: None,
         credential: None,
         manifest: None,
+        payload_hold: Vec::new(),
         data: data_directory()?,
     };
     // Enrollment cannot sidestep any old attributable unfinished operation.

@@ -3,7 +3,7 @@ use super::guest_check::{check_guest, record_restored_check_failure};
 use super::journal::{persist_check, verified_at};
 use super::planning::{Decision, decision, decision_for_operation, plan_from_decision};
 use super::{Backend, GuestCheck, OperationResult, Plan};
-use crate::model::{Power, Resource, Target};
+use crate::model::{Power, Target};
 mod facts;
 use facts::ApplyFacts;
 
@@ -35,6 +35,41 @@ impl AdmittedApply {
     pub(crate) fn driver_version(&self) -> &str {
         &self.decision.gpu.driver_version
     }
+    /// Credentials arrive after read-only preparation in the same worker.
+    /// Running-OS refusal still precedes the durable effect receipt.
+    pub(crate) fn check_installation_os(
+        &mut self,
+        backend: &mut impl Backend,
+    ) -> Result<(), String> {
+        if self.decision.stale && self.decision.initial.power == Power::Running && !self.os_checked
+        {
+            crate::guest_compatibility::preflight(backend.check_installation_os(&self.target))?;
+            self.os_checked = true;
+        }
+        Ok(())
+    }
+}
+
+/// Prepare once under the worker lock, retaining the authenticated manifest in
+/// the same backend. No credential, journal, power or guest access is required.
+pub(crate) fn prepare_apply(
+    backend: &mut impl Backend,
+    target: &Target,
+    reinstall: bool,
+) -> Result<(Plan, super::AdmittedApply), String> {
+    let decision = decision_for_operation(backend, target, reinstall)?;
+    if decision.journal.pending {
+        return Err("pending recovery requires manual reconciliation, not Apply".into());
+    }
+    let plan = plan_from_decision(decision.clone(), target);
+    Ok((
+        plan,
+        AdmittedApply {
+            target: target.clone(),
+            decision,
+            os_checked: false,
+        },
+    ))
 }
 
 /// Independently authenticate current inputs and bind them to the approved plan.
@@ -44,8 +79,7 @@ pub(crate) fn admit_approved(
     approved: &Plan,
 ) -> Result<(Plan, super::AdmittedApply), String> {
     let target = &approved.desired;
-    let d = decision_for_operation(backend, target, approved.reinstall)?;
-    let actual = plan_from_decision(d.clone(), target);
+    let (actual, mut admitted) = prepare_apply(backend, target, approved.reinstall)?;
     let mut reviewed = approved.clone();
     // Only this presentation marker differs. Every reviewed host, journal,
     // payload and effect fact must still match the freshly authenticated plan.
@@ -53,23 +87,10 @@ pub(crate) fn admit_approved(
     if !actual.same_operation(&reviewed)? {
         return Err("approved plan is stale; refresh and review before effects".into());
     }
-    if d.journal.pending {
-        return Err("pending recovery requires manual reconciliation, not Apply".into());
-    }
     // A read-only refusal of an already running guest needs no recovery record.
     // Keep this inside the authenticated worker, after reviewed facts match.
-    let os_checked = d.stale && d.initial.power == Power::Running;
-    if os_checked {
-        crate::guest_compatibility::preflight(backend.check_installation_os(target))?;
-    }
-    Ok((
-        actual,
-        AdmittedApply {
-            target: target.clone(),
-            decision: d,
-            os_checked,
-        },
-    ))
+    admitted.check_installation_os(backend)?;
+    Ok((actual, admitted))
 }
 
 /// Consume authenticated admission in the same locked worker/backend instance.
@@ -117,6 +138,7 @@ fn execute_decision(
         stale,
         assignment,
         needs_changes,
+        allocation_writes,
         setup_required,
         managed,
         ..
@@ -153,7 +175,13 @@ fn execute_decision(
             backend.check_installation_os(target)?;
             facts.check(backend, target)
         });
-        let restored = facts.restore(backend, target, &Power::Off);
+        // Successful identification keeps an unattached guest running for
+        // preparation. Refusal/uncertainty still attempts guarded restoration.
+        let restored = if checked.is_err() {
+            facts.restore(backend, target, &Power::Off)
+        } else {
+            Ok(())
+        };
         match (checked, restored) {
             (Ok(()), Ok(())) => {}
             (Err(error), Ok(())) => return Err(error),
@@ -169,7 +197,7 @@ fn execute_decision(
     }
     let operation: Result<OperationResult, String> = (|| {
         if needs_changes {
-            if initial.power == Power::Running {
+            if facts.state.power == Power::Running && (!stale || assignment) {
                 facts.power(backend, target, Power::Off)?;
             }
             if stale {
@@ -184,7 +212,9 @@ fn execute_decision(
                 if assignment {
                     facts.assign(backend, target, false)?;
                 }
-                facts.power(backend, target, Power::Running)?;
+                if facts.state.power != Power::Running {
+                    facts.power(backend, target, Power::Running)?;
+                }
                 let prepared = backend.prepare(target)?;
                 if Some(&prepared) != digest.as_ref() {
                     return Err(
@@ -209,7 +239,7 @@ fn execute_decision(
                         .assign(backend, target, true)
                         .map_err(|e| format!("attach selected GPU: {e}"))?;
                 }
-                for resource in Resource::ALL {
+                for resource in allocation_writes {
                     if let Some(value) = target.allocation(resource) {
                         facts.allocation(backend, target, resource, value)?;
                     }
@@ -307,7 +337,7 @@ mod tests {
             &[
                 PreviewAction::Start,
                 PreviewAction::CheckOs,
-                PreviewAction::Shutdown
+                PreviewAction::Prepare
             ]
         );
         assert_eq!(backend.os_checks, 0);
@@ -316,8 +346,7 @@ mod tests {
         assert_eq!(
             backend.events,
             [
-                "start", "shutdown", "start", "prepare", "shutdown", "attach", "start", "graphics",
-                "shutdown"
+                "start", "prepare", "shutdown", "attach", "start", "graphics", "shutdown"
             ]
         );
         assert_eq!(backend.state.power, Power::Off);
@@ -1136,8 +1165,7 @@ mod tests {
         assert_eq!(
             f.events,
             [
-                "shutdown", "start", "prepare", "shutdown", "attach", "start", "graphics",
-                "shutdown"
+                "prepare", "shutdown", "attach", "start", "graphics", "shutdown"
             ]
         );
         // The user starts the completed setup through Hyper-V before ordinary work.

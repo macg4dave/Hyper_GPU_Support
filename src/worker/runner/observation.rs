@@ -50,6 +50,7 @@ pub(super) fn read(
         reads: None,
         credential: None,
         manifest: None,
+        payload_hold: Vec::new(),
         data,
     };
     for target in &e.targets {
