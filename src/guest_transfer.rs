@@ -12,7 +12,7 @@ const FILE_LIMIT: Duration = Duration::from_secs(300);
 const IDLE_LIMIT: Duration = Duration::from_secs(60);
 const GAP_LIMIT: Duration = Duration::from_secs(240);
 /// Fixed maximum transfer chunk, also injected into the PowerShell sender.
-pub(crate) const CHUNK_BYTES: u64 = 4 * 1024 * 1024;
+pub(crate) const CHUNK_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Progress {
@@ -24,6 +24,10 @@ pub(crate) struct Progress {
 }
 
 struct State {
+    sizes: Vec<u64>,
+    total: u64,
+    selection: Option<usize>,
+    reused_helpers: usize,
     index: usize,
     bytes: u64,
     completed: u64,
@@ -38,8 +42,6 @@ struct State {
 }
 
 pub(crate) struct Monitor {
-    sizes: Vec<u64>,
-    total: u64,
     verification: bool,
     state: Mutex<State>,
 }
@@ -60,10 +62,12 @@ impl Monitor {
             .try_fold(0_u64, |sum, bytes| sum.checked_add(*bytes))
             .ok_or("transfer byte total overflow")?;
         Ok(Self {
-            sizes,
-            total,
             verification,
             state: Mutex::new(State {
+                sizes,
+                total,
+                selection: None,
+                reused_helpers: 0,
                 index: 0,
                 bytes: 0,
                 completed: 0,
@@ -79,6 +83,26 @@ impl Monitor {
         })
     }
 
+    /// Require one complete helper selection before any transfer can begin.
+    pub fn select_helpers(self, helpers: usize) -> Result<Self, String> {
+        if helpers > 2
+            || helpers
+                > self
+                    .state
+                    .lock()
+                    .map_err(|_| "transfer monitor poisoned")?
+                    .sizes
+                    .len()
+        {
+            return Err("invalid helper selection size".into());
+        }
+        self.state
+            .lock()
+            .map_err(|_| "transfer monitor poisoned")?
+            .selection = Some(helpers);
+        Ok(self)
+    }
+
     fn accept(&self, text: &str, now: Instant) -> Result<(), String> {
         let fields: Vec<_> = text.split_ascii_whitespace().collect();
         if fields.len() != 3 {
@@ -90,41 +114,58 @@ impl Monitor {
             .map_err(|_| "invalid transfer byte count")?;
         let mut s = self.state.lock().map_err(|_| "transfer monitor poisoned")?;
         Self::check_state(&s, now)?;
+        if let Some(helpers) = s.selection {
+            if fields[0] != "select" || index != helpers || bytes >= (1 << helpers) {
+                return Err("missing or invalid helper selection".into());
+            }
+            let original = std::mem::take(&mut s.sizes);
+            for (index, size) in original.into_iter().enumerate() {
+                if index < helpers && bytes & (1 << index) == 0 {
+                    s.total -= size;
+                    s.reused_helpers += 1;
+                } else {
+                    s.sizes.push(size);
+                }
+            }
+            s.selection = None;
+            s.advanced = now;
+            return Ok(());
+        }
         if s.done || index != s.index {
             return Err("out-of-order transfer acknowledgement".into());
         }
         match fields[0] {
-            "begin" if s.started.is_none() && index < self.sizes.len() && bytes == 0 => {
+            "begin" if s.started.is_none() && index < s.sizes.len() && bytes == 0 => {
                 s.started = Some(now);
                 s.advanced = now;
             }
             "bytes"
                 if s.started.is_some()
                     && bytes > s.bytes
-                    && bytes <= self.sizes[index]
+                    && bytes <= s.sizes[index]
                     && bytes - s.bytes <= CHUNK_BYTES =>
             {
                 s.bytes = bytes;
                 s.chunks = s.chunks.saturating_add(1);
                 s.advanced = now;
             }
-            "end" if s.started.is_some() && bytes == s.bytes && bytes == self.sizes[index] => {
+            "end" if s.started.is_some() && bytes == s.bytes && bytes == s.sizes[index] => {
                 s.completed += bytes;
                 s.index += 1;
                 s.bytes = 0;
                 s.started = None;
                 s.advanced = now;
             }
-            "done" if s.started.is_none() && index == self.sizes.len() && bytes == s.completed => {
+            "done" if s.started.is_none() && index == s.sizes.len() && bytes == s.completed => {
                 s.done = true;
             }
             _ => return Err("invalid transfer transition or byte count".into()),
         }
         s.pending = Some(Progress {
             bytes: s.completed + s.bytes,
-            total: self.total,
+            total: s.total,
             files: s.index,
-            count: self.sizes.len(),
+            count: s.sizes.len(),
             done: s.done,
         });
         Ok(())
@@ -138,7 +179,12 @@ impl Monitor {
         let Ok(state) = self.state.lock() else {
             return;
         };
-        let helper_total = self.sizes.iter().take(helpers).copied().sum::<u64>();
+        let helper_total = state
+            .sizes
+            .iter()
+            .take(helpers.saturating_sub(state.reused_helpers))
+            .copied()
+            .sum::<u64>();
         let acknowledged = state.completed + state.bytes;
         let helper_bytes = acknowledged.min(helper_total);
         use crate::work_counts::{self, Counter};
@@ -288,6 +334,76 @@ mod tests {
     use super::*;
 
     #[test]
+    fn helper_selection_bounds_totals_before_transfer_and_preserves_required_phases() {
+        let now = Instant::now();
+        for mask in 0..4_u64 {
+            let monitor = Monitor::new(vec![3, 5, 11], now)
+                .unwrap()
+                .select_helpers(2)
+                .unwrap();
+            assert!(monitor.accept("begin 0 0", now).is_err());
+            assert!(monitor.accept("select 1 0", now).is_err());
+            assert!(monitor.accept("select 2 4", now).is_err());
+            monitor.accept(&format!("select 2 {mask}"), now).unwrap();
+            assert!(monitor.accept(&format!("select 2 {mask}"), now).is_err());
+            let sizes: Vec<_> = [3, 5, 11]
+                .into_iter()
+                .enumerate()
+                .filter(|(i, _)| *i >= 2 || mask & (1 << i) != 0)
+                .map(|(_, size)| size)
+                .collect();
+            for (index, size) in sizes.iter().enumerate() {
+                monitor.accept(&format!("begin {index} 0"), now).unwrap();
+                monitor
+                    .accept(&format!("bytes {index} {size}"), now)
+                    .unwrap();
+                monitor.accept(&format!("end {index} {size}"), now).unwrap();
+            }
+            let total: u64 = sizes.iter().sum();
+            monitor
+                .accept(&format!("done {} {total}", sizes.len()), now)
+                .unwrap();
+            let progress = monitor.take_progress(now).unwrap().unwrap();
+            assert_eq!(
+                (progress.total, progress.bytes, progress.count),
+                (total, total, sizes.len())
+            );
+            let before = crate::work_counts::snapshot();
+            monitor.record_work(2);
+            let counts = crate::work_counts::snapshot().since(before);
+            assert_eq!(
+                counts.get(crate::work_counts::Counter::HelperBytes),
+                total - 11
+            );
+            assert_eq!(counts.get(crate::work_counts::Counter::PayloadBytes), 11);
+            assert!(monitor.require_worker_phases().is_err());
+            for phase in ["checking-copied", "installing", "checking-installed"] {
+                monitor.accept_phase(phase).unwrap();
+            }
+            monitor.require_worker_phases().unwrap();
+        }
+    }
+
+    #[test]
+    fn warm_verify_has_zero_transfer_but_still_requires_current_files_and_graphics() {
+        let now = Instant::now();
+        let monitor = Monitor::for_operation(vec![3, 5], now, true)
+            .unwrap()
+            .select_helpers(2)
+            .unwrap();
+        monitor.accept("select 2 0", now).unwrap();
+        assert!(monitor.accept_phase("checking-guest").is_err());
+        monitor.accept("done 0 0", now).unwrap();
+        let p = monitor.take_progress(now).unwrap().unwrap();
+        assert_eq!((p.bytes, p.total, p.files, p.count), (0, 0, 0, 0));
+        assert!(monitor.require_worker_phases().is_err());
+        monitor.accept_phase("checking-guest").unwrap();
+        assert!(monitor.require_worker_phases().is_err());
+        monitor.accept_phase("graphics").unwrap();
+        monitor.require_worker_phases().unwrap();
+    }
+
+    #[test]
     fn aggregate_bytes_include_partial_acknowledgements_and_exclude_invalid_records() {
         use crate::work_counts::{self, Counter};
         let now = Instant::now();
@@ -415,9 +531,9 @@ mod tests {
     }
 
     #[test]
-    fn four_mib_chunks_and_partial_tail_preserve_exact_file_accounting() {
+    fn configured_chunks_and_partial_tail_preserve_exact_file_accounting() {
         let now = Instant::now();
-        let chunk = 4 * 1024 * 1024;
+        let chunk = CHUNK_BYTES;
         let total = chunk * 2 + 37;
         let m = Monitor::new(vec![total, 0], now).unwrap();
         m.accept("begin 0 0", now).unwrap();
@@ -439,9 +555,9 @@ mod tests {
     }
 
     #[test]
-    fn oversized_or_repeated_four_mib_acknowledgements_do_not_advance_progress() {
+    fn oversized_or_repeated_chunk_acknowledgements_do_not_advance_progress() {
         let now = Instant::now();
-        let chunk = 4 * 1024 * 1024;
+        let chunk = CHUNK_BYTES;
         let m = Monitor::new(vec![chunk * 3], now).unwrap();
         m.accept("begin 0 0", now).unwrap();
         assert!(m.accept(&format!("bytes 0 {}", chunk + 1), now).is_err());

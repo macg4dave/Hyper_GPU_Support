@@ -17,6 +17,34 @@ $readInstallationIdentity = {
     }
     @{ major = $version.Major; minor = $version.Minor; build = $build; workstation = ($productType -eq 1 -and $kind -ceq 'Client') } | ConvertTo-Json -Compress
 }
+# Fixed validation is serialized into remote scriptblocks; no guest-supplied code.
+$validateBootstrap = {
+    param($path, $bytes, $hash)
+    $current = $path
+    while ($current) {
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.LinkType) { throw 'Unsafe bootstrap path' }
+        $current = Split-Path $current
+    }
+    foreach ($p in @((Split-Path (Split-Path $path)), (Split-Path $path), $path)) {
+        $acl = Get-Acl -LiteralPath $p -ErrorAction Stop
+        if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted bootstrap owner' }
+        $raw = [Security.AccessControl.RawSecurityDescriptor]::new($acl.GetSecurityDescriptorBinaryForm(), 0)
+        if ($null -eq $raw.DiscretionaryAcl) { throw 'Null bootstrap DACL' }
+        foreach ($rule in $acl.Access) {
+            if ($rule.AccessControlType -eq 'Allow' -and !($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -and ([long]$rule.FileSystemRights -band 0x500d0156)) {
+                $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+                if ($sid -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted bootstrap writer' }
+            }
+        }
+    }
+    $item = Get-Item -LiteralPath $path -Force
+    if ($item.PSIsContainer) { throw 'Unsafe bootstrap leaf' }
+    $handle = [IO.File]::Open($path, 'Open', 'Read', 'Read')
+    try {
+        ($handle.Length -eq $bytes -and (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $hash)
+    } finally { $handle.Dispose() }
+}
 function Write-Stage([string]$stage, [string]$status, [string]$context, [long]$duration = 0) {
     if (!$diagnostic) { return }
     $line = @{utc=[DateTime]::UtcNow.ToString('o');pid=$PID;vm_id=[string]$r.vm_id;mode=[string]$r.mode;stage=$stage;status=$status;context=$context;duration_ms=$duration;significant_delay=($duration -ge 5000)} | ConvertTo-Json -Compress
@@ -55,12 +83,20 @@ function Copy-Logged([string]$source, [string]$destination, [long]$expectedBytes
                 [Buffer]::BlockCopy($buffer, 0, $chunk, 0, $count)
             }
             # A byte-array is one typed remoting argument, never a command/path.
-            $ack = Invoke-Command -Session $session -ArgumentList $chunk, $count -ScriptBlock {
-                param([byte[]]$chunk, [int]$count)
+            $chunkTimer = [Diagnostics.Stopwatch]::StartNew()
+            $ack = Invoke-Command -Session $session -ArgumentList $chunk, $count, ([bool]$diagnostic) -ScriptBlock {
+                param([byte[]]$chunk, [int]$count, [bool]$measure)
                 if ($count -le 0 -or $count -ne $chunk.Length) { throw 'Invalid transfer chunk length' }
+                $writeTimer = [Diagnostics.Stopwatch]::StartNew()
                 $global:hyperGpuTransfer.Write($chunk, 0, $count)
                 $global:hyperGpuTransfer.Flush()
-                $global:hyperGpuTransfer.Position
+                if ($measure) { @{ position=$global:hyperGpuTransfer.Position; write_ms=$writeTimer.Elapsed.TotalMilliseconds } }
+                else { $global:hyperGpuTransfer.Position }
+            }
+            if ($diagnostic) {
+                Write-Stage 'chunk-round-trip' 'done' 'includes serialization, guest write and reply' $chunkTimer.ElapsedMilliseconds
+                Write-Stage 'chunk-file-write' 'done' 'guest write and flush only' ([long][Math]::Ceiling($ack.write_ms))
+                $ack = $ack.position
             }
             $chunk = $null
             $copied += $count
@@ -131,7 +167,14 @@ try {
     $root = Invoke-Command -Session $session -ScriptBlock {
         $path = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'HyperGpuSupport\Guest'
         foreach ($p in @((Split-Path $path), $path)) {
-            $existed = Test-Path -LiteralPath $p
+            # Inspect existing ancestors before CreateDirectory can follow a link.
+            $current = $p
+            while ($current) {
+                $existing = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
+                if ($existing -and (($existing.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $existing.LinkType)) { throw 'Unsafe bootstrap path' }
+                $current = Split-Path $current
+            }
+            $existed = $null -ne (Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue)
             if (-not $existed) { [void][IO.Directory]::CreateDirectory($p) }
             $current = $p
             while ($current) {
@@ -144,6 +187,12 @@ try {
             if ($existed) {
                 $owner = (Get-Acl -LiteralPath $p).GetOwner([Security.Principal.SecurityIdentifier]).Value
                 if ($owner -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted bootstrap owner' }
+                $existing = Get-Acl -LiteralPath $p
+                $raw = [Security.AccessControl.RawSecurityDescriptor]::new($existing.GetSecurityDescriptorBinaryForm(), 0)
+                if ($null -eq $raw.DiscretionaryAcl) { throw 'Null bootstrap DACL' }
+                foreach ($rule in $existing.Access) {
+                    if ($rule.AccessControlType -eq 'Allow' -and !($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -and ([long]$rule.FileSystemRights -band 0x500d0156) -and $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted bootstrap writer' }
+                }
             }
             $acl.SetOwner($admin)
             foreach ($sid in @('S-1-5-18','S-1-5-32-544')) {
@@ -156,23 +205,24 @@ try {
     Write-Stage 'bootstrap-path' 'done' $root $timer.ElapsedMilliseconds
     $timer.Restart()
     Write-Stage 'bootstrap-leaves' 'start' $root
-    # Validate existing leaves, but retain them until a complete authenticated
-    # replacement is ready. Never copy over a pre-existing reparse/hard link.
-    $destinations = @()
-    foreach ($a in $r.artifacts) { $destinations += Join-Path $root $a.name }
-    Invoke-Command -Session $session -ArgumentList (,$destinations) -ScriptBlock {
-        param($paths)
-        foreach ($path in $paths) {
-            if (Test-Path -LiteralPath $path) {
-                $item = Get-Item -LiteralPath $path -Force
-                if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe bootstrap leaf' }
-                $owner = (Get-Acl -LiteralPath $path).GetOwner([Security.Principal.SecurityIdentifier]).Value
-                if ($owner -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted bootstrap leaf owner' }
-            }
+    # Select every helper before copying anything. Missing/changed trusted leaves
+    # are staged; unsafe leaves or parents refuse the operation without replacement.
+    $selected = @(Invoke-Command -Session $session -ArgumentList $root, $r.artifacts, $validateBootstrap.ToString() -ScriptBlock {
+        param($root, $artifacts, $validation)
+        $validate = [scriptblock]::Create($validation)
+        foreach ($a in $artifacts) {
+            $path = Join-Path $root $a.name
+            if (!(Test-Path -LiteralPath $path) -or !(& $validate $path $a.bytes $a.hash)) { $a.name }
         }
+    })
+    $mask = 0
+    for ($i = 0; $i -lt $r.artifacts.Count; $i++) {
+        if ($selected -ccontains $r.artifacts[$i].name) { $mask = $mask -bor (1 -shl $i) }
     }
+    [Console]::Error.WriteLine("HGTRANSFER select $($r.artifacts.Count) $mask")
     Write-Stage 'bootstrap-leaves' 'done' $root $timer.ElapsedMilliseconds
     foreach ($a in $r.artifacts) {
+        if ($selected -cnotcontains $a.name) { continue }
         $destination = Join-Path $root $a.name
         $staged = Join-Path $root ($a.name + '-' + [guid]::NewGuid().ToString('N') + '.staged')
         Invoke-Command -Session $session -ArgumentList $staged -ScriptBlock {
@@ -224,15 +274,13 @@ try {
     $timer.Restart()
     Write-Stage 'bundle-path' 'start' $root
     $bundle = Join-Path $root $r.digest
-    Invoke-Command -Session $session -ArgumentList $bundle -ScriptBlock {
-        param($path)
-        if (Test-Path -LiteralPath $path) {
-            if ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Unsafe bundle' }
-            $owner = (Get-Acl -LiteralPath $path).GetOwner([Security.Principal.SecurityIdentifier]).Value
-            if ($owner -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Untrusted bundle owner' }
-        } else { [void][IO.Directory]::CreateDirectory($path) }
-        $acl = Get-Acl -LiteralPath (Split-Path $path)
-        Set-Acl -LiteralPath $path -AclObject $acl
+    Invoke-Command -Session $session -ArgumentList $bundle, $r.identity, $r.acknowledgements -ScriptBlock {
+        param($path, $identity, $acknowledgements)
+        if (Test-Path -LiteralPath $path) { throw 'Bundle collision; retain existing evidence' }
+        [void][IO.Directory]::CreateDirectory($path)
+        Set-Acl -LiteralPath $path -AclObject (Get-Acl -LiteralPath (Split-Path $path))
+        [IO.File]::WriteAllText((Join-Path $path 'identity.json'), $identity, [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText((Join-Path $path 'acknowledgements.json'), $acknowledgements, [Text.UTF8Encoding]::new($false))
     }
     Write-Stage 'bundle-path' 'done' $bundle $timer.ElapsedMilliseconds
     if ($r.mode -eq 'verify') {
@@ -287,10 +335,11 @@ try {
     Write-Transfer 'done' $transferTotal
     $timer.Restart()
     Write-Stage 'guest-integrity-and-worker' 'start' $r.mode
-    $output = Invoke-Command -Session $session -ArgumentList $root, $bundle, $r.mode, $r.vendor, $r.device, $r.artifacts, $r.diagnostics -ScriptBlock {
-        param($root, $bundle, $mode, $vendor, $device, $artifacts, $diagnostics)
+    $output = Invoke-Command -Session $session -ArgumentList $root, $bundle, $r.mode, $r.vendor, $r.device, $r.artifacts, $r.diagnostics, $validateBootstrap.ToString() -ScriptBlock {
+        param($root, $bundle, $mode, $vendor, $device, $artifacts, $diagnostics, $validation)
         $ErrorActionPreference = 'Stop'
         $handles = @()
+        $validate = [scriptblock]::Create($validation)
         $marker = Join-Path $root 'diagnostics.enabled'
         $ownedMarker = $false
         if ($diagnostics) {
@@ -311,9 +360,9 @@ try {
         try {
             foreach ($a in $artifacts) {
                 $path = Join-Path $root $a.name
-                if ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Unsafe worker' }
+                if (!(& $validate $path $a.bytes $a.hash)) { throw 'Worker integrity failure' }
                 $handles += [IO.File]::Open($path, 'Open', 'Read', 'Read')
-                if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $a.hash) { throw 'Worker integrity failure' }
+                if ($handles[-1].Length -ne $a.bytes -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $a.hash) { throw 'Worker integrity failure' }
             }
             $reply = [Collections.Generic.List[string]]::new()
             & (Join-Path $root 'hyper-gpu-guest.exe') $mode $bundle ([string]$vendor) ([string]$device) 2>$null | ForEach-Object {
@@ -328,7 +377,18 @@ try {
                     $reply.Add($line)
                 }
             }
-            @{ output = ($reply -join "`n"); worker_exit = $LASTEXITCODE }
+            $workerExit = $LASTEXITCODE
+            $cleaned = @()
+            $cleanupResult = Join-Path $bundle 'cleanup-result.json'
+            if (Test-Path -LiteralPath $cleanupResult) {
+                try {
+                    $item = Get-Item -LiteralPath $cleanupResult -Force
+                    if ($item.Length -le 65536 -and !($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -and !$item.LinkType) {
+                        $cleaned = @([IO.File]::ReadAllText($cleanupResult) | ConvertFrom-Json)
+                    }
+                } catch { $cleaned = @() }
+            }
+            @{ output = ($reply -join "`n"); worker_exit = $workerExit; cleaned = $cleaned }
         } finally { foreach ($handle in $handles) { $handle.Dispose() }; if ($ownedMarker) { [IO.File]::Delete($marker) } }
     } | ForEach-Object {
         if ($_.phase) {
@@ -336,7 +396,7 @@ try {
         } else { $_ }
     }
     Write-Stage 'guest-integrity-and-worker' 'done' $r.mode $timer.ElapsedMilliseconds
-    @{ output = [string]$output.output; worker_exit = $output.worker_exit } | ConvertTo-Json -Compress
+    @{ output = [string]$output.output; worker_exit = $output.worker_exit; cleaned = @($output.cleaned) } | ConvertTo-Json -Compress
 } catch {
     if ($checkingCompatibility) {
         $failure = @{ stage=$null; component='GuestCompatibility'; cause='Unavailable'; code=$null } | ConvertTo-Json -Compress

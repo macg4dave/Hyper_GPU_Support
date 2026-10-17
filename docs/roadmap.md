@@ -1,6 +1,6 @@
 # Optimization roadmap
 
-Updated 17 October 2026. The functional and architectural review is complete. OPT-001 through OPT-004 are implemented in source, including the protected read pipeline and R2 lifecycle/resource/payload changes. Automated validation is pending the milestone gate; R1 and R2 are not closed. Remaining optimization implementation and live performance validation have not started. The findings establish repeated work in execution paths, not measured speedups or new release failures. Previous accepted work remains historical context and is not reopened by this plan.
+Updated 17 October 2026. The functional and architectural review is complete. OPT-001 through OPT-006 are implemented in source, including the protected read pipeline, R2 lifecycle/resource/payload changes and R3 helper/retention work. Automated validation is pending the milestone gate; R1, R2 and R3 are not closed. The user-selected OPT-007 change to 16 MiB is implemented in source, with validation and measurements pending. Live performance validation has not started. The findings establish repeated work in execution paths, not measured speedups or new release failures. Previous accepted work remains historical context and is not reopened by this plan.
 
 This page owns outcomes, delivery stages and gates. The [backlog](backlog.md) owns tasks, dependencies and implementation/validation status. The [agreed workflow](../README.md#agreed-workflow), [architecture](ARCHITECTURE.md), [security](SECURITY.md) and [engineering validation](ENGINEERING.md#validation-and-live-acceptance) remain authoritative.
 
@@ -8,7 +8,7 @@ This page owns outcomes, delivery stages and gates. The [backlog](backlog.md) ow
 
 Reduce the work required to discover status, prepare an operation, apply a change and confirm its outcome. Prefer fewer provider calls, payload passes, guest writes and power transitions over small local code optimizations. Preserve the existing Slint design, shared Rust core, protected worker architecture and normal user-facing behavior.
 
-The core scope is six cohesive work packages, OPT-001 through OPT-006, followed by candidate acceptance in OPT-008. Transfer redesign, OPT-007, is conditional on measurements from OPT-005. Dependency upgrades, a general service rewrite, UI redesign and broader guest support are outside scope.
+The core scope is six cohesive work packages, OPT-001 through OPT-006, followed by candidate acceptance in OPT-008. OPT-007 includes the user-selected 16 MiB chunk size; broader transfer redesign is conditional on measurements from OPT-005. Dependency upgrades, a general service rewrite, UI redesign and broader guest support are outside scope.
 
 | Outcome | Target and evidence |
 | --- | --- |
@@ -40,7 +40,7 @@ Stages group shared contracts and validation. Their preferred order minimizes re
 - Keep OPT-002 as one read-pipeline task. Agree its small shared read contract first, then integrate native discovery, polling, cancellation and GUI readback together instead of handing them through separate waiting tasks.
 - Deliver OPT-003 and OPT-004 as the R2 batch when requested. They share workflow decisions, admission, worker handlers and failure coverage. Their independent work need not wait for R1.
 - OPT-005 and OPT-006 can be prepared alongside R1/R2. Coordinate overlapping worker/transport edits and integrate a shared protocol change once. File overlap alone is not a hard dependency.
-- OPT-007 requires OPT-005's transport measurements and a justified design. Retaining the current transport leaves it deferred and does not delay the core release. If selected for the candidate, it must meet the same validation gate.
+- The user selected 16 MiB chunks for OPT-007 before measurement, retaining the existing transport. Include this source change in the candidate validation gate; broader transport redesign remains deferred pending OPT-005 measurements.
 - OPT-008 is the single required fan-in from OPT-001 through OPT-006. Scenario preparation and source review can start earlier; acceptance cannot close before the integrated scope and evidence are complete.
 
 Independent preparation does not require concurrent edits to the same files or delegation. Keep one requested task or explicitly requested cohesive batch active under [AGENTS.md](../AGENTS.md). Resolve shared contract decisions inside the owning task rather than adding separate refactor or approval prerequisites. This plan authorizes no automatic progression into implementation.
@@ -57,6 +57,8 @@ The [security contract](SECURITY.md) remains in force: exact operator/VM/GPU/rev
 - Cancel only read-only preparation through this work. Hold admission until confirmed backend release. Timeout, disconnect or matching instantaneous state never establishes completion or permits replay.
 - Retain independent final payload/guest checks. Profile deletion stays record-only, save-only never replays Apply, and recovery remains an explicit foreground action.
 - Cleanup needs positive durable completion and exact ownership/scope. Age alone cannot authorize staging or recovery deletion.
+
+R3 source status: OPT-005/OPT-006 helper selection and completed-record retention are implemented with regression source. Static checks alone do not close R3; compilation, regression execution, the full non-hardware gate and separately authorized live scenarios remain pending. OPT-007 retains the current chunk protocol with a user-selected 16 MiB bound; its validation and actual transport measurements remain pending.
 
 ## Validation and acceptance
 

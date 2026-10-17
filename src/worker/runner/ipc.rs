@@ -212,11 +212,19 @@ fn execute_inner(e: &Enrollment, request: Request) -> Result<serde_json::Value, 
     fs::create_dir_all(&audit).map_err(|e| e.to_string())?;
     crate::security::verify(&audit)?;
     let path = audit.join(format!("{}.json", request.nonce));
-    run_audited(
+    let result = run_audited(
         AuditRecord::admission(&request),
         |record| atomic_json(&path, record),
-        || execute_operation(e, request, data),
-    )
+        || execute_operation(e, request, data.clone()),
+    );
+    if result.is_ok() {
+        let _ = crate::diagnostics::run(
+            "completed-audit-retention",
+            "successful read records",
+            || super::audit::cleanup(&data, &path),
+        );
+    }
+    result
 }
 #[cfg(test)]
 mod read_tests {

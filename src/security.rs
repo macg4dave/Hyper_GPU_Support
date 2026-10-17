@@ -65,6 +65,43 @@ pub(crate) fn set_administrator_owner(path: &Path) -> Result<(), String> {
 pub(crate) fn verify(path: &Path) -> Result<(), String> {
     verify_owner(path, false)
 }
+/// Observe an entry without following a link, including dangling retention markers.
+pub(crate) fn entry_exists(path: &Path) -> Result<bool, String> {
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.to_string()),
+    }
+}
+/// Restrict cleanup/metadata leaves to protected regular files with one link.
+#[allow(unsafe_code)]
+pub(crate) fn verify_single_file(path: &Path) -> Result<(), String> {
+    use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
+    use windows::Win32::{
+        Foundation::HANDLE,
+        Storage::FileSystem::{BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle},
+    };
+    verify(path)?;
+    if !std::fs::symlink_metadata(path)
+        .map_err(|e| e.to_string())?
+        .is_file()
+    {
+        return Err("protected leaf is not a regular file".into());
+    }
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1)
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    let mut information = BY_HANDLE_FILE_INFORMATION::default();
+    // SAFETY: live owned file handle and writable fixed-size information structure.
+    unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut information) }
+        .map_err(|e| e.to_string())?;
+    if information.nNumberOfLinks != 1 {
+        return Err("protected hard link refused".into());
+    }
+    Ok(())
+}
 /// Windows destinations may be owned by TrustedInstaller as well as SYSTEM/admins.
 pub(crate) fn verify_system(path: &Path) -> Result<(), String> {
     verify_owner(path, true)

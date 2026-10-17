@@ -17,6 +17,7 @@ use std::{
 
 const MANIFEST_LIMIT: u64 = 32 * 1024 * 1024;
 mod os;
+pub(crate) mod staging;
 
 fn read_preparation_manifest(input: impl Read) -> Result<Manifest, String> {
     let mut bytes = Vec::new();
@@ -60,6 +61,8 @@ struct BridgeRequest<'a> {
     diagnostics: bool,
     verification: Option<String>,
     windows_11_builds: &'static [u32],
+    identity: Option<String>,
+    acknowledgements: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -88,6 +91,8 @@ struct BridgeResult {
     worker_exit: Option<i32>,
     #[serde(default)]
     transport_hresult: Option<i32>,
+    #[serde(default)]
+    cleaned: Vec<String>,
 }
 
 fn transport_script(module_literal: &str) -> String {
@@ -164,11 +169,27 @@ fn bridge(
                         .flat_map(|m| m.files.iter().map(|f| f.bytes)),
                 )
                 .collect();
-            let monitor = Arc::new(crate::guest_transfer::Monitor::for_operation(
-                sizes,
-                Instant::now(),
-                mode == "verify",
-            )?);
+            let monitor = Arc::new(
+                crate::guest_transfer::Monitor::for_operation(
+                    sizes,
+                    Instant::now(),
+                    mode == "verify",
+                )?
+                .select_helpers(artifacts.len())?,
+            );
+            let identity = manifest
+                .filter(|_| mode != "compatibility")
+                .map(|manifest| staging::register(t, manifest, mode))
+                .transpose()?;
+            // Cleanup availability never prevents the authorized product operation.
+            let acknowledgements = if mode == "compatibility" {
+                Vec::new()
+            } else {
+                crate::diagnostics::run("guest-staging-queue", "completed acknowledgements", || {
+                    staging::pending(&t.vm_id)
+                })
+                .unwrap_or_default()
+            };
             let request = BridgeRequest {
                 vm_id: &t.vm_id,
                 username: &credential.username,
@@ -176,18 +197,17 @@ fn bridge(
                 install,
                 mode,
                 manifest: manifest.filter(|_| mode == "prepare"),
-                digest: manifest
-                    .map(Manifest::digest)
-                    .transpose()?
-                    .map(|digest| {
-                        if mode == "verify" {
-                            format!("verify-{digest}")
-                        } else {
-                            digest
-                        }
-                    })
-                    .or_else(|| (mode == "compatibility").then(String::new))
-                    .ok_or("current manifest required for guest operation")?,
+                digest: identity
+                    .as_ref()
+                    .map(|i| i.bundle.clone())
+                    .unwrap_or_default(),
+                identity: identity
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()
+                    .map_err(|e| e.to_string())?,
+                acknowledgements: serde_json::to_string(&acknowledgements)
+                    .map_err(|e| e.to_string())?,
                 vendor: gpu.map_or(0, |g| g.vendor),
                 device: gpu.map_or(0, |g| g.device),
                 artifacts,
@@ -329,6 +349,13 @@ fn bridge(
                     }
                     .into_error()
                 })?;
+            }
+            if mode != "compatibility" {
+                let _ = crate::diagnostics::run(
+                    "guest-staging-retire",
+                    "guest cleanup readback",
+                    || staging::received(&acknowledgements, &reply.cleaned),
+                );
             }
             Ok(reply.output)
         },
@@ -520,13 +547,16 @@ fn worker_inner(
             serde_json::from_slice(&input).map_err(|_| "invalid verification input")?;
         request.target.validate()?;
         crate::guest_payload::validate(&request.manifest, &request.target.gpu_interface)?;
-        if bundle.file_name().and_then(|n| n.to_str())
-            != Some(format!("verify-{}", request.manifest.digest()?).as_str())
+        let identity = staging::guest_identity(bundle, mode, &request.manifest.digest()?)?;
+        if identity
+            .require_files(request.manifest.files.len())
+            .is_err()
         {
-            return Err("verification bundle identity mismatch".into());
+            return Err("verification file count mismatch".into());
         }
         let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
         let _lock = preparation_lock(root)?;
+        staging::cleanup_in_session(root, &identity);
         progress(crate::workflow::PreparationProgress::CheckingGuestFiles)?;
         let payload = crate::diagnostics::run(
             "guest-current-payload",
@@ -604,11 +634,11 @@ fn worker_inner(
         return Err("invalid preparation manifest".into());
     }
     let digest = manifest.digest()?;
-    if bundle.file_name().and_then(|n| n.to_str()) != Some(&digest) {
-        return Err("preparation bundle identity mismatch".into());
-    }
+    let identity = staging::guest_identity(bundle, mode, &digest)?;
+    identity.require_files(manifest.files.len())?;
     let windows = windows_paths::windows_directory().map_err(|e| e.to_string())?;
     let _lock = preparation_lock(root)?;
+    staging::cleanup_in_session(root, &identity);
     progress(crate::workflow::PreparationProgress::CheckingCopiedFiles)?;
     let mut destinations = std::collections::BTreeSet::new();
     for (index, file) in manifest.files.iter().enumerate() {
@@ -871,6 +901,9 @@ fn health() -> Result<(), String> {
 }
 
 #[cfg(test)]
+mod helper_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1096,7 +1129,7 @@ function Invoke-Command {
     }
 
     #[test]
-    fn stream_sender_uses_four_mib_chunks_exact_tails_and_stops_on_bad_ack() {
+    fn stream_sender_uses_configured_chunks_exact_tails_and_stops_on_bad_ack() {
         // Execute only the copy function against local temporary files. The
         // substitute never imports Hyper-V, opens a guest session or uses credentials.
         let script = transport_script("unused");
@@ -1104,10 +1137,10 @@ function Invoke-Command {
         let fixture = r#"
 function Invoke-Command {
     param($Session, [object[]]$ArgumentList, [scriptblock]$ScriptBlock)
-    $copying = $ArgumentList.Count -eq 2
+    $copying = $ArgumentList.Count -eq 3
     if ($copying) {
         if ($ArgumentList[0].Length -ne $ArgumentList[1]) { throw 'Padded chunk' }
-        if ($ArgumentList[0].Length -gt 4194304) { throw 'Oversized chunk' }
+        if ($ArgumentList[0].Length -gt $script:chunkBytes) { throw 'Oversized chunk' }
         $script:lengths.Add([int]$ArgumentList[1])
     }
     $result = & $ScriptBlock @ArgumentList
@@ -1117,7 +1150,7 @@ function Invoke-Command {
 $root = Join-Path ([IO.Path]::GetTempPath()) ('hypergpu-chunks-' + [guid]::NewGuid())
 [void][IO.Directory]::CreateDirectory($root)
 try {
-    foreach ($size in @(0, 37, 4194304, 4194341, 8388645)) {
+    foreach ($size in @(0, 37, 4194304, ($script:chunkBytes - 1), $script:chunkBytes, ($script:chunkBytes + 37), (2 * $script:chunkBytes + 37))) {
         $source = Join-Path $root 'source'
         $destination = Join-Path $root 'destination'
         $file = [IO.File]::Open($source, 'Create', 'Write')
@@ -1133,10 +1166,10 @@ try {
         $script:badAck = $false
         Copy-Logged $source $destination $size
         if ((Get-FileHash $source).Hash -ne (Get-FileHash $destination).Hash) { throw 'Copy mismatch' }
-        if ($script:lengths.Count -ne [Math]::Ceiling($size / 4194304.0)) { throw 'Wrong chunk count' }
+        if ($script:lengths.Count -ne [Math]::Ceiling($size / [double]$script:chunkBytes)) { throw 'Wrong chunk count' }
         if ($size -gt 0) {
-            $tail = $size % 4194304
-            if ($tail -eq 0) { $tail = 4194304 }
+            $tail = $size % $script:chunkBytes
+            if ($tail -eq 0) { $tail = $script:chunkBytes }
             if ($script:lengths[$script:lengths.Count - 1] -ne $tail) { throw 'Wrong tail size' }
         }
     }
@@ -1162,7 +1195,10 @@ Write-Output 'Chunk checks passed'
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            &format!("{definitions}\n{fixture}"),
+            &format!(
+                "{definitions}\n$script:chunkBytes = {}\n{fixture}",
+                crate::guest_transfer::CHUNK_BYTES
+            ),
         ]);
         let result =
             process::bounded_process_with_limit(command, Duration::from_secs(30), 1024 * 1024, &[])

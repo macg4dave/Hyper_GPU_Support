@@ -16,8 +16,17 @@ pub(super) fn execute(
     notify: impl FnMut(Progress) -> Result<(), String>,
     exchange: impl FnMut(&PreparedReview) -> Result<Authorization, String>,
 ) -> Result<Outcome, String> {
+    let staging_operation = match &request.command {
+        Command::Reconcile { operation_id, .. } | Command::SaveOnly { operation_id } => {
+            operation_id.as_str()
+        }
+        _ => session,
+    }
+    .to_owned();
     crate::diagnostics::run("worker-command", session, || {
-        execute_inner(enrollment, session, request, notify, exchange)
+        crate::guest::staging::scope(&staging_operation, || {
+            execute_inner(enrollment, session, request, notify, exchange)
+        })
     })
 }
 
@@ -293,7 +302,17 @@ fn execute_inner(
         && outcome.finished
     {
         if let Some(path) = recovery_path {
+            let terminal = runner::read_recovery_at(&path)?;
             runner::retire_recovery_at(&path, &outcome.operation_id)?;
+            // Cleanup bookkeeping cannot change a completed product outcome.
+            // Missing/failed acknowledgement leaves guest staging ineligible.
+            if let Some(terminal) = terminal {
+                let _ = crate::diagnostics::run(
+                    "staging-completion-acknowledgement",
+                    "terminal audit and retired recovery",
+                    || crate::guest::staging::acknowledge(&data, &terminal),
+                );
+            }
         } else {
             let path = if matches!(
                 operation_name,

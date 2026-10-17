@@ -2,6 +2,8 @@
 use super::protocol::{Operation, Request};
 use crate::model::Target;
 use serde::{Deserialize, Serialize};
+mod retention;
+pub(super) use retention::cleanup;
 
 #[derive(Serialize, Deserialize)]
 enum AuditOutcome {
@@ -12,6 +14,7 @@ enum AuditOutcome {
 // Deliberately excludes Request::credential, error text and response payloads.
 // Failures retain their full error in the authenticated reply, not persistent logs.
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct AuditRecord {
     schema: u32,
     nonce: String,
