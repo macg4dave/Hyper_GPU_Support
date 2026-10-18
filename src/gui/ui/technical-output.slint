@@ -12,6 +12,8 @@ export component TechnicalOutput inherits Rectangle {
     private property <bool> follow-tail: true;
     private property <length> held-y: 0px;
     private property <bool> keyboard-navigation: false;
+    private property <string> cursor-text;
+    private property <length> cursor-width;
     min-height: 160px;
     preferred-height: 160px;
     max-height: 220px;
@@ -48,6 +50,8 @@ export component TechnicalOutput inherits Rectangle {
             VerticalLayout {
                 padding: 12px;
                 viewport := ScrollView {
+                    horizontal-scrollbar-policy: always-off;
+                    mouse-drag-pan-enabled: false;
                     content-width: self.visible-width;
                     content-height: max(self.visible-height, output.preferred-height);
                     scrolled => {
@@ -63,6 +67,8 @@ export component TechnicalOutput inherits Rectangle {
                             : max(min(0px, root.held-y), self.visible-height - self.content-height);
                     }
                     output := TextInput {
+                        x: 0px; y: 0px;
+                        height: max(viewport.visible-height, self.preferred-height);
                         enabled: root.enabled;
                         accessible-label: UiText.diagnostics-read-only-accessible;
                         text: root.text;
@@ -79,9 +85,11 @@ export component TechnicalOutput inherits Rectangle {
                         selection-foreground-color: #ffffff;
                         page-height: viewport.visible-height;
                         cursor-position-changed(position) => {
-                            // Binding updates also move the cursor; only explicit navigation
-                            // may move a reader who is inspecting earlier output.
-                            if root.keyboard-navigation {
+                            // Text replacement and reflow also notify the cursor. Ignore
+                            // those notifications; follow-tail owns output-driven scrolling.
+                            // With unchanged text/width, pointer selection must reveal its
+                            // moving end just like keyboard selection.
+                            if root.keyboard-navigation || (self.text == root.cursor-text && self.width == root.cursor-width) {
                                 root.keyboard-navigation = false;
                                 if position.x + viewport.content-x < 0px {
                                     viewport.content-x = -position.x;
@@ -98,6 +106,8 @@ export component TechnicalOutput inherits Rectangle {
                                 root.held-y = viewport.content-y;
                                 root.follow-tail = viewport.content-y <= min(0px, viewport.visible-height - viewport.content-height) + 2px;
                             }
+                            root.cursor-text = self.text;
+                            root.cursor-width = self.width;
                         }
                     }
                 }

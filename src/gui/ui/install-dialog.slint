@@ -40,7 +40,8 @@ export component InstallDialog inherits Rectangle {
     in property <[InstallStep]> steps;
     in property <[InstallFact]> facts;
     private property <bool> technical: false;
-    changed kind => { root.technical = false; content.content-y = 0px; root.focus-safe(); }
+    private property <bool> follow-progress: true;
+    changed kind => { root.follow-progress = true; root.technical = false; content.content-y = 0px; root.focus-safe(); }
     changed review-preparing => { root.focus-safe(); }
     changed completed => {
         root.technical = false;
@@ -49,6 +50,13 @@ export component InstallDialog inherits Rectangle {
     }
     changed technical => {
         content.content-y = root.technical ? min(0px, content.visible-height - content.content-height) : 0px;
+    }
+    function follow-latest() {
+        if !root.completed && root.follow-progress {
+            content.content-y = min(0px, content.visible-height - content.content-height);
+        } else {
+            content.content-y = max(min(0px, content.content-y), content.visible-height - content.content-height);
+        }
     }
     callback close();
     callback action(string);
@@ -72,14 +80,22 @@ export component InstallDialog inherits Rectangle {
             phases: root.phases; active-phase: root.active-phase;
             VerticalLayout {
                 min-height: 0px; spacing: 16px;
+                Heading { text: root.title; min-width: 0px; wrap: word-wrap; overflow: clip; vertical-stretch: 0; }
                 content := ScrollView {
                     min-height: 0px; vertical-stretch: 1;
                     horizontal-scrollbar-policy: always-off;
                     content-width: self.visible-width;
+                    // Measure laid-out content, including repeated rows and the log.
+                    content-height: max(self.visible-height, content-end.y + content-end.height);
+                    changed content-height => { root.follow-latest(); }
+                    changed visible-height => { root.follow-latest(); }
+                    scrolled => {
+                        root.follow-progress = self.content-y <= min(0px, self.visible-height - self.content-height) + 2px;
+                    }
                     VerticalLayout {
+                        x: 0px; y: 0px; height: self.preferred-height;
                         width: content.visible-width;
                         padding-right: 4px; spacing: 16px; alignment: start;
-                        Heading { text: root.title; min-width: 0px; wrap: word-wrap; overflow: clip; }
                         Rectangle {
                             background: Theme.install-information;
                             border-radius: Theme.radius;
@@ -92,17 +108,10 @@ export component InstallDialog inherits Rectangle {
                         }
                         if root.completed : Label { text: root.body; min-width: 0px; wrap: word-wrap; overflow: clip; }
                         if !root.completed && root.guest-work : Hint { text: UiText.dialogs-install-windows-warning; min-width: 0px; }
-                        if !root.completed : Surface {
+                        if !root.completed && !root.technical : Surface {
                             background: transparent;
                             VerticalLayout {
                                 padding: 16px; spacing: 8px;
-                                Label { text: root.current-stage; min-width: 0px; wrap: word-wrap; overflow: clip; font-weight: 600; }
-                                HorizontalLayout {
-                                    spacing: 16px;
-                                    ProgressIndicator { indeterminate: root.transfer-fraction < 0; progress: max(0, root.transfer-fraction); height: 8px; horizontal-stretch: 1; }
-                                    if root.transfer-fraction >= 0 : Label { text: round(root.transfer-fraction * 100) + "%"; font-weight: 700; }
-                                }
-                                if root.transfer != "" : Hint { text: root.transfer; font-size: 13px; min-width: 0px; }
                                 if !root.technical : VerticalLayout {
                                     spacing: 10px; padding-top: 12px;
                                     for step in root.steps : HorizontalLayout {
@@ -130,8 +139,19 @@ export component InstallDialog inherits Rectangle {
                             }
                         }
                         if root.technical : DialogLog { text: root.details; }
-
+                        content-end := Rectangle { height: 0px; vertical-stretch: 0; }
                     }
+                }
+                // Live status stays outside both scrolling regions.
+                if !root.completed : VerticalLayout {
+                    vertical-stretch: 0; spacing: 8px;
+                    Label { text: root.current-stage; min-width: 0px; wrap: word-wrap; overflow: clip; font-weight: 600; }
+                    HorizontalLayout {
+                        spacing: 16px;
+                        ProgressIndicator { indeterminate: root.transfer-fraction < 0; progress: max(0, root.transfer-fraction); height: 8px; horizontal-stretch: 1; }
+                        if root.transfer-fraction >= 0 : Label { text: round(root.transfer-fraction * 100) + "%"; font-weight: 700; }
+                    }
+                    if root.transfer != "" : Hint { text: root.transfer; font-size: 13px; min-width: 0px; }
                 }
                 footer := ScrollView {
                     min-width: 0px; vertical-stretch: 0;

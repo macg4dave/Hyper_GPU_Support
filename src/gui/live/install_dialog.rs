@@ -11,6 +11,7 @@ struct Step {
     stage: String,
     label: String,
     status: i32,
+    log_slot: usize,
 }
 
 #[derive(Default)]
@@ -24,6 +25,8 @@ impl Progress {
     /// Append stages in first-observed execution order. A later execution of
     /// the same stage is a distinct row; completion never moves existing rows.
     pub fn record(&mut self, event: &Event, stage: &str, label: &str) {
+        let mut log_slot = None;
+        let mut failed_step = false;
         if event.reportable && !event.persistence && event.identity != Identity::Transfer {
             let active = self
                 .steps
@@ -41,27 +44,38 @@ impl Progress {
                     stage: stage.into(),
                     label: label.into(),
                     status: 1,
+                    log_slot: self.log.len(),
                 });
                 self.steps.len() - 1
             });
             let step = &mut self.steps[index];
+            log_slot = Some(step.log_slot);
             step.status = match event.status {
                 Status::Running => 1,
                 Status::Done if step.status != 3 => 2,
                 Status::Done | Status::Failed => 3,
             };
+            failed_step = step.status == 3;
         }
         if !event.reportable {
             return;
         }
-        let status = match event.status {
+        let status = match if failed_step { Status::Failed } else { event.status } {
             Status::Running => "In progress",
             Status::Done => ui_text::progress::status::COMPLETE,
             Status::Failed => ui_text::progress::status::FAILED,
         };
         let line = format!("{label} \u{00b7} {status}");
         let transfer = event.identity == Identity::Transfer && event.status == Status::Running;
-        if transfer && self.last_transfer {
+        if let Some(slot) = log_slot {
+            // A start and its terminal status describe one execution. A fresh
+            // start after completion creates a new step and a new log slot.
+            if slot < self.log.len() {
+                self.log[slot] = line;
+            } else {
+                self.log.push(line);
+            }
+        } else if transfer && self.last_transfer {
             if let Some(previous) = self.log.last_mut() {
                 *previous = line;
             }
@@ -446,6 +460,9 @@ mod tests {
             (2, 2, 3, 1)
         );
         assert!(progress.log.iter().all(|line| !line.starts_with("00:")));
+        assert_eq!(progress.log.len(), 6, "one line per actual execution");
+        assert!(progress.log[2].ends_with(ui_text::progress::status::FAILED));
+        assert!(progress.log[5].ends_with("In progress"));
     }
 
     #[test]

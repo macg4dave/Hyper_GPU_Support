@@ -26,6 +26,7 @@ export component VmDetails inherits Rectangle {
     in property <string> status;
     in property <bool> vm-unsupported;
     in property <bool> setup-required;
+    in property <bool> initial-setup-required;
     in property <bool> draft-valid;
     in property <string> observed;
     in property <string> desired;
@@ -34,6 +35,7 @@ export component VmDetails inherits Rectangle {
     in property <string> verification;
     in property <string> support-summary;
     in property <string> inventory-details;
+    in property <string> recovery-summary;
     in property <string> technical-details;
     in property <bool> dirty;
     in property <bool> eligible;
@@ -122,7 +124,7 @@ export component VmDetails inherits Rectangle {
                             enabled: !Theme.modal-active && root.verify-allowed && root.execution-ready && !root.updating;
                             clicked => { root.action("verify"); }
                         }
-                        Switch { enabled: !Theme.modal-active && (root.eligible && !root.recovery); text: UiText.dashboard-support-toggle-accessible; checked <=> root.gpu-enabled;  toggled => { root.edited(); } }
+                        Switch { enabled: !Theme.modal-active && root.eligible && !root.recovery && !root.initial-setup-required; text: UiText.dashboard-support-toggle-accessible; checked <=> root.gpu-enabled;  toggled => { if self.enabled { root.edited(); } } }
                         Hint { text: UiText.dashboard-gpu-label; }
                         ComboBox { enabled: !Theme.modal-active && root.eligible && !root.recovery && !root.gpu-selection-fixed; model: root.gpu-options; current-index <=> root.gpu-index;  selected => { root.edited(); } }
                         if root.gpu-selection-fixed : Hint { text: UiText.dashboard-gpu-fixed-hint; }
@@ -148,7 +150,7 @@ export component VmDetails inherits Rectangle {
                                 accessible-action-decrement => { self.changed(max(root.memory-position - 1, root.memory-minimum)); }
                                 minimum: root.memory-minimum; maximum: root.memory-maximum; step: 1;
                                 value: root.memory-position;
-                                enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery;
+                                enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery && !root.initial-setup-required;
                                 changed(value) => {
                                     if self.enabled && !root.presenting && round(value) != root.memory-position { root.memory-edited(round(value)); self.value = root.memory-position; }
                                 }
@@ -159,7 +161,7 @@ export component VmDetails inherits Rectangle {
                                 accessible-label: UiText.dashboard-memory-input-accessible;
                                 placeholder-text: UiText.dashboard-memory-unit;
                                 text: root.memory-input;
-                                enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery;
+                                enabled: !Theme.modal-active && root.memory-available && root.eligible && !root.recovery && !root.initial-setup-required;
                                 edited(text) => {
                                     if root.memory-text-acceptable(text) {
                                         root.accepted-memory-text = text;
@@ -183,7 +185,7 @@ export component VmDetails inherits Rectangle {
                         if root.dirty : Hint { text: root.pending; color: Theme.accent; }
                     }
                 }
-                if root.setup-required : Surface {
+                if root.setup-required || root.initial-setup-required : Surface {
                     VerticalLayout {
                         padding: 16px; spacing: 10px;
                         Label { text: UiText.dashboard-setup-title; font-weight: 600; }
@@ -195,7 +197,7 @@ export component VmDetails inherits Rectangle {
                     VerticalLayout { padding: 16px; spacing: 8px;
                         Label { text: root.vm-unsupported ? UiText.dashboard-eligibility-title : (UiText.dashboard-configuration-unavailable-title); font-weight: 600; }
                         Hint { text: root.vm-unsupported ? UiText.dashboard-eligibility-unsupported-body : (root.validation); }
-                        Button { enabled: !Theme.modal-active; text: UiText.dashboard-diagnostics-inspect-label; clicked => { root.action("diagnostics"); } }
+                        Button { enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { if self.enabled { root.action("recovery"); } } }
                     }
                 }
                 HorizontalLayout {
@@ -205,13 +207,19 @@ export component VmDetails inherits Rectangle {
                 if root.advanced-expanded : VerticalLayout {
                     spacing: 14px;
                     Hint { text: UiText.dashboard-memory-advanced-hint; }
-                    ResourceEditor { title: UiText.dashboard-memory-vram-label; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery; edited(index, value) => { root.edit-allocation(index, value); } }
+                    ResourceEditor { title: UiText.dashboard-memory-vram-label; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery && !root.initial-setup-required; edited(index, value) => { root.edit-allocation(index, value); } }
                 }
                 if root.validation != "" && !root.recovery : Hint { text: root.validation; color: Theme.accent; }
-                if root.technical-details != "" : Surface {
+                if root.selected-recovery || root.technical-details != "" || root.inventory-details != "" : Surface {
                     VerticalLayout {
                         padding: 16px; spacing: 10px;
-                        if root.selected-recovery : Button { text: UiText.dashboard-recovery-inspect; enabled: !Theme.modal-active; clicked => { root.action("recovery"); } }
+                        if root.selected-recovery : Hint { text: root.recovery-summary; color: Theme.accent; }
+                        Button {
+                            text: UiText.dashboard-recovery-inspect; enabled: !Theme.modal-active;
+                            property <int> restore-request: root.focus-return-serial;
+                            changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
+                            clicked => { if self.enabled { root.action("recovery"); } }
+                        }
                         HorizontalLayout {
                             TechnicalDetailsButton { enabled: !Theme.modal-active; expanded <=> root.technical; }
                             Rectangle { horizontal-stretch: 1; }
@@ -223,7 +231,7 @@ export component VmDetails inherits Rectangle {
             }
         }
         HorizontalLayout { spacing: 8px;
-            review := Button { enabled: !Theme.modal-active && (root.dirty && root.eligible && !root.recovery && root.draft-valid); text: UiText.dashboard-apply-label; primary: true;  clicked => { root.action("review"); } }
+            review := Button { enabled: !Theme.modal-active && root.dirty && root.eligible && !root.recovery && root.draft-valid && !root.initial-setup-required; text: UiText.dashboard-apply-label; primary: true;  clicked => { if self.enabled { root.action("review"); } } }
             Button { enabled: !Theme.modal-active && (root.dirty); text: UiText.dashboard-draft-discard-label;  clicked => { root.action("discard"); } }
             more-button := Button { enabled: !Theme.modal-active; text: UiText.dashboard-actions-more-label; clicked => { root.action("more"); } }
         }

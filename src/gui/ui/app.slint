@@ -55,6 +55,7 @@ export component AppWindow inherits Window {
     in-out property <string> status: UiText.common-state-unknown;
     in property <bool> vm-unsupported;
     in property <bool> setup-required;
+    in property <bool> initial-setup-required;
     in property <bool> draft-valid;
     in-out property <string> observed: UiText.dashboard-observation-unread;
     in-out property <string> desired: UiText.dashboard-saved-absent;
@@ -166,23 +167,7 @@ export component AppWindow inherits Window {
                                     enabled: !Theme.modal-active; text: UiText.dashboard-inventory-refresh; clicked => { root.action("refresh"); }
                                 } }
                                 Hint { text: UiText.dashboard-vm-list-count(root.vms.length); }
-                                if root.has-recovery : Surface {
-                                    VerticalLayout {
-                                        padding: 12px; spacing: 10px;
-                                        Label { text: UiText.dashboard-recovery-review-label; font-weight: 600; }
-                                        Hint { text: root.recovery-summary; color: Theme.accent; }
-                                        Button {
-                                            property <int> restore-request: root.focus-return-serial;
-                                            changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
-                                            enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { root.action("recovery"); }
-                                        }
-                                    }
-                                }
                                 if root.notice != "" : Hint { text: root.notice; color: Theme.accent; }
-                                if root.inventory-error != "" : HorizontalLayout {
-                                    Button { enabled: !Theme.modal-active; text: UiText.dashboard-diagnostics-inspect-label; clicked => { root.action("diagnostics"); } }
-                                    Rectangle { horizontal-stretch: 1; }
-                                }
                                 if root.vms.length == 0 && root.notice == "" && !root.updating : Hint { text: UiText.dashboard-vm-list-empty; }
                                 vm-list := ScrollView {
                                     accessible-role: list;
@@ -204,10 +189,11 @@ export component AppWindow inherits Window {
                             gpu-options: root.gpu-options;
                             name: root.vm-name; identity: root.selected-id; power: root.updating ? UiText.dashboard-inventory-updating : root.power; status: root.updating ? "" : root.status;
                             vm-unsupported: !root.updating && root.vm-unsupported; setup-required: !root.updating && root.setup-required; draft-valid: root.draft-valid;
+                            initial-setup-required: root.initial-setup-required;
                             observed: root.observed; desired: root.desired; verification: root.verification;
                             pending: root.pending; applied: root.applied;
                             support-summary: root.updating ? UiText.dashboard-inventory-updating-notice : root.support-summary;
-                            inventory-details: root.inventory-details;
+                            inventory-details: root.inventory-details; recovery-summary: root.recovery-summary;
                             technical-details: root.vm-details;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
                             selected-recovery: root.selected-recovery;
@@ -228,7 +214,10 @@ export component AppWindow inherits Window {
                         }
                         if root.selected-id == "" : Rectangle {
                             min-width: 610px;
-                            VerticalLayout { padding: 40px; spacing: 15px; Label { text: UiText.dashboard-workspace-title; font-size: 23px; } Hint { text: UiText.dashboard-workspace-body; } Rectangle { vertical-stretch: 1; } }
+                            VerticalLayout { padding: 40px; spacing: 15px; Label { text: UiText.dashboard-workspace-title; font-size: 23px; } Hint { text: UiText.dashboard-workspace-body; }
+                                if root.inventory-error != "" || root.has-recovery : Button { enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { if self.enabled { root.action("recovery"); } } }
+                                Rectangle { vertical-stretch: 1; }
+                            }
                         }
                     }
                 }

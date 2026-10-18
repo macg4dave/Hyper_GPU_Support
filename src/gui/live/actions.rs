@@ -4,7 +4,7 @@ use super::{
     apply::save_only_live,
     credentials::review_credentials,
     presentation::present,
-    recovery::{review_records, start_recovery},
+    recovery::{continue_recovery, review_records, start_recovery},
     refresh::refresh,
     review::{review, review_operation},
     source::Source,
@@ -166,6 +166,7 @@ pub(super) fn register(
             },
             "credentials" => review_credentials(&ui, &action_state, &action_busy, &action_source),
             "recovery" => start_recovery(&ui, &action_state, &action_busy, &action_source),
+            "reconcile" if ui.get_dialog_kind() == "recovery" => continue_recovery(&ui, &action_state, &action_busy, &action_source),
             "diagnostics" => {
                 with_state(&ui, &action_state, |state| review_records(&ui, state, false)); Ok(())
             }

@@ -3,6 +3,22 @@ use super::State;
 use hyper_gpu_support::{gui_model::Inventory, model::Target};
 
 impl State {
+    /// Editing is available after completed setup for this exact VM/GPU pair.
+    /// Enrollment or a host attachment alone does not establish guest setup.
+    pub fn initial_setup_required(&self, id: &str) -> bool {
+        let Ok(target) = self.target(id) else {
+            return true;
+        };
+        !self.view.inventory.as_ref().is_some_and(|inventory| {
+            inventory.managed.get(id).and_then(Option::as_ref).is_some_and(|journal| {
+                journal.vm_id == target.vm_id
+                    && journal.gpu_interface == target.gpu_interface
+                    && journal.prepared.is_some()
+                    && journal.last_verified.is_some()
+            })
+        })
+    }
+
     /// A snapshot supplies a proposal revision only; privileged enrollment still
     /// authenticates current artifacts/policy and rejects stale authority.
     pub fn permission_review(

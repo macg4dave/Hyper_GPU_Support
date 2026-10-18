@@ -668,16 +668,7 @@ fn worker_inner(
         }
     }
     progress(crate::workflow::PreparationProgress::CheckingInstalledFiles)?;
-    for file in &manifest.files {
-        let target = windows.join(&file.destination);
-        payload::no_reparse(&target)?;
-        crate::security::verify_system(&target)?;
-        if fs::metadata(&target).map_err(|e| e.to_string())?.len() != file.bytes
-            || payload::hash_file(&target)? != file.sha256
-        {
-            return Err("installed driver file verification failed".into());
-        }
-    }
+    crate::guest_payload::check_installed(&manifest, &windows)?;
     let receipt = Receipt {
         digest,
         machine_guid: machine_guid()?,

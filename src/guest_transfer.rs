@@ -12,7 +12,7 @@ const FILE_LIMIT: Duration = Duration::from_secs(300);
 const IDLE_LIMIT: Duration = Duration::from_secs(60);
 const GAP_LIMIT: Duration = Duration::from_secs(240);
 /// Fixed maximum transfer chunk, also injected into the PowerShell sender.
-pub(crate) const CHUNK_BYTES: u64 = 16 * 1024 * 1024;
+pub(crate) const CHUNK_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Progress {

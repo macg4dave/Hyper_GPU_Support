@@ -96,12 +96,13 @@ fn memory_accessibility_uses_gb_for_values_ranges_and_actions_and_obeys_editing_
     // Recovery, unsupported/unavailable editing, presentation and modals all
     // suppress actions even if an assistive client invokes a disabled control.
     ui.set_memory_position(60);
-    for guard in 0..5 {
+    for guard in 0..6 {
         ui.set_recovery(guard == 0);
         ui.set_eligible(guard != 1);
         ui.set_memory_available(guard != 2);
         ui.set_presenting(guard == 3);
         ui.set_dialog_kind(if guard == 4 { "more" } else { "" }.into());
+        ui.set_initial_setup_required(guard == 5);
         slint::platform::update_timers_and_animations();
         let slider = memory_slider(&ui);
         assert_eq!(number(&slider, Value), 6.0);

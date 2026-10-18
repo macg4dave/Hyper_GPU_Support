@@ -80,17 +80,9 @@ fn compare(
     manifest: &Manifest,
     machine: &str,
     receipt: Result<Option<Receipt>, String>,
-    mut observe: impl FnMut(&CopyFile) -> Result<Option<(u64, String)>, String>,
+    observe: impl FnMut(&CopyFile) -> Result<Option<(u64, String)>, String>,
 ) -> Result<Receipt, String> {
-    for file in &manifest.files {
-        match observe(file)? {
-            None => return Err(failure(Component::GuestPayload, FailureCause::FileMissing)),
-            Some((bytes, hash)) if bytes != file.bytes || hash != file.sha256 => {
-                return Err(failure(Component::GuestPayload, FailureCause::FileChanged));
-            }
-            _ => {}
-        }
-    }
+    compare_files(manifest, observe)?;
     let digest = manifest.digest()?;
     let receipt =
         receipt?.ok_or_else(|| failure(Component::GuestReceipt, FailureCause::ReadbackMismatch))?;
@@ -105,6 +97,22 @@ fn compare(
         ));
     }
     Ok(receipt)
+}
+
+fn compare_files(
+    manifest: &Manifest,
+    mut observe: impl FnMut(&CopyFile) -> Result<Option<(u64, String)>, String>,
+) -> Result<(), String> {
+    for file in &manifest.files {
+        match observe(file)? {
+            None => return Err(failure(Component::GuestPayload, FailureCause::FileMissing)),
+            Some((bytes, hash)) if bytes != file.bytes || hash != file.sha256 => {
+                return Err(failure(Component::GuestPayload, FailureCause::FileChanged));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn deadline_check(deadline: Instant) -> Result<(), String> {
@@ -124,7 +132,21 @@ pub(super) fn check(
 ) -> Result<Receipt, String> {
     let deadline = Instant::now() + Duration::from_secs(300);
     let receipt = read_receipt(receipt_path);
-    compare(manifest, machine, receipt, |file| {
+    compare(manifest, machine, receipt, |file| observe_file(file, windows, deadline))
+}
+
+/// Independently authenticate installed destinations before publishing a setup
+/// receipt. Share Verify's locked reads, bounded hashing and typed failures.
+pub(super) fn check_installed(manifest: &Manifest, windows: &Path) -> Result<(), String> {
+    let deadline = Instant::now() + Duration::from_secs(300);
+    compare_files(manifest, |file| observe_file(file, windows, deadline))
+}
+
+fn observe_file(
+    file: &CopyFile,
+    windows: &Path,
+    deadline: Instant,
+) -> Result<Option<(u64, String)>, String> {
         use std::os::windows::fs::OpenOptionsExt;
         deadline_check(deadline)?;
         let path = windows.join(&file.destination);
@@ -178,7 +200,6 @@ pub(super) fn check(
                 .map(|byte| format!("{byte:02x}"))
                 .collect(),
         )))
-    })
 }
 
 fn read_receipt(path: &Path) -> Result<Option<Receipt>, String> {

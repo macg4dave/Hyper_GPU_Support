@@ -12,9 +12,23 @@ use crate::gui::{AppWindow, dialog, live_state::State, set_details, wording};
 use slint::ComponentHandle;
 use std::sync::{Arc, atomic::AtomicBool};
 
-/// Only an explicit foreground action enters recovery. Refresh and result
-/// publication never call this; reconciliation never replays Apply.
+/// Open a dismissible inspection before any protected recovery action.
 pub(super) fn start_recovery(
+    ui: &AppWindow,
+    state: &SharedState,
+    _busy: &Arc<AtomicBool>,
+    _source: &super::source::Source,
+) -> Result<(), String> {
+    review_records(
+        ui,
+        &mut *state.lock().map_err(|_| "Presentation state unavailable")?,
+        true,
+    )
+}
+
+/// Only the inspection's explicit continuation enters protected recovery.
+/// Refresh and result publication never call this; reconciliation never replays Apply.
+pub(super) fn continue_recovery(
     ui: &AppWindow,
     state: &SharedState,
     busy: &Arc<AtomicBool>,
@@ -24,10 +38,15 @@ pub(super) fn start_recovery(
     {
         let (permission, import, save, operation) = {
             let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+            let selected = ui.get_selected_id();
+            if ui.get_recovery_vm_id() != selected {
+                return Err("The inspected VM changed. Close this view and check its recorded outcome again.".into());
+            }
+            let record = state.recovery_for_vm(selected.as_str());
             (
                 state.enrollment_recovery.is_some(),
                 state.import_recovery.is_some(),
-                state.recovery.as_ref().is_some_and(|record| {
+                record.is_some_and(|record| {
                     record.publication_required
                         && matches!(
                             record.phase,
@@ -35,7 +54,7 @@ pub(super) fn start_recovery(
                                 | hyper_gpu_support::configuration_store::SavePhase::Published(_)
                         )
                 }),
-                state.recovery.is_some(),
+                record.is_some(),
             )
         };
         if permission {
@@ -88,6 +107,7 @@ pub(super) fn review_records(
             )
             .into_string(),
         );
+        set_details(ui, &crate::gui::diagnostics::selected_vm_details(state));
         return Ok(());
     }
     let selected = crate::gui::diagnostics::selected_vm_details(state);
@@ -99,11 +119,16 @@ pub(super) fn review_records(
         .collect::<Vec<_>>()
         .join("\n\n");
     let provenance = hyper_gpu_support::ui_text::operations::inventory::PROVENANCE;
+    let can_continue = recovery
+        && (state.recovery_for_vm(ui.get_selected_id().as_str()).is_some()
+            || state.enrollment_recovery.is_some());
     dialog(
         ui,
-        "info",
+        if can_continue { "recovery" } else { "info" },
         hyper_gpu_support::ui_text::operations::inventory::DETAILS_TITLE,
-        &if !failure.is_empty() {
+        &if can_continue {
+            hyper_gpu_support::ui_text::operations::recovery::inspection::BODY.to_owned()
+        } else if !failure.is_empty() {
             failure.to_string()
         } else if state.view.inventory.is_none() {
             hyper_gpu_support::ui_text::operations::inventory::INITIAL_NOTICE.to_owned()
@@ -114,6 +139,10 @@ pub(super) fn review_records(
         },
     );
     set_details(ui, &body);
+    if can_continue {
+        ui.set_recovery_vm_id(ui.get_selected_id());
+        ui.set_recovery_heading(ui.get_vm_name());
+    }
     Ok(())
 }
 
@@ -126,8 +155,8 @@ pub(super) fn reconcile_live(
     let record = state
         .lock()
         .map_err(|_| "Presentation state unavailable")?
-        .recovery
-        .clone()
+        .recovery_for_vm(ui.get_selected_id().as_str())
+        .cloned()
         .ok_or("No reviewed operation recovery is loaded")?;
     let progress = progress_to_ui(ui.as_weak());
     let finished_state = state.clone();
@@ -244,6 +273,13 @@ pub(super) fn reconcile_live(
                         .into(),
                     );
                 }
+            }
+            // Keep the newly observed diagnostics in the same terminal result,
+            // including blocked/unknown outcomes, without another foreground action.
+            if let Ok(state) = finished_state.lock() {
+                let details = crate::gui::diagnostics::selected_vm_details(&state);
+                let log = ui.get_dialog_details();
+                set_details(ui, &format!("{log}\n\n{details}"));
             }
         },
     );

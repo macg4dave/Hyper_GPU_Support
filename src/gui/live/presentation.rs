@@ -234,6 +234,7 @@ fn vm_has_issue(state: &State, id: &str) -> bool {
 
 pub(super) fn present_actions(ui: &AppWindow, state: &State) {
     let selected = ui.get_selected_id();
+    ui.set_initial_setup_required(state.initial_setup_required(selected.as_str()));
     // Enrollment and retained driver receipts do not establish host attachment.
     ui.set_setup_required(
         !state.observation_historical(selected.as_str())

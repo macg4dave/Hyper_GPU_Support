@@ -179,6 +179,7 @@ export component OperationDialog inherits Rectangle {
 
                         if root.details != "" && root.details != root.body : TechnicalDetailsButton { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } expanded <=> root.technical; }
                         Rectangle { horizontal-stretch: 1; }
+                        if root.kind == "recovery" : Button { text: UiText.operations-recovery-inspection-continue-label; enabled: !root.running && !root.updating && root.execution-ready; clicked => { if self.enabled { root.action("reconcile"); } } }
                         if root.kind == "switch" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-switch-discard-label; clicked => { if self.enabled { root.action("switch"); } } }
                         if root.kind == "switch" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-switch-review-label; primary: true; clicked => { if self.enabled { root.action("review"); } } }
                         if root.kind == "exit" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-exit-discard-label; clicked => { if self.enabled { root.action("exit"); } } }

@@ -2080,3 +2080,25 @@ consequences = "Presentation never substitutes for fresh protected admission or 
 severity = "information"
 space_hint = "Review wrapping, keyboard access and minimum-size layout."
 placeholders = []
+[messages."operations.recovery.inspection.body"]
+text = "Inspect the recorded operation and diagnostics in Technical Details. Check current outcome independently reads the recorded result and may perform the recorded recovery's guest checks and power transitions. It does not repeat Apply. Uncertain results retain recovery. Close returns to the VM without making changes."
+screen = "Recorded outcome dialog"
+state = "Recorded operation available for explicit recovery"
+audience = "operator"
+intent = "Explain inspection and the separate recovery continuation."
+consequences = "Inspection performs no checks or effects; continuation uses the existing protected recovery path."
+severity = "information"
+space_hint = "Wrapping dialog body above inline actions."
+placeholders = []
+
+[messages."operations.recovery.inspection.continue_label"]
+text = "Check current outcome"
+screen = "Recorded outcome dialog"
+state = "Explicit recovery continuation"
+audience = "operator"
+intent = "Request the existing protected recovery check after inspection."
+consequences = "May perform recorded guest checks and power transitions; uncertain results retain recovery."
+severity = "information"
+space_hint = "Inline dialog button."
+placeholders = []
+
