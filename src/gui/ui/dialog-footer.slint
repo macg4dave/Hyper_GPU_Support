@@ -1,6 +1,6 @@
 import { UiText } from "ui-text.slint";
 import { Button, ScrollView } from "std-widgets.slint";
-import { TechnicalDetailsButton } from "theme.slint";
+import { Theme, TechnicalDetailsButton } from "theme.slint";
 
 struct DialogAction { label: string, action: string, enabled: bool, primary: bool }
 
@@ -19,6 +19,7 @@ export component DialogFooter inherits ScrollView {
     in property <bool> dirty;
     in property <bool> repair-allowed;
     in property <bool> forget-allowed;
+    in property <bool> reset-allowed;
     in property <bool> has-details;
     in-out property <bool> technical;
     callback action(string);
@@ -26,6 +27,10 @@ export component DialogFooter inherits ScrollView {
     private property <DialogAction> repair-action: {
         action: "repair", label: UiText.dialogs-repair-review-label,
         enabled: root.execution-ready && !root.updating && root.repair-allowed, primary: false
+    };
+    private property <DialogAction> reset-action: {
+        action: "review-reset", label: UiText.dialogs-partial-removal-review-label,
+        enabled: root.reset-allowed && root.execution-ready && !root.running && !root.updating, primary: false
     };
     private property <[DialogAction]> choices:
         root.kind == "switch" ? [
@@ -47,12 +52,13 @@ export component DialogFooter inherits ScrollView {
               enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-allowed), primary: false }
         ] : !root.operation && root.kind == "recovery" ? [
             { action: "reconcile", label: UiText.operations-recovery-inspection-continue-label,
-              enabled: !root.running && !root.updating && root.execution-ready, primary: false }
+              enabled: !root.running && !root.updating && root.execution-ready, primary: false },
+            root.reset-action
         ] : !root.operation && root.kind == "recovery-needed" ? [
             { action: "recovery", label: UiText.dialogs-recovery-review-label, enabled: !root.running, primary: true }
         ] : !root.operation && root.kind == "recovery-blocked" ? [
             { action: "forget-recovery-profile", label: UiText.dialogs-profile-deletion-label, enabled: !root.running && !root.updating, primary: false },
-            { action: "refresh", label: UiText.dialogs-status-retry-label, enabled: !root.updating, primary: false }
+            root.reset-allowed ? root.reset-action : { action: "refresh", label: UiText.dialogs-status-retry-label, enabled: !root.updating, primary: false }
         ] : !root.operation && root.kind == "status-error" ? [
             { action: "refresh", label: UiText.dialogs-status-retry-label, enabled: !root.updating, primary: false }
         ] : !root.operation && root.kind == "recovery-ended" ? [root.repair-action] : [];
@@ -79,6 +85,8 @@ export component DialogFooter inherits ScrollView {
         x: 0px; y: 0px; width: root.content-width; height: self.preferred-height;
         spacing: 12px; vertical-stretch: 0;
         if !root.operation && root.has-details : TechnicalDetailsButton {
+            min-width: root.kind == "recovery" || root.kind == "recovery-blocked" ? 140px : Theme.technical-button-width;
+            max-width: self.min-width; preferred-width: self.min-width;
             changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
             expanded <=> root.technical;
         }
@@ -115,7 +123,7 @@ export component DialogFooter inherits ScrollView {
                 : root.running ? UiText.dialogs-busy-label : root.kind == "switch" ? UiText.dialogs-switch-stay-label : root.kind == "exit" ? UiText.dialogs-draft-keep-label : UiText.dialogs-close-label;
             enabled: root.review-preparing || (root.operation ? root.completed && !root.running : !root.running);
             primary: root.operation ? root.completed : root.kind == "info" || root.kind == "error";
-            min-width: root.operation && !root.completed ? 160px : 120px;
+            min-width: root.operation && !root.completed ? 160px : root.kind == "recovery" || root.kind == "recovery-blocked" ? 100px : 120px;
             clicked => { if self.enabled { root.action("close"); } }
         }
     }

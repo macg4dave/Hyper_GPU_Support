@@ -21,13 +21,16 @@ pub(super) fn partial_removal_candidate(
     ),
     String,
 > {
-    if state.view.needs_readback {
+    let record = state
+        .recovery
+        .as_ref()
+        .ok_or("No interrupted GPU setup is recorded for this VM.")?;
+    if state.observation_historical(&record.target.vm_id) {
         return Err(
             "Current VM status is unavailable. Retry the status update before reviewing removal."
                 .into(),
         );
     }
-    let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
     if matches!(
         record.phase,
         hyper_gpu_support::configuration_store::SavePhase::Admitted
@@ -129,4 +132,109 @@ pub(super) fn review_reset(
             }
         },
     )
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+    use hyper_gpu_support::{
+        configuration_store::{Revision, SavePhase, SaveRecord},
+        model::{Configuration, Power, Settings, VmState},
+        observation::{Mode, Provenance},
+    };
+
+    #[test]
+    fn completion_for_another_vm_cannot_offer_removal_from_a_historical_recovery_row() {
+        let target = Configuration::parse(include_str!(
+            "../../../config/samples/vms/a5801e91-1083-4e79-a803-000000000001.toml"
+        ))
+        .unwrap()
+        .targets
+        .remove(0);
+        let initial = VmState {
+            vm_id: target.vm_id.clone(),
+            name: "Recovery VM".into(),
+            power: Power::Off,
+            generation: 2,
+            gpus: vec![],
+            settings: Settings {
+                low_mmio: 0,
+                high_mmio: 0,
+                cache_types: false,
+                automatic_checkpoints: true,
+            },
+            vram: None,
+            compute: None,
+            encode: None,
+            decode: None,
+        };
+        let mut state = State::default();
+        state.recovery = Some(SaveRecord {
+            reset: None,
+            retirement: None,
+            schema: 1,
+            operation_id: "0123456789abcdef0123456789abcdef".into(),
+            target: target.clone(),
+            expected: Revision::Missing,
+            driver_version: "fixture".into(),
+            payload_digest: Some("fixture payload".into()),
+            plan_revision: Revision::of(b"fixture plan"),
+            intended_source: Configuration {
+                schema: 2,
+                targets: vec![target.clone()],
+            }
+            .vm_documents()
+            .unwrap()
+            .into_values()
+            .next()
+            .unwrap(),
+            publication_required: true,
+            expected_power: Some(Power::Off),
+            graphics_required: Some(true),
+            initial_journal: None,
+            expected_settings: initial.settings.for_gpu(),
+            initial,
+            phase: SavePhase::EffectsStarted,
+        });
+        let mut other = target.clone();
+        other.vm_id = "a5801e91-1083-4e79-a803-000000000002".into();
+        let unavailable =
+            "Current VM status is unavailable. Retry the status update before reviewing removal.";
+        for (mode, selected, historical) in [
+            (Mode::Completion, Some(other), true),
+            (Mode::Completion, None, true),
+            (Mode::Completion, Some(target), false),
+            (Mode::Full, None, false),
+            (Mode::Poll, None, false),
+        ] {
+            state.observation = Some(Provenance {
+                schema: 1,
+                authority: Revision::of(b"fixture authority"),
+                configuration: Revision::of(b"fixture configuration"),
+                mode,
+                selected,
+            });
+            assert!(!state.view.needs_readback);
+            let before = state.recovery.clone();
+            // No inventory is needed to reject an older VM's row. Fresh scope
+            // continues to the existing inventory requirement instead.
+            let error = partial_removal_candidate(&state).unwrap_err();
+            assert_eq!(
+                error,
+                if historical {
+                    unavailable
+                } else {
+                    "Refresh inventory first"
+                }
+            );
+            assert_eq!(state.recovery, before);
+        }
+        state.view.needs_readback = true;
+        assert_eq!(partial_removal_candidate(&state).unwrap_err(), unavailable);
+        state.recovery = None;
+        assert_eq!(
+            partial_removal_candidate(&state).unwrap_err(),
+            "No interrupted GPU setup is recorded for this VM."
+        );
+    }
 }

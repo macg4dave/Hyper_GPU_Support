@@ -179,6 +179,11 @@ fn shared_dialog_footer_keeps_domain_actions_and_disabled_guards() {
             operations::recovery::inspection::CONTINUE_LABEL,
             "reconcile",
         ),
+        (
+            "recovery",
+            dialogs::partial_removal::REVIEW_LABEL,
+            "review-reset",
+        ),
         ("switch", dialogs::switch::REVIEW_LABEL, "review"),
         ("save", operations::save_only::PROGRESS_TITLE, "save-only"),
         ("reset-complete", dialogs::repair::REVIEW_LABEL, "repair"),
@@ -197,6 +202,12 @@ fn shared_dialog_footer_keeps_domain_actions_and_disabled_guards() {
             dialogs::profile_deletion::LABEL,
             "forget-recovery-profile",
         ),
+        (
+            "recovery-blocked",
+            dialogs::partial_removal::REVIEW_LABEL,
+            "review-reset",
+        ),
+        ("status-error", dialogs::status::RETRY_LABEL, "refresh"),
     ] {
         ui.set_dialog_kind("".into());
         ui.set_running(false);
@@ -205,6 +216,7 @@ fn shared_dialog_footer_keeps_domain_actions_and_disabled_guards() {
         ui.set_execution_ready(true);
         ui.set_repair_allowed(true);
         ui.set_forget_allowed(true);
+        ui.set_reset_allowed(true);
         ui.set_action_recovery(kind == "operation-error");
         ui.set_dialog_title("Selected action".into());
         ui.set_dialog_kind(kind.into());
@@ -212,6 +224,42 @@ fn shared_dialog_footer_keeps_domain_actions_and_disabled_guards() {
         actions.borrow_mut().clear();
         control(&ui, label).accessible_action(&AccessibilityAction::Default);
         assert_eq!(&*actions.borrow(), &[expected], "{kind}");
+        if expected == "review-reset" {
+            for guard in 0..if kind == "recovery-blocked" { 3 } else { 4 } {
+                ui.set_updating(guard == 0);
+                ui.set_running(guard == 1);
+                ui.set_execution_ready(guard != 2);
+                ui.set_reset_allowed(guard != 3);
+                draw(&window);
+                actions.borrow_mut().clear();
+                control(&ui, label).accessible_action(&AccessibilityAction::Default);
+                assert!(
+                    actions.borrow().is_empty(),
+                    "partial removal guard {guard}: {kind}"
+                );
+            }
+            if kind == "recovery-blocked" {
+                ui.set_updating(false);
+                ui.set_running(false);
+                ui.set_execution_ready(true);
+                ui.set_reset_allowed(false);
+                draw(&window);
+                let root = ItemRc::new_root(WindowInner::from_pub(ui.window()).component());
+                root.visit_descendants::<()>(|item| {
+                    assert_ne!(
+                        item.accessible_string_property(AccessibleStringProperty::Label)
+                            .as_deref(),
+                        Some(dialogs::partial_removal::REVIEW_LABEL),
+                        "unavailable restoration is replaced by the status retry"
+                    );
+                    ControlFlow::Continue(())
+                });
+                actions.borrow_mut().clear();
+                control(&ui, dialogs::status::RETRY_LABEL)
+                    .accessible_action(&AccessibilityAction::Default);
+                assert_eq!(&*actions.borrow(), &["refresh"]);
+            }
+        }
         if kind == "save" {
             ui.set_updating(true);
             draw(&window);
@@ -760,7 +808,10 @@ fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
                 hyper_gpu_support::ui_text::dashboard::apply::label().as_str(),
             );
             let top = actions.map_to_window(actions.geometry().origin).y;
-            assert!(actions.is_visible(), "fixed actions remain visible after scrolling");
+            assert!(
+                actions.is_visible(),
+                "fixed actions remain visible after scrolling"
+            );
             assert!(top >= 0. && top + actions.geometry().height() <= height);
         }
     }
@@ -1021,11 +1072,19 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
                 ],
             ),
             (
+                "recovery",
+                vec![
+                    dialogs::close::LABEL,
+                    hyper_gpu_support::ui_text::operations::recovery::inspection::CONTINUE_LABEL,
+                    dialogs::partial_removal::REVIEW_LABEL,
+                ],
+            ),
+            (
                 "recovery-blocked",
                 vec![
                     dialogs::close::LABEL,
                     dialogs::profile_deletion::LABEL,
-                    dialogs::status::RETRY_LABEL,
+                    dialogs::partial_removal::REVIEW_LABEL,
                 ],
             ),
         ] {
@@ -1057,11 +1116,37 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
                         "non-overlapping actions: {kind}"
                     );
                     assert!(origin.y >= 0. && origin.y + geometry.height() <= height);
+                    if matches!(kind, "recovery" | "recovery-blocked") {
+                        let panel_left = (width - 660_f32.min(width - 40.)) / 2.;
+                        assert!(
+                            origin.x >= panel_left + 24.
+                                && origin.x + geometry.width() <= width - panel_left - 24.,
+                            "complete recovery action stays inside footer viewport: {kind}, {label}, {origin:?}, {geometry:?}"
+                        );
+                    }
                     if let Some(y) = row_y {
                         assert!((origin.y - y).abs() < 1., "single footer row: {kind}");
                     }
                     row_y = Some(origin.y);
                     previous_right = origin.x + geometry.width();
+                }
+                retain_render(&format!("footer-{kind}-{theme}-{width}x{height}"));
+                if matches!(kind, "recovery" | "recovery-blocked") {
+                    control(&ui, diagnostics::SHOW_LABEL)
+                        .accessible_action(&AccessibilityAction::Default);
+                    draw(&window);
+                    let hide = control(&ui, diagnostics::HIDE_LABEL);
+                    let geometry = hide.geometry();
+                    let origin = hide.map_to_window(geometry.origin);
+                    let panel_left = (width - 660_f32.min(width - 40.)) / 2.;
+                    assert!(
+                        origin.x >= panel_left + 24.
+                            && origin.x + geometry.width() <= width - panel_left - 24.,
+                        "expanded details action stays inside recovery footer viewport"
+                    );
+                    retain_render(&format!("footer-{kind}-{theme}-{width}x{height}-expanded"));
+                    hide.accessible_action(&AccessibilityAction::Default);
+                    draw(&window);
                 }
             }
         }

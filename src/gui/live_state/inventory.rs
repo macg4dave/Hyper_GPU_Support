@@ -30,10 +30,11 @@ impl State {
         target: &Target,
         operator: String,
     ) -> Result<Option<hyper_gpu_support::enrollment::PairReview>, String> {
+        self.editor_eligibility(&target.vm_id)?;
+        self.view.proposal_eligibility(target)?;
         let Some(observation) = &self.observation else {
             return Ok(None);
         };
-        self.editor_eligibility(&target.vm_id)?;
         if self.observation_historical(&target.vm_id) {
             return Err("Inventory is historical. Refresh before requesting permissions.".into());
         }

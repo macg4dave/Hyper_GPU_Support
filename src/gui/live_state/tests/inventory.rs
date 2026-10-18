@@ -93,6 +93,11 @@ fn permission_proposals_use_the_observed_revision_and_reject_duplicate_stale_or_
             .is_none(),
         "first install retains artifact preparation"
     );
+    s.view.needs_readback = true;
+    assert!(s.permission_review(&target, "operator".into()).is_err());
+    s.view.needs_readback = false;
+    s.recovery = Some(save_record(&s));
+    assert!(s.permission_review(&target, "operator".into()).is_err());
 }
 
 #[test]

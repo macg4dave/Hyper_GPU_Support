@@ -14,6 +14,7 @@ Windows-version checking is deferred. GPU installation, driver refresh and Repai
 - First GPU setup manages preparation and VM power, explains guest credentials before the local prompt, verifies GPU operation with a pass/fail result, then leaves the VM off after completed setup.
 - Later toggle/VRAM changes prepare and apply directly without repeating unnecessary setup or initial verification.
 - Remembering guest credentials is optional. Saved settings, current observations, drafts, and failures stay truthful.
+- Setup refreshes permissions and VM status automatically. A failed operation keeps its original error and shows independently refreshed power/recovery facts when available; retrying the status update is necessary only when that read fails. An uncertain operation is never repeated automatically.
 
 The VRAM range does not establish enforced isolation. Automatic balancing and full-capacity warnings are outside current scope.
 

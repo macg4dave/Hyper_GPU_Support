@@ -97,6 +97,10 @@ export component OperationDialog inherits Rectangle {
                                 Hint { text: root.body; color: Theme.text; font-size: 14px; min-width: 0px; wrap: word-wrap; overflow: clip; }
                             }
                         }
+                        if root.kind == "recovery" || root.kind == "recovery-blocked" : Hint {
+                            text: root.updating ? UiText.dialogs-partial-removal-checking : root.reset-allowed ? UiText.dialogs-partial-removal-available : root.reset-unavailable;
+                            min-width: 0px;
+                        }
                         if root.kind == "more" : VerticalLayout {
                             spacing: 12px;
                             ActionChoice { label: UiText.operations-verify-title; reason: root.verify-unavailable; allowed: root.verify-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
@@ -158,6 +162,7 @@ export component OperationDialog inherits Rectangle {
                     updating: root.updating; execution-ready: root.execution-ready;
                     action-recovery: root.action-recovery; dirty: root.dirty;
                     repair-allowed: root.repair-allowed; forget-allowed: root.forget-allowed;
+                    reset-allowed: root.reset-allowed;
                     technical <=> root.technical;
                     has-details: root.details != "" && root.details != root.body;
                     action(value) => { root.action(value); }

@@ -74,6 +74,33 @@ enum Command {
         artifacts: BTreeMap<String, String>,
     },
 }
+
+impl Command {
+    fn validate_review(
+        &self,
+        operator: &str,
+        current_artifacts: &BTreeMap<String, String>,
+    ) -> Result<(), String> {
+        if let Self::Install {
+            approved,
+            artifacts,
+        }
+        | Self::Resume {
+            approved,
+            artifacts,
+        } = self
+        {
+            approved.target()?;
+            if approved.expected != crate::configuration_store::Revision::Missing
+                || approved.operator_sid != operator
+                || artifacts != current_artifacts
+            {
+                return Err("setup review identities/artifacts changed".into());
+            }
+        }
+        Ok(())
+    }
+}
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Request {
@@ -99,7 +126,7 @@ pub fn discover() -> Result<Inventory, String> {
 /// Install only the exact reviewed initial pair from the fixed reviewed package.
 pub fn install(approved: PairReview, artifacts: BTreeMap<String, String>) -> Result<(), String> {
     let command = if runner::pending_setup()?.is_some()
-        && std::fs::symlink_metadata(runner::data_directory()?.join("enrollment.json")).is_ok()
+        && crate::security::entry_exists(&runner::data_directory()?.join("enrollment.json"))?
     {
         Command::Resume {
             approved,
@@ -236,6 +263,11 @@ pub fn serve(session: &str, frontend: u32) -> Result<(), String> {
         if pending.is_none() && runner::installed()? {
             return Err("installation appeared; Refresh protected authority".into());
         }
+        if !matches!(request.command, Command::Discover) {
+            request
+                .command
+                .validate_review(&operator, &source_artifacts()?)?;
+        }
         match request.command {
             Command::Discover => Ok(Reply::Inventory(Inventory {
                 discovery: crate::windows_hyperv::discover()?,
@@ -249,27 +281,9 @@ pub fn serve(session: &str, frontend: u32) -> Result<(), String> {
                 if let Some(record) = &pending {
                     record.check_scope(&approved, &artifacts, &operator)?;
                 }
-                if approved.expected != crate::configuration_store::Revision::Missing
-                    || approved.operator_sid != operator
-                    || source_artifacts()? != artifacts
-                {
-                    return Err("setup review identities/artifacts changed".into());
-                }
                 let target = approved.target()?;
-                let discovery = crate::windows_hyperv::discover()?;
-                let view = {
-                    let mut view = crate::gui_model::View::new(Configuration {
-                        schema: 2,
-                        targets: vec![],
-                    });
-                    view.refresh(Inventory {
-                        discovery,
-                        enrolled: vec![],
-                        managed: Default::default(),
-                    });
-                    view
-                };
-                view.proposal_eligibility(&target)?;
+                // Bootstrap owns the current inventory/eligibility check under
+                // common admission; another pre-lock snapshot adds no authority.
                 runner::bootstrap_install(
                     &Configuration {
                         schema: 2,
@@ -291,4 +305,56 @@ pub fn serve(session: &str, frontend: u32) -> Result<(), String> {
     })();
     pipe.send(&serde_json::to_vec(&result).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::configuration_store::Revision;
+
+    #[test]
+    fn setup_and_resume_both_require_the_running_reviewed_package_and_operator() {
+        let artifacts = BTreeMap::from([("fixed.exe".into(), "reviewed hash".into())]);
+        let review = PairReview {
+            vm_id: "12345678-1234-1234-1234-123456789abc".into(),
+            gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#fixture\GPUPARAV".into(),
+            expected: Revision::Missing,
+            operator_sid: "operator".into(),
+        };
+        for resume in [false, true] {
+            for scenario in 0..5 {
+                let mut approved = review.clone();
+                let mut current = artifacts.clone();
+                let operator = if scenario == 1 {
+                    "another operator"
+                } else {
+                    "operator"
+                };
+                match scenario {
+                    2 => {
+                        current.insert("fixed.exe".into(), "changed hash".into());
+                    }
+                    3 => approved.expected = Revision::of(b"existing authority"),
+                    4 => approved.vm_id = "invalid VM".into(),
+                    _ => {}
+                }
+                let command = if resume {
+                    Command::Resume {
+                        approved,
+                        artifacts: artifacts.clone(),
+                    }
+                } else {
+                    Command::Install {
+                        approved,
+                        artifacts: artifacts.clone(),
+                    }
+                };
+                assert_eq!(
+                    command.validate_review(operator, &current).is_ok(),
+                    scenario == 0,
+                    "resume {resume}, scenario {scenario}"
+                );
+            }
+        }
+    }
 }

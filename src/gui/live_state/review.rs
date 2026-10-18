@@ -37,7 +37,8 @@ impl State {
         {
             return Err("Selection, draft or pairing changed during permission preparation. Refresh before trying again.".into());
         }
-        Ok(())
+        self.editor_eligibility(&current.vm_id)?;
+        self.view.proposal_eligibility(current)
     }
 
     pub fn validate_prepared(

@@ -60,8 +60,9 @@ fn install_inner(
     }
     configuration.validate()?;
     let client = windows_pipe::current_user_sid_string().map_err(|e| e.to_string())?;
-    let discovery = windows_hyperv::discover()?;
-    validate_enrollment(configuration, &discovery)?;
+    if bootstrap.is_none() {
+        validate_enrollment(configuration, &windows_hyperv::discover()?)?;
+    }
     let install = install_directory()?;
     let data = data_directory()?;
     for p in [&install, &data] {
@@ -82,18 +83,15 @@ fn install_inner(
         .to_path_buf();
     // First-install setup must not disable/update an existing task before its
     // no-replacement check. Hold admission across the scheduler and publication.
-    let install_lock = operation_lock()?;
+    let _install_lock = operation_lock()?;
     let prior = reinstall::admit(configuration, &client, bootstrap.is_some())?;
-    if bootstrap.is_some() {
-        match fs::symlink_metadata(data.join("enrollment.json")) {
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e.to_string()),
-            Ok(_) => {
-                return Err(
-                    "product already enrolled; Refresh and use incremental enrollment".into(),
-                );
-            }
+    let setup = if let Some((expected, session)) = bootstrap {
+        if prior.is_some() {
+            return Err("product already enrolled; Refresh and use incremental enrollment".into());
         }
+        let pending = pending_setup()?;
+        let fresh = pending.is_none();
+        let record = prepare_setup(configuration, expected, &client, session, pending)?;
         require_no_recovery()?;
         crate::windows_wmi::require_no_pending_operation()?;
         // Revalidate mutable VM/GPU state after admission, not only before UAC.
@@ -120,7 +118,13 @@ fn install_inner(
                 );
             }
         }
-    }
+        if &crate::setup::source_artifacts()? != expected {
+            return Err("setup artifacts changed after review".into());
+        }
+        Some((record, fresh))
+    } else {
+        None
+    };
     if bootstrap.is_none() {
         reinstall::begin(prior.as_ref(), configuration, &client, &source)?;
     }
@@ -142,25 +146,7 @@ fn install_inner(
         Err(error) if error.code().0 == 0x80070002_u32 as i32 => {}
         Err(error) => return Err(error.to_string()),
     }
-    let _lock = install_lock;
-    if let Some((expected, session)) = bootstrap {
-        // Repeat the absence check under common admission, before publication.
-        // Even a concurrent CLI installation cannot be replaced from one GUI pair.
-        if fs::symlink_metadata(data.join("enrollment.json")).is_ok() {
-            return Err(
-                "product enrollment already exists; Refresh and use incremental enrollment".into(),
-            );
-        }
-        match fs::symlink_metadata(data.join("enrollment.json")) {
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e.to_string()),
-            Ok(_) => return Err("enrollment appeared during setup".into()),
-        }
-        require_no_recovery()?;
-        crate::windows_wmi::require_no_pending_operation()?;
-        if &crate::setup::source_artifacts()? != expected {
-            return Err("setup artifacts changed after review".into());
-        }
+    if let (Some((expected, session)), Some((record, fresh))) = (bootstrap, &setup) {
         let audit = data.join("audit");
         if !audit.exists() {
             crate::security::create_directory(&audit, &client)?;
@@ -172,38 +158,14 @@ fn install_inner(
         }
         atomic_json(
             &path,
-            &serde_json::json!({"schema":1,"operation":"FirstInstall","session":session,"operator_sid":client,"targets":configuration.targets,"artifacts":expected,"outcome":"Started"}),
+            &serde_json::json!({"schema":1,"operation":"FirstInstall","session":session,"original_session":record.operation_id,"operator_sid":client,"targets":configuration.targets,"artifacts":expected,"outcome":"Started"}),
         )?;
-    }
-    if let Some((artifacts, session)) = bootstrap {
-        let target = configuration
-            .targets
-            .first()
-            .ok_or("setup requires one pair")?;
-        let review = crate::enrollment::PairReview {
-            vm_id: target.vm_id.clone(),
-            gpu_interface: target.gpu_interface.clone(),
-            expected: crate::configuration_store::Revision::Missing,
-            operator_sid: client.clone(),
-        };
-        if configuration.targets.len() != 1 || &review.target()? != target {
-            return Err("setup requires exactly one identity-only pair".into());
+        if *fresh {
+            atomic_json(&data.join("installation-pending.json"), record)?;
         }
-        if let Some(pending) = pending_setup()?
-            && (pending.review != review || &pending.artifacts != artifacts)
-        {
-            return Err("interrupted setup has a different original scope; retain recovery".into());
-        }
-        atomic_json(
-            &data.join("installation-pending.json"),
-            &crate::enrollment::PendingSetup {
-                operation_id: session.into(),
-                review,
-                artifacts: artifacts.clone(),
-            },
-        )?;
     }
     crate::configuration_store::protected::install(&client)?;
+    let in_place = package_is_installed(&source, &install)?;
     let mut artifacts = std::collections::BTreeMap::new();
     for name in [
         "hyper-gpu-runner.exe",
@@ -224,6 +186,14 @@ fn install_inner(
         let to = install.join(name);
         if to.exists() {
             crate::security::verify(&to)?;
+        }
+        // First setup can run from the protected installation directory. Its
+        // frontend retains read-only package locks across UAC; replacing these
+        // same files would fail sharing checks, including the running frontend.
+        // Keep the existing ACL and current reviewed hash checks above.
+        if in_place {
+            artifacts.insert(name.into(), hash);
+            continue;
         }
         let staged = install.join(format!("{name}.partial"));
         remove_protected_leaf(&staged)?;
@@ -257,7 +227,7 @@ fn install_inner(
     }
     protect(&data.join("enrollment.json"), &client)?;
     register_product_task(&service, &client)?;
-    if let Some((expected, session)) = bootstrap {
+    if let (Some((expected, session)), Some((record, _))) = (bootstrap, &setup) {
         let readback = read_enrollment()?;
         if readback != enrollment {
             return Err("first-install authority readback mismatch; retain setup recovery".into());
@@ -265,13 +235,59 @@ fn install_inner(
         verify_artifacts(&readback)?;
         atomic_json(
             &data.join("audit").join(format!("setup-{session}.json")),
-            &serde_json::json!({"schema":1,"operation":"FirstInstall","session":session,"operator_sid":client,"targets":configuration.targets,"artifacts":expected,"outcome":"Succeeded"}),
+            &serde_json::json!({"schema":1,"operation":"FirstInstall","session":session,"original_session":record.operation_id,"operator_sid":client,"targets":configuration.targets,"artifacts":expected,"outcome":"Succeeded"}),
         )?;
     } else {
         reinstall::finish(&client)?;
     }
     fs::remove_file(data.join("installation-pending.json")).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// Admission is read-only and runs under the common lock, before task changes.
+// A retry retains the original receipt rather than rebinding its audit identity.
+fn prepare_setup(
+    configuration: &Configuration,
+    artifacts: &std::collections::BTreeMap<String, String>,
+    client: &str,
+    session: &str,
+    pending: Option<crate::enrollment::PendingSetup>,
+) -> Result<crate::enrollment::PendingSetup, String> {
+    if !crate::worker::valid_session(session) {
+        return Err("invalid setup session".into());
+    }
+    let target = configuration
+        .targets
+        .first()
+        .ok_or("setup requires one pair")?;
+    let review = crate::enrollment::PairReview {
+        vm_id: target.vm_id.clone(),
+        gpu_interface: target.gpu_interface.clone(),
+        expected: crate::configuration_store::Revision::Missing,
+        operator_sid: client.into(),
+    };
+    if configuration.targets.len() != 1 || &review.target()? != target {
+        return Err("setup requires exactly one identity-only pair".into());
+    }
+    if let Some(pending) = pending {
+        pending.check_scope(&review, artifacts, client)?;
+        return Ok(pending);
+    }
+    Ok(crate::enrollment::PendingSetup {
+        operation_id: session.into(),
+        review,
+        artifacts: artifacts.clone(),
+    })
+}
+
+fn package_is_installed(
+    source: &std::path::Path,
+    install: &std::path::Path,
+) -> Result<bool, String> {
+    payload::no_reparse(source)?;
+    payload::no_reparse(install)?;
+    Ok(fs::canonicalize(source).map_err(|e| e.to_string())?
+        == fs::canonicalize(install).map_err(|e| e.to_string())?)
 }
 
 /// Only GUI first-install records are accepted here; legacy CLI markers stay explicit.
@@ -341,4 +357,103 @@ pub(crate) fn reconcile_setup(
     )?;
     crate::security::verify(&data.join("installation-pending.json"))?;
     fs::remove_file(data.join("installation-pending.json")).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::windows::fs::OpenOptionsExt;
+
+    #[test]
+    fn setup_retry_retains_original_receipt_and_rejects_changed_scope_before_publication() {
+        let review = crate::enrollment::PairReview {
+            vm_id: "12345678-1234-1234-1234-123456789abc".into(),
+            gpu_interface: r"\\?\PCI#VEN_10DE&DEV_2D05#fixture\GPUPARAV".into(),
+            expected: crate::configuration_store::Revision::Missing,
+            operator_sid: "operator".into(),
+        };
+        let configuration = Configuration {
+            schema: 2,
+            targets: vec![review.target().unwrap()],
+        };
+        let artifacts =
+            std::collections::BTreeMap::from([("fixed.exe".into(), "reviewed hash".into())]);
+        let original = prepare_setup(
+            &configuration,
+            &artifacts,
+            "operator",
+            "0123456789abcdef0123456789abcdef",
+            None,
+        )
+        .unwrap();
+        let original_bytes = serde_json::to_vec(&original).unwrap();
+        let retry = prepare_setup(
+            &configuration,
+            &artifacts,
+            "operator",
+            "1123456789abcdef0123456789abcdef",
+            Some(original.clone()),
+        )
+        .unwrap();
+        assert_eq!(serde_json::to_vec(&retry).unwrap(), original_bytes);
+        for scenario in 0..7 {
+            let mut changed = configuration.clone();
+            let mut package = artifacts.clone();
+            let mut operator = "operator";
+            let mut session = "1123456789abcdef0123456789abcdef";
+            match scenario {
+                0 => changed.targets[0].enabled = true,
+                1 => changed.targets.push(changed.targets[0].clone()),
+                2 => changed.targets[0].vm_id = "12345678-1234-1234-1234-123456789abd".into(),
+                3 => {
+                    package.insert("fixed.exe".into(), "changed hash".into());
+                }
+                4 => operator = "another operator",
+                5 => session = "invalid session",
+                _ => changed.targets.clear(),
+            }
+            assert!(
+                prepare_setup(
+                    &changed,
+                    &package,
+                    operator,
+                    session,
+                    Some(original.clone())
+                )
+                .is_err(),
+                "scenario {scenario}"
+            );
+        }
+        assert_eq!(serde_json::to_vec(&original).unwrap(), original_bytes);
+    }
+
+    #[test]
+    fn first_setup_reuses_the_locked_installed_package_but_not_an_external_package() {
+        let root = std::env::temp_dir().join(format!(
+            "hyper-gpu-in-place-{}-{}",
+            std::process::id(),
+            crate::worker::random_session().unwrap()
+        ));
+        let installed = root.join("installed");
+        let external = root.join("external");
+        fs::create_dir_all(&installed).unwrap();
+        fs::create_dir_all(&external).unwrap();
+        let target = installed.join("runner.exe");
+        let staged = installed.join("runner.exe.partial");
+        fs::write(&target, b"reviewed package").unwrap();
+        fs::write(&staged, b"reviewed package").unwrap();
+        fs::write(external.join("runner.exe"), b"reviewed package").unwrap();
+        let lock = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&target)
+            .unwrap();
+        assert!(crate::guest::replace_file(&staged, &target).is_err());
+        assert!(package_is_installed(&installed, &installed.join(".")).unwrap());
+        assert!(!package_is_installed(&external, &installed).unwrap());
+        assert!(package_is_installed(&root.join("missing"), &installed).is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"reviewed package");
+        drop(lock);
+        fs::remove_dir_all(root).unwrap();
+    }
 }

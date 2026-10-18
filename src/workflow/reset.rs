@@ -22,6 +22,7 @@ impl ResetReview {
     pub fn validate(&self, record: &SaveRecord, revision: &Revision) -> Result<(), String> {
         record.target.validate()?;
         let initial = &record.initial;
+        let failed_first_setup = self.failed_first_setup(record);
         if record.schema != 1
             || record.operation_id.len() != 32
             || !record.operation_id.bytes().all(|b| b.is_ascii_hexdigit())
@@ -29,17 +30,25 @@ impl ResetReview {
             || !record.publication_required
             || !record.target.enabled
             || record.retirement.is_some()
-            || (record.requires_graphics() && !self.failed_first_setup(record))
+            || (record.requires_graphics() && !failed_first_setup)
             // First preparation precedes all adapter/settings writes. Without its
             // receipt, later host changes cannot be attributed to this attempt.
-            || (self.failed_first_setup(record)
+            || (failed_first_setup
+                && self.journal.prepared.is_none()
                 && (!self.observed.gpus.is_empty() || self.observed.settings != initial.settings))
+            // A terminal graphics failure follows the completed host changes.
+            // Reuse their exact outcome binding before admitting host restoration.
+            || (failed_first_setup
+                && self.journal.prepared.is_some()
+                && record
+                    .validate_reconciliation(&self.observed, &self.gpu.driver_version)
+                    .is_err())
             || record.expected != *revision
-            || (!self.failed_first_setup(record) && record.final_power()? != Power::Off)
+            || (!failed_first_setup && record.final_power()? != Power::Off)
             || initial.vm_id != record.target.vm_id
             || initial.generation != 2
             || !(initial.power == Power::Off
-                || (self.failed_first_setup(record) && initial.power == Power::Running))
+                || (failed_first_setup && initial.power == Power::Running))
             || !initial.gpus.is_empty()
             || Resource::ALL
                 .into_iter()
@@ -47,7 +56,7 @@ impl ResetReview {
             || self.observed.vm_id != initial.vm_id
             || self.observed.generation != 2
             || !(self.observed.power == Power::Off
-                || (self.failed_first_setup(record) && self.observed.power == Power::Running))
+                || (failed_first_setup && self.observed.power == Power::Running))
             || !(self.observed.gpus.is_empty()
                 || self.observed.gpus == [record.target.gpu_interface.clone()])
             || (self.observed.gpus.is_empty()
@@ -66,24 +75,35 @@ impl ResetReview {
             || self.journal.restore_power != record.final_power()?
             || self.journal.original != initial.settings
             || self.journal.applied != record.expected_settings
-            || (!self.failed_first_setup(record) && self.journal.prepared != record.payload_digest)
+            || (!failed_first_setup && self.journal.prepared != record.payload_digest)
         {
             return Err("Partial GPU removal is unavailable for these recorded facts. Retain recovery and Refresh.".into());
         }
         Ok(())
     }
 
-    // A failed first preparation has no trusted guest receipt. Never extend this
-    // disposition to an existing managed installation or a successful guest check.
+    // Only a first attempt can use this disposition. Before its preparation
+    // receipt, host state must remain unchanged. After it, a terminal negative
+    // guest check and the exact prepared host outcome are required.
     fn failed_first_setup(&self, record: &SaveRecord) -> bool {
         record.initial_journal.is_none()
-            && self.journal.prepared.is_none()
             && self.journal.last_verified.is_none()
             && self.journal.preparation_started == Some(true)
-            && matches!(
-                self.journal.latest_check,
-                Some(GuestCheck::Interrupted | GuestCheck::Failed)
-            )
+            && match self.journal.prepared.as_deref() {
+                None => matches!(
+                    self.journal.latest_check,
+                    Some(GuestCheck::Interrupted | GuestCheck::Failed)
+                ),
+                Some(digest) => {
+                    !digest.is_empty()
+                        && record.payload_digest.as_deref() == Some(digest)
+                        && record.expected_power == Some(Power::Off)
+                        && matches!(
+                            self.journal.latest_check,
+                            Some(GuestCheck::Failed | GuestCheck::Unavailable)
+                        )
+                }
+            }
     }
 
     fn stopped(&self) -> VmState {
@@ -353,6 +373,159 @@ mod tests {
             assert_eq!(backend.settings_writes, 0);
             assert!(backend.journal.as_ref().unwrap().pending);
         }
+    }
+
+    fn failed_graphics_setup(
+        initial_power: Power,
+        unavailable: bool,
+    ) -> (crate::workflow::test_support::Fake, SaveRecord) {
+        let mut backend = fake();
+        backend.state.power = initial_power;
+        let mut record = recovery_record(&backend, true);
+        record.expected_settings = record.initial.settings.for_gpu();
+        backend.fail_verify = !unavailable;
+        backend.payload_check_failure =
+            unavailable.then_some(crate::reporting::FailureCause::Unavailable);
+        assert!(crate::workflow::apply(&mut backend, &record.target).is_err());
+        assert_eq!(backend.state.gpus, [record.target.gpu_interface.clone()]);
+        assert_eq!(
+            backend.journal.as_ref().unwrap().prepared,
+            record.payload_digest
+        );
+        record.reset = Some(ResetReview {
+            observed: backend.state.clone(),
+            gpu: backend.gpu(&record.target).unwrap(),
+            journal: backend.journal.clone().unwrap(),
+        });
+        backend.events.clear();
+        (backend, record)
+    }
+
+    #[test]
+    fn failed_first_graphics_check_can_restore_host_without_replaying_guest_work() {
+        for initial in [Power::Off, Power::Running] {
+            for unavailable in [false, true] {
+                let (mut backend, record) = failed_graphics_setup(initial.clone(), unavailable);
+                let settings_writes = backend.settings_writes;
+                let allocation_writes = backend.allocation_writes;
+                let payload_reads = backend.payload_reads;
+                assert!(reset_partial(&mut backend, &record, &record.expected, false).is_err());
+                assert!(backend.events.is_empty());
+                assert!(backend.journal.as_ref().unwrap().pending);
+                reset_partial(&mut backend, &record, &record.expected, true).unwrap();
+                assert_eq!(backend.events, ["shutdown", "detach"]);
+                assert_eq!(backend.state.power, Power::Off);
+                assert!(backend.state.gpus.is_empty());
+                assert_eq!(backend.state.settings, record.initial.settings);
+                assert_eq!(backend.settings_writes, settings_writes + 1);
+                assert_eq!(backend.allocation_writes, allocation_writes);
+                assert_eq!(backend.payload_reads, payload_reads);
+                let journal = backend.journal.as_ref().unwrap();
+                assert!(!journal.pending && journal.settings_released);
+                assert!(journal.prepared.is_none() && journal.last_verified.is_none());
+                assert!(!journal.setup_eligible());
+                backend.events.clear();
+                reset_partial(&mut backend, &record, &record.expected, true).unwrap();
+                assert!(backend.events.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn prepared_first_setup_removal_requires_exact_failed_scope_and_no_prior_success() {
+        for case in 0..14 {
+            let (mut backend, mut record) = failed_graphics_setup(Power::Off, false);
+            let review = record.reset.as_mut().unwrap();
+            match case {
+                0 => record.initial_journal = Some(review.journal.clone()),
+                1 => review.journal.last_verified = Some(123),
+                2 => review.journal.latest_check = Some(GuestCheck::Passed),
+                3 => review.journal.latest_check = Some(GuestCheck::Interrupted),
+                4 => review.journal.prepared = Some("another payload".into()),
+                5 => review.journal.prepared = None,
+                6 => record.payload_digest = None,
+                7 => review.observed.gpus = vec!["another GPU".into()],
+                8 => review.observed.settings = record.initial.settings.clone(),
+                9 => {
+                    record.target.compute = Some(crate::model::Allocation {
+                        minimum: 10,
+                        optimal: 50,
+                        maximum: 90,
+                    });
+                }
+                10 => record.initial.gpus = vec![record.target.gpu_interface.clone()],
+                11 => record.phase = SavePhase::Verified(backend.state.clone()),
+                12 => record.expected = Revision::of(b"changed configuration"),
+                _ => {
+                    record.expected_power = Some(Power::Running);
+                    review.journal.restore_power = Power::Running;
+                }
+            }
+            assert!(reset_partial(&mut backend, &record, &Revision::Missing, true).is_err());
+            assert!(backend.events.is_empty(), "case {case}");
+            assert!(backend.journal.as_ref().unwrap().pending);
+        }
+    }
+
+    #[test]
+    fn failed_reinstall_cannot_use_first_setup_host_restoration() {
+        let mut backend = fake();
+        let target = target();
+        crate::workflow::apply(&mut backend, &target).unwrap();
+        let mut record = recovery_record(&backend, true);
+        backend.fail_verify = true;
+        let (_, admitted) = crate::workflow::prepare_apply(&mut backend, &target, true).unwrap();
+        assert!(crate::workflow::apply_admitted(&mut backend, admitted).is_err());
+        record.reset = Some(ResetReview {
+            observed: backend.state.clone(),
+            gpu: backend.gpu(&target).unwrap(),
+            journal: backend.journal.clone().unwrap(),
+        });
+        backend.events.clear();
+        assert!(reset_partial(&mut backend, &record, &record.expected, true).is_err());
+        assert!(backend.events.is_empty());
+        assert!(backend.journal.as_ref().unwrap().pending);
+    }
+
+    #[test]
+    fn prepared_first_setup_removal_preserves_hold_on_drift_and_resumes_bound_stages() {
+        use crate::workflow::test_support::Drift;
+        for stage in ["shutdown", "detach", "settings"] {
+            for drift in [
+                Drift::Settings,
+                Drift::Gpu,
+                Drift::Assignment,
+                Drift::Resource,
+                Drift::Journal,
+                Drift::Unavailable,
+            ] {
+                let (mut backend, record) = failed_graphics_setup(Power::Off, false);
+                backend.drift_at = Some((stage, drift));
+                assert!(reset_partial(&mut backend, &record, &record.expected, true).is_err());
+                assert!(backend.journal.as_ref().unwrap().pending);
+                assert!(!backend.events.contains(&"prepare"));
+                assert!(!backend.events.contains(&"graphics"));
+                assert!(!backend.events.contains(&"attach"));
+            }
+        }
+        for fail_shutdown in [false, true] {
+            let (mut backend, record) = failed_graphics_setup(Power::Off, false);
+            backend.fail_shutdown = fail_shutdown;
+            backend.ignore_shutdown = !fail_shutdown;
+            assert!(reset_partial(&mut backend, &record, &record.expected, true).is_err());
+            assert_eq!(backend.events, ["shutdown"]);
+            assert!(backend.journal.as_ref().unwrap().pending);
+        }
+        let (mut backend, record) = failed_graphics_setup(Power::Off, false);
+        backend.fail_save_at = Some(backend.journal_writes + 1);
+        assert!(reset_partial(&mut backend, &record, &record.expected, true).is_err());
+        assert_eq!(backend.events, ["shutdown", "detach"]);
+        assert!(backend.journal.as_ref().unwrap().pending);
+        backend.events.clear();
+        backend.fail_save_at = None;
+        reset_partial(&mut backend, &record, &record.expected, true).unwrap();
+        assert!(backend.events.is_empty());
+        assert!(!backend.journal.as_ref().unwrap().pending);
     }
 
     #[test]

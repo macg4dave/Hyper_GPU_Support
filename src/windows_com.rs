@@ -3,9 +3,9 @@ use std::{collections::BTreeMap, fmt, time::Instant};
 use windows::{
     Win32::System::{
         Com::{
-            CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
-            CoSetProxyBlanket, CoUninitialize, EOAC_NONE, RPC_C_AUTHN_LEVEL_CALL,
-            RPC_C_IMP_LEVEL_IMPERSONATE,
+            CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
+            COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoSetProxyBlanket,
+            CoUninitialize, EOAC_NONE, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE,
         },
         Variant::{VARIANT, VT_BSTR, VariantClear},
         Wmi::{
@@ -91,6 +91,15 @@ impl Apartment {
         unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
             .ok()
             .map_err(|error| native("initialize WMI apartment", error))?;
+        Ok(Self)
+    }
+
+    pub(crate) fn initialize_shell() -> Result<Self, DriverDiscoveryError> {
+        // SAFETY: ShellExecuteEx may invoke STA shell extensions. Own and balance
+        // that initialization explicitly, before later scheduler/WMI MTA reads.
+        unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) }
+            .ok()
+            .map_err(|error| native("initialize Shell apartment", error))?;
         Ok(Self)
     }
 }
@@ -277,4 +286,38 @@ pub(crate) fn query_with_optional(
 
 pub(crate) fn quoted(value: &str) -> String {
     value.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+#[cfg(test)]
+mod apartment_tests {
+    use super::*;
+
+    #[test]
+    fn shell_scope_releases_before_scheduler_and_wmi_reads_on_the_same_thread() {
+        // Only COM initialization on an isolated thread: no shell launch, UAC,
+        // scheduler connection, WMI query or protected product state.
+        std::thread::spawn(|| {
+            let shell = Apartment::initialize_shell().unwrap();
+            let nested = Apartment::initialize_shell().unwrap();
+            drop(nested);
+            let error = Apartment::initialize().err().unwrap();
+            assert!(matches!(
+                error,
+                DriverDiscoveryError::Native { source, .. }
+                    if source.code().0 as u32 == 0x80010106
+            ));
+            drop(shell);
+            let native = Apartment::initialize().unwrap();
+            let nested = Apartment::initialize().unwrap();
+            drop(nested);
+            assert!(Apartment::initialize_shell().is_err());
+            drop(native);
+            // Failed incompatible initializations must not uninitialize the
+            // owned apartment or prevent a fresh shell scope after it ends.
+            drop(Apartment::initialize_shell().unwrap());
+            drop(Apartment::initialize().unwrap());
+        })
+        .join()
+        .unwrap();
+    }
 }

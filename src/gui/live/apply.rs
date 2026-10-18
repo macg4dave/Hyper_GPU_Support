@@ -13,7 +13,7 @@ use crate::gui::{
     operation::{Kind, Operation},
 };
 #[cfg(windows)]
-use slint::{ComponentHandle, Model};
+use slint::ComponentHandle;
 use std::sync::{Arc, atomic::AtomicBool};
 
 #[cfg(windows)]
@@ -203,36 +203,7 @@ pub(super) fn apply_live(
                         );
                     }
                 }
-                Err(error) => {
-                    if hyper_gpu_support::reporting::installation_preflight_blocked(&error) {
-                        failure_dialog(
-                            ui,
-                            "GPU support installation blocked",
-                            &error,
-                            "This attempt stopped before driver installation or VM power changes. Your draft is retained.",
-                        );
-                        return;
-                    }
-                    let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
-                    dialog(
-                        ui,
-                        "error",
-                        if setup_required {
-                            hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE
-                        } else {
-                            hyper_gpu_support::ui_text::operations::apply::incomplete::TITLE
-                        },
-                        &error,
-                    );
-                    let reason = hyper_gpu_support::reporting::operator_error(
-                        hyper_gpu_support::ui_text::operations::apply::FAILURE_STAGE,
-                        &error,
-                    );
-                    ui.set_dialog_body(format!(
-                    "{reason}\n{}\nYour draft is retained. Changes may have started; the final VM state has not been confirmed. Use Refresh and inspect recovery before trying again. Do not repeat Apply while recovery is required.",
-                    last_stage.map_or_else(|| hyper_gpu_support::ui_text::operations::apply::STAGE_ABSENT.into(), |stage| format!("Last reported step: {stage}")),
-                ).into());
-                }
+                Err(error) => present_failure(ui, &error, setup_required),
             }
         },
     );
@@ -242,6 +213,37 @@ pub(super) fn apply_live(
     }
     started
 }
+
+/// Called only after the operation's independent completion readback succeeded.
+#[cfg(any(windows, test))]
+fn present_failure(ui: &AppWindow, error: &str, setup_required: bool) {
+    use slint::Model;
+    let title = if setup_required {
+        hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE
+    } else {
+        hyper_gpu_support::ui_text::operations::apply::incomplete::TITLE
+    };
+    let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
+    crate::gui::failure_dialog(
+        ui,
+        title,
+        error,
+        &format!(
+            "{}\nCurrent VM status was refreshed automatically. Power: {}. Your draft is retained.{}",
+            last_stage.map_or_else(
+                || hyper_gpu_support::ui_text::operations::apply::STAGE_ABSENT.into(),
+                |stage| format!("Last reported step: {stage}"),
+            ),
+            ui.get_power(),
+            if ui.get_action_recovery() {
+                " Choose Review recovery before another operation; do not repeat Apply while recovery is required."
+            } else {
+                " Inspect the failure before starting another operation."
+            },
+        ),
+    );
+}
+
 #[cfg(windows)]
 pub(super) fn save_only_live(
     ui: &AppWindow,
@@ -313,4 +315,63 @@ pub(super) fn save_only_live(
     _: &Arc<AtomicBool>,
 ) -> Result<(), String> {
     Err("Protected publication requires Windows".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyper_gpu_support::reporting::{Component, ComponentFailure, FailureCause, FailureStage};
+
+    #[test]
+    fn failed_apply_after_current_readback_offers_loaded_recovery_without_manual_refresh() {
+        slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+        let ui = AppWindow::new().unwrap();
+        let error = ComponentFailure {
+            stage: Some(FailureStage::Preparation),
+            component: Component::GuestTransport,
+            cause: FailureCause::InvalidReply,
+            code: None,
+        }
+        .into_error();
+        for (power, recovery) in [("Off", true), ("Running", false)] {
+            ui.set_power(power.into());
+            ui.set_action_recovery(recovery);
+            ui.set_operation_dialog_active(true);
+            ui.set_stages(crate::gui::model(vec![
+                "Preparing signed driver files".into(),
+            ]));
+            ui.set_stage_reportable(crate::gui::model(vec![true]));
+            present_failure(&ui, &error, true);
+            assert_eq!(ui.get_dialog_kind(), "operation-error");
+            let body = ui.get_dialog_body();
+            assert!(body.contains("incomplete or invalid reply"), "{body}");
+            assert!(body.contains("refreshed automatically"), "{body}");
+            assert!(body.contains(&format!("Power: {power}.")), "{body}");
+            assert!(body.contains("Your draft is retained"), "{body}");
+            assert_eq!(body.contains("Choose Review recovery"), recovery, "{body}");
+            assert!(
+                !body.contains("Use Refresh") && !body.contains("use Refresh"),
+                "{body}"
+            );
+            assert!(
+                !body.contains("final VM state has not been confirmed"),
+                "{body}"
+            );
+            let details = ui.get_dialog_details();
+            for fact in [
+                "GuestTransport",
+                "InvalidReply",
+                "Preparation",
+                "Preparing signed driver files",
+            ] {
+                assert!(details.contains(fact), "Missing {fact}: {details}");
+            }
+        }
+        present_failure(&ui, "private adapter text 0x80010106", true);
+        let body = ui.get_dialog_body();
+        assert!(body.contains("refreshed automatically"), "{body}");
+        assert!(!body.contains("Refresh"), "{body}");
+        assert!(!body.contains("private adapter text"), "{body}");
+        assert!(ui.get_dialog_details().contains("0x80010106"));
+    }
 }

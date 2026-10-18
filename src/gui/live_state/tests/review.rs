@@ -126,8 +126,8 @@ fn prepared_acknowledgement_rejects_changed_target_selection_revision_and_recove
 }
 
 #[test]
-fn permission_preparation_rejects_changed_selection_draft_or_pair_without_mutation() {
-    for scenario in 0..7 {
+fn permission_preparation_rejects_changed_selection_draft_pair_or_eligibility_without_mutation() {
+    for scenario in 0..11 {
         let mut s = state();
         let expected = s.target(id(&s)).unwrap();
         let mut current = expected.clone();
@@ -150,7 +150,11 @@ fn permission_preparation_rejects_changed_selection_draft_or_pair_without_mutati
             }
             4 => current.gpu_interface = "another-gpu".into(),
             5 => pair.vm_id = "another-vm".into(),
-            _ => pair.gpu_interface = "another-gpu".into(),
+            6 => pair.gpu_interface = "another-gpu".into(),
+            7 => s.view.needs_readback = true,
+            8 => s.recovery = Some(save_record(&s)),
+            9 => s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Other(32768),
+            _ => s.view.inventory.as_mut().unwrap().discovery.gpus.clear(),
         }
         let before = s.view.configuration.targets.clone();
         assert_eq!(

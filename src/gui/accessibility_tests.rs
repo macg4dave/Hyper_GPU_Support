@@ -138,7 +138,7 @@ fn main_page_omits_recorded_outcome_and_technical_details_controls() {
         root.visit_descendants::<()>(|item| {
             if let Some(label) = item.accessible_string_property(AccessibleStringProperty::Label) {
                 assert!(
-                    !forbidden.iter().any(|text| text.as_str() == label),
+                    !forbidden.iter().any(|text| label == text.as_str()),
                     "main page exposes {label} for selection {selected}"
                 );
             }

@@ -148,7 +148,8 @@ pub(super) fn review_verification(
                     hyper_gpu_support::ui_text::operations::verify::incomplete::TITLE,
                     &error,
                     &format!(
-                        "{result_vm_name}: The check did not complete. Use Refresh and Review recovery before another operation; prior successful checks do not establish current health."
+                        "{result_vm_name}: The check did not complete. Current VM status was refreshed automatically. Power: {}. Inspect current status and any recovery requirement before another operation; prior successful checks do not establish current health.",
+                        ui.get_power(),
                     ),
                 ),
             }

@@ -15,6 +15,7 @@
   "dialogs.setup.continue_label": "Continue GPU setup",
   "dialogs.profile_deletion.discard_review_label": "Discard draft and delete profile",
   "dialogs.repair.review_label": "Repair / Reinstall",
+  "dialogs.partial_removal.available": "Remove partial GPU setup restores this VM's original host settings and leaves it off. Guest driver files are kept.",
   "dialogs.switch.review_label": "Apply changes",
   "dialogs.apply.review_label": "Apply changes",
   "operations.verify.consent.off": "This action includes temporarily starting this VM, then gracefully shutting it down to Off.",

@@ -277,7 +277,7 @@ impl Diagnostic {
                 Availability::Denied => "Check operator enrollment and provider permissions; refresh after correcting access.",
                 Availability::Missing => "Refresh and check the selected identity; do not infer successful removal.",
                 Availability::Unsupported => "Use a supported provider/capability; no capability result was established.",
-                _ => "Refresh read-only state and inspect recovery before retrying an uncertain operation.",
+                _ => "Inspect current read-only state and recovery before retrying an uncertain operation.",
             }.into(),
         }
     }
@@ -332,7 +332,7 @@ pub fn operator_error(stage: &str, error: &str) -> String {
                 "Native completion is unresolved. An administrator must correlate a terminal Hyper-V job with the exact VM and stage, run native-review --job LOCAL_JOB_REFERENCE, inspect its before/after facts, then approve native-reconcile --review TOKEN. If completion evidence is unavailable, preserve provider-operation.json, workflow recovery and Hyper-V event logs for administrator/provider support. Do not delete the marker or replay Apply.",
             ),
             (Component::GuestTransport, FailureCause::InvalidReply) => Some(
-                "Communication with the guest returned an incomplete or invalid reply. The operation could not be confirmed. Open Technical Details, use Refresh to read the current VM state and inspect recovery before retrying.",
+                "Communication with the guest returned an incomplete or invalid reply. The operation could not be confirmed. Open Technical Details for the reported failure.",
             ),
             (Component::GuestTransport, FailureCause::TimedOut) => Some(
                 "Communication with the guest timed out. The guest check did not complete; inspect recovery and the recorded final power state.",
@@ -383,11 +383,11 @@ pub fn operator_error(stage: &str, error: &str) -> String {
                 return format!("{stage}: {description}");
             }
             return format!(
-                "{stage}: {description} Refresh and inspect recovery before any reviewed repair; do not repeat Apply automatically."
+                "{stage}: {description} Inspect current VM status and recovery before any reviewed repair; do not repeat Apply automatically."
             );
         }
         return format!(
-            "{stage}: {:?} reported {:?}. Refresh and inspect recovery before retrying; reconcile uncertain effects rather than repeating Apply.",
+            "{stage}: {:?} reported {:?}. Inspect current VM status and recovery before retrying; reconcile uncertain effects rather than repeating Apply.",
             failure.component, failure.cause
         );
     }

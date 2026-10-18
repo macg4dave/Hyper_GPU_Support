@@ -96,6 +96,10 @@ fn launch_fixed(
     if !valid_session(session) || !matches!(mode, "--internal-worker" | "--internal-setup") {
         return Err("invalid fixed worker launch".into());
     }
+    // Do not let the shell implicitly choose this caller thread's COM mode.
+    // Release its STA before subsequent protected completion reads enter MTA.
+    let _apartment =
+        crate::windows_com::Apartment::initialize_shell().map_err(|error| error.to_string())?;
     let verb = wide("runas");
     let path: Vec<u16> = executable
         .as_os_str()

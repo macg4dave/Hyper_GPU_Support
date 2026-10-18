@@ -2,6 +2,134 @@
 use super::*;
 
 #[test]
+fn complete_transport_streams_cold_preparation_and_warm_verification_in_order() {
+    // Run the complete fixed bridge against local remoting/ACL doubles. Only
+    // the worker invocation and Program Files root are replaced; no VM, guest,
+    // installed binaries, credentials or real protected ACLs are accessed.
+    let script = transport_script("unused")
+        .replace(
+            "[Environment]::GetFolderPath('ProgramFiles')",
+            "$fixtureProgramFiles",
+        )
+        .replace(
+            "$r = [Console]::In.ReadToEnd() | ConvertFrom-Json",
+            "$r = $testRequest",
+        )
+        .replace(
+            "& (Join-Path $root 'hyper-gpu-guest.exe')",
+            "Invoke-TestWorker",
+        );
+    let fixture = r#"
+function Import-Module {}
+function New-PSSession { 'isolated-session' }
+function Remove-PSSession {}
+function Invoke-Command {
+    param($Session, [object[]]$ArgumentList, [scriptblock]$ScriptBlock)
+    & $ScriptBlock @ArgumentList
+}
+function Get-Acl {
+    param($LiteralPath)
+    $acl = [Security.AccessControl.DirectorySecurity]::new()
+    $admin = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+    $acl.SetOwner($admin)
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($admin, 'FullControl', 'Allow'))
+    $acl
+}
+function Set-Acl { param($LiteralPath, $AclObject) }
+function Invoke-TestWorker {
+    param($mode, $bundle, $vendor, $device)
+    $phases = @('checking-copied','installing','checking-installed')
+    if ($mode -eq 'verify') { $phases = @('checking-guest','graphics') }
+    foreach ($phase in $phases) { 'HGPREPARATION ' + $phase }
+    '{"digest":"test-payload","machine_guid":"test-machine","files":1}'
+    $global:LASTEXITCODE = 0
+}
+$fixtureBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+$fixtureRoot = Join-Path $fixtureBase ('hyper-gpu-bridge-' + [guid]::NewGuid().ToString('N'))
+$fixtureProgramFiles = Join-Path $fixtureRoot 'program-files'
+$install = Join-Path $fixtureRoot 'install'
+[void][IO.Directory]::CreateDirectory($fixtureProgramFiles)
+[void][IO.Directory]::CreateDirectory($install)
+$testRequest = [pscustomobject]@{
+    vm_id='11111111-1111-1111-1111-111111111111'; username='placeholder'; password='placeholder'
+    install=$install; mode='prepare'; digest='bundle-prepare'; diagnostics=$false
+    identity='{}'; acknowledgements='[]'; verification='{}'; vendor=4318; device=1
+    artifacts=@(); manifest=@{files=@()}
+}
+try {
+    foreach ($entry in @(@('hyper-gpu-guest.exe',3), @('d3d11-probe.exe',5))) {
+        $path = Join-Path $install $entry[0]
+        [IO.File]::WriteAllBytes($path, [byte[]]::new($entry[1]))
+        $testRequest.artifacts += @{name=$entry[0]; bytes=$entry[1]; hash=(Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant()}
+    }
+    $source = Join-Path $fixtureRoot 'driver.bin'
+    [IO.File]::WriteAllBytes($source, [byte[]]::new(7))
+    $testRequest.manifest.files = @(@{source=$source; bytes=7})
+    . $fixedBridge
+    $testRequest.mode='verify'; $testRequest.digest='bundle-verify'; $testRequest.password='placeholder'
+    . $fixedBridge
+} finally {
+    $resolved = [IO.Path]::GetFullPath($fixtureRoot)
+    if (!$resolved.StartsWith($fixtureBase, [StringComparison]::OrdinalIgnoreCase) -or
+        (Split-Path $resolved -Leaf) -notmatch '^hyper-gpu-bridge-[a-f0-9]{32}$') { throw 'Unsafe fixture cleanup path' }
+    Remove-Item -LiteralPath $resolved -Recurse -Force
+}
+"#;
+    let mut command = Command::new(windows_paths::windows_powershell_executable().unwrap());
+    command.args([
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        &format!("$fixedBridge = {{\n{script}\n}}\n{fixture}"),
+    ]);
+    let result = process::bounded_process_with_limit(command, Duration::from_secs(30), 65536, &[])
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert_eq!(
+        result.exit_code,
+        Some(0),
+        "{}\n{}",
+        result.stdout,
+        result.stderr
+    );
+    let replies: Vec<BridgeResult> = result
+        .stdout
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap_or_else(|error| panic!("{error}: {line}")))
+        .collect();
+    assert_eq!(replies.len(), 2, "{}", result.stdout);
+    let now = Instant::now();
+    let cold = crate::guest_transfer::Monitor::for_operation(vec![3, 5, 7], now, false)
+        .unwrap()
+        .select_helpers(2)
+        .unwrap();
+    let warm = crate::guest_transfer::Monitor::for_operation(vec![3, 5], now, true)
+        .unwrap()
+        .select_helpers(2)
+        .unwrap();
+    use crate::process::StderrMonitor;
+    let mut operation = 0;
+    for line in result.stderr.split_inclusive('\n') {
+        let monitor = if operation == 0 { &cold } else { &warm };
+        assert!(monitor.line(line.as_bytes()).unwrap(), "{line}");
+        if line.trim_end() == "HGPREPARATION checking-installed" {
+            operation += 1;
+        }
+    }
+    for (monitor, reply) in [(&cold, &replies[0]), (&warm, &replies[1])] {
+        monitor.require_worker_phases().unwrap();
+        assert_eq!(reply.worker_exit, Some(0));
+        let receipt: Receipt = serde_json::from_str(&reply.output).unwrap();
+        assert_eq!(receipt.digest, "test-payload");
+    }
+    let cold = cold.take_progress(now).unwrap().unwrap();
+    assert_eq!((cold.bytes, cold.total, cold.files), (15, 15, 3));
+    let warm = warm.take_progress(now).unwrap().unwrap();
+    assert_eq!((warm.bytes, warm.total, warm.files), (0, 0, 0));
+}
+
+#[test]
 fn helper_reuse_replacement_and_failure_paths_do_not_enter_hyperv_or_launch_a_worker() {
     let script = transport_script("unused").replace("\r\n", "\n");
     let definitions = script.split_once("\ntry {").unwrap().0;

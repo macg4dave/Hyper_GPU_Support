@@ -31,7 +31,7 @@ Prefer Slint's embedded MCP interface for this application's GUI journeys. Use i
 
 4. Call `list_windows`, then `get_window_properties` for the returned window. Obtain `rootElementHandle` from those properties; window and element handles are distinct. Read `get_element_tree`, or query descendants/IDs, to locate controls by role, label, ID and enabled state. Require one matching enabled control, particularly when modal and background buttons share a label. Refresh the tree after each action and rediscover handles after reopening.
 
-5. Use `click_element` or accessibility actions for buttons/switches, `set_element_value` for text inputs, and key/scroll tools for their normal interactions. Entering a memory value still requires Enter or **Set request**, followed by the normal review and second Apply. Do not inject controller state or bypass consent, planning, enrollment or recovery.
+5. Use `click_element` or accessibility actions for buttons/switches, `set_element_value` for text inputs, and key/scroll tools for their normal interactions. Entering a memory value requires Enter or **Set request**, then Apply starts preparation and execution through the normal progress screen. Do not inject controller state or bypass consent, planning, enrollment or recovery.
 
 6. Capture `take_screenshot` before/after significant transitions, inspect the image, and save screenshots plus non-secret JSON observations under `local/evidence/qa/`. Record timings and repeated refresh samples. A Complete stage is not the final outcome; wait for the terminal result and required state readback. Gracefully close the app at the end to stop its inspection listener.
 
