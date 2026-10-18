@@ -12,7 +12,7 @@ use crate::{
     windows_hyperv, windows_pipe,
     workflow::Backend,
 };
-use std::{fs, io::Read, path::PathBuf};
+use std::path::PathBuf;
 
 /// Review additive authority against the current protected policy, without writes.
 pub fn review_pair(target: &Target) -> Result<crate::enrollment::PairReview, String> {
@@ -43,22 +43,15 @@ pub(crate) fn pair_pending_path() -> Result<PathBuf, String> {
 pub fn pending_pair() -> Result<Option<crate::enrollment::PendingPair>, String> {
     use crate::configuration_store::Revision;
     let path = pair_pending_path()?;
-    match fs::symlink_metadata(&path) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.to_string()),
-        Ok(m) if !m.is_file() => return Err("enrollment recovery is not a file".into()),
-        Ok(_) => {}
-    }
-    crate::security::verify(&path)?;
-    let mut bytes = Vec::new();
-    fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .take(FRAME_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    if bytes.len() > FRAME_LIMIT {
-        return Err("enrollment recovery exceeds input limit".into());
-    }
+    let Some(bytes) = crate::security::read_optional(
+        &path,
+        FRAME_LIMIT,
+        "enrollment recovery is not a file",
+        "enrollment recovery exceeds input limit",
+    )?
+    else {
+        return Ok(None);
+    };
     let record: crate::enrollment::PendingPair =
         serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     record.review.target()?;

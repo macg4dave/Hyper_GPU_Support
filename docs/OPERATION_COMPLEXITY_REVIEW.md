@@ -4,7 +4,7 @@ Reviewed: 18 October 2026. Source baseline: `10016629350876d7eb785fa5e8903d53af1
 
 ## Purpose and requirements
 
-Repository-wide architectural and code review followed by justified source simplification. Preserve the capable application, persistent formats and supported workflows. Source size is a measurement, not this review's optimisation target. The separate [roadmap](roadmap.md) size goal remains open; this review does not establish its feasibility or authorise live qualification.
+Repository-wide architectural and code review followed by justified source simplification. Preserve the capable application, persistent formats and supported workflows. Source size is a measurement, not this review's optimisation target. The [roadmap](roadmap.md) follows this architectural objective without a numerical size target. This review does not authorise live qualification.
 
 The application manages existing Hyper-V VM/GPU pairs. It must distinguish requested configuration, current host observations, guest preparation/check history, operator authority and unresolved operation evidence. These are different facts, not interchangeable copies of application state.
 
@@ -57,7 +57,7 @@ No persistent configuration, journal, enrollment, recovery, transport frame or G
 
 The selected completion change removes an internal representation that production never creates. A failed or incomplete protected observation still blocks completion and new review. Typed records cannot replace fresh independent reads or prove successful external effects.
 
-Remaining architectural cost is concentrated in frontend coordination and the native/guest/security footprint. Broader replacement would need concrete equivalence evidence for cancellation/release, interruption, lost replies, record migration and external interference. This review finds no justification to weaken those contracts or to claim the separate 10,000-line goal feasible. Existing roadmap concerns remain open; no speculative backlog cards are added.
+Remaining architectural cost is concentrated in frontend coordination and the native/guest/security footprint. Broader replacement would need concrete equivalence evidence for cancellation/release, interruption, lost replies, record migration and external interference. The user has withdrawn the numerical line target; source size remains a descriptive measurement. Simplification must preserve those contracts. Existing roadmap concerns remain open; no speculative backlog cards are added.
 
 ## Measurements and verification
 
@@ -87,4 +87,12 @@ The complete `powershell -NoProfile -File scripts/testing/check.ps1` gate passed
 
 New regressions reject drift in all 14 journal fields before prepared Apply/Verify effects, reject changed receipt bindings during migration/retirement, reject malformed GUIDs while preserving uppercase input, and reject invalid completion scope/revision/identity without replacing loaded state or releasing recovery. Existing tests retain lifecycle ordering, failed effects/reads, cancellation/release, payload drift, exact publication, save-only, negative completion, per-VM holds, resumable reinstall/deletion and newer drafts. Tests formerly using incomplete completion inputs now use the same validated bundle as production; a fresh observation can be known while an operation outcome remains uncertain.
 
-Source tracing and the diff review retain the sequence, comparison fields, independent reads, case policies and persisted schemas. Tests support those findings but do not establish native external equivalence. No measured speedup is claimed. No live GUI launch, protected installation, credentials, guest access, VM/GPU changes, driver installation or host restart was performed. The changed candidate is not installed or live-qualified; the separate roadmap feasibility and acceptance gates remain open.
+Source tracing and the diff review retain the sequence, comparison fields, independent reads, case policies and persisted schemas. Tests support those findings but do not establish native external equivalence. No measured speedup is claimed. No live GUI launch, protected installation, credentials, guest access, VM/GPU changes, driver installation or host restart was performed. The changed candidate is not installed or live-qualified; remaining roadmap simplification work and live acceptance remain separate.
+
+## Protected record-read consolidation
+
+A subsequent caller review at base `2d52b0b` found seven copies of the same optional protected-file read: setup and pair recovery, configuration-import recovery, operation recovery, profile history, managed journals and saved configuration. They all inspect metadata, accept only NotFound as absence, reject non-files, verify ownership/permissions, and read at most the input limit plus one byte. Those mechanics now live in `security::read_optional`; each caller keeps its existing size limit, exact diagnostic wording and domain decoding/validation. This removes the repeated I/O implementations without a new storage framework, module, dependency or record format.
+
+The reinstall receipt, enrollment policy, audit-retention and guest-receipt readers remain separate: they have different file-type, open-error, single-link, sharing or typed-failure contracts. No obsolete public API or compatibility record was established as safe to delete. Recovery admission, publication, independent readbacks and the native effect sequence are unchanged.
+
+Regression coverage checks exact and excessive input lengths at both retained limits, bounded consumption of oversized streams, failure after partial input, missing/non-file distinction and refusal of operator-writable files before reading. On 18 October 2026, the complete non-hardware gate passed all ten stages for this follow-up: **480 product Rust tests**, **12 catalogue tests**, copy/docs/format checks, strict Clippy, four binary builds and API documentation. Evidence: `local/evidence/m1-gate-20261018T161417144Z/report.json`. Earlier attempts stopped on formatting and an unused import; both were corrected before the complete passing run. No live application or protected-state work is part of this follow-up.

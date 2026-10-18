@@ -3,7 +3,7 @@ use super::{Revision, SavePhase, SaveRecord, StoreSnapshot};
 use crate::{model::Configuration, payload, runner, security};
 use std::{
     fs,
-    io::{Read, Write},
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -103,25 +103,15 @@ pub(crate) fn read() -> StoreSnapshot {
     snapshot
 }
 fn read_source(path: &Path) -> Result<Option<String>, String> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) => {
-            if !metadata.is_file() {
-                return Err("configuration destination is not a regular file".into());
-            }
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.to_string()),
-    }
-    security::verify(path)?;
-    let mut bytes = Vec::new();
-    fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .take(65537)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    if bytes.len() > 65536 {
-        return Err("per-VM configuration exceeds the 64 KiB input limit".into());
-    }
+    let Some(bytes) = security::read_optional(
+        path,
+        65536,
+        "configuration destination is not a regular file",
+        "per-VM configuration exceeds the 64 KiB input limit",
+    )?
+    else {
+        return Ok(None);
+    };
     String::from_utf8(bytes)
         .map(Some)
         .map_err(|_| "configuration is not UTF-8".into())

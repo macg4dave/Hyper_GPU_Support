@@ -6,7 +6,7 @@ use crate::{
     payload, process, windows_hyperv,
     workflow::{Backend, Journal},
 };
-use std::{fs, io::Read, path::PathBuf, time::Duration};
+use std::{fs, path::PathBuf, time::Duration};
 
 pub(crate) struct NativeBackend {
     reads: Option<windows_hyperv::ReadSession>,
@@ -88,24 +88,15 @@ impl Backend for NativeBackend {
         let path = self
             .data
             .join(format!("{}.json", t.vm_id.to_ascii_lowercase()));
-        match fs::symlink_metadata(&path) {
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error.to_string()),
-            Ok(metadata) if !metadata.is_file() => {
-                return Err("journal is not a regular file".into());
-            }
-            Ok(_) => {}
-        }
-        crate::security::verify(&path)?;
-        let mut b = Vec::new();
-        fs::File::open(path)
-            .map_err(|e| e.to_string())?
-            .take(65537)
-            .read_to_end(&mut b)
-            .map_err(|e| e.to_string())?;
-        if b.len() > 65536 {
-            return Err("invalid journal size".into());
-        }
+        let Some(b) = crate::security::read_optional(
+            &path,
+            65536,
+            "journal is not a regular file",
+            "invalid journal size",
+        )?
+        else {
+            return Ok(None);
+        };
         serde_json::from_slice(&b)
             .map(Some)
             .map_err(|e| e.to_string())

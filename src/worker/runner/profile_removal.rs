@@ -12,26 +12,15 @@ use crate::{
     configuration_store::{self, Revision},
     enrollment::{self, PendingPair, RemovalBackend, RemovalReview, RemovalSnapshot, RemovalState},
 };
-use std::{fs, io::Read, path::Path};
+use std::{fs, path::Path};
 
 fn record_bytes(path: &Path) -> Result<Option<Vec<u8>>, String> {
-    match fs::symlink_metadata(path) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.to_string()),
-        Ok(m) if !m.is_file() => return Err("Profile history is not a regular file.".into()),
-        Ok(_) => {}
-    }
-    crate::security::verify(path)?;
-    let mut bytes = Vec::new();
-    fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .take(FRAME_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    if bytes.len() > FRAME_LIMIT {
-        return Err("Profile history exceeds its input limit.".into());
-    }
-    Ok(Some(bytes))
+    crate::security::read_optional(
+        path,
+        FRAME_LIMIT,
+        "Profile history is not a regular file.",
+        "Profile history exceeds its input limit.",
+    )
 }
 
 fn file_revision(path: &Path) -> Result<Revision, String> {

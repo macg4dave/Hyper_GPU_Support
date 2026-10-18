@@ -1,6 +1,6 @@
-//! Trusted ownership and restrictive administrator/SYSTEM file permissions.
+//! Trusted ownership, restrictive permissions and bounded protected-file reads.
 use crate::payload;
-use std::path::Path;
+use std::{io::Read, path::Path};
 use windows::{
     Win32::{
         Foundation::{HLOCAL, LocalFree},
@@ -72,6 +72,37 @@ pub(crate) fn entry_exists(path: &Path) -> Result<bool, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error.to_string()),
     }
+}
+/// Read an optional protected regular file. Only metadata NotFound means absence;
+/// a failed trust check, open or read must remain an error, including disappearance
+/// after metadata inspection. Callers retain their own bounds and diagnostics.
+pub(crate) fn read_optional(
+    path: &Path,
+    limit: usize,
+    not_file: &str,
+    too_large: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    match std::fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+        Ok(metadata) if !metadata.is_file() => return Err(not_file.into()),
+        Ok(_) => {}
+    }
+    verify(path)?;
+    let input = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    read_bounded(input, limit, too_large).map(Some)
+}
+
+fn read_bounded(input: impl Read, limit: usize, too_large: &str) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    input
+        .take(limit.saturating_add(1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() > limit {
+        return Err(too_large.into());
+    }
+    Ok(bytes)
 }
 /// Restrict cleanup/metadata leaves to protected regular files with one link.
 #[allow(unsafe_code)]
@@ -265,6 +296,58 @@ fn verify_owner(path: &Path, system: bool) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn protected_read_accepts_exact_bounds_and_stops_after_one_excess_byte() {
+        use std::io::Cursor;
+        for limit in [0, 1, 65536, crate::runner::FRAME_LIMIT] {
+            let expected = vec![b'x'; limit];
+            assert_eq!(
+                super::read_bounded(Cursor::new(&expected), limit, "oversized").unwrap(),
+                expected
+            );
+            let mut oversized = Cursor::new(vec![b'x'; limit + 32]);
+            assert_eq!(
+                super::read_bounded(&mut oversized, limit, "record-specific size failure")
+                    .unwrap_err(),
+                "record-specific size failure"
+            );
+            assert_eq!(oversized.position(), limit as u64 + 1);
+        }
+    }
+
+    #[test]
+    fn protected_read_preserves_a_read_failure_after_partial_input() {
+        struct FailedRead;
+        impl std::io::Read for FailedRead {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other(
+                    "read interrupted after partial input",
+                ))
+            }
+        }
+        use std::io::Read;
+        let input = std::io::Cursor::new(b"partial record").chain(FailedRead);
+        assert_eq!(
+            super::read_bounded(input, 65536, "oversized").unwrap_err(),
+            "read interrupted after partial input"
+        );
+    }
+
+    #[test]
+    fn optional_protected_read_distinguishes_absence_from_a_non_file() {
+        let root = std::env::temp_dir();
+        let missing = root.join(format!("hyper-gpu-absent-read-{}", std::process::id()));
+        assert!(!missing.exists());
+        assert_eq!(
+            super::read_optional(&missing, 65536, "not a regular file", "oversized").unwrap(),
+            None
+        );
+        assert_eq!(
+            super::read_optional(&root, 65536, "not a regular file", "oversized").unwrap_err(),
+            "not a regular file"
+        );
+    }
+
+    #[test]
     fn windows_owner_exception_does_not_expand_private_state_ownership() {
         let installer = "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
         assert!(super::trusted(installer, true));
@@ -281,7 +364,10 @@ mod tests {
             .open(&path)
             .unwrap();
         let checked = super::verify(&path);
+        // Trust is checked before bytes or their size can be accepted.
+        let read = super::read_optional(&path, 0, "not a regular file", "oversized");
         std::fs::remove_file(&path).unwrap();
         assert!(checked.is_err());
+        assert_eq!(read.unwrap_err(), checked.unwrap_err());
     }
 }

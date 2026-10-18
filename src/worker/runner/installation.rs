@@ -14,7 +14,7 @@ use super::{
 use crate::{
     model::Configuration, payload, process, windows_hyperv, windows_pipe, workflow::Backend,
 };
-use std::{fs, io::Read};
+use std::fs;
 use windows::core::BSTR;
 
 /// Administrator-only native installation/enrollment of selected existing VMs.
@@ -277,21 +277,15 @@ fn install_inner(
 /// Only GUI first-install records are accepted here; legacy CLI markers stay explicit.
 pub fn pending_setup() -> Result<Option<crate::enrollment::PendingSetup>, String> {
     let path = data_directory()?.join("installation-pending.json");
-    match fs::symlink_metadata(&path) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(e.to_string()),
-        Ok(m) if !m.is_file() => return Err("setup recovery is not a file".into()),
-        Ok(_) => crate::security::verify(&path)?,
-    }
-    let mut bytes = Vec::new();
-    fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .take(FRAME_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    if bytes.len() > FRAME_LIMIT {
-        return Err("setup recovery exceeds input limit".into());
-    }
+    let Some(bytes) = crate::security::read_optional(
+        &path,
+        FRAME_LIMIT,
+        "setup recovery is not a file",
+        "setup recovery exceeds input limit",
+    )?
+    else {
+        return Ok(None);
+    };
     let record: crate::enrollment::PendingSetup = serde_json::from_slice(&bytes)
         .map_err(|_| "interrupted CLI installation requires administrator install; no GUI setup binding exists")?;
     record.review.target()?;

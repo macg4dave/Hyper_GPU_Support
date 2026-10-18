@@ -8,7 +8,6 @@ use crate::configuration_store::SaveRecord;
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -30,24 +29,15 @@ pub(crate) fn import_path() -> Result<PathBuf, String> {
 /// Read import recovery without accepting it as enrollment or changing any file.
 pub fn import_record() -> Result<Option<crate::configuration_store::ImportRecord>, String> {
     let path = import_path()?;
-    match fs::symlink_metadata(&path) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.to_string()),
-        Ok(metadata) if !metadata.is_file() => {
-            return Err("import receipt is not a regular file".into());
-        }
-        Ok(_) => {}
-    }
-    crate::security::verify(&path)?;
-    let mut bytes = Vec::new();
-    fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .take(FRAME_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    if bytes.len() > FRAME_LIMIT {
-        return Err("import recovery input limit exceeded".into());
-    }
+    let Some(bytes) = crate::security::read_optional(
+        &path,
+        FRAME_LIMIT,
+        "import receipt is not a regular file",
+        "import recovery input limit exceeded",
+    )?
+    else {
+        return Ok(None);
+    };
     let record: crate::configuration_store::ImportRecord =
         serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     record.validate()?;
@@ -98,22 +88,15 @@ pub(crate) fn new_recovery_path(id: &str) -> Result<PathBuf, String> {
 }
 
 pub(crate) fn read_recovery_at(path: &Path) -> Result<Option<SaveRecord>, String> {
-    match fs::symlink_metadata(path) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.to_string()),
-        Ok(metadata) if !metadata.is_file() => return Err("recovery record is not a file".into()),
-        Ok(_) => {}
-    }
-    crate::security::verify(path)?;
-    let mut bytes = Vec::new();
-    fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .take(FRAME_LIMIT as u64 + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| e.to_string())?;
-    if bytes.len() > FRAME_LIMIT {
-        return Err("recovery record exceeds input limit".into());
-    }
+    let Some(bytes) = crate::security::read_optional(
+        path,
+        FRAME_LIMIT,
+        "recovery record is not a file",
+        "recovery record exceeds input limit",
+    )?
+    else {
+        return Ok(None);
+    };
     let value: serde_json::Value = serde_json::from_slice(&bytes)
         .map_err(|e| format!("invalid protected recovery record: {e}"))?;
     if path == recovery_path()? && value.get("schema").and_then(|v| v.as_u64()) == Some(2) {
