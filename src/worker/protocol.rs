@@ -3,7 +3,7 @@ use super::preparation::{self, PreparedReview};
 use crate::{
     configuration_store::Revision,
     credentials::Credential,
-    workflow::{self, OperationResult, Plan},
+    workflow::{self, OperationResult},
 };
 use serde::{Deserialize, Serialize};
 
@@ -52,15 +52,6 @@ pub(super) enum Command {
         operation_id: String,
         expected: Revision,
     },
-    Apply {
-        approved: Plan,
-        expected: Revision,
-        shutdown_approved: bool,
-    },
-    Verify {
-        approved: workflow::VerificationPlan,
-        shutdown_approved: bool,
-    },
     Reconcile {
         operation_id: String,
         shutdown_approved: bool,
@@ -78,14 +69,6 @@ pub(super) enum Command {
 }
 
 impl Command {
-    /// A reviewed plan is a display contract, never a fresh effect admission.
-    pub(super) fn validate_submission(&self) -> Result<(), String> {
-        if matches!(self, Self::Apply { .. } | Self::Verify { .. }) {
-            return Err("GPU execution requires a fresh prepared worker session".into());
-        }
-        Ok(())
-    }
-
     /// An authenticated terminal reply must still match the submitted operation.
     /// Progress completion is never sufficient to establish a terminal outcome.
     pub(super) fn validate_outcome(&self, outcome: &Outcome, session: &str) -> Result<(), String> {
@@ -96,28 +79,31 @@ impl Command {
             | Self::ImportResume { operation_id } => operation_id.as_str(),
             _ => session,
         };
-        let invalid = || {
-            "Worker terminal reply does not match the reviewed operation; outcome uncertain. Refresh and inspect protected recovery.".to_owned()
-        };
-        if outcome.operation_id != expected_id
-            || expected_id.is_empty()
-            || ((outcome.saved || outcome.finished) && outcome.save_error.is_some())
-        {
-            return Err(invalid());
-        }
+        outcome.validate_identity(expected_id)?;
+        let invalid = invalid_outcome;
         match self {
             Self::Prepare { .. } => return Err(invalid()),
-            Self::ResetPartial { .. } => {
+            Self::ResetPartial { .. } | Self::ForgetPair { .. } => {
                 if outcome.operation.is_some() || outcome.saved || !outcome.finished {
                     return Err(invalid());
                 }
             }
-            Self::ForgetPair { .. } => {
-                if outcome.operation.is_some() || outcome.saved || !outcome.finished {
+            Self::SaveOnly { .. } => {
+                if outcome.operation.is_some() || !outcome.saved || !outcome.finished {
                     return Err(invalid());
                 }
             }
-            Self::Apply { approved, .. } => {
+            _ => {}
+        }
+        Ok(())
+    }
+}
+impl PreparedReview {
+    pub(super) fn validate_outcome(&self, outcome: &Outcome, session: &str) -> Result<(), String> {
+        outcome.validate_identity(session)?;
+        let invalid = invalid_outcome;
+        match self {
+            Self::Apply { plan: approved, .. } => {
                 let operation = outcome.operation.as_ref().ok_or_else(invalid)?;
                 let effective = &operation.effective;
                 let target = &approved.desired;
@@ -154,12 +140,7 @@ impl Command {
                     return Err(invalid());
                 }
             }
-            Self::SaveOnly { .. } => {
-                if outcome.operation.is_some() || !outcome.saved || !outcome.finished {
-                    return Err(invalid());
-                }
-            }
-            Self::Verify { approved, .. } => {
+            Self::Verify { plan: approved, .. } => {
                 let operation = outcome.operation.as_ref().ok_or_else(invalid)?;
                 if operation.effective.vm_id != approved.target.vm_id
                     || operation.effective.gpus != approved.observed.gpus
@@ -177,11 +158,27 @@ impl Command {
                     return Err(invalid());
                 }
             }
-            _ => {}
         }
         Ok(())
     }
 }
+
+fn invalid_outcome() -> String {
+    "Worker terminal reply does not match the reviewed operation; outcome uncertain. Refresh and inspect protected recovery.".into()
+}
+
+impl Outcome {
+    fn validate_identity(&self, expected: &str) -> Result<(), String> {
+        if self.operation_id != expected
+            || expected.is_empty()
+            || ((self.saved || self.finished) && self.save_error.is_some())
+        {
+            return Err(invalid_outcome());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Request {
@@ -291,10 +288,9 @@ mod tests {
             operation_id: "session".into(),
             save_error: None,
         };
-        let command = Command::Apply {
-            approved,
+        let command = PreparedReview::Apply {
+            plan: approved,
             expected: Revision::Missing,
-            shutdown_approved: false,
         };
         command.validate_outcome(&outcome, "session").unwrap();
         let mut unsaved = outcome.clone();
@@ -326,6 +322,96 @@ mod tests {
                     .unwrap_err()
                     .contains("outcome uncertain")
             );
+        }
+    }
+
+    #[test]
+    fn retired_direct_plan_commands_are_rejected_during_request_decoding() {
+        use crate::workflow::test_support::{fake, target};
+        let mut backend = fake();
+        workflow::apply(&mut backend, &target()).unwrap();
+        let (verify, _) = workflow::prepare_verification(&mut backend, &target()).unwrap();
+        let commands = [
+            serde_json::json!({"Apply": {"approved": ordinary_disabled_plan(), "expected": Revision::Missing, "shutdown_approved": true}}),
+            serde_json::json!({"Verify": {"approved": verify, "shutdown_approved": true}}),
+        ];
+        for command in commands {
+            let request = serde_json::json!({"schema": 1, "session": "fixture", "credential": null, "command": command});
+            assert!(serde_json::from_value::<Request>(request).is_err());
+        }
+        let request = Request {
+            schema: 1,
+            session: "fixture".into(),
+            credential: None,
+            command: Command::Prepare {
+                intent: preparation::Intent::Verify {
+                    target: target(),
+                    expected: Revision::Missing,
+                },
+            },
+        };
+        assert!(serde_json::from_slice::<Request>(&serde_json::to_vec(&request).unwrap()).is_ok());
+    }
+
+    #[test]
+    fn prepared_verify_reply_preserves_identity_power_graphics_and_non_publication() {
+        use crate::workflow::test_support::{fake, target};
+        for power in [Power::Off, Power::Running] {
+            let mut backend = fake();
+            workflow::apply(&mut backend, &target()).unwrap();
+            backend.state.power = power;
+            let (plan, _) = workflow::prepare_verification(&mut backend, &target()).unwrap();
+            let outcome = Outcome {
+                operation: Some(OperationResult {
+                    effective: plan.observed.clone(),
+                    prepared: false,
+                    verified: true,
+                    settings_preserved: false,
+                }),
+                saved: false,
+                finished: true,
+                operation_id: "session".into(),
+                save_error: None,
+            };
+            let review = PreparedReview::Verify {
+                plan,
+                expected: Revision::Missing,
+            };
+            review.validate_outcome(&outcome, "session").unwrap();
+            for fault in 0..9 {
+                let mut reply = outcome.clone();
+                match fault {
+                    0 => reply.operation_id = "other-session".into(),
+                    1 => reply.operation.as_mut().unwrap().effective.vm_id = "other-vm".into(),
+                    2 => reply.operation.as_mut().unwrap().effective.gpus.clear(),
+                    3 => {
+                        let state = &mut reply.operation.as_mut().unwrap().effective;
+                        state.power = if state.power == Power::Off {
+                            Power::Running
+                        } else {
+                            Power::Off
+                        };
+                    }
+                    4 => reply.operation.as_mut().unwrap().verified = false,
+                    5 => reply.operation.as_mut().unwrap().prepared = true,
+                    6 => reply.saved = true,
+                    7 => reply.finished = false,
+                    _ => reply.save_error = Some("unexpected publication".into()),
+                }
+                assert!(
+                    review.validate_outcome(&reply, "session").is_err(),
+                    "fault {fault}"
+                );
+            }
+            assert!(review.validate_outcome(&outcome, "").is_err());
+            // A terminal success before preparation is never accepted.
+            let command = Command::Prepare {
+                intent: preparation::Intent::Verify {
+                    target: target(),
+                    expected: Revision::Missing,
+                },
+            };
+            assert!(command.validate_outcome(&outcome, "session").is_err());
         }
     }
 

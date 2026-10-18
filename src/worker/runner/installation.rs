@@ -106,13 +106,7 @@ fn install_inner(
             enrolled: vec![],
             managed: Default::default(),
         });
-        let mut reader = NativeBackend {
-            reads: None,
-            credential: None,
-            manifest: None,
-            payload_hold: Vec::new(),
-            data: data.clone(),
-        };
+        let mut reader = NativeBackend::new(data.clone(), None);
         for target in &configuration.targets {
             view.proposal_eligibility(target)?;
             if reader.journal(target)?.is_some_and(|j| {

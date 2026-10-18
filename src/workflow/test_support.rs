@@ -4,7 +4,7 @@ use crate::model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState};
 use crate::work_counts::{Counter, Counts};
 
 pub(crate) struct Fake {
-    pub(super) work: Counts,
+    pub(crate) work: Counts,
     pub(super) os_checks: usize,
     pub(super) os_check_traces: Vec<Vec<&'static str>>,
     pub(super) os_failure: Option<String>,
@@ -16,7 +16,7 @@ pub(crate) struct Fake {
     pub(super) fail_prepare: bool,
     pub(super) fail_settings: bool,
     pub(super) settings_writes: usize,
-    pub(super) fail_verify: bool,
+    pub(crate) fail_verify: bool,
     pub(super) stop_on_verify: bool,
     pub(super) change_settings_on_detach: bool,
     pub(super) payload_check_failure: Option<crate::reporting::FailureCause>,

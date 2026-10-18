@@ -37,7 +37,6 @@ fn execute_inner(
     mut notify: impl FnMut(Progress) -> Result<(), String>,
     mut exchange: impl FnMut(&PreparedReview) -> Result<Authorization, String>,
 ) -> Result<Outcome, String> {
-    request.command.validate_submission()?;
     let (data, _lock) = preparation_stage("Check protected worker admission", &mut notify, || {
         let data = runner::data_directory()?;
         crate::security::verify(&data)?;
@@ -67,8 +66,6 @@ fn execute_inner(
         Command::ForgetPair { .. } => "ForgetPair",
         Command::EnrollPair { .. } => "EnrollPair",
         Command::ReconcilePair { .. } => "ReconcilePair",
-        Command::Apply { .. } => "ApplyApproved",
-        Command::Verify { .. } => "VerifyApproved",
         Command::Reconcile { .. } => "ReconcileObserved",
         Command::SaveOnly { .. } => "SaveOnly",
         Command::Import { .. } => "ImportConfiguration",
@@ -94,13 +91,6 @@ fn execute_inner(
             operation_id,
             expected,
         } => serde_json::json!({"original_operation_id":operation_id,"expected":expected}),
-        Command::Apply {
-            approved,
-            expected,
-            shutdown_approved,
-        } => {
-            serde_json::json!({"vm_id":approved.desired.vm_id,"gpu_interface":approved.desired.gpu_interface,"plan_revision":Revision::of(&serde_json::to_vec(approved).map_err(|e| e.to_string())?),"expected":expected,"shutdown_approved":shutdown_approved})
-        }
         Command::SaveOnly { operation_id } => {
             serde_json::json!({"original_operation_id":operation_id})
         }
@@ -109,12 +99,6 @@ fn execute_inner(
             shutdown_approved,
         } => {
             serde_json::json!({"original_operation_id":operation_id,"shutdown_approved":shutdown_approved})
-        }
-        Command::Verify {
-            approved,
-            shutdown_approved,
-        } => {
-            serde_json::json!({"vm_id":approved.target.vm_id,"gpu_interface":approved.target.gpu_interface,"plan_revision":Revision::of(&serde_json::to_vec(approved).map_err(|e| e.to_string())?),"shutdown_approved":shutdown_approved})
         }
         Command::Import { source, expected } => {
             serde_json::json!({"source_revision":Revision::of(source.as_bytes()),"expected_destinations":expected})
@@ -132,8 +116,6 @@ fn execute_inner(
         if matches!(
             &request.command,
             Command::Prepare { .. }
-                | Command::Apply { .. }
-                | Command::Verify { .. }
                 | Command::Reconcile { .. }
                 | Command::SaveOnly { .. }
                 | Command::ResetPartial { .. }
@@ -143,12 +125,6 @@ fn execute_inner(
         // Bind every write and final retirement to this command's own receipt.
         recovery_path = match &request.command {
             Command::Prepare { intent } => Some(runner::new_recovery_path(&intent.target().vm_id)?),
-            Command::Apply { approved, .. } => {
-                Some(runner::new_recovery_path(&approved.desired.vm_id)?)
-            }
-            Command::Verify { approved, .. } => {
-                Some(runner::new_recovery_path(&approved.target.vm_id)?)
-            }
             Command::ResetPartial { operation_id, .. }
             | Command::Reconcile { operation_id, .. }
             | Command::SaveOnly { operation_id } => Some(runner::recovery_record_path(
@@ -224,9 +200,6 @@ fn execute_inner(
             }
             Command::ImportResume { operation_id } => {
                 configuration_import::resume(enrollment, operation_id, &mut notify)
-            }
-            Command::Apply { .. } | Command::Verify { .. } => {
-                Err("GPU execution requires a fresh prepared worker session".into())
             }
             Command::Reconcile {
                 operation_id,

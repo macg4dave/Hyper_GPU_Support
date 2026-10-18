@@ -38,7 +38,7 @@ frontend request
   -> protected completion observation, one frontend completion handler
 ```
 
-The CLI ordinary path now uses `apply_prepared`, matching the GUI and setup. `OrdinaryPlan`, direct worker client Apply/Verify functions and optional backend/readmission branches have been removed. Direct reviewed-plan wire requests are rejected; their types remain only as internal terminal-result validation contracts. Ordinary changes remain credential-free and the CLI retains its explicit power flag. CLI `plan` remains read-only and cannot carry reusable execution authority. Audit public callers before removing exported helpers; this package is unpublished, but that alone is not proof of no consumers.
+The CLI ordinary path now uses `apply_prepared`, matching the GUI and setup. `OrdinaryPlan`, direct worker client Apply/Verify functions and optional backend/readmission branches have been removed. Retired direct reviewed-plan Apply/Verify wire variants are removed. Old submissions fail request decoding; terminal replies are checked directly against the authenticated prepared review. Ordinary changes remain credential-free and the CLI retains its explicit power flag. CLI `plan` remains read-only and cannot carry reusable execution authority. Audit public callers before removing exported helpers; this package is unpublished, but that alone is not proof of no consumers.
 
 ### One definition of the steps
 
@@ -76,22 +76,24 @@ Keep the existing Slint component design and reuse shared controls across actual
 
 The goal is **10,000 counted lines under `src/` only, excluding Rust tests**. The original per-responsibility trial allocations were speculative; the OPT-009 slice replaces them with measured source-area counts. These are current implementation sizes, not irreducible lower bounds or promises that the whole design fits.
 
-| Source area | Baseline | First core slice | GUI simplification |
-| --- | ---: | ---: | ---: |
-| GUI, including Slint | 8,652 | 8,638 | 8,241 |
-| Worker and runner | 5,800 | 5,679 | 5,679 |
-| Workflow | 1,905 | 1,858 | 1,858 |
-| Native Windows modules | 3,803 | 3,803 | 3,803 |
-| Guest, payload and probe modules | 3,199 | 3,201 | 3,201 |
-| Other core and CLI under `src/` | 5,782 | 5,759 | 5,759 |
-| Counted `src/` total | **29,141** | **28,938** | **28,541** |
-| Remaining reduction to the goal | **19,141** | **18,938** | **18,541** |
+| Source area | Baseline | First core slice | GUI simplification | Worker lifecycle |
+| --- | ---: | ---: | ---: | ---: |
+| GUI, including Slint | 8,652 | 8,638 | 8,241 | 8,241 |
+| Worker and runner | 5,800 | 5,679 | 5,679 | 5,490 |
+| Workflow | 1,905 | 1,858 | 1,858 | 1,852 |
+| Native Windows modules | 3,803 | 3,803 | 3,803 | 3,803 |
+| Guest, payload and probe modules | 3,199 | 3,201 | 3,201 | 3,201 |
+| Other core and CLI under `src/` | 5,782 | 5,759 | 5,759 | 5,759 |
+| Counted `src/` total | **29,141** | **28,938** | **28,541** | **28,346** |
+| Remaining reduction to the goal | **19,141** | **18,938** | **18,541** | **18,346** |
 
 Under `src/`, the first core slice changed 29,141 counted / 17,160 test lines to 28,938 counted / 17,341 test lines. Its 203 counted-line reduction includes direct-execution helpers becoming test-only; it is not 203 physical deletions. Four existing formatting differences were corrected for the gate.
 
 The GUI batch including request-capture cleanup removes another **397 counted lines**, leaving **28,541 counted / 17,129 excluded test lines** and **45,670 physical lines** under `src/`. GUI code including Slint is 8,241 lines. It shares dialog actions, validates captured requests and removes hidden summary builders and obsolete review stores. The [GUI checkpoint](ENGINEERING.md#gui-simplification-checkpoint) and [request-capture checkpoint](ENGINEERING.md#captured-gui-requests-checkpoint) record complete passing gates. Earlier wider repository counts remain historical in engineering; tools/build/probes outside `src/` are excluded from this table.
 
-The worker/native/guest areas currently total **12,683 lines**, exceeding the whole goal before GUI, workflow and configuration. Therefore preserving those implementations unchanged while only thinning GUI coordination cannot meet the goal. Subsequent work must replace duplicated mechanisms inside those areas too. The temporary source audit is in ignored `local/evidence/core-slice-count/`. Full-budget feasibility is still open; the first slice and a passing gate do not establish it. Complete that measured replacement design before wholesale migration.
+The subsequent worker batch shares preparation exchange, receipt construction and the Apply/Verify execution/confirmation lifecycle, removes retired direct-plan wire variants and simplifies already-bound receipt paths. Its [checkpoint](ENGINEERING.md#worker-lifecycle-checkpoint) records implementation and validation separately. Current excluded Rust test/helper lines are 17,528, and gross `src/` source is 45,874 lines. Added meaningful failure tests account for the physical increase; no production code was reclassified as test-only.
+
+The worker/native/guest areas currently total **12,494 lines**, exceeding the whole goal before GUI, workflow and configuration. Therefore preserving those implementations unchanged while only thinning GUI coordination cannot meet the goal. Subsequent work must replace duplicated mechanisms inside those areas too. The temporary source audit is in ignored `local/evidence/core-slice-count/`. Full-budget feasibility is still open; the first slice and a passing gate do not establish it. Complete that measured replacement design before wholesale migration.
 
 Rust tests have no line budget. Design the program around its actual tasks, then adapt useful tests to that design. Remove unused, obsolete and redundant tests and helpers when their behavior is retired. Existing tests do not require retaining unused production APIs, indirection or compatibility layers. Keep meaningful checks of retained product behavior and failures; test fixtures and implementation details are free to change.
 

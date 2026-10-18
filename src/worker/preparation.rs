@@ -117,27 +117,15 @@ impl PreparedReview {
             &serde_json::to_vec(self).map_err(|e| e.to_string())?,
         ))
     }
-    pub(super) fn command(&self, shutdown_approved: bool) -> Result<Command, String> {
+    pub(super) fn validate_power(&self, approved: bool) -> Result<(), String> {
         match self {
-            Self::Apply { plan, expected } => {
-                if plan.preview.guest_downtime && !shutdown_approved {
-                    return Err("Graceful shutdown approval required".into());
-                }
-                Ok(Command::Apply {
-                    approved: plan.clone(),
-                    expected: expected.clone(),
-                    shutdown_approved,
-                })
+            Self::Apply { plan, .. } if plan.preview.guest_downtime && !approved => {
+                Err("Graceful shutdown approval required".into())
             }
-            Self::Verify { plan, .. } => {
-                if plan.observed.power == Power::Off && !shutdown_approved {
-                    return Err("Temporary start and shutdown approval required".into());
-                }
-                Ok(Command::Verify {
-                    approved: plan.clone(),
-                    shutdown_approved,
-                })
+            Self::Verify { plan, .. } if plan.observed.power == Power::Off && !approved => {
+                Err("Temporary start and shutdown approval required".into())
             }
+            _ => Ok(()),
         }
     }
 }
@@ -180,7 +168,7 @@ impl Approval {
         if self.schema != 1 || self.session != session || self.review != review.revision()? {
             return Err("Prepared approval identity or scope changed".into());
         }
-        review.command(self.shutdown_approved)?;
+        review.validate_power(self.shutdown_approved)?;
         let needs = match review {
             PreparedReview::Apply { plan, .. } => plan.preview.credentials_required,
             PreparedReview::Verify { .. } => true,
@@ -255,79 +243,45 @@ pub(super) fn execute(
     if configuration_store::protected::revision(&target.vm_id)? != *intent.expected() {
         return Err("Committed configuration changed before preparation".into());
     }
-    let mut backend = NativeBackend {
-        reads: None,
-        credential: None,
-        manifest: None,
-        payload_hold: Vec::new(),
-        data: context.data.into(),
-    };
-    match intent {
-        Intent::Apply {
-            target,
-            reinstall,
-            expected,
-        } => {
-            let (plan, token) = ObservedBackend {
-                backend: &mut backend,
-                notify: &mut notify,
-                before_effect: None,
-            }
-            .stage_observed("Checking reviewed VM and driver files", |backend| {
-                crate::read_context::ReadControl::new(Duration::from_secs(360))
-                    .scope(|| workflow::prepare_apply(backend, &target, reinstall))
-            })?;
-            let review = PreparedReview::Apply {
-                plan: plan.clone(),
-                expected: expected.clone(),
-            };
-            let authorization = exchange(&review)?;
-            // Validate even an in-process exchange implementation; the pipe
-            // implementation additionally binds schema/session/review bytes.
-            let authorization = Approval::new(context.session, &review, authorization)?
-                .validate(context.session, &review)?;
-            backend.credential = authorization.credential;
-            backend.confirm_payload_inventory(&target)?;
-            operations::apply(
-                context,
-                plan,
-                expected,
-                authorization.shutdown_approved,
-                (backend, token),
-                notify,
-            )
-        }
-        Intent::Verify { target, expected } => {
-            let (plan, token) = ObservedBackend {
-                backend: &mut backend,
-                notify: &mut notify,
-                before_effect: None,
-            }
-            .stage_observed("Checking reviewed VM and driver files", |backend| {
-                crate::read_context::ReadControl::new(Duration::from_secs(360))
-                    .scope(|| workflow::prepare_verification(backend, &target))
-            })?;
-            let review = PreparedReview::Verify {
-                plan: plan.clone(),
-                expected: expected.clone(),
-            };
-            let authorization = exchange(&review)?;
-            let authorization = Approval::new(context.session, &review, authorization)?
-                .validate(context.session, &review)?;
-            if configuration_store::protected::revision(&target.vm_id)? != expected {
-                return Err("Committed configuration changed during preparation".into());
-            }
-            backend.credential = authorization.credential;
-            backend.confirm_payload_inventory(&target)?;
-            operations::verify(
-                context,
-                plan,
-                authorization.shutdown_approved,
-                (backend, token),
-                notify,
-            )
-        }
+    let mut backend = NativeBackend::new(context.data.into(), None);
+    let (review, admitted) = ObservedBackend {
+        backend: &mut backend,
+        notify: &mut notify,
+        before_effect: None,
     }
+    .stage_observed("Checking reviewed VM and driver files", |backend| {
+        crate::read_context::ReadControl::new(Duration::from_secs(360)).scope(|| match intent {
+            Intent::Apply {
+                target,
+                reinstall,
+                expected,
+            } => {
+                let (plan, token) = workflow::prepare_apply(backend, &target, reinstall)?;
+                Ok((
+                    PreparedReview::Apply { plan, expected },
+                    operations::Admitted::Apply(Box::new(token)),
+                ))
+            }
+            Intent::Verify { target, expected } => {
+                let (plan, token) = workflow::prepare_verification(backend, &target)?;
+                Ok((
+                    PreparedReview::Verify { plan, expected },
+                    operations::Admitted::Verify(Box::new(token)),
+                ))
+            }
+        })
+    })?;
+    let authorization = exchange(&review)?;
+    // Validate in-process exchanges too; the pipe additionally binds frame identity.
+    let authorization = Approval::new(context.session, &review, authorization)?
+        .validate(context.session, &review)?;
+    backend.credential = authorization.credential;
+    let target = match &review {
+        PreparedReview::Apply { plan, .. } => &plan.desired,
+        PreparedReview::Verify { plan, .. } => &plan.target,
+    };
+    backend.confirm_payload_inventory(target)?;
+    operations::execute(context, review, backend, admitted, notify)
 }
 
 #[cfg(test)]
@@ -457,6 +411,50 @@ mod tests {
     }
 
     #[test]
+    fn verify_approval_requires_exact_revision_credentials_and_approved_temporary_power() {
+        for running in [false, true] {
+            let mut backend = fake();
+            let target = target();
+            workflow::apply(&mut backend, &target).unwrap();
+            backend.state.power = if running { Power::Running } else { Power::Off };
+            let expected = Revision::of(b"saved revision");
+            let (plan, _) = workflow::prepare_verification(&mut backend, &target).unwrap();
+            let review = PreparedReview::Verify {
+                plan,
+                expected: expected.clone(),
+            };
+            Intent::Verify {
+                target: target.clone(),
+                expected,
+            }
+            .validate_review(&review)
+            .unwrap();
+            assert!(
+                Intent::Verify {
+                    target,
+                    expected: Revision::Missing
+                }
+                .validate_review(&review)
+                .is_err()
+            );
+            for power_approved in [false, true] {
+                for credential_present in [false, true] {
+                    let mut authorization = authorization();
+                    authorization.shutdown_approved = power_approved;
+                    if !credential_present {
+                        authorization.credential = None;
+                    }
+                    let approval = Approval::new("session", &review, authorization).unwrap();
+                    assert_eq!(
+                        approval.validate("session", &review).is_ok(),
+                        credential_present && (running || power_approved)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn ordinary_prepared_scope_requires_no_credentials_but_keeps_power_and_session_approval() {
         let mut backend = fake();
         let target = target();
@@ -474,17 +472,11 @@ mod tests {
             expected: Revision::Missing,
         };
         intent.validate_review(&review).unwrap();
-        let command = Command::Prepare { intent };
-        command.validate_submission().unwrap();
         assert!(
-            review.command(false).is_err(),
+            review.validate_power(false).is_err(),
             "CLI power approval is still required"
         );
-        let terminal_contract = review.command(true).unwrap();
-        assert!(
-            terminal_contract.validate_submission().is_err(),
-            "a plan cannot bypass the prepared exchange"
-        );
+        review.validate_power(true).unwrap();
         let approval = Approval::new(
             "ordinary",
             &review,

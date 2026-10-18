@@ -262,7 +262,7 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
 mod tests {
     use super::super::test_support::ordinary_disabled_plan;
     use super::*;
-    use crate::runner::NativeBackend;
+    use crate::workflow::test_support::fake;
 
     #[test]
     fn worker_preparation_reports_order_failure_and_stops_on_lost_progress() {
@@ -359,13 +359,7 @@ mod tests {
     #[test]
     fn admission_progress_is_visible_before_work_and_delivery_failure_prevents_work() {
         for fail_delivery in [false, true] {
-            let mut backend = NativeBackend {
-                reads: None,
-                credential: None,
-                manifest: None,
-                payload_hold: Vec::new(),
-                data: std::path::PathBuf::new(),
-            };
+            let mut backend = fake();
             let mut updates = Vec::new();
             let mut notify = |update: Progress| {
                 updates.push(update.status);
@@ -399,21 +393,15 @@ mod tests {
     }
 
     #[test]
-    fn read_progress_delivery_failure_prevents_native_reads_and_reports_the_read_identity() {
+    fn read_progress_delivery_failure_prevents_backend_reads_and_reports_the_read_identity() {
         let target = ordinary_disabled_plan().desired;
         for (read, stage) in [
             (0, "Read current VM state"),
             (1, "Read selected GPU and driver version"),
             (2, "Authenticate current signed driver files"),
         ] {
-            // No native read may run: the progress sink refuses the start event.
-            let mut backend = NativeBackend {
-                reads: None,
-                credential: None,
-                manifest: None,
-                payload_hold: Vec::new(),
-                data: std::path::PathBuf::new(),
-            };
+            // No backend read may run: the progress sink refuses the start event.
+            let mut backend = fake();
             let mut updates = Vec::new();
             let mut notify = |update: Progress| {
                 updates.push((update.stage, update.status));
@@ -433,20 +421,14 @@ mod tests {
             assert_eq!(updates.len(), 1);
             assert_eq!(updates[0].0, stage);
             assert!(matches!(updates[0].1, StageStatus::Running));
-            assert!(backend.manifest.is_none());
+            assert_eq!(backend.work, Default::default());
         }
     }
 
     #[test]
     fn parent_check_contains_nested_read_outcomes_in_order_and_preserves_failure() {
         for fail_read in [false, true] {
-            let mut backend = NativeBackend {
-                reads: None,
-                credential: None,
-                manifest: None,
-                payload_hold: Vec::new(),
-                data: std::path::PathBuf::new(),
-            };
+            let mut backend = fake();
             let mut updates = Vec::new();
             let mut notify = |update: Progress| {
                 updates.push((update.stage, update.status));

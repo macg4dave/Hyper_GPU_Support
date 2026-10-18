@@ -46,13 +46,7 @@ pub(super) fn read(
         managed: Default::default(),
         enrolled: e.targets.clone(),
     };
-    let mut reader = NativeBackend {
-        reads: None,
-        credential: None,
-        manifest: None,
-        payload_hold: Vec::new(),
-        data,
-    };
+    let mut reader = NativeBackend::new(data, None);
     for target in &e.targets {
         crate::read_context::check()?;
         match reader.journal(target) {

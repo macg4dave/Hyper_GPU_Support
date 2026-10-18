@@ -202,12 +202,12 @@ pub(super) fn submit_with_preparation(
     pipe.send(&bytes)
         .map_err(|e| format!("worker request outcome uncertain: {e}"))?;
     let deadline = Instant::now() + Duration::from_secs(3900);
-    let mut prepared_command = None;
+    let mut prepared_review = None;
     loop {
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or("worker timed out; inspect durable recovery before retry")?;
-        let bytes = (if preparing && prepared_command.is_none() {
+        let bytes = (if preparing && prepared_review.is_none() {
             read.scope(|| {
                 pipe.receive(remaining.min(read.remaining()))
                     .map_err(|e| e.to_string())
@@ -221,7 +221,7 @@ pub(super) fn submit_with_preparation(
                 session: actual,
                 review,
             } if actual == session => {
-                if prepared_command.is_some() {
+                if prepared_review.is_some() {
                     return Err("Repeated worker preparation".into());
                 }
                 let Command::Prepare { intent } = &request.command else {
@@ -231,11 +231,12 @@ pub(super) fn submit_with_preparation(
                 read.check()?;
                 let authorization = authorize(&review)?;
                 read.check()?;
-                prepared_command = Some(review.command(authorization.shutdown_approved)?);
+                review.validate_power(authorization.shutdown_approved)?;
                 let approval = preparation::Approval::new(&session, &review, authorization)?;
                 let bytes = zeroize::Zeroizing::new(
                     serde_json::to_vec(&approval).map_err(|e| e.to_string())?,
                 );
+                prepared_review = Some(review);
                 pipe.send(&bytes)
                     .map_err(|e| format!("Prepared worker approval outcome uncertain: {e}"))?;
             }
@@ -248,10 +249,11 @@ pub(super) fn submit_with_preparation(
                 result,
             } if actual == session => {
                 return (*result).and_then(|mut outcome| {
-                    prepared_command
-                        .as_ref()
-                        .unwrap_or(&request.command)
-                        .validate_outcome(&outcome, &session)?;
+                    if let Some(review) = &prepared_review {
+                        review.validate_outcome(&outcome, &session)?;
+                    } else {
+                        request.command.validate_outcome(&outcome, &session)?;
+                    }
                     outcome.save_error = outcome.save_error.map(|error| {
                         crate::reporting::operator_error("Configuration publication", &error)
                     });

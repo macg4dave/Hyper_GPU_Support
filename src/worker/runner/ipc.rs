@@ -253,13 +253,7 @@ fn execute_operation(
     if matches!(request.operation, Operation::Discover) {
         let mut inventory =
             serde_json::to_value(windows_hyperv::discover()?).map_err(|e| e.to_string())?;
-        let mut reader = NativeBackend {
-            reads: None,
-            credential: None,
-            manifest: None,
-            payload_hold: Vec::new(),
-            data,
-        };
+        let mut reader = NativeBackend::new(data, None);
         let mut managed = std::collections::BTreeMap::new();
         for target in &e.targets {
             target.validate()?;
@@ -293,13 +287,7 @@ fn execute_operation(
     }) {
         return Err("target is outside administrator enrollment".into());
     }
-    let mut backend = NativeBackend {
-        reads: None,
-        credential: request.credential,
-        manifest: None,
-        payload_hold: Vec::new(),
-        data,
-    };
+    let mut backend = NativeBackend::new(data, request.credential);
     if matches!(request.operation, Operation::Apply | Operation::Verify) {
         require_no_vm_recovery(&target.vm_id)?;
         crate::windows_wmi::require_no_pending_operation_for(&target.vm_id)?;

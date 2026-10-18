@@ -119,13 +119,7 @@ pub(crate) fn enroll_pair(
     {
         return Err("enrollment requires a stable VM with no unrelated GPU assignment".into());
     }
-    let mut reader = NativeBackend {
-        reads: None,
-        credential: None,
-        manifest: None,
-        payload_hold: Vec::new(),
-        data: data_directory()?,
-    };
+    let mut reader = NativeBackend::new(data_directory()?, None);
     // Enrollment cannot sidestep any old attributable unfinished operation.
     for old in current.targets.iter().chain(std::iter::once(&target)) {
         if reader.journal(old)?.is_some_and(|j| {

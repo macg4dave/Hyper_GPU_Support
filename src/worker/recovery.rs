@@ -24,14 +24,10 @@ pub(super) fn reset_partial(
 ) -> Result<Outcome, String> {
     let enrollment = context.enrollment;
     let data = context.data.to_path_buf();
-    let recovery_path = Some(context.recovery_path.to_path_buf());
+    let recovery_path = context.recovery_path;
     let audit_directory = data.join("audit");
-    let mut record = runner::read_recovery_at(
-        recovery_path
-            .as_deref()
-            .ok_or("missing bound recovery path")?,
-    )?
-    .ok_or("No interrupted operation to remove")?;
+    let mut record =
+        runner::read_recovery_at(recovery_path)?.ok_or("No interrupted operation to remove")?;
     if record.operation_id != operation_id
         || Revision::of(&serde_json::to_vec(&record).map_err(|e| e.to_string())?) != record_revision
         || !enrollment.targets.iter().any(|t| {
@@ -49,13 +45,7 @@ pub(super) fn reset_partial(
         return Err("Separately approve graceful shutdown for this recovery disposition".into());
     }
     if record.reset.is_none() {
-        let mut fresh = NativeBackend {
-            reads: None,
-            credential: None,
-            manifest: None,
-            payload_hold: Vec::new(),
-            data: data.clone(),
-        };
+        let mut fresh = NativeBackend::new(data.clone(), None);
         if fresh.inspect(&record.target)?.operational() != approved.observed.operational()
             || fresh.gpu(&record.target)?.operational() != approved.gpu.operational()
             || serde_json::to_value(fresh.journal(&record.target)?).map_err(|e| e.to_string())?
@@ -74,24 +64,15 @@ pub(super) fn reset_partial(
         return Err("Partial GPU removal is bound to its original review".into());
     }
     record.reset = Some(approved);
-    runner::write_recovery_at(
-        recovery_path
-            .as_deref()
-            .ok_or("missing bound recovery path")?,
-        &record,
-    )?;
+    runner::write_recovery_at(recovery_path, &record)?;
     runner::atomic_json(
         &audit_directory.join(format!("partial-removal-{}.json", operation_id)),
         &record,
     )?;
     let bound = serde_json::to_value(&record).map_err(|e| e.to_string())?;
     let mut check_binding = || {
-        if serde_json::to_value(runner::read_recovery_at(
-            recovery_path
-                .as_deref()
-                .ok_or("missing bound recovery path")?,
-        )?)
-        .map_err(|e| e.to_string())?
+        if serde_json::to_value(runner::read_recovery_at(recovery_path)?)
+            .map_err(|e| e.to_string())?
             != serde_json::json!(bound)
             || configuration_store::protected::revision(&record.target.vm_id)? != revision
         {
@@ -100,13 +81,7 @@ pub(super) fn reset_partial(
         crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)
     };
     check_binding()?;
-    let mut backend = NativeBackend {
-        reads: None,
-        credential: None,
-        manifest: None,
-        payload_hold: Vec::new(),
-        data: data.clone(),
-    };
+    let mut backend = NativeBackend::new(data.clone(), None);
     workflow::reset_partial(
         &mut ObservedBackend {
             backend: &mut backend,
@@ -118,12 +93,8 @@ pub(super) fn reset_partial(
         shutdown_approved,
     )?;
     if configuration_store::protected::revision(&record.target.vm_id)? != revision
-        || serde_json::to_value(runner::read_recovery_at(
-            recovery_path
-                .as_deref()
-                .ok_or("missing bound recovery path")?,
-        )?)
-        .map_err(|e| e.to_string())?
+        || serde_json::to_value(runner::read_recovery_at(recovery_path)?)
+            .map_err(|e| e.to_string())?
             != serde_json::json!(bound)
     {
         return Err("Partial GPU removal final receipt changed; retain recovery".into());
@@ -148,14 +119,10 @@ pub(super) fn reconcile(
     let enrollment = context.enrollment;
     let session = context.session;
     let data = context.data.to_path_buf();
-    let recovery_path = Some(context.recovery_path.to_path_buf());
+    let recovery_path = context.recovery_path;
     let audit_directory = data.join("audit");
-    let mut record = runner::read_recovery_at(
-        recovery_path
-            .as_deref()
-            .ok_or("missing bound recovery path")?,
-    )?
-    .ok_or("no durable operation requires reconciliation")?;
+    let mut record = runner::read_recovery_at(recovery_path)?
+        .ok_or("no durable operation requires reconciliation")?;
     if record.operation_id != operation_id {
         return Err("reconciliation operation identity mismatch".into());
     }
@@ -176,13 +143,7 @@ pub(super) fn reconcile(
             "already verified: use save-only without repeating graphics or guest power".into(),
         );
     }
-    let mut backend = NativeBackend {
-        reads: None,
-        credential,
-        manifest: None,
-        payload_hold: Vec::new(),
-        data: data.clone(),
-    };
+    let mut backend = NativeBackend::new(data.clone(), credential);
     let mut backend = ObservedBackend {
         backend: &mut backend,
         notify: &mut notify,
@@ -207,7 +168,7 @@ pub(super) fn reconcile(
         // Persist the exact transition before its journal write. A lost reply or
         // interruption can resume only the bound before/after states.
         record.retirement = Some(retirement.clone());
-        runner::write_recovery_at(recovery_path.as_deref().ok_or("missing bound recovery path")?, &record)?;
+        runner::write_recovery_at(recovery_path, &record)?;
         runner::atomic_json(
             &audit_directory.join(format!("ended-{}.json", record.operation_id)),
             &record,
@@ -384,7 +345,7 @@ pub(super) fn reconcile(
         &backend.gpu(&record.target)?.driver_version,
     )?;
     record.phase = SavePhase::Verified(result.effective.clone());
-    runner::write_recovery_at(recovery_path.as_deref().ok_or("missing bound recovery path")?, &record)?;
+    runner::write_recovery_at(recovery_path, &record)?;
     if !record.publication_required {
         return Ok(Outcome {
             operation: Some(result),
@@ -399,7 +360,7 @@ pub(super) fn reconcile(
         &backend.gpu(&record.target)?.driver_version,
         &configuration_store::protected::revision(&record.target.vm_id)?,
     )?;
-    operations::publish(&operations::Context { enrollment, session, data: &data, recovery_path: recovery_path.as_deref().ok_or("missing bound recovery path")? }, record, result, &mut *backend.notify)
+    operations::publish(&operations::Context { enrollment, session, data: &data, recovery_path }, record, result, &mut *backend.notify)
     })
 }
 
@@ -410,13 +371,9 @@ pub(super) fn save_only(
 ) -> Result<Outcome, String> {
     let enrollment = context.enrollment;
     let data = context.data.to_path_buf();
-    let recovery_path = Some(context.recovery_path.to_path_buf());
-    let mut record = runner::read_recovery_at(
-        recovery_path
-            .as_deref()
-            .ok_or("missing bound recovery path")?,
-    )?
-    .ok_or("no verified-unsaved operation exists")?;
+    let recovery_path = context.recovery_path;
+    let mut record =
+        runner::read_recovery_at(recovery_path)?.ok_or("no verified-unsaved operation exists")?;
     crate::windows_wmi::require_no_pending_operation_for(&record.target.vm_id)?;
     if record.operation_id != operation_id {
         return Err("save-only operation identity mismatch".into());
@@ -426,13 +383,7 @@ pub(super) fn save_only(
     }) {
         return Err("save-only pair no longer enrolled".into());
     }
-    let mut backend = NativeBackend {
-        reads: None,
-        credential: None,
-        manifest: None,
-        payload_hold: Vec::new(),
-        data: data.clone(),
-    };
+    let mut backend = NativeBackend::new(data.clone(), None);
     if backend
         .journal(&record.target)?
         .is_some_and(|journal| journal.pending)
@@ -471,12 +422,7 @@ pub(super) fn save_only(
         }
     };
     record.phase = SavePhase::Published(verified);
-    runner::write_recovery_at(
-        recovery_path
-            .as_deref()
-            .ok_or("missing bound recovery path")?,
-        &record,
-    )?;
+    runner::write_recovery_at(recovery_path, &record)?;
     notify(Progress {
         stage: "Save verified configuration only".into(),
         status: StageStatus::Done,

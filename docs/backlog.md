@@ -2,7 +2,9 @@
 
 ## Next action
 
-Continue **OPT-009** by completing the measured replacement/budget design before wider migration under the [core simplification roadmap](roadmap.md). The goal is 10,000 code lines under `src/` only, excluding Rust tests, with one coherent operation path. Remove unused tests; useful tests follow the program's design. The corrected `src/` baseline is 29,141 counted lines excluding 17,160 Rust test/helper lines. Repository tools are outside the goal. The first source slice is implemented and passed its complete non-hardware gate. The GUI simplification and request-capture cleanup also passed complete gates. Current counted `src/` code is 28,541 lines; complete-budget feasibility remains pending.
+Continue **OPT-009** by completing the measured replacement/budget design before wider migration under the [core simplification roadmap](roadmap.md). The goal is 10,000 code lines under `src/` only, excluding Rust tests, with one coherent operation path. Remove unused tests; useful tests follow the program's design. The corrected `src/` baseline is 29,141 counted lines excluding 17,160 Rust test/helper lines. Repository tools are outside the goal. The first source slice is implemented and passed its complete non-hardware gate. The GUI simplification and request-capture cleanup also passed complete gates. The worker lifecycle follow-up also passed its integrated gate. Current counted `src/` code is 28,346 lines; complete-budget feasibility remains pending.
+
+Next deletion audit: `PreliminaryPlan`, `ReinstallPlan` and `VerifyPlan` runner reads have no in-repository GUI/CLI submission callers after adoption of prepared execution. Check their public/read protocol contracts, then remove unused routes and their obsolete preview/test scaffolding while retaining meaningful planning/drift coverage. This remains source-only work.
 
 The prior optimization candidate's recorded automated/install checkpoint is retained in [engineering](ENGINEERING.md#optimization-validation-checkpoint). Its pending live acceptance is carried by OPT-008 for the eventual simplified candidate; it does not qualify future changes. This plan starts no live qualification.
 
@@ -10,7 +12,7 @@ The prior optimization candidate's recorded automated/install checkpoint is reta
 
 | ID | Task | Implementation | Dependencies | Validation |
 | --- | --- | --- | --- | --- |
-| OPT-009 | Prove the reduction design | In progress | None | Core and GUI slices passed complete gates; full-budget feasibility remains open |
+| OPT-009 | Prove the reduction design | In progress | None | Core, GUI and worker slices passed complete gates; full-budget feasibility remains open |
 | OPT-010 | Replace operation coordination | Not started | OPT-009 | Pending milestone gate |
 | OPT-011 | Reach the 10,000-line goal excluding Rust tests | Not started | OPT-010 | Size and complete gate pending |
 | OPT-008 | Simplified candidate acceptance | In progress | OPT-011 | Prior candidate gate/install recorded; new candidate and live evidence pending |
@@ -26,6 +28,8 @@ Dependencies: None.
 Source checkpoint: GUI/CLI share prepared execution; the ordinary prediction/admission detour is removed; Configure preview/execution share typed steps; Configure/save-only/Verify/reconciliation share completion merging. An obsolete prediction test was replaced with ordinary prepared-path coverage. Newer same-VM drafts survive completion. Stored-record and protected-install formats are unchanged; the runner no longer accepts `OrdinaryPlan` and old direct reviewed-plan effect submissions are rejected. The complete non-hardware gate passed; [checkpoint and size evidence](ENGINEERING.md#core-simplification-checkpoint) record the exact scope. The 10,000-line goal is not yet demonstrated: the worker/native/guest areas alone currently exceed it. Finish the measured replacement/budget design before OPT-010.
 
 GUI checkpoint: both dialog families now share action/footer rules, focus and scrolling; prepared Apply/Verify acknowledgement is pure validation rather than a duplicate GUI plan store; unused running-body summary builders and their obsolete tests are removed. Enrollment, profile deletion and partial removal also pass checked requests directly into existing callbacks; their redundant global caches are removed. Existing resource fields, copyable logs, action callbacks and the Slint design are reused. See [GUI evidence](ENGINEERING.md#gui-simplification-checkpoint) and the [captured-request checkpoint](ENGINEERING.md#captured-gui-requests-checkpoint); this bounded follow-up does not close the full-budget design.
+
+Worker follow-up: one Apply/Verify preparation exchange, receipt builder and persisted execution/confirmation lifecycle replace the parallel paths. Apply publication remains explicit; Verify never publishes intent. Retired direct-plan command variants are removed and terminal validation uses the prepared review directly. Bound receipt paths no longer use impossible optional-path branches. See the [worker checkpoint](ENGINEERING.md#worker-lifecycle-checkpoint) for validation status.
 
 Acceptance:
 

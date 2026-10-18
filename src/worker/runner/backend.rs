@@ -9,13 +9,24 @@ use crate::{
 use std::{fs, io::Read, path::PathBuf, time::Duration};
 
 pub(crate) struct NativeBackend {
-    pub(crate) reads: Option<windows_hyperv::ReadSession>,
+    reads: Option<windows_hyperv::ReadSession>,
     pub(crate) credential: Option<Credential>,
-    pub(crate) manifest: Option<payload::Manifest>,
-    pub(crate) payload_hold: Vec<fs::File>,
-    pub(crate) data: PathBuf,
+    manifest: Option<payload::Manifest>,
+    payload_hold: Vec<fs::File>,
+    data: PathBuf,
 }
 impl NativeBackend {
+    /// Start one operation with no cached reads, manifest or authenticated handles.
+    pub(crate) fn new(data: PathBuf, credential: Option<Credential>) -> Self {
+        Self {
+            data,
+            credential,
+            reads: None,
+            manifest: None,
+            payload_hold: Vec::new(),
+        }
+    }
+
     /// Re-enumerate package membership while original authenticated source
     /// handles still exclude byte changes/replacement. This is not a hash cache.
     pub(crate) fn confirm_payload_inventory(&self, target: &Target) -> Result<(), String> {

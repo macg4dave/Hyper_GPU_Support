@@ -37,12 +37,6 @@ pub(crate) struct AdmittedApply {
     target: Target,
     decision: Decision,
 }
-impl AdmittedApply {
-    pub(crate) fn driver_version(&self) -> &str {
-        &self.decision.gpu.driver_version
-    }
-}
-
 /// Prepare once under the worker lock, retaining the authenticated manifest in
 /// the same backend. No credential, journal, power or guest access is required.
 pub(crate) fn prepare_apply(
