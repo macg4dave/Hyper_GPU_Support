@@ -48,8 +48,7 @@ pub(super) fn reset_partial(
         let mut fresh = NativeBackend::new(data.clone(), None);
         if fresh.inspect(&record.target)?.operational() != approved.observed.operational()
             || fresh.gpu(&record.target)?.operational() != approved.gpu.operational()
-            || serde_json::to_value(fresh.journal(&record.target)?).map_err(|e| e.to_string())?
-                != serde_json::to_value(Some(&approved.journal)).map_err(|e| e.to_string())?
+            || fresh.journal(&record.target)?.as_ref() != Some(&approved.journal)
         {
             return Err(
                 "Partial GPU removal facts changed before admission; Refresh and review again"
@@ -58,8 +57,7 @@ pub(super) fn reset_partial(
         }
     }
     if let Some(existing) = &record.reset
-        && serde_json::to_value(existing).map_err(|e| e.to_string())?
-            != serde_json::to_value(&approved).map_err(|e| e.to_string())?
+        && existing != &approved
     {
         return Err("Partial GPU removal is bound to its original review".into());
     }
@@ -69,11 +67,8 @@ pub(super) fn reset_partial(
         &audit_directory.join(format!("partial-removal-{}.json", operation_id)),
         &record,
     )?;
-    let bound = serde_json::to_value(&record).map_err(|e| e.to_string())?;
     let mut check_binding = || {
-        if serde_json::to_value(runner::read_recovery_at(recovery_path)?)
-            .map_err(|e| e.to_string())?
-            != serde_json::json!(bound)
+        if runner::read_recovery_at(recovery_path)?.as_ref() != Some(&record)
             || configuration_store::protected::revision(&record.target.vm_id)? != revision
         {
             return Err("Partial GPU removal receipt changed; retain recovery".into());
@@ -93,9 +88,7 @@ pub(super) fn reset_partial(
         shutdown_approved,
     )?;
     if configuration_store::protected::revision(&record.target.vm_id)? != revision
-        || serde_json::to_value(runner::read_recovery_at(recovery_path)?)
-            .map_err(|e| e.to_string())?
-            != serde_json::json!(bound)
+        || runner::read_recovery_at(recovery_path)?.as_ref() != Some(&record)
     {
         return Err("Partial GPU removal final receipt changed; retain recovery".into());
     }
@@ -190,10 +183,7 @@ pub(super) fn reconcile(
                 backend.journal(&record.target)?.as_ref(),
             )?
             .ok_or("negative completion readback unavailable; retain recovery")?;
-        if serde_json::to_value(backend.journal(&record.target)?)
-            .map_err(|e| e.to_string())?
-            != serde_json::to_value(Some(&retirement.after)).map_err(|e| e.to_string())?
-        {
+        if backend.journal(&record.target)?.as_ref() != Some(&retirement.after) {
             return Err(
                 "negative completion journal publication not established; retain recovery"
                     .into(),

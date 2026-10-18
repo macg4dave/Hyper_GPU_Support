@@ -144,11 +144,7 @@ fn multiple_vm_holds_preserve_independent_editing_and_save_only_selection() {
         &target,
         "second-operation",
         true,
-        Ok(OperationReadback {
-            observation: None,
-            committed,
-            recovery: vec![failed],
-        }),
+        Ok(completion_observation(&s, committed, vec![failed])),
     )
     .unwrap();
     assert_eq!(
@@ -421,13 +417,13 @@ fn lost_terminal_reply_uses_durable_phase_without_inventing_completion() {
     s.view.draft = Some(target.clone());
     let mut record = save_record(&s);
     record.phase = SavePhase::EffectsStarted;
-    s.finish_readback(Ok(OperationReadback {
-        observation: None,
-        committed: Default::default(),
-        recovery: vec![record],
-    }))
+    s.finish_readback(Ok(completion_observation(
+        &s,
+        Default::default(),
+        vec![record],
+    )))
     .unwrap();
-    assert!(s.view.needs_readback);
+    assert!(!s.view.needs_readback);
     assert_eq!(s.view.draft, Some(target));
     assert!(s.applied_text(id(&s)).contains("uncertain"));
     assert!(s.save_only_record().is_err());

@@ -33,13 +33,6 @@ pub(super) struct State {
     pub enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
 }
 
-/// Protected reads gathered off the UI thread after an operation attempt.
-pub(super) struct OperationReadback {
-    pub observation: Option<hyper_gpu_support::observation::Bundle>,
-    pub committed: hyper_gpu_support::configuration_store::StoreSnapshot,
-    pub recovery: Vec<hyper_gpu_support::configuration_store::SaveRecord>,
-}
-
 impl Default for State {
     fn default() -> Self {
         Self {

@@ -259,9 +259,7 @@ fn install_inner(
     register_product_task(&service, &client)?;
     if let Some((expected, session)) = bootstrap {
         let readback = read_enrollment()?;
-        if serde_json::to_value(&readback).map_err(|e| e.to_string())?
-            != serde_json::to_value(&enrollment).map_err(|e| e.to_string())?
-        {
+        if readback != enrollment {
             return Err("first-install authority readback mismatch; retain setup recovery".into());
         }
         verify_artifacts(&readback)?;

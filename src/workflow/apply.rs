@@ -91,8 +91,7 @@ pub(crate) fn apply_admitted(
     let journal = backend.journal(&target)?;
     if current.operational() != d.initial.operational()
         || gpu.operational() != d.gpu.operational()
-        || serde_json::to_value(&journal).map_err(|e| e.to_string())?
-            != serde_json::to_value(&d.managed).map_err(|e| e.to_string())?
+        || journal != d.managed
     {
         return Err("admitted state changed; refresh and review before effects".into());
     }

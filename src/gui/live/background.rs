@@ -2,13 +2,13 @@
 use super::{SharedState, polling};
 #[cfg(windows)]
 use super::{progress, refresh::finish_result_observation, source::Source};
-#[cfg(windows)]
-use crate::gui::live_state::OperationReadback;
 use crate::gui::{
     AppWindow, dialog,
     operation::{Kind, Operation},
     wording,
 };
+#[cfg(windows)]
+use hyper_gpu_support::observation::Bundle;
 use slint::ComponentHandle;
 use std::sync::{
     Arc,
@@ -170,9 +170,7 @@ pub(super) fn background_operation<T: Send + 'static>(
     vm_name: Option<&str>,
     guest_access: bool,
     task: impl FnOnce() -> Result<T, String> + Send + 'static,
-    complete: impl FnOnce(&AppWindow, Result<T, String>, Result<OperationReadback, String>)
-    + Send
-    + 'static,
+    complete: impl FnOnce(&AppWindow, Result<T, String>, Result<Bundle, String>) + Send + 'static,
 ) -> Result<(), String> {
     let finished_state = state.clone();
     let target = state

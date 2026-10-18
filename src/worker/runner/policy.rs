@@ -10,7 +10,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::{fs, io::Read};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Enrollment {
     pub(super) schema: u32,
@@ -124,9 +124,7 @@ pub(super) fn authenticate_read(
     current: &Enrollment,
     authenticate: impl FnOnce(&Enrollment) -> Result<(), String>,
 ) -> Result<(), String> {
-    if serde_json::to_value(expected).map_err(|e| e.to_string())?
-        != serde_json::to_value(current).map_err(|e| e.to_string())?
-    {
+    if expected != current {
         return Err("enrollment changed before admission; retry discovery".into());
     }
     authenticate(current)

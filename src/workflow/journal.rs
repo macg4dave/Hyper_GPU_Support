@@ -4,7 +4,7 @@ use crate::model::{Power, Settings, Target};
 use serde::{Deserialize, Serialize};
 
 /// Durable, per-VM ownership and interrupted-operation state.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Journal {
     /// Journal format.
@@ -85,9 +85,7 @@ pub(super) fn require_journal(
     journal: &Journal,
 ) -> Result<(), String> {
     let observed = backend.journal(target)?;
-    if serde_json::to_value(observed).map_err(|e| e.to_string())?
-        != serde_json::to_value(Some(journal)).map_err(|e| e.to_string())?
-    {
+    if observed.as_ref() != Some(journal) {
         return Err("check outcome journal readback mismatch; retain recovery".into());
     }
     Ok(())
@@ -102,8 +100,68 @@ pub(super) fn verified_at() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::workflow::test_support::{fake, target};
-    use crate::workflow::{Journal, apply};
+    use crate::workflow::{
+        apply, apply_admitted, prepare_apply, prepare_verification, verify_admitted,
+    };
+
+    #[test]
+    fn every_journal_field_remains_bound_before_prepared_apply_or_verify_effects() {
+        let changes: [fn(&mut Journal); 14] = [
+            |j| j.schema += 1,
+            |j| j.vm_id = "12345678-1234-1234-1234-000000000002".into(),
+            |j| j.gpu_interface.push('x'),
+            |j| j.original.high_mmio += 1,
+            |j| j.applied.low_mmio += 1,
+            |j| j.prepared = Some("changed digest".into()),
+            |j| j.pending = !j.pending,
+            |j| j.restore_power = Power::Running,
+            |j| j.verification_only = !j.verification_only,
+            |j| j.last_verified = Some(j.last_verified.unwrap_or_default() + 1),
+            |j| j.latest_check = Some(GuestCheck::Failed),
+            |j| j.preparation_started = Some(j.preparation_started != Some(true)),
+            |j| j.check_restored = !j.check_restored,
+            |j| j.settings_released = !j.settings_released,
+        ];
+        for (field, change) in changes.into_iter().enumerate() {
+            for verify in [false, true] {
+                let mut backend = fake();
+                let target = target();
+                apply(&mut backend, &target).unwrap();
+                let (apply_token, verify_token) = if verify {
+                    (
+                        None,
+                        Some(prepare_verification(&mut backend, &target).unwrap().1),
+                    )
+                } else {
+                    (
+                        Some(prepare_apply(&mut backend, &target, false).unwrap().1),
+                        None,
+                    )
+                };
+                backend.events.clear();
+                let writes = backend.journal_writes;
+                change(backend.journal.as_mut().unwrap());
+                let changed = backend.journal.clone();
+                let result = if let Some(token) = apply_token {
+                    apply_admitted(&mut backend, token)
+                } else {
+                    verify_admitted(&mut backend, verify_token.unwrap())
+                };
+                assert!(result.is_err(), "journal field {field}, verify {verify}");
+                assert!(
+                    backend.events.is_empty(),
+                    "must reject before host/guest effects"
+                );
+                assert_eq!(backend.journal_writes, writes);
+                assert_eq!(
+                    backend.journal, changed,
+                    "must not overwrite changed history"
+                );
+            }
+        }
+    }
 
     #[test]
     fn journal_check_field_is_backward_readable_and_rejects_unknown_outcomes() {

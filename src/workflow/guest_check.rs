@@ -14,10 +14,9 @@ pub(super) fn check_guest(
     journal.latest_check = Some(GuestCheck::Interrupted);
     journal.check_restored = false;
     persist_check(backend, target, journal)?;
-    let expected_journal = serde_json::to_value(&*journal).map_err(|e| e.to_string())?;
     let result = backend.verify(target, gpu);
     let unchanged = backend.journal(target).and_then(|current| {
-        if serde_json::to_value(current).map_err(|e| e.to_string())? != expected_journal {
+        if current.as_ref() != Some(journal) {
             return Err("check journal changed during guest verification; retain recovery".into());
         }
         Ok(())

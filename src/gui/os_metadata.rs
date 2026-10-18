@@ -22,7 +22,7 @@ fn read(path: &Path) -> Option<String> {
 /// too, so an OS change cannot leave an old Windows/Linux icon behind.
 #[cfg(any(windows, test))]
 fn resolve(directory: &Path, id: &str, fresh: Option<&str>) -> Result<Option<String>, String> {
-    if !super::selection::valid_id(id) {
+    if !hyper_gpu_support::model::valid_vm_id(id) {
         return Ok(None);
     }
     let path = directory.join(format!("{}.txt", id.to_ascii_lowercase()));

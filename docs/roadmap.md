@@ -4,7 +4,7 @@
 
 The CLI is now **defunct**. The GUI is the supported product frontend; CLI references below describe earlier implementation checkpoints and do not require retaining CLI functionality in the simplification work. This status decision does not claim that CLI source has already been removed.
 
-The requested outcome is a readable application with a **10,000-line goal for `src/` only, excluding Rust tests**, one core operation path and the existing Slint design. This replaces optimization as the next source-work priority. The [complexity review](OPERATION_COMPLEXITY_REVIEW.md) records the starting architecture; [engineering](ENGINEERING.md#size-accounting) defines the count and test policy.
+The requested outcome is a readable application with a **10,000-line goal for `src/` only, excluding Rust tests**, one core operation path and the existing Slint design. This replaces optimization as the next source-work priority. The [architecture review](OPERATION_COMPLEXITY_REVIEW.md) records current findings and implemented simplifications; [engineering](ENGINEERING.md#size-accounting) defines the count and test policy.
 
 The first OPT-009 source slice now implements shared prepared execution, Configure steps and completion merging; the rest remains a replacement design. The earlier gross inventory is **50,595 lines** at `843997179407e727a7f2cb5edc587d9df74a8e27`, including Rust tests, Slint, guest PowerShell, build code and developer tools. The user clarified that repository tools are outside the goal. The corrected `src/` baseline is **29,141 counted lines**, excluding **17,160 Rust test/helper lines** from 46,301 physical lines. Reaching 10,000 requires a 19,141-line reduction from that baseline. Feasibility with all existing product contracts is unproven.
 
@@ -76,28 +76,30 @@ Keep the existing Slint component design and reuse shared controls across actual
 
 ## Size budget and measured gap
 
-The goal is **10,000 counted lines under `src/` only, excluding Rust tests**. The original per-responsibility trial allocations were speculative; the OPT-009 slice replaces them with measured source-area counts. These are current implementation sizes, not irreducible lower bounds or promises that the whole design fits.
+The goal is **10,000 counted lines under `src/` only, excluding Rust tests**. The original per-responsibility trial allocations were speculative; the OPT-009 slice replaces them with measured source-area counts. These are implementation sizes at the listed checkpoints, not irreducible lower bounds or promises that the whole design fits.
 
-| Source area | Baseline | First core slice | GUI simplification | Worker lifecycle | Preview cleanup |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| GUI, including Slint | 8,652 | 8,638 | 8,241 | 8,241 | 8,241 |
-| Worker and runner | 5,800 | 5,679 | 5,679 | 5,490 | 5,478 |
-| Workflow | 1,905 | 1,858 | 1,858 | 1,852 | 1,816 |
-| Native Windows modules | 3,803 | 3,803 | 3,803 | 3,803 | 3,803 |
-| Guest, payload and probe modules | 3,199 | 3,201 | 3,201 | 3,201 | 3,201 |
-| Other core and CLI under `src/` | 5,782 | 5,759 | 5,759 | 5,759 | 5,759 |
-| Counted `src/` total | **29,141** | **28,938** | **28,541** | **28,346** | **28,298** |
-| Remaining reduction to the goal | **19,141** | **18,938** | **18,541** | **18,346** | **18,298** |
+| Source area | Baseline | First core slice | GUI simplification | Worker lifecycle | Preview cleanup | Architecture review |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| GUI, including Slint | 8,652 | 8,638 | 8,241 | 8,241 | 8,241 | 8,204 |
+| Worker and runner | 5,800 | 5,679 | 5,679 | 5,490 | 5,478 | 5,439 |
+| Workflow | 1,905 | 1,858 | 1,858 | 1,852 | 1,816 | 1,798 |
+| Native Windows modules | 3,803 | 3,803 | 3,803 | 3,803 | 3,803 | 3,796 |
+| Guest, payload and probe modules | 3,199 | 3,201 | 3,201 | 3,201 | 3,201 | 3,201 |
+| Other core and CLI under `src/` | 5,782 | 5,759 | 5,759 | 5,759 | 5,759 | 5,750 |
+| Counted `src/` total | **29,141** | **28,938** | **28,541** | **28,346** | **28,298** | **28,188** |
+| Remaining reduction to the goal | **19,141** | **18,938** | **18,541** | **18,346** | **18,298** | **18,188** |
 
 Under `src/`, the first core slice changed 29,141 counted / 17,160 test lines to 28,938 counted / 17,341 test lines. Its 203 counted-line reduction includes direct-execution helpers becoming test-only; it is not 203 physical deletions. Four existing formatting differences were corrected for the gate.
 
 The GUI batch including request-capture cleanup removes another **397 counted lines**, leaving **28,541 counted / 17,129 excluded test lines** and **45,670 physical lines** under `src/`. GUI code including Slint is 8,241 lines. It shares dialog actions, validates captured requests and removes hidden summary builders and obsolete review stores. The [GUI checkpoint](ENGINEERING.md#gui-simplification-checkpoint) and [request-capture checkpoint](ENGINEERING.md#captured-gui-requests-checkpoint) record complete passing gates. Earlier wider repository counts remain historical in engineering; tools/build/probes outside `src/` are excluded from this table.
 
-The subsequent worker batch shares preparation exchange, receipt construction and the Apply/Verify execution/confirmation lifecycle, removes retired direct-plan wire variants and simplifies already-bound receipt paths. Its [checkpoint](ENGINEERING.md#worker-lifecycle-checkpoint) records implementation and validation separately. Current excluded Rust test/helper lines are 17,528, and gross `src/` source is 45,874 lines. Added meaningful failure tests account for the physical increase; no production code was reclassified as test-only.
+The subsequent worker batch shares preparation exchange, receipt construction and the Apply/Verify execution/confirmation lifecycle, removes retired direct-plan wire variants and simplifies already-bound receipt paths. Its [checkpoint](ENGINEERING.md#worker-lifecycle-checkpoint) records implementation and validation separately. At that checkpoint excluded Rust test/helper lines were 17,528, and gross `src/` source was 45,874 lines. Added meaningful failure tests account for the physical increase; no production code was reclassified as test-only.
 
-The [preview cleanup](ENGINEERING.md#runner-preview-cleanup-checkpoint) removes the three unused read RPCs, preliminary authentication mode and stand-alone reinstall/preliminary preview APIs. It reduces counted code by another 48 lines; useful tests use fresh preparation and retired frames/fields fail decoding. Current totals are 28,298 counted / 17,542 excluded test / 45,840 physical `src/` lines. The complete gate and protected installation passed; see the linked checkpoint.
+The [preview cleanup](ENGINEERING.md#runner-preview-cleanup-checkpoint) removes the three unused read RPCs, preliminary authentication mode and stand-alone reinstall/preliminary preview APIs. It reduces counted code by another 48 lines; useful tests use fresh preparation and retired frames/fields fail decoding. That checkpoint measured 28,298 counted / 17,542 excluded test / 45,840 physical `src/` lines. The complete gate and protected installation passed; see the linked checkpoint.
 
-The worker/native/guest areas currently total **12,482 lines**, exceeding the whole goal before GUI, workflow and configuration. Therefore preserving those implementations unchanged while only thinning GUI coordination cannot meet the goal. Subsequent work must replace duplicated mechanisms inside those areas too. The temporary source audit is in ignored `local/evidence/core-slice-count/`. Full-budget feasibility is still open; the first slice and a passing gate do not establish it. Complete that measured replacement design before wholesale migration.
+The [architecture review follow-up](ENGINEERING.md#architecture-simplification-checkpoint) simplifies exact record equality, GUID syntax and completion input ownership. It passed the complete non-hardware gate and leaves **28,188 counted / 17,688 excluded Rust test/helper / 45,876 physical `src/` lines**. The fresh baseline corrects a nine-line difference in the historical test inventory. No protected installation or live acceptance was run for this candidate.
+
+The worker/native/guest areas currently total **12,436 lines**, exceeding the whole goal before GUI, workflow and configuration. Therefore preserving those implementations unchanged while only thinning GUI coordination cannot meet the goal. Subsequent work must replace duplicated mechanisms inside those areas too. The source audit tables are in ignored `local/evidence/architecture-review-after.tsv` and `local/evidence/core-slice-count/`. Full-budget feasibility is still open; the first slice and a passing gate do not establish it. Complete that measured replacement design before wholesale migration.
 
 Rust tests have no line budget. Design the program around its actual tasks, then adapt useful tests to that design. Remove unused, obsolete and redundant tests and helpers when their behavior is retired. Existing tests do not require retaining unused production APIs, indirection or compatibility layers. Keep meaningful checks of retained product behavior and failures; test fixtures and implementation details are free to change.
 
@@ -120,6 +122,6 @@ The first slice couples worker execution and frontend completion because that is
 - Exercise cancellation before effects, exact backend release, stale selection/draft/revision, driver/payload drift, shutdown refusal, effect-stage failure, lost replies, readback failure, verified-unsaved publication and explicit save-only. Hold uncertainty and forbid automatic replay.
 - Preserve VM-scoped recovery, global blocking for ambiguous/shared records, partial-removal ownership checks, native provider job evidence, additive enrollment, resumable profile deletion/import and local credential cancellation/opt-in. No stored record is discarded as a refactoring shortcut.
 - Reuse the [non-hardware gate](ENGINEERING.md#validation-and-live-acceptance), with useful isolated behavior/fault tests and strict binary/lint checks. Adapt tests to the chosen program design and remove unused tests. Validate retained permitted/forbidden effects, results, receipt transitions and independent readback without preserving obsolete test structures or production APIs solely for tests.
-- Installed acceptance requires exact candidate/target identities, allowed effects, starting states and stop conditions. Confirm saved/current state, terminal outcome, final power/recovery and record preservation independently. Qualify retained polling/payload/helper/16 MiB transfer optimizations using counts, timings, bytes, peak memory and slow/exact-tail failures; no source-derived speedup claims.
+- Installed acceptance requires exact candidate/target identities, allowed effects, starting states and stop conditions. Confirm saved/current state, terminal outcome, final power/recovery and record preservation independently. Qualify retained polling/payload/helper/transfer optimizations at the candidate's configured chunk size using counts, timings, bytes, peak memory and slow/exact-tail failures; no source-derived speedup claims.
 
 Planning and source work do not authorize launches, installation, protected writes, guest access or VM/GPU effects. Summarize results in chat; no new QA reports are required. The architecture/configuration/security handbooks continue to describe the current implementation until each replacement actually lands.

@@ -115,7 +115,7 @@ impl Scope {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct JobEvidence {
     path: String,
@@ -131,10 +131,6 @@ struct Review {
     pending: crate::configuration_store::Revision,
     job: JobEvidence,
     observed: VmState,
-}
-fn same(a: &impl Serialize, b: &impl Serialize) -> Result<bool> {
-    Ok(serde_json::to_value(a).map_err(|e| e.to_string())?
-        == serde_json::to_value(b).map_err(|e| e.to_string())?)
 }
 fn revision(value: &impl Serialize) -> Result<crate::configuration_store::Revision> {
     Ok(crate::configuration_store::Revision::of(
@@ -235,7 +231,7 @@ pub(super) fn job_paths(s: &Session) -> Result<Vec<String>> {
 fn confirm_terminal_snapshot(recorded: &JobEvidence, fresh: Option<&JobEvidence>) -> Result<()> {
     require_terminal_operation(recorded.state)?;
     if let Some(fresh) = fresh
-        && !same(recorded, fresh)?
+        && recorded != fresh
     {
         return Err("Provider completion changed".into());
     }
@@ -338,10 +334,7 @@ pub(crate) fn reconcile(token: &crate::configuration_store::Revision) -> Result<
             }
             validate_binding(current.scope.as_ref().ok_or_else(recovery_handoff)?)?;
             require_quiescent(&s, &review.job.vm_id)?;
-            if !same(
-                &crate::windows_hyperv::inspect(&review.job.vm_id)?,
-                &review.observed,
-            )? {
+            if crate::windows_hyperv::inspect(&review.job.vm_id)? != review.observed {
                 return Err("Native readback changed during retirement; retain recovery".into());
             }
             Ok(())
@@ -496,7 +489,7 @@ mod tests {
         // altered readback requires a new review, never an inferred success.
         let mut changed = reopened.observed.clone();
         changed.power = Power::Off;
-        assert!(!same(&changed, &reopened.observed).unwrap());
+        assert_ne!(changed, reopened.observed);
         assert!(validate(&pending, &reopened.job, &reopened.observed).is_ok());
     }
 

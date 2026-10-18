@@ -106,7 +106,7 @@ impl StoreSnapshot {
 }
 
 /// Durable admission, verified-unsaved state and completed publication are distinct.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum SavePhase {
     /// Written before effects. A crash requires manual reconciliation, never replay.
@@ -119,7 +119,7 @@ pub enum SavePhase {
     Published(VmState),
 }
 /// Protected immutable operation/configuration binding. Contains no credentials.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SaveRecord {
     /// Separately approved partial-removal facts, persisted before recovery effects.
@@ -164,7 +164,7 @@ pub struct SaveRecord {
 }
 
 /// Before/after journal binding for crash-safe retirement of a rejected operation.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Retirement {
     /// Fixed reason; no successful setup or graphics result is implied.
@@ -178,7 +178,7 @@ pub struct Retirement {
 }
 
 /// Supported negative-completion dispositions.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RetirementReason {
     /// A failed check completed safe restoration; guest setup remains failed/unknown.
     FailedVerification,
@@ -253,11 +253,6 @@ impl SaveRecord {
         journal: Option<&crate::workflow::Journal>,
     ) -> Result<Option<Retirement>, String> {
         use crate::workflow::GuestCheck;
-        let equal = |a: &crate::workflow::Journal, b: &crate::workflow::Journal| {
-            serde_json::to_value(a)
-                .map_err(|e| e.to_string())
-                .and_then(|a| Ok(a == serde_json::to_value(b).map_err(|e| e.to_string())?))
-        };
         self.target.validate()?;
         if self.initial.vm_id != self.target.vm_id
             || self.initial.generation != 2
@@ -310,7 +305,7 @@ impl SaveRecord {
         }
         if let Some(retirement) = &self.retirement {
             if state.operational() != retirement.observed.operational()
-                || (!equal(journal, &retirement.before)? && !equal(journal, &retirement.after)?)
+                || (journal != &retirement.before && journal != &retirement.after)
             {
                 return Err("negative completion journal changed; retain recovery".into());
             }
@@ -447,8 +442,7 @@ impl SaveRecord {
                 state.power,
                 crate::model::Power::Off | crate::model::Power::Running
             )
-            || serde_json::to_value(&state.settings).map_err(|e| e.to_string())?
-                != serde_json::to_value(&self.expected_settings).map_err(|e| e.to_string())?
+            || state.settings != self.expected_settings
             || (self.publication_required
                 && self.target.enabled
                 && state.gpus != vec![self.target.gpu_interface.clone()])

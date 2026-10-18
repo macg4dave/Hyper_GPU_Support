@@ -10,11 +10,6 @@ pub(super) struct ApplyFacts {
     pub(super) journal: Option<Journal>,
 }
 
-fn equal<T: serde::Serialize>(left: &T, right: &T) -> Result<bool, String> {
-    Ok(serde_json::to_value(left).map_err(|e| e.to_string())?
-        == serde_json::to_value(right).map_err(|e| e.to_string())?)
-}
-
 impl ApplyFacts {
     pub(super) fn new(state: VmState, gpu: Gpu, journal: Option<Journal>) -> Self {
         Self {
@@ -27,7 +22,7 @@ impl ApplyFacts {
     pub(super) fn check(&self, backend: &mut impl Backend, target: &Target) -> Result<(), String> {
         if backend.inspect(target)?.operational() != self.state.operational()
             || backend.gpu(target)?.operational() != self.gpu.operational()
-            || !equal(&backend.journal(target)?, &self.journal)?
+            || backend.journal(target)? != self.journal
         {
             return Err("Apply facts changed or independent final state verification failed; retain recovery before further effects".into());
         }

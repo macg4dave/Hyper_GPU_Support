@@ -113,6 +113,40 @@ fn committed(
     store
 }
 
+fn completion_observation(
+    s: &State,
+    committed: hyper_gpu_support::configuration_store::StoreSnapshot,
+    recovery: Vec<hyper_gpu_support::configuration_store::SaveRecord>,
+) -> hyper_gpu_support::observation::Bundle {
+    use hyper_gpu_support::configuration_store::Revision;
+    use hyper_gpu_support::observation::{Bundle, Mode, Provenance};
+    let selected = s.target(id(s)).unwrap();
+    let mut inventory = s.view.inventory.clone().unwrap();
+    inventory
+        .discovery
+        .vms
+        .retain(|vm| vm.vm_id == selected.vm_id);
+    inventory
+        .discovery
+        .gpus
+        .retain(|gpu| gpu.interface == selected.gpu_interface);
+    Bundle {
+        inventory,
+        recovery,
+        import: s.import_recovery.clone(),
+        enrollment: s.enrollment_recovery.clone(),
+        worker_available: true,
+        provenance: Provenance {
+            schema: 1,
+            authority: Revision::of(b"policy"),
+            configuration: Revision::of(&serde_json::to_vec(&committed).unwrap()),
+            mode: Mode::Completion,
+            selected: Some(selected),
+        },
+        committed,
+    }
+}
+
 fn save_record(s: &State) -> hyper_gpu_support::configuration_store::SaveRecord {
     use hyper_gpu_support::configuration_store::{Revision, SavePhase, SaveRecord};
     let observed = s.view.vm(id(s)).unwrap().clone();

@@ -5,7 +5,7 @@ use crate::model::{Gpu, Power, Resource, VmState};
 use serde::{Deserialize, Serialize};
 
 /// Fresh facts approved separately for restoring an initially unattached VM.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResetReview {
     /// Complete fresh host state, including every observed allocation.
@@ -14,11 +14,6 @@ pub struct ResetReview {
     pub gpu: Gpu,
     /// Exact pending journal; retained in the archived recovery receipt.
     pub journal: Journal,
-}
-
-fn same(a: &impl Serialize, b: &impl Serialize) -> Result<bool, String> {
-    Ok(serde_json::to_value(a).map_err(|e| e.to_string())?
-        == serde_json::to_value(b).map_err(|e| e.to_string())?)
 }
 
 impl ResetReview {
@@ -138,7 +133,7 @@ impl ResetReview {
         };
         if backend.inspect(&record.target)?.operational() != expected.operational()
             || backend.gpu(&record.target)?.operational() != self.gpu.operational()
-            || !same(&backend.journal(&record.target)?, &Some(journal))?
+            || backend.journal(&record.target)? != Some(journal)
         {
             return Err(
                 "Partial GPU removal facts changed or are unavailable; retain recovery.".into(),
@@ -167,10 +162,7 @@ pub(crate) fn reset_partial(
     let mut state = backend.inspect(&record.target)?;
     let restored = review.restored(record);
     if state.operational() == restored.operational()
-        && same(
-            &backend.journal(&record.target)?,
-            &Some(review.ended(record)),
-        )?
+        && backend.journal(&record.target)? == Some(review.ended(record))
     {
         return review.check(backend, record, &restored, true);
     }

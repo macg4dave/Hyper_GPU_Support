@@ -87,16 +87,7 @@ fn index() -> ReceiptIndex {
 }
 
 pub(crate) fn vm_receipt_name(prefix: &str, id: &str) -> Result<String, String> {
-    let bytes = id.as_bytes();
-    if bytes.len() != 36
-        || bytes.iter().enumerate().any(|(i, b)| {
-            if [8, 13, 18, 23].contains(&i) {
-                *b != b'-'
-            } else {
-                !b.is_ascii_hexdigit()
-            }
-        })
-    {
+    if !crate::model::valid_vm_id(id) {
         return Err("recovery requires a VM GUID".into());
     }
     Ok(format!("{prefix}{}.json", id.to_ascii_lowercase()))
@@ -187,7 +178,7 @@ pub fn recovery_records() -> Result<Vec<SaveRecord>, String> {
         // Interrupted legacy migration may leave two identical copies. Only that
         // exact legacy/canonical pair is one hold; conflicting copies fail closed.
         if let Some(legacy) = &legacy_record
-            && same_record(legacy, &record)?
+            && legacy == &record
         {
             continue;
         }
@@ -212,11 +203,6 @@ fn validate_unique(records: &[SaveRecord]) -> Result<(), String> {
         }
     }
     Ok(())
-}
-
-fn same_record(a: &SaveRecord, b: &SaveRecord) -> Result<bool, String> {
-    Ok(serde_json::to_value(a).map_err(|e| e.to_string())?
-        == serde_json::to_value(b).map_err(|e| e.to_string())?)
 }
 
 /// Under the common lock and admission audit, preserve a legacy hold before
@@ -245,13 +231,13 @@ fn migrate_legacy(
     write_index: impl FnOnce() -> Result<(), String>,
 ) -> Result<(), String> {
     if let Some(existing) = existing {
-        if !same_record(original, existing)? {
+        if original != existing {
             return Err("legacy recovery migration conflicts; retain both receipts".into());
         }
     } else {
         write_copy()?;
     }
-    if !same_record(original, &read_copy()?)? {
+    if original != &read_copy()? {
         return Err("legacy recovery migration readback changed; retain original".into());
     }
     write_index()
@@ -337,9 +323,7 @@ fn retire_bound(
         .iter()
         .find(|r| r.operation_id == operation)
         .ok_or("terminal recovery snapshot is absent; retain all receipts")?;
-    if serde_json::to_value(current).map_err(|e| e.to_string())?
-        != serde_json::to_value(record).map_err(|e| e.to_string())?
-    {
+    if current != record {
         return Err("terminal recovery snapshot changed; retain all receipts".into());
     }
     let others = records.iter().any(|r| r.operation_id != operation);
@@ -426,6 +410,59 @@ mod tests {
             expected_settings: initial.settings.clone(),
             initial,
             phase: SavePhase::EffectsStarted,
+        }
+    }
+
+    #[test]
+    fn changed_receipt_fields_block_migration_and_retirement_without_writing() {
+        let changes: [fn(&mut SaveRecord); 13] = [
+            |r| r.schema += 1,
+            |r| r.operation_id.push('x'),
+            |r| r.target.enabled = !r.target.enabled,
+            |r| r.expected = Revision::of(b"changed destination"),
+            |r| r.driver_version.push('x'),
+            |r| r.payload_digest = Some("changed payload".into()),
+            |r| r.plan_revision = Revision::of(b"changed review"),
+            |r| r.intended_source.push('x'),
+            |r| r.publication_required = !r.publication_required,
+            |r| r.initial.name.push('x'),
+            |r| r.expected_power = Some(Power::Running),
+            |r| r.graphics_required = Some(false),
+            |r| r.expected_settings.high_mmio += 1,
+        ];
+        let original = receipt('a');
+        for (field, change) in changes.into_iter().enumerate() {
+            let mut changed = original.clone();
+            change(&mut changed);
+            for existing in [None, Some(&changed)] {
+                let copies = std::cell::Cell::new(0);
+                assert!(
+                    migrate_legacy(
+                        &original,
+                        existing,
+                        || {
+                            copies.set(copies.get() + 1);
+                            Ok(())
+                        },
+                        || Ok(changed.clone()),
+                        || panic!("changed field {field} cannot publish the migration marker"),
+                    )
+                    .is_err()
+                );
+                assert_eq!(copies.get(), usize::from(existing.is_none()));
+            }
+            let path = Path::new("operation-recovery-a.json");
+            assert!(
+                retire_bound(
+                    &original,
+                    path,
+                    Path::new("operation-recovery.json"),
+                    &original.operation_id,
+                    &[changed],
+                    |_, _| panic!("changed field {field} cannot retire recovery"),
+                )
+                .is_err()
+            );
         }
     }
 

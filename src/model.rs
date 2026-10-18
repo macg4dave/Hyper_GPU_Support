@@ -239,6 +239,19 @@ impl Configuration {
         Ok(())
     }
 }
+/// Check VM GUID syntax, accepting either hex case. This grants no authority;
+/// storage and protocol callers retain their own canonical-case requirements.
+pub fn valid_vm_id(id: &str) -> bool {
+    id.len() == 36
+        && id.bytes().enumerate().all(|(index, byte)| {
+            if [8, 13, 18, 23].contains(&index) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
+}
+
 impl Target {
     /// Read a requested category; omission always means no explicit write.
     pub fn allocation(&self, resource: Resource) -> Option<&Allocation> {
@@ -291,15 +304,7 @@ impl Target {
     }
     /// Validate target syntax before queries or privileged effects.
     pub fn validate(&self) -> Result<(), String> {
-        let id = self.vm_id.as_bytes();
-        if id.len() != 36
-            || id.iter().enumerate().any(|(i, b)| {
-                if [8, 13, 18, 23].contains(&i) {
-                    *b != b'-'
-                } else {
-                    !b.is_ascii_hexdigit()
-                }
-            })
+        if !valid_vm_id(&self.vm_id)
             || !self.gpu_interface.starts_with(r"\\?\PCI#")
             || !self.gpu_interface.ends_with(r"\GPUPARAV")
             || self.gpu_interface.len() > 512
@@ -355,7 +360,7 @@ impl Settings {
     }
 }
 /// Fresh independent Hyper-V state.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct VmState {
     /// Stable identity.
     pub vm_id: String,
@@ -393,7 +398,7 @@ impl VmState {
     }
 }
 /// Partitionable host GPU discovery.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Gpu {
     /// Provider interface.
     pub interface: String,
@@ -486,6 +491,29 @@ pub struct Discovery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn vm_guid_syntax_accepts_hex_case_and_rejects_noncanonical_shape_or_paths() {
+        let id = "abcdef01-2345-6789-abcd-ef0123456789";
+        assert!(valid_vm_id(id));
+        assert!(valid_vm_id(&id.to_ascii_uppercase()));
+        for bad in [
+            String::new(),
+            "VM1".into(),
+            format!("{id}\n"),
+            format!("{{{id}}}"),
+            format!("../{id}"),
+            id.replace('-', "0"),
+            id.replacen('a', "-", 1),
+            id.replacen('a', "z", 1),
+            id.replacen('a', "é", 1),
+            id.replacen('a', "\0", 1),
+        ] {
+            assert!(
+                !valid_vm_id(&bad),
+                "accepted malformed VM identity: {bad:?}"
+            );
+        }
+    }
     const CONFIG: &str = r#"schema = 2
 [[targets]]
 vm_id = "ABCDEF01-2345-6789-ABCD-EF0123456789"

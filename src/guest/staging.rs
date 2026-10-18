@@ -58,8 +58,8 @@ impl Identity {
         let prefix = format!("{}-{}-", self.mode, self.manifest);
         if self.schema != 1
             || !crate::worker::valid_session(&self.operation)
-            || self.vm_id.len() != 36
-            || runner::vm_receipt_name("", &self.vm_id)? != format!("{}.json", self.vm_id)
+            || !crate::model::valid_vm_id(&self.vm_id)
+            || self.vm_id.bytes().any(|b| b.is_ascii_uppercase())
             || self.manifest.len() != 64
             || !self
                 .manifest

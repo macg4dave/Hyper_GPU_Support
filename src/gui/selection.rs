@@ -1,18 +1,8 @@
 //! Per-user selection preference. This identity grants no operation authority.
 #[cfg(any(windows, test))]
-use std::{fs, io::Read, path::Path};
-
+use hyper_gpu_support::model::valid_vm_id;
 #[cfg(any(windows, test))]
-pub(super) fn valid_id(id: &str) -> bool {
-    id.len() == 36
-        && id.bytes().enumerate().all(|(index, byte)| {
-            if [8, 13, 18, 23].contains(&index) {
-                byte == b'-'
-            } else {
-                byte.is_ascii_hexdigit()
-            }
-        })
-}
+use std::{fs, io::Read, path::Path};
 
 #[cfg(any(windows, test))]
 fn read(path: &Path) -> Option<String> {
@@ -23,12 +13,12 @@ fn read(path: &Path) -> Option<String> {
         .read_to_string(&mut value)
         .ok()?;
     // Discovery uses canonical lowercase GUIDs, including after a VM rename.
-    valid_id(&value).then(|| value.to_ascii_lowercase())
+    valid_vm_id(&value).then(|| value.to_ascii_lowercase())
 }
 
 #[cfg(any(windows, test))]
 fn write(path: &Path, id: &str) -> Result<(), String> {
-    if !valid_id(id) {
+    if !valid_vm_id(id) {
         return Err("Selection preference requires a VM GUID".into());
     }
     fs::create_dir_all(
@@ -74,14 +64,14 @@ mod tests {
     #[test]
     fn preference_accepts_only_a_bounded_vm_identity() {
         let id = "12345678-1234-1234-1234-123456789abc";
-        assert!(valid_id(id));
+        assert!(valid_vm_id(id));
         for invalid in [
             "",
             "VM1",
             "../../other",
             "12345678-1234-1234-1234-123456789abz",
         ] {
-            assert!(!valid_id(invalid));
+            assert!(!valid_vm_id(invalid));
         }
         let directory =
             std::env::temp_dir().join(format!("hypergpu-selection-{}", std::process::id()));

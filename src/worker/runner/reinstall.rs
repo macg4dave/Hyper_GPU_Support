@@ -34,20 +34,20 @@ trait Publication {
 fn publish_receipt(pending: &Receipt, store: &mut impl Publication) -> Result<(), String> {
     let policy = store.policy()?;
     let pair = store.pair()?;
-    let old = same(&Some(&policy), &pending.before)?;
-    let new = same(&policy, &pending.after)?;
-    if !((old && same(&pair, &pending.pair_before)?)
-        || (new && (same(&pair, &pending.pair_before)? || same(&pair, &pending.pair_after)?)))
+    let old = pending.before.as_ref() == Some(&policy);
+    let new = policy == pending.after;
+    if !((old && pair == pending.pair_before)
+        || (new && (pair == pending.pair_before || pair == pending.pair_after)))
     {
         return Err("Reinstall publication binding changed; retain recovery".into());
     }
     if !new {
         store.write_policy(&pending.after)?;
     }
-    if !same(&store.policy()?, &pending.after)? {
+    if store.policy()? != pending.after {
         return Err("Reinstall policy readback failed".into());
     }
-    if !same(&store.pair()?, &pending.pair_after)? {
+    if store.pair()? != pending.pair_after {
         store.write_pair(
             pending
                 .pair_after
@@ -55,7 +55,7 @@ fn publish_receipt(pending: &Receipt, store: &mut impl Publication) -> Result<()
                 .ok_or("Unexpected pair recovery appeared")?,
         )?;
     }
-    if !same(&store.pair()?, &pending.pair_after)? {
+    if store.pair()? != pending.pair_after {
         return Err("Reinstall pair readback failed".into());
     }
     Ok(())
@@ -75,11 +75,6 @@ impl Publication for ProtectedPublication {
     fn write_pair(&mut self, pair: &PendingPair) -> Result<(), String> {
         atomic_json(&pair_pending_path()?, pair)
     }
-}
-
-fn same(a: &impl Serialize, b: &impl Serialize) -> Result<bool, String> {
-    Ok(serde_json::to_value(a).map_err(|e| e.to_string())?
-        == serde_json::to_value(b).map_err(|e| e.to_string())?)
 }
 
 fn scope(current: &Enrollment, configuration: &Configuration, client: &str) -> Result<(), String> {
@@ -147,9 +142,8 @@ pub(super) fn admit(
     }
     if let Some(pending) = receipt()? {
         scope(&pending.after, configuration, client)?;
-        if !(same(&current, &pending.before)? || same(&current, &Some(&pending.after))?)
-            || !(same(&pending_pair()?, &pending.pair_before)?
-                || same(&pending_pair()?, &pending.pair_after)?)
+        if !(current == pending.before || current.as_ref() == Some(&pending.after))
+            || !(pending_pair()? == pending.pair_before || pending_pair()? == pending.pair_after)
         {
             return Err(
                 "Reinstall authority or recovery changed; retain installation recovery".into(),
@@ -253,7 +247,7 @@ pub(super) fn begin(
 
 pub(super) fn publish(enrollment: &Enrollment) -> Result<(), String> {
     let pending = receipt()?.ok_or("Missing reinstall receipt")?;
-    if !same(enrollment, &pending.after)? {
+    if enrollment != &pending.after {
         return Err("Reinstall artifacts changed after admission".into());
     }
     if pending.before.is_none() {
@@ -266,8 +260,7 @@ pub(super) fn publish(enrollment: &Enrollment) -> Result<(), String> {
 
 pub(super) fn finish(client: &str) -> Result<(), String> {
     let pending = receipt()?.ok_or("Missing reinstall receipt")?;
-    if !same(&read_enrollment()?, &pending.after)? || !same(&pending_pair()?, &pending.pair_after)?
-    {
+    if read_enrollment()? != pending.after || pending_pair()? != pending.pair_after {
         return Err("Reinstall authority readback failed; retain installation recovery".into());
     }
     verify_artifacts(&pending.after)?;
@@ -404,8 +397,8 @@ mod tests {
             assert_eq!(store.retained, retained);
             store.fail_after = None;
             publish_receipt(&receipt, &mut store).unwrap();
-            assert!(same(&store.policy, &receipt.after).unwrap());
-            assert!(same(&store.pair, &receipt.pair_after).unwrap());
+            assert!(store.policy == receipt.after);
+            assert!(store.pair == receipt.pair_after);
             assert_eq!(store.retained, retained);
             publish_receipt(&receipt, &mut store).unwrap();
             assert_eq!(store.retained, retained);
@@ -470,8 +463,8 @@ mod tests {
             };
             let recovered: Receipt =
                 serde_json::from_slice(&serde_json::to_vec(&receipt).unwrap()).unwrap();
-            assert!(same(&recovered.before, &Some(original)).unwrap());
-            assert!(same(&recovered.pair_before, &Some(&pending)).unwrap());
+            assert!(recovered.before.as_ref() == Some(original));
+            assert!(recovered.pair_before.as_ref() == Some(&pending));
         }
     }
     #[test]

@@ -42,9 +42,7 @@ fn execute_inner(
         crate::security::verify(&data)?;
         let _lock = runner::operation_lock()?;
         let current = runner::enrollment()?;
-        if serde_json::to_value(enrollment).map_err(|e| e.to_string())?
-            != serde_json::to_value(&current).map_err(|e| e.to_string())?
-        {
+        if enrollment != &current {
             return Err("enrollment changed before admission; Refresh".into());
         }
         runner::verify_artifacts(&current)?;

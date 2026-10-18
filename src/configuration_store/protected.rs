@@ -128,15 +128,7 @@ fn read_source(path: &Path) -> Result<Option<String>, String> {
 }
 /// Exact independent revision read while caller holds the common operation lock.
 pub(crate) fn revision(id: &str) -> Result<Revision, String> {
-    if id.len() != 36
-        || id.bytes().enumerate().any(|(i, b)| {
-            if [8, 13, 18, 23].contains(&i) {
-                b != b'-'
-            } else {
-                !b.is_ascii_hexdigit() || b.is_ascii_uppercase()
-            }
-        })
-    {
+    if !crate::model::valid_vm_id(id) || id.bytes().any(|b| b.is_ascii_uppercase()) {
         return Err("configuration requires a canonical VM GUID".into());
     }
     let root = verify_directories()?.ok_or("configuration store is not installed")?;

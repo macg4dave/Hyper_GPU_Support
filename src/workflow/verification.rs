@@ -168,8 +168,7 @@ fn verify_current_payload(
     }
     if before.operational() != approved.observed.operational()
         || gpu.operational() != approved.gpu.operational()
-        || serde_json::to_value(&old).map_err(|e| e.to_string())?
-            != serde_json::to_value(&approved.managed).map_err(|e| e.to_string())?
+        || old != approved.managed
     {
         return Err("verification observations changed; Refresh and review".into());
     }

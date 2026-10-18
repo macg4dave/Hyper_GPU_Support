@@ -100,7 +100,7 @@ impl PairReview {
 }
 
 /// Write-ahead authority change. An interrupted change requires explicit readback.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PendingPair {
     /// Complete removal binding; absent for additive enrollment and legacy holds.
@@ -152,7 +152,7 @@ pub fn validate_inactive_profile(
 }
 
 /// Durable progress; completing a deletion never permits recreating/deleting a changed file.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RemovalState {
     /// Original immutable review.

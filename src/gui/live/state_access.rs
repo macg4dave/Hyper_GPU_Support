@@ -72,7 +72,7 @@ pub(super) fn complete_operation(
     state: &SharedState,
     target: Option<&hyper_gpu_support::model::Target>,
     outcome: &Result<hyper_gpu_support::worker::Outcome, String>,
-    readback: Result<crate::gui::live_state::OperationReadback, String>,
+    readback: Result<hyper_gpu_support::observation::Bundle, String>,
 ) -> Option<bool> {
     use slint::Model;
     let stages: Vec<_> = ui.get_stages().iter().collect();

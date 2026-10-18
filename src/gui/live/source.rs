@@ -1,5 +1,4 @@
 //! Protected reads and planning; availability observations never grant authority.
-use crate::gui::live_state::OperationReadback;
 use hyper_gpu_support::observation::{Bundle, Mode};
 use hyper_gpu_support::{gui_model::Inventory, model::Target};
 
@@ -126,15 +125,9 @@ impl Source {
         }
     }
 
-    pub(super) fn operation_readback(&self, target: Target) -> Result<OperationReadback, String> {
-        let bundle = self
-            .observe(Mode::Completion, Some(target))?
-            .ok_or("Protected completion unavailable")?;
-        Ok(OperationReadback {
-            committed: bundle.committed.clone(),
-            recovery: bundle.recovery.clone(),
-            observation: Some(bundle),
-        })
+    pub(super) fn operation_readback(&self, target: Target) -> Result<Bundle, String> {
+        self.observe(Mode::Completion, Some(target))?
+            .ok_or_else(|| "Protected completion unavailable".into())
     }
 }
 

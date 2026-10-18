@@ -1,24 +1,35 @@
 use super::*;
 use hyper_gpu_support::configuration_store::Revision;
 
-fn completion_observation(s: &State) -> hyper_gpu_support::observation::Bundle {
-    use hyper_gpu_support::observation::{Bundle, Mode, Provenance};
-    let inventory = s.view.inventory.clone().unwrap();
-    let committed = s.committed.clone();
-    Bundle {
-        inventory,
-        committed: committed.clone(),
-        recovery: s.recoveries.clone(),
-        import: None,
-        enrollment: None,
-        worker_available: true,
-        provenance: Provenance {
-            schema: 1,
-            authority: Revision::of(b"policy"),
-            configuration: Revision::of(&serde_json::to_vec(&committed).unwrap()),
-            mode: Mode::Completion,
-            selected: Some(s.target(id(s)).unwrap()),
-        },
+#[test]
+fn invalid_completion_scope_or_revision_cannot_replace_loaded_state_or_release_recovery() {
+    use hyper_gpu_support::observation::Mode;
+    for fault in 0..6 {
+        let mut s = state();
+        let record = save_record(&s);
+        s.sync_recovery(Some(record.clone()), None, None).unwrap();
+        let before = s.view.vm(id(&s)).unwrap().clone();
+        let mut observation = completion_observation(&s, s.committed.clone(), vec![]);
+        observation.inventory.discovery.vms[0].settings.high_mmio += 1;
+        match fault {
+            0 => observation.provenance.selected = None,
+            1 => observation.provenance.configuration = Revision::of(b"unrelated saved state"),
+            2 => observation.provenance.schema += 1,
+            3 => {
+                observation.provenance.mode = Mode::Full;
+                observation.provenance.selected = None;
+            }
+            4 => {
+                let other = "12345678-1234-1234-1234-000000000002";
+                observation.provenance.selected.as_mut().unwrap().vm_id = other.into();
+                observation.inventory.discovery.vms[0].vm_id = other.into();
+            }
+            _ => observation.inventory.discovery.gpus[0].interface.push('x'),
+        }
+        assert!(s.finish_readback(Ok(observation)).is_err(), "fault {fault}");
+        assert_eq!(s.view.vm(id(&s)).unwrap(), &before);
+        assert_eq!(s.recovery_for_vm(id(&s)), Some(&record));
+        assert!(s.view.needs_readback && s.editor_eligibility(id(&s)).is_err());
     }
 }
 
@@ -58,15 +69,10 @@ fn selected_completion_uses_fresh_rows_and_retains_draft_and_revision_conflicts(
     let mut draft = original.clone();
     draft.enabled = !draft.enabled;
     s.view.draft = Some(draft.clone());
-    let mut observation = completion_observation(&s);
+    let mut observation = completion_observation(&s, s.committed.clone(), vec![]);
     observation.inventory.discovery.vms[0].settings.high_mmio += 1;
     let wanted = observation.inventory.discovery.vms[0].clone();
-    s.finish_readback(Ok(OperationReadback {
-        committed: observation.committed.clone(),
-        recovery: vec![],
-        observation: Some(observation),
-    }))
-    .unwrap();
+    s.finish_readback(Ok(observation)).unwrap();
     assert_eq!(s.view.draft, Some(draft));
     assert_eq!(
         s.view.vm(&original.vm_id).unwrap().operational(),
@@ -80,50 +86,27 @@ fn selected_completion_uses_fresh_rows_and_retains_draft_and_revision_conflicts(
         s.editor_eligibility("12345678-1234-1234-1234-000000000002")
             .is_err()
     );
-    let mut changed = completion_observation(&s);
+    let mut changed = completion_observation(&s, s.committed.clone(), vec![]);
     changed.committed = committed(vec![original.clone()], "externally changed");
     changed.provenance.configuration =
         Revision::of(&serde_json::to_vec(&changed.committed).unwrap());
-    assert!(
-        s.finish_readback(Ok(OperationReadback {
-            committed: changed.committed.clone(),
-            recovery: vec![],
-            observation: Some(changed)
-        }))
-        .is_err()
-    );
+    assert!(s.finish_readback(Ok(changed)).is_err());
     assert!(s.view.needs_readback);
 }
 
 #[test]
 fn failed_selected_completion_and_disappearing_save_receipt_never_reuse_stale_success() {
     let mut s = state();
-    let mut observation = completion_observation(&s);
+    let mut observation = completion_observation(&s, s.committed.clone(), vec![]);
     observation.inventory.discovery.vms.clear();
-    assert!(
-        s.finish_readback(Ok(OperationReadback {
-            committed: observation.committed.clone(),
-            recovery: vec![],
-            observation: Some(observation)
-        }))
-        .is_err()
-    );
+    assert!(s.finish_readback(Ok(observation)).is_err());
     assert!(s.view.needs_readback);
     let mut s = state();
     let applied = s.target(id(&s)).unwrap();
-    let observation = completion_observation(&s);
+    let observation = completion_observation(&s, s.committed.clone(), vec![]);
     assert!(
-        s.finish_apply(
-            &applied,
-            "missing-receipt",
-            false,
-            Ok(OperationReadback {
-                committed: observation.committed.clone(),
-                recovery: vec![],
-                observation: Some(observation)
-            })
-        )
-        .is_err()
+        s.finish_apply(&applied, "missing-receipt", false, Ok(observation))
+            .is_err()
     );
     assert!(s.view.needs_readback && s.view.unsaved);
 }
@@ -144,11 +127,7 @@ fn completed_unsaved_apply_keeps_saved_observed_and_applied_state_distinct() {
         &applied,
         "test-operation",
         false,
-        Ok(OperationReadback {
-            observation: None,
-            committed: store,
-            recovery: vec![record],
-        }),
+        Ok(completion_observation(&s, store, vec![record])),
     )
     .unwrap();
     assert_eq!(s.target(&original.vm_id).unwrap(), original);
@@ -158,7 +137,7 @@ fn completed_unsaved_apply_keeps_saved_observed_and_applied_state_distinct() {
     );
     assert_eq!(s.view.verified_unsaved, Some(applied.clone()));
     assert!(s.view.draft.is_none());
-    assert!(s.view.needs_readback);
+    assert!(!s.view.needs_readback);
     assert!(
         s.applied_text(&applied.vm_id)
             .contains("publication is pending")
@@ -202,11 +181,7 @@ fn completed_apply_rejects_a_replaced_operation_receipt() {
                 &target,
                 "test-operation",
                 false,
-                Ok(OperationReadback {
-                    observation: None,
-                    committed: Default::default(),
-                    recovery: vec![record],
-                })
+                Ok(completion_observation(&s, Default::default(), vec![record]))
             )
             .unwrap_err()
             .contains("receipt changed")
@@ -232,11 +207,7 @@ fn save_only_completion_updates_selected_intent_and_preserves_another_vm_draft()
         &applied,
         "test-operation",
         true,
-        Ok(OperationReadback {
-            observation: None,
-            committed: store.clone(),
-            recovery: vec![],
-        }),
+        Ok(completion_observation(&s, store.clone(), vec![])),
     )
     .unwrap();
     assert_eq!(s.view.draft, Some(other_draft));

@@ -1,6 +1,7 @@
 //! Durable recovery presentation and terminal-operation readback.
-use super::{OperationReadback, State};
+use super::State;
 use hyper_gpu_support::model::Target;
+use hyper_gpu_support::observation::{Bundle, Mode};
 
 impl State {
     /// Match the recovery path shown in review to the credential decision.
@@ -58,7 +59,7 @@ impl State {
         target: &Target,
         operation_id: &str,
         saved: bool,
-        readback: Result<OperationReadback, String>,
+        readback: Result<Bundle, String>,
     ) -> Result<(), String> {
         self.view.needs_readback = true;
         // A terminal result belongs to the submitted intent, not a newer edit.
@@ -96,60 +97,48 @@ impl State {
         Ok(())
     }
 
-    pub fn finish_readback(
-        &mut self,
-        readback: Result<OperationReadback, String>,
-    ) -> Result<(), String> {
+    pub fn finish_readback(&mut self, readback: Result<Bundle, String>) -> Result<(), String> {
         self.view.needs_readback = true;
         self.result_notice = None;
-        let readback = readback?;
-        let mut committed = readback.committed;
-        let mut recovery = readback.recovery;
-        let mut selected_error = None;
-        let (import, enrollment) = if let Some(observation) = readback.observation {
-            observation.validate()?;
-            let selected = observation
-                .provenance
-                .selected
-                .as_ref()
-                .ok_or("Completion identity missing")?;
-            if observation.provenance.mode != hyper_gpu_support::observation::Mode::Completion
-                || self.view.selected.as_deref() != Some(selected.vm_id.as_str())
-            {
-                return Err("Completion identity differs from the selected VM".into());
-            }
-            if !observation
+        let observation = readback?;
+        let inventory = observation.inventory_with_display(self.view.inventory.as_ref())?;
+        let selected = observation
+            .provenance
+            .selected
+            .as_ref()
+            .ok_or("Completion identity missing")?;
+        if observation.provenance.mode != Mode::Completion
+            || self.view.selected.as_deref() != Some(selected.vm_id.as_str())
+        {
+            return Err("Completion identity differs from the selected VM".into());
+        }
+        let selected_error = (!observation
+            .inventory
+            .discovery
+            .vms
+            .iter()
+            .any(|vm| vm.vm_id == selected.vm_id)
+            || !observation
                 .inventory
                 .discovery
-                .vms
+                .gpus
                 .iter()
-                .any(|vm| vm.vm_id == selected.vm_id)
-                || !observation
-                    .inventory
-                    .discovery
-                    .gpus
-                    .iter()
-                    .any(|gpu| gpu.interface == selected.gpu_interface)
-            {
-                selected_error = Some("Selected VM/GPU completion read is unavailable; Refresh before another operation".to_owned());
-            }
-            let inventory = observation.inventory_with_display(self.view.inventory.as_ref())?;
-            let selected_id = selected.vm_id.clone();
-            self.refresh(inventory);
-            self.view.selected = Some(selected_id);
-            self.worker_available = observation.worker_available;
-            self.observation = Some(observation.provenance);
-            committed = observation.committed;
-            recovery = observation.recovery;
-            (observation.import, observation.enrollment)
-        } else {
-            (
-                self.import_recovery.clone(),
-                self.enrollment_recovery.clone(),
-            )
-        };
-        let configuration_error = self.load_committed(committed).err();
-        self.sync_recovery(recovery, import, enrollment)?;
+                .any(|gpu| gpu.interface == selected.gpu_interface))
+        .then(|| {
+            "Selected VM/GPU completion read is unavailable; Refresh before another operation"
+                .to_owned()
+        });
+        let selected_id = selected.vm_id.clone();
+        self.refresh(inventory);
+        self.view.selected = Some(selected_id);
+        self.worker_available = observation.worker_available;
+        self.observation = Some(observation.provenance);
+        let configuration_error = self.load_committed(observation.committed).err();
+        self.sync_recovery(
+            observation.recovery,
+            observation.import,
+            observation.enrollment,
+        )?;
         if let Some(error) = selected_error.or(configuration_error) {
             self.view.needs_readback = true;
             return Err(error);
