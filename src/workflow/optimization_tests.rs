@@ -34,21 +34,15 @@ fn prepared_apply_uses_one_admission_pass_and_independent_final_pass() {
                 );
                 assert_eq!(
                     backend.work.get(Counter::PowerStarts),
-                    if attached {
-                        if power == Power::Off { 3 } else { 2 }
-                    } else if power == Power::Off {
+                    if power == Power::Off || attached {
                         2
                     } else {
                         1
                     }
                 );
                 assert_eq!(
-                    backend.os_check_traces[0],
-                    if power == Power::Off {
-                        vec!["start"]
-                    } else {
-                        vec![]
-                    }
+                    backend.os_checks, 0,
+                    "no Windows-version probe during execution"
                 );
             }
         }

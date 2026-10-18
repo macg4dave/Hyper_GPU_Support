@@ -247,6 +247,25 @@ pub(super) fn background_for_vm<T: Send + 'static>(
         ui.set_operation_dialog_active(operation.kind.operation_dialog());
         if operation.kind.operation_dialog() && operation.kind != Kind::Apply {
             ui.set_install_vm_name(vm_name.map_or_else(|| ui.get_vm_name(), Into::into));
+            ui.set_install_gpu_name(hyper_gpu_support::ui_text::common::state::UNAVAILABLE.into());
+            ui.set_install_vram(hyper_gpu_support::ui_text::common::state::UNAVAILABLE.into());
+            if let Ok(state) = state.lock()
+                && let Ok(target) = super::presentation::draft_target(ui, &state)
+            {
+                let gpu_name = state
+                    .view
+                    .inventory
+                    .as_ref()
+                    .and_then(|inventory| {
+                        inventory
+                            .discovery
+                            .gpus
+                            .iter()
+                            .find(|gpu| gpu.interface == target.gpu_interface)
+                    })
+                    .map_or(target.gpu_interface.as_str(), |gpu| gpu.name.as_str());
+                super::install_dialog::context(ui, gpu_name, &target);
+            }
             ui.set_install_steps(crate::gui::model(Vec::new()));
             ui.set_install_facts(crate::gui::model(Vec::new()));
             ui.set_install_transfer("".into());

@@ -44,17 +44,6 @@ impl NativeBackend {
     }
 }
 impl Backend for NativeBackend {
-    fn check_installation_os(&mut self, t: &Target) -> Result<(), String> {
-        match windows_hyperv::inspect(&t.vm_id)?.power {
-            Power::Running => crate::guest::check_installation_os(
-                t,
-                self.credential
-                    .as_ref()
-                    .ok_or_else(crate::guest_compatibility::unknown)?,
-            ),
-            _ => Err(crate::guest_compatibility::unknown()),
-        }
-    }
     fn inspect(&mut self, t: &Target) -> Result<VmState, String> {
         crate::work_counts::add(crate::work_counts::Counter::VmReads, 1);
         crate::diagnostics::run("inspect-vm", &t.vm_id, || self.reads()?.inspect(&t.vm_id))

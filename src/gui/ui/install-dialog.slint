@@ -8,28 +8,9 @@ export struct InstallStep {
     label: string,
     // 0 pending, 1 running, 2 reported done, 3 reported failed.
     status: int,
-    elapsed: string,
 }
 
 export struct InstallFact { label: string, value: string }
-
-component StatusMark inherits Rectangle {
-    in property <int> status;
-    accessible-role: text;
-    accessible-label: root.status == 0 ? UiText.dialogs-install-pending : root.status == 1 ? UiText.dialogs-busy-label : root.status == 2 ? UiText.progress-status-complete : UiText.progress-status-failed;
-    width: 20px; height: 20px;
-    border-radius: self.width / 2;
-    border-width: root.status == 2 ? 0px : 2px;
-    border-color: root.status == 1 ? Theme.accent : root.status == 3 ? Theme.stopped : Theme.unknown;
-    background: root.status == 2 ? Theme.running : transparent;
-    if root.status == 2 : Path {
-        width: parent.width * 0.55; height: parent.height * 0.45;
-        viewbox-width: 12; viewbox-height: 10;
-        stroke: Theme.checkmark; stroke-width: 2px;
-        commands: "M 1 5 L 5 9 L 11 1";
-    }
-    if root.status == 3 : Text { text: "!"; color: Theme.stopped; font-weight: 700; }
-}
 
 // Shared preparation, execution and result presentation. Rust retains operation authority.
 export component InstallDialog inherits Rectangle {
@@ -49,6 +30,8 @@ export component InstallDialog inherits Rectangle {
     in property <bool> guest-work;
     in property <bool> updating;
     in property <string> vm-name;
+    in property <string> gpu-name;
+    in property <string> vram;
     in property <string> body;
     in property <string> details;
     in property <string> current-stage;
@@ -58,7 +41,6 @@ export component InstallDialog inherits Rectangle {
     in property <[InstallFact]> facts;
     private property <bool> technical: false;
     changed kind => { root.technical = false; content.content-y = 0px; root.focus-safe(); }
-    changed body => { root.technical = false; }
     changed review-preparing => { root.focus-safe(); }
     changed completed => {
         root.technical = false;
@@ -94,33 +76,22 @@ export component InstallDialog inherits Rectangle {
                     min-height: 0px; vertical-stretch: 1;
                     horizontal-scrollbar-policy: always-off;
                     content-width: self.visible-width;
-                    changed content-height => {
-                        if root.technical { self.content-y = min(0px, self.visible-height - self.content-height); }
-                    }
-                    changed visible-height => {
-                        if root.technical { self.content-y = min(0px, self.visible-height - self.content-height); }
-                    }
                     VerticalLayout {
                         width: content.visible-width;
                         padding-right: 4px; spacing: 16px; alignment: start;
-                        HorizontalLayout {
-                            spacing: 16px;
-                            if root.completed : StatusMark { status: root.failed ? 3 : 2; width: 64px; height: 64px; }
-                            VerticalLayout {
-                                spacing: 4px;
-                                Heading { text: root.title; min-width: 0px; wrap: word-wrap; overflow: clip; }
-                                if root.vm-name != "" : Hint { text: UiText.dialogs-install-vm + " " + root.vm-name; font-size: 14px; min-width: 0px; }
-                            }
-                        }
+                        Heading { text: root.title; min-width: 0px; wrap: word-wrap; overflow: clip; }
                         Rectangle {
-                            background: root.failed ? Theme.install-error : root.completed ? Theme.install-success : Theme.install-information;
+                            background: Theme.install-information;
                             border-radius: Theme.radius;
-                            HorizontalLayout {
-                                padding: 16px; spacing: 16px;
-                                if root.completed : StatusMark { status: root.failed ? 3 : 2; width: 24px; height: 24px; }
-                                Label { text: root.body; min-width: 0px; wrap: word-wrap; overflow: clip; font-size: 14px; }
+                            VerticalLayout {
+                                padding: 16px; spacing: 8px;
+                                Label { text: UiText.dialogs-install-vm + " " + root.vm-name; font-weight: 700; min-width: 0px; wrap: word-wrap; overflow: clip; }
+                                Label { text: UiText.dialogs-install-gpu-type + " " + root.gpu-name; font-weight: 700; min-width: 0px; wrap: word-wrap; overflow: clip; }
+                                Label { text: UiText.dialogs-install-vram + " " + root.vram; font-weight: 700; min-width: 0px; wrap: word-wrap; overflow: clip; }
                             }
                         }
+                        if root.completed : Label { text: root.body; min-width: 0px; wrap: word-wrap; overflow: clip; }
+                        if !root.completed && root.guest-work : Hint { text: UiText.dialogs-install-windows-warning; min-width: 0px; }
                         if !root.completed : Surface {
                             background: transparent;
                             VerticalLayout {
@@ -136,9 +107,8 @@ export component InstallDialog inherits Rectangle {
                                     spacing: 10px; padding-top: 12px;
                                     for step in root.steps : HorizontalLayout {
                                         spacing: 12px;
-                                        StatusMark { status: step.status; }
                                         Label { text: step.label; font-size: 14px; min-width: 0px; wrap: word-wrap; overflow: clip; horizontal-stretch: 1; }
-                                        Hint { text: step.status == 0 ? UiText.dialogs-install-pending : step.elapsed; font-size: 13px; }
+                                        Hint { text: step.status == 0 ? UiText.dialogs-install-pending : step.status == 1 ? UiText.dialogs-busy-label : step.status == 2 ? UiText.progress-status-complete : UiText.progress-status-failed; font-size: 13px; }
                                     }
                                 }
                             }
@@ -153,7 +123,6 @@ export component InstallDialog inherits Rectangle {
                                     HorizontalLayout {
                                         spacing: 12px;
                                         Label { text: fact.label; min-width: 0px; preferred-width: 180px; wrap: word-wrap; overflow: clip; }
-                                        StatusMark { status: 2; width: 18px; height: 18px; }
                                         Label { text: fact.value; min-width: 0px; horizontal-stretch: 1; wrap: word-wrap; overflow: clip; }
                                     }
                                     if index < root.facts.length - 1 : Rectangle { height: 1px; background: Theme.line; }

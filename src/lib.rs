@@ -9,7 +9,6 @@ mod diagnostics;
 pub mod enrollment;
 #[cfg(windows)]
 pub mod guest;
-mod guest_compatibility;
 #[cfg(windows)]
 mod guest_payload;
 #[cfg(windows)]

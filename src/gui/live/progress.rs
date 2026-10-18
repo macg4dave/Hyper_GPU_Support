@@ -50,52 +50,19 @@ pub(super) fn progress_with_install(
     installation: Option<super::install_dialog::Progress>,
 ) -> impl FnMut(hyper_gpu_support::worker::Progress) {
     let state = std::sync::Arc::new(std::sync::Mutex::new((State::default(), installation)));
-    progress_callback(weak, state, std::time::Instant::now())
+    progress_callback(weak, state)
 }
 
 #[cfg(windows)]
 type ProgressState =
     std::sync::Arc<std::sync::Mutex<(State, Option<super::install_dialog::Progress>)>>;
 
-/// The plan arrives from the authenticated worker after preparation; attach its
-/// checklist to the same progress history before credential/effect approval.
-#[cfg(windows)]
-pub(super) fn progress_prepared(
-    weak: slint::Weak<AppWindow>,
-) -> (
-    impl FnMut(hyper_gpu_support::worker::Progress),
-    impl Fn(&[hyper_gpu_support::workflow::PreviewAction]),
-) {
-    let state: ProgressState = std::sync::Arc::new(std::sync::Mutex::new((
-        State::default(),
-        Some(super::install_dialog::Progress::default()),
-    )));
-    let started = std::time::Instant::now();
-    let callback = progress_callback(weak.clone(), state.clone(), started);
-    let set_plan = move |actions: &[hyper_gpu_support::workflow::PreviewAction]| {
-        let actions = actions.to_vec();
-        let state = state.clone();
-        let _ = weak.upgrade_in_event_loop(move |ui| {
-            let mut state = state
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(progress) = &mut state.1 {
-                progress.set_plan(&actions);
-                progress.present(&ui, started.elapsed());
-            }
-        });
-    };
-    (callback, set_plan)
-}
-
 #[cfg(windows)]
 fn progress_callback(
     weak: slint::Weak<AppWindow>,
     state: ProgressState,
-    started: std::time::Instant,
 ) -> impl FnMut(hyper_gpu_support::worker::Progress) {
     move |progress| {
-        let now = started.elapsed();
         let event = Event::from_worker(
             &progress.stage,
             match progress.status {
@@ -196,8 +163,8 @@ fn progress_callback(
             if ui.get_dialog_kind() == "install-progress"
                 && let Some(installation) = installation.as_mut()
             {
-                installation.record(&event, &progress.stage, stage, now);
-                installation.present(&ui, now);
+                installation.record(&event, &progress.stage, stage);
+                installation.present(&ui);
                 if event.identity == Identity::Transfer {
                     ui.set_current_stage(
                         hyper_gpu_support::ui_text::dialogs::install::PREPARING_FILES.into(),

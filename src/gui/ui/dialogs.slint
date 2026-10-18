@@ -84,8 +84,6 @@ export component OperationDialog inherits Rectangle {
                 min-height: 0px; spacing: 16px;
                 Heading { text: root.title; wrap: word-wrap; overflow: clip; min-width: 0px; vertical-stretch: 0; }
                 body-scroll := ScrollView {
-                    changed content-height => { if root.technical { self.content-y = min(0px, self.visible-height - self.content-height); } }
-                    changed visible-height => { if root.technical { self.content-y = min(0px, self.visible-height - self.content-height); } }
                     min-height: 0px;
                     preferred-height: 400px;
                     vertical-stretch: 1;

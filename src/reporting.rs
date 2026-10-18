@@ -332,7 +332,7 @@ pub fn operator_error(stage: &str, error: &str) -> String {
                 "Native completion is unresolved. An administrator must correlate a terminal Hyper-V job with the exact VM and stage, run native-review --job LOCAL_JOB_REFERENCE, inspect its before/after facts, then approve native-reconcile --review TOKEN. If completion evidence is unavailable, preserve provider-operation.json, workflow recovery and Hyper-V event logs for administrator/provider support. Do not delete the marker or replay Apply.",
             ),
             (Component::GuestTransport, FailureCause::InvalidReply) => Some(
-                "The guest check returned incomplete or invalid progress records. Its outcome is unknown; inspect recovery before another check.",
+                "Communication with the guest returned an incomplete or invalid reply. The operation could not be confirmed. Open Technical Details, use Refresh to read the current VM state and inspect recovery before retrying.",
             ),
             (Component::GuestTransport, FailureCause::TimedOut) => Some(
                 "Communication with the guest timed out. The guest check did not complete; inspect recovery and the recorded final power state.",
@@ -652,7 +652,7 @@ mod tests {
     fn transport_failure_explains_missing_records_without_echoing_private_output() {
         use super::*;
         for (cause, expected) in [
-            (FailureCause::InvalidReply, "invalid progress records"),
+            (FailureCause::InvalidReply, "incomplete or invalid reply"),
             (FailureCause::TimedOut, "timed out"),
             (FailureCause::Unavailable, "unavailable"),
         ] {

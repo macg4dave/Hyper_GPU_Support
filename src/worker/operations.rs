@@ -67,7 +67,7 @@ pub(super) fn apply(
         },
         |(backend, token)| (backend, Some(token)),
     );
-    let (current, mut admitted) = if let Some(admitted) = retained {
+    let (current, admitted) = if let Some(admitted) = retained {
         (approved.clone(), admitted)
     } else {
         ObservedBackend {
@@ -79,11 +79,6 @@ pub(super) fn apply(
             workflow::admit_approved(backend, &approved)
         })?
     };
-    admitted.check_installation_os(&mut ObservedBackend {
-        backend: &mut backend,
-        notify: &mut notify,
-        before_effect: None,
-    })?;
     let mut record = SaveRecord {
         schema: 1,
         retirement: None,

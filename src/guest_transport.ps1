@@ -3,20 +3,6 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $session = $null
 $diagnostic = $null
-$checkingCompatibility = $false
-# Transport this fixed read-only query into the actual preparation session.
-$readInstallationIdentity = {
-    $os = @(Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop)
-    if ($os.Count -ne 1) { throw 'Ambiguous OS identity' }
-    $version = [version]$os[0].Version
-    $build = [uint32]$os[0].BuildNumber
-    $productType = [uint32]$os[0].ProductType
-    $kind = Get-ItemPropertyValue -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name InstallationType -ErrorAction Stop
-    if ($null -eq $version -or $version.Build -lt 0 -or $version.Revision -ge 0 -or $version.Build -ne $build -or $productType -notin @(1,2,3) -or [string]::IsNullOrEmpty($kind)) {
-        throw 'Incomplete or inconsistent OS identity'
-    }
-    @{ major = $version.Major; minor = $version.Minor; build = $build; workstation = ($productType -eq 1 -and $kind -ceq 'Client') } | ConvertTo-Json -Compress
-}
 # Fixed validation is serialized into remote scriptblocks; no guest-supplied code.
 $validateBootstrap = {
     param($path, $bytes, $hash)
@@ -145,23 +131,6 @@ try {
         }
     }
     Write-Stage 'session-connect' 'done' 'PowerShell Direct' $timer.ElapsedMilliseconds
-    if ($r.mode -cin @('compatibility', 'prepare')) {
-        $checkingCompatibility = $true
-        $identity = Invoke-Command -Session $session -ScriptBlock $readInstallationIdentity
-        if ($r.mode -ceq 'compatibility') {
-            @{ output = [string]$identity; worker_exit = 0 } | ConvertTo-Json -Compress
-            return
-        }
-        # Rust supplies the release list used by admission and the guest worker.
-        # Check in this very session, before creating guest directories or files.
-        $os = $identity | ConvertFrom-Json
-        if ($os.major -ne 10 -or $os.minor -ne 0 -or $os.workstation -ne $true -or $os.build -notin $r.windows_11_builds) {
-            $failure = @{ stage=$null; component='GuestCompatibility'; cause='UnsupportedGuest'; code=$null } | ConvertTo-Json -Compress
-            @{ output=('HGFAIL1:' + $failure); worker_exit=1 } | ConvertTo-Json -Compress
-            exit 1
-        }
-        $checkingCompatibility = $false
-    }
     $timer.Restart()
     Write-Stage 'bootstrap-path' 'start' 'protect guest root'
     $root = Invoke-Command -Session $session -ScriptBlock {
@@ -398,11 +367,6 @@ try {
     Write-Stage 'guest-integrity-and-worker' 'done' $r.mode $timer.ElapsedMilliseconds
     @{ output = [string]$output.output; worker_exit = $output.worker_exit; cleaned = @($output.cleaned) } | ConvertTo-Json -Compress
 } catch {
-    if ($checkingCompatibility) {
-        $failure = @{ stage=$null; component='GuestCompatibility'; cause='Unavailable'; code=$null } | ConvertTo-Json -Compress
-        @{ output=('HGFAIL1:' + $failure); worker_exit=1 } | ConvertTo-Json -Compress
-        exit 1
-    }
     Write-Stage 'transport' 'failed' "HRESULT=$($_.Exception.HResult); type=$($_.Exception.GetType().FullName)"
     [Console]::Error.WriteLine('Fixed guest transport failed; reconcile before retry.')
     @{ output = ''; transport_hresult = $_.Exception.HResult } | ConvertTo-Json -Compress

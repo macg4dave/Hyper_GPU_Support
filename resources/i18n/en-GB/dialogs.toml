@@ -432,7 +432,7 @@ space_hint = "Keep actions reachable and content scrollable at the supported min
 placeholders = []
 
 [messages."dialogs.install.vm"]
-text = "Virtual machine:"
+text = "Virtual Machine:"
 screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
 state = "Installation presentation: vm"
 audience = "operator"
@@ -924,4 +924,48 @@ intent = "Explain the wait until abandoned preparation releases its block."
 consequences = "No effect cancellation or completion claim; late preparation results are discarded."
 severity = "information"
 space_hint = "Wrap at minimum window size in both themes."
+placeholders = []
+
+[messages."dialogs.install.gpu_type"]
+text = "GPU Type:"
+screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
+state = "Operation context, compatibility advisory or failure"
+audience = "operator"
+intent = "Identify the operation target and explain its actual outcome."
+consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
+severity = "information"
+space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.install.vram"]
+text = "VRAM Size:"
+screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
+state = "Operation context, compatibility advisory or failure"
+audience = "operator"
+intent = "Identify the operation target and explain its actual outcome."
+consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
+severity = "information"
+space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.install.windows_warning"]
+text = "Windows-version compatibility has not been checked. Other Windows versions may require manual configuration. This warning does not block installation."
+screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
+state = "Operation context, compatibility advisory or failure"
+audience = "operator"
+intent = "Identify the operation target and explain its actual outcome."
+consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
+severity = "information"
+space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
+placeholders = []
+
+[messages."dialogs.install.failure_title"]
+text = "GPU operation failed"
+screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
+state = "Operation context, compatibility advisory or failure"
+audience = "operator"
+intent = "Identify the operation target and explain its actual outcome."
+consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
+severity = "information"
+space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
 placeholders = []

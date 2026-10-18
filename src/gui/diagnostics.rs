@@ -61,9 +61,9 @@ pub(super) fn completion_failure(summary: &str, details: &str, primary: &str) ->
     );
     (
         format!(
-            "{summary}\n\n{original}\nCompletion records could not be confirmed. Use Refresh and inspect recovery before another operation."
+            "{original}\n\n{summary}\nCompletion records could not be confirmed. Use Refresh and inspect recovery before another operation."
         ),
-        [details, primary_details.as_str()]
+        [primary_details.as_str(), details]
             .into_iter()
             .filter(|text| !text.is_empty())
             .collect::<Vec<_>>()

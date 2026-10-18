@@ -80,12 +80,10 @@ pub enum PreparationProgress {
 
 /// The concrete management boundary, also used for meaningful workflow tests.
 pub trait Backend {
-    /// Positively identify Windows 11 immediately before driver installation.
-    /// Query the current running guest without writes or metadata fallback.
-    /// The workflow owns any consented temporary boot and power restoration.
-    /// Missing implementations deny installation; planning never calls this.
+    /// Reserved compatibility hook; Windows-version checking is deferred.
+    /// Apply does not call this method. Retained for backend API compatibility.
     fn check_installation_os(&mut self, _target: &Target) -> Result<(), String> {
-        Err(crate::guest_compatibility::unknown())
+        Ok(())
     }
     /// Read fresh selected VM state.
     fn inspect(&mut self, target: &Target) -> Result<VmState, String>;

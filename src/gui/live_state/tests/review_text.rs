@@ -110,7 +110,7 @@ fn review_reports_ordered_power_steps_changed_settings_and_time_warnings() {
 }
 
 #[test]
-fn stopped_installation_review_shows_os_check_before_preparation() {
+fn legacy_installation_plan_keeps_its_original_os_step_readable() {
     use hyper_gpu_support::workflow::PreviewAction;
     let mut plan = review_plan();
     plan.preview.actions = vec![

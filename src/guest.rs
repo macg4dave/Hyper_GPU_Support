@@ -16,7 +16,6 @@ use std::{
 };
 
 const MANIFEST_LIMIT: u64 = 32 * 1024 * 1024;
-mod os;
 pub(crate) mod staging;
 
 fn read_preparation_manifest(input: impl Read) -> Result<Manifest, String> {
@@ -60,7 +59,6 @@ struct BridgeRequest<'a> {
     artifacts: Vec<Artifact>,
     diagnostics: bool,
     verification: Option<String>,
-    windows_11_builds: &'static [u32],
     identity: Option<String>,
     acknowledgements: String,
 }
@@ -148,7 +146,6 @@ fn bridge(
             let install = runner::install_directory()?;
             let artifacts = ["hyper-gpu-guest.exe", "d3d11-probe.exe"]
                 .into_iter()
-                .filter(|_| mode != "compatibility")
                 .map(|name| {
                     Ok(Artifact {
                         name: name.into(),
@@ -178,18 +175,15 @@ fn bridge(
                 .select_helpers(artifacts.len())?,
             );
             let identity = manifest
-                .filter(|_| mode != "compatibility")
                 .map(|manifest| staging::register(t, manifest, mode))
                 .transpose()?;
             // Cleanup availability never prevents the authorized product operation.
-            let acknowledgements = if mode == "compatibility" {
-                Vec::new()
-            } else {
-                crate::diagnostics::run("guest-staging-queue", "completed acknowledgements", || {
-                    staging::pending(&t.vm_id)
-                })
-                .unwrap_or_default()
-            };
+            let acknowledgements = crate::diagnostics::run(
+                "guest-staging-queue",
+                "completed acknowledgements",
+                || staging::pending(&t.vm_id),
+            )
+            .unwrap_or_default();
             let request = BridgeRequest {
                 vm_id: &t.vm_id,
                 username: &credential.username,
@@ -225,7 +219,6 @@ fn bridge(
                 } else {
                     None
                 },
-                windows_11_builds: crate::guest_compatibility::WINDOWS_11_BUILDS,
             };
             let helper_count = request.artifacts.len();
             let bytes =
@@ -247,39 +240,30 @@ fn bridge(
                 "-Command",
                 &script,
             ]);
-            let result = if mode == "compatibility" {
-                process::bounded_process_with_limit(
-                    command,
-                    Duration::from_secs(210),
-                    16384,
-                    &bytes,
-                )
-            } else {
-                process::bounded_process_with_monitor(
-                    command,
-                    Duration::from_secs(3600),
-                    1024 * 1024,
-                    &bytes,
-                    monitor.clone(),
-                    &mut || {
-                        if let Some(p) = monitor.take_progress(Instant::now())? {
-                            progress(crate::workflow::PreparationProgress::Copying {
-                                bytes: p.bytes,
-                                total: p.total,
-                                files: p.files,
-                                count: p.count,
-                            })?;
-                            if p.done {
-                                progress(crate::workflow::PreparationProgress::CopyComplete)?;
-                            }
+            let result = process::bounded_process_with_monitor(
+                command,
+                Duration::from_secs(3600),
+                1024 * 1024,
+                &bytes,
+                monitor.clone(),
+                &mut || {
+                    if let Some(p) = monitor.take_progress(Instant::now())? {
+                        progress(crate::workflow::PreparationProgress::Copying {
+                            bytes: p.bytes,
+                            total: p.total,
+                            files: p.files,
+                            count: p.count,
+                        })?;
+                        if p.done {
+                            progress(crate::workflow::PreparationProgress::CopyComplete)?;
                         }
-                        for phase in monitor.take_phases()? {
-                            progress(phase)?;
-                        }
-                        Ok(())
-                    },
-                )
-            };
+                    }
+                    for phase in monitor.take_phases()? {
+                        progress(phase)?;
+                    }
+                    Ok(())
+                },
+            );
             monitor.record_work(helper_count);
             let result = result.map_err(supervision_failure)?;
             if result.exit_code != Some(0) {
@@ -339,38 +323,23 @@ fn bridge(
                 }
                 .into_error());
             }
-            if mode != "compatibility" {
-                monitor.require_worker_phases().map_err(|_| {
-                    crate::reporting::ComponentFailure {
-                        stage: None,
-                        component: crate::reporting::Component::GuestTransport,
-                        cause: crate::reporting::FailureCause::InvalidReply,
-                        code: None,
-                    }
-                    .into_error()
-                })?;
-            }
-            if mode != "compatibility" {
-                let _ = crate::diagnostics::run(
-                    "guest-staging-retire",
-                    "guest cleanup readback",
-                    || staging::received(&acknowledgements, &reply.cleaned),
-                );
-            }
+            monitor.require_worker_phases().map_err(|_| {
+                crate::reporting::ComponentFailure {
+                    stage: None,
+                    component: crate::reporting::Component::GuestTransport,
+                    cause: crate::reporting::FailureCause::InvalidReply,
+                    code: None,
+                }
+                .into_error()
+            })?;
+            let _ =
+                crate::diagnostics::run("guest-staging-retire", "guest cleanup readback", || {
+                    staging::received(&acknowledgements, &reply.cleaned)
+                });
             Ok(reply.output)
         },
     )
 }
-/// Read OS identity over an authenticated session to an already running VM.
-/// This transport mode returns before guest bootstrap, file transfer or launch.
-pub(crate) fn check_installation_os(t: &Target, credential: &Credential) -> Result<(), String> {
-    let text = bridge(t, credential, "compatibility", None, None, &mut |_| Ok(()))
-        .map_err(|_| crate::guest_compatibility::unknown())?;
-    let identity =
-        serde_json::from_str(&text).map_err(|_| crate::guest_compatibility::unknown())?;
-    crate::guest_compatibility::require_supported(&identity)
-}
-
 /// Copy and independently verify the current complete payload.
 pub fn prepare(t: &Target, manifest: &Manifest, credential: &Credential) -> Result<String, String> {
     prepare_with_progress(t, manifest, credential, &mut |_| Ok(()))
@@ -383,8 +352,6 @@ pub fn prepare_with_progress(
     credential: &Credential,
     progress: &mut dyn FnMut(crate::workflow::PreparationProgress) -> Result<(), String>,
 ) -> Result<String, String> {
-    // The prepare bridge rechecks the running OS in its own authenticated
-    // session before bootstrap writes, including for direct callers.
     let text = bridge(t, credential, "prepare", Some(manifest), None, progress)?;
     let receipt: Receipt =
         serde_json::from_str(text.trim()).map_err(|_| "invalid guest preparation receipt")?;
@@ -504,9 +471,6 @@ fn worker_inner(
 ) -> Result<String, String> {
     if !process::is_elevated()? {
         return Err("guest worker requires administrator rights".into());
-    }
-    if mode == "prepare" {
-        os::require_local()?;
     }
     let expected = crate::runner::folder(&windows::Win32::UI::Shell::FOLDERID_ProgramFiles)?
         .join("HyperGpuSupport/Guest");
@@ -908,118 +872,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn actual_transport_checks_current_os_before_bootstrap_without_metadata_or_disk_access() {
-        // Run the production bridge with all guest/Hyper-V entrypoints replaced.
-        // The second remoting invocation is stopped before executing bootstrap.
+    fn actual_transport_reaches_bootstrap_without_a_windows_version_query() {
         let mocks = r#"
 function Import-Module {}
 function New-PSSession { 'isolated-test-session' }
 function Remove-PSSession {}
-function Get-CimInstance { $r.facts }
-function Get-ItemPropertyValue { $r.kind }
+function Get-CimInstance { [Console]::Out.WriteLine('UNEXPECTED_OS_QUERY'); throw 'No version query allowed' }
+function Get-ItemPropertyValue { [Console]::Out.WriteLine('UNEXPECTED_OS_QUERY'); throw 'No version query allowed' }
 function Invoke-Command {
     param($Session, [scriptblock]$ScriptBlock)
-    if ($script:queried) {
-        [Console]::Out.WriteLine('BOOTSTRAP_BOUNDARY')
-        throw 'Test stops before bootstrap'
-    }
-    $script:queried = $true
-    & $ScriptBlock
+    [Console]::Out.WriteLine('BOOTSTRAP_BOUNDARY')
+    throw 'Test stops before any guest mutation'
 }
 "#;
-        for (version, build, product_type, kind, expected) in [
-            ("10.0.26100", "26100", 1, "Client", None),
-            (
-                "10.0.19045",
-                "19045",
-                1,
-                "Client",
-                Some(crate::reporting::FailureCause::UnsupportedGuest),
-            ),
-            (
-                "10.0.26100",
-                "26100",
-                3,
-                "Server",
-                Some(crate::reporting::FailureCause::UnsupportedGuest),
-            ),
-            (
-                "10.0.26100",
-                "26100",
-                1,
-                "WindowsPE",
-                Some(crate::reporting::FailureCause::UnsupportedGuest),
-            ),
-            (
-                "10.0.26100",
-                "22631",
-                1,
-                "Client",
-                Some(crate::reporting::FailureCause::Unavailable),
-            ),
-            (
-                "10.0",
-                "26100",
-                1,
-                "Client",
-                Some(crate::reporting::FailureCause::Unavailable),
-            ),
-            (
-                "10.0.26100",
-                "26100",
-                0,
-                "Client",
-                Some(crate::reporting::FailureCause::Unavailable),
-            ),
-        ] {
-            let input = serde_json::to_vec(&serde_json::json!({
-                "vm_id": "11111111-1111-1111-1111-111111111111",
-                "username": "test-placeholder", "password": "test-placeholder",
-                "mode": "prepare", "diagnostics": false,
-                "windows_11_builds": crate::guest_compatibility::WINDOWS_11_BUILDS,
-                "kind": kind,
-                "facts": {"Version": version, "BuildNumber": build, "ProductType": product_type}
-            }))
-            .unwrap();
-            let mut command = Command::new(windows_paths::windows_powershell_executable().unwrap());
-            command.args([
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                &format!("{mocks}\n{}", transport_script("unused")),
-            ]);
-            let result = process::bounded_process_with_limit(
-                command,
-                Duration::from_secs(20),
-                65536,
-                &input,
-            )
-            .unwrap_or_else(|e| panic!("{e}"));
-            assert_eq!(result.exit_code, Some(1));
-            if let Some(expected) = expected {
-                assert!(
-                    !result.stdout.contains("BOOTSTRAP_BOUNDARY"),
-                    "{version}/{kind}"
-                );
-                let reply: BridgeResult = serde_json::from_str(result.stdout.trim()).unwrap();
-                let failure = crate::reporting::ComponentFailure::decode(&reply.output).unwrap();
-                assert!(matches!(
-                    failure.component,
-                    crate::reporting::Component::GuestCompatibility
-                ));
-                assert_eq!(
-                    std::mem::discriminant(&failure.cause),
-                    std::mem::discriminant(&expected)
-                );
-            } else {
-                assert!(
-                    result.stdout.contains("BOOTSTRAP_BOUNDARY"),
-                    "{}",
-                    result.stdout
-                );
-            }
-        }
+        let input = serde_json::to_vec(&serde_json::json!({
+            "vm_id": "11111111-1111-1111-1111-111111111111",
+            "username": "test-placeholder", "password": "test-placeholder",
+            "mode": "prepare", "diagnostics": false
+        }))
+        .unwrap();
+        let mut command = Command::new(windows_paths::windows_powershell_executable().unwrap());
+        command.args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &format!("{mocks}\n{}", transport_script("unused")),
+        ]);
+        let result =
+            process::bounded_process_with_limit(command, Duration::from_secs(20), 65536, &input)
+                .unwrap_or_else(|error| panic!("{error}"));
+        assert_eq!(result.exit_code, Some(1));
+        assert!(
+            result.stdout.contains("BOOTSTRAP_BOUNDARY"),
+            "{}",
+            result.stdout
+        );
+        assert!(!result.stdout.contains("UNEXPECTED_OS_QUERY"));
     }
 
     #[test]

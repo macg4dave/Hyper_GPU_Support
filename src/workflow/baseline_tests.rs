@@ -64,7 +64,7 @@ fn established() -> (Fake, Target) {
 #[test]
 fn setup_removes_one_unattached_boot_cycle_against_original_counts() {
     for (power, reads, cycles) in [
-        (Power::Off, [40, 37, 43], [2, 2]),
+        (Power::Off, [39, 36, 42], [2, 2]),
         (Power::Running, [37, 34, 40], [1, 2]),
     ] {
         let mut backend = fake();
@@ -131,10 +131,10 @@ fn retained_category_reduction_and_attached_reinstall_compared_with_original() {
         "reinstall",
         backend.work,
         Expected {
-            reads: [45, 41, 47],
+            reads: [40, 36, 42],
             journals: 7,
             payloads: 2,
-            power: [3, 3],
+            power: [2, 2],
             adapters: [1, 1],
             settings: 0,
             allocations: [1; 4],
@@ -223,18 +223,18 @@ fn original_reenable_keeps_completed_preparation_but_rewrites_requested_categori
 }
 
 #[test]
-fn failed_os_identification_counts_only_the_reviewed_temporary_boot_and_restoration() {
+fn failed_preparation_retains_recovery_without_a_version_identification_cycle() {
     let mut backend = fake();
     backend.state.power = Power::Off;
-    backend.os_failure = Some("fixture unsupported OS".into());
+    backend.fail_prepare = true;
     let reviewed = plan(&mut backend, &requested()).unwrap();
     assert!(apply_approved(&mut backend, &reviewed).is_err());
-    assert_eq!(backend.events, ["start", "shutdown"]);
+    assert_eq!(backend.events, ["start", "prepare"]);
     assert_eq!(backend.work.get(Counter::PowerStarts), 1);
-    assert_eq!(backend.work.get(Counter::PowerShutdowns), 1);
+    assert_eq!(backend.work.get(Counter::PowerShutdowns), 0);
     assert_eq!(backend.work.get(Counter::AttachWrites), 0);
     assert_eq!(backend.work.get(Counter::SettingsWrites), 0);
-    assert_eq!(backend.state.power, Power::Off);
+    assert_eq!(backend.state.power, Power::Running);
     assert!(backend.journal.as_ref().unwrap().pending);
 }
 

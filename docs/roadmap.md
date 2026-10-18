@@ -14,7 +14,7 @@ The core scope is six cohesive work packages, OPT-001 through OPT-006, followed 
 | --- | --- |
 | Lower idle cost | Routine polling uses bounded status reads instead of repeating complete inventory and package-availability work. Count provider calls, connections, hashes and process starts; explicit Refresh still obtains complete observations. |
 | Cheaper fresh safety checks | Operational facts exclude optional display metadata. Reuse connections and batch inventory while fetching fresh mutable provider objects at safety boundaries. |
-| Fewer setup power transitions | Combine OS identification and preparation for eligible unattached VMs. Target two boot cycles instead of three for first setup from Off; running and already-attached cases retain their own valid lifecycle. |
+| Fewer setup power transitions | Prepare in the required unattached boot, without a version-identification cycle. Windows-version checking is deferred; running and already-attached cases retain their required lifecycle. |
 | Fewer payload passes | Target two complete host payload passes instead of three on eligible setup/reinstall/Verify paths, retaining independent final authentication. Eligible CLI ordinary changes should match the GUI's two-pass path. Disable remains payload-free. Prove feasibility and counts before claiming these targets. |
 | Fewer mutations and repeated reads | Write only changed requested resource categories on retained adapters; apply all specified categories after recreation. Consolidate independent completion readback and reuse matching, freshly validated guest helpers. |
 | Bounded waits and storage | Coordinate foreground work with polling; end read-only cancellation only after confirmed backend release. Bound completed audit/staging retention without deleting unresolved evidence. |
@@ -53,7 +53,7 @@ The [security contract](SECURITY.md) remains in force: exact operator/VM/GPU/rev
 
 - Package attestation reuse requires protected file identity/handles and enrollment-revision binding. Presentation caches never grant effect authority.
 - Keep VM/GPU mutations serialized. Batch reads first; introduce bounded read parallelism only if measurement and partial-failure handling justify it.
-- OS eligibility precedes installation writes. Retain actual preparation-session and guest-local OS checks across reboot/session boundaries.
+- Windows-version checking is deferred by user direction (18 October 2026). Compatibility warnings are advisory; authenticated transport, signed payload checks, drift checks and recovery remain mandatory.
 - Cancel only read-only preparation through this work. Hold admission until confirmed backend release. Timeout, disconnect or matching instantaneous state never establishes completion or permits replay.
 - Retain independent final payload/guest checks. Profile deletion stays record-only, save-only never replays Apply, and recovery remains an explicit foreground action.
 - Cleanup needs positive durable completion and exact ownership/scope. Age alone cannot authorize staging or recovery deletion.

@@ -241,6 +241,8 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                 );
                 ui.set_install_guest_work(guest_work);
                 ui.set_install_vm_name("win_26300.9457 VM1".into());
+                ui.set_install_gpu_name("NVIDIA GeForce RTX 4090".into());
+                ui.set_install_vram("5.9 GB".into());
                 ui.set_dialog_body(
                     if completed {
                         install::SUCCESS_OFF
@@ -288,7 +290,6 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                             } else {
                                 0
                             },
-                            elapsed: "00:04".into(),
                         })
                         .collect(),
                 ));
@@ -325,7 +326,7 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                     },
                 ]));
                 let log = (0..40)
-                    .map(|index| format!("00:{index:02}   Checked driver files · Complete\n"))
+                    .map(|index| format!("Checked driver batch {index:02} · Complete\n"))
                     .collect::<String>();
                 ui.set_dialog_details(log.clone().into());
                 render();
@@ -1075,4 +1076,97 @@ fn cancelled_reads_leave_dialog_close_usable_while_new_operations_stay_disabled(
         );
     }
     ui.hide().unwrap();
+}
+
+#[test]
+fn diagnostic_output_preserves_scrolled_reading_and_follows_only_the_tail() {
+    use hyper_gpu_support::ui_text::{diagnostics, dialogs::install};
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let render = || {
+        // Property-change callbacks settle on the event-loop turn after layout.
+        for _ in 0..3 {
+            slint::platform::update_timers_and_animations();
+            draw(&window);
+        }
+    };
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_page(2);
+    ui.set_dialog_kind("install-progress".into());
+    ui.set_dialog_title(install::APPLYING.into());
+    ui.set_running(true);
+    ui.set_install_vm_name("VM2".into());
+    ui.set_install_gpu_name("NVIDIA GPU".into());
+    ui.set_install_vram("6 GB".into());
+    let mut text = (0..80)
+        .map(|index| format!("Diagnostic line {index:03}\n"))
+        .collect::<String>();
+    ui.set_dialog_details(text.clone().into());
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(1000., 700.));
+    render();
+    control(&ui, diagnostics::SHOW_LABEL).accessible_action(&AccessibilityAction::Default);
+    render();
+    let input = control(&ui, diagnostics::READ_ONLY_ACCESSIBLE);
+    let origin = || input.map_to_window(input.geometry().origin).y;
+    let tail = origin();
+    text.push_str("New terminal diagnostic line\n");
+    ui.set_dialog_details(text.clone().into());
+    render();
+    assert!(
+        origin() < tail - 5.,
+        "following tail must reveal appended text"
+    );
+    let tail = origin();
+    let mut editors = Vec::new();
+    ItemRc::new_root(WindowInner::from_pub(ui.window()).component()).visit_descendants::<()>(
+        |item| {
+            if item.accessible_role() == AccessibleRole::Groupbox
+                && item
+                    .accessible_string_property(AccessibleStringProperty::Label)
+                    .as_deref()
+                    == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::OUTPUT_LABEL)
+            {
+                editors.push(item.clone());
+            }
+            ControlFlow::Continue(())
+        },
+    );
+    assert_eq!(editors.len(), 1);
+    let output = editors.pop().unwrap();
+    let position = output.map_to_window(output.geometry().origin);
+    ui.window().dispatch_event(WindowEvent::PointerScrolled {
+        position: LogicalPosition::new(position.x + 30., position.y + 50.),
+        delta_x: 0.,
+        delta_y: 180.,
+    });
+    render();
+    let reading = origin();
+    assert!(
+        reading > tail + 20.,
+        "wheel must scroll toward earlier lines: {reading}/{tail}"
+    );
+    text.push_str(&"More output arrives while reading\n".repeat(8));
+    ui.set_dialog_details(text.clone().into());
+    render();
+    assert!(
+        (origin() - reading).abs() < 1.,
+        "append must preserve the reader's position"
+    );
+    ui.window().dispatch_event(WindowEvent::PointerScrolled {
+        position: LogicalPosition::new(position.x + 30., position.y + 50.),
+        delta_x: 0.,
+        delta_y: -100000.,
+    });
+    render();
+    let following = origin();
+    assert!(following < reading);
+    text.push_str("Resumed following latest output\n");
+    ui.set_dialog_details(text.into());
+    render();
+    assert!(
+        origin() < following - 5.,
+        "scrolling back to bottom resumes tail following"
+    );
 }

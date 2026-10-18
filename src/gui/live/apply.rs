@@ -6,7 +6,7 @@ use super::{
     credentials::credential_request_cancelled,
     install_dialog, installation,
     presentation::{draft_target, present},
-    progress::{progress_prepared, progress_to_ui},
+    progress::progress_to_ui,
     state_access::{with_completion_state, with_state},
 };
 use crate::gui::AppWindow;
@@ -64,7 +64,8 @@ pub(super) fn apply_live(
     let expected = revision.clone();
     let preparation_gpu = gpu_name.clone();
     install_dialog::prepare(ui, &vm_name, &[]);
-    let (progress, set_plan) = progress_prepared(ui.as_weak());
+    install_dialog::context(ui, &gpu_name, &selected);
+    let progress = progress_to_ui(ui.as_weak());
     let started = background_operation(
         ui,
         state,
@@ -98,6 +99,7 @@ pub(super) fn apply_live(
                         let reviewed = state.reviewed_plan(&current)?;
                         ui.set_review_preparing(false);
                         ui.set_install_vm_name(accepted.observed.name.clone().into());
+                        install_dialog::context(ui, &gpu, &accepted.desired);
                         ui.set_install_guest_work(accepted.preview.credentials_required);
                         ui.set_dialog_body(
                             format!(
@@ -114,7 +116,6 @@ pub(super) fn apply_live(
                         );
                         Ok(reviewed.plan)
                     })?;
-                    set_plan(&plan.preview.actions);
                     *prepared_plan
                         .lock()
                         .map_err(|_| "Prepared result unavailable")? = Some(plan.clone());

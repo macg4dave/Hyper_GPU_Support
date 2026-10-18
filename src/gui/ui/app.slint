@@ -102,6 +102,8 @@ export component AppWindow inherits Window {
     in-out property <string> current-stage;
     in-out property <float> transfer-fraction: -1;
     in-out property <string> install-vm-name;
+    in-out property <string> install-gpu-name;
+    in-out property <string> install-vram;
     in-out property <bool> install-guest-work: false;
     in-out property <bool> operation-dialog-active: false;
     in-out property <[string]> dialog-phases;
@@ -257,6 +259,7 @@ export component AppWindow inherits Window {
         phases: root.dialog-phases; active-phase: root.dialog-phase;
         guest-work: root.install-guest-work;
         updating: root.updating;
+        gpu-name: root.install-gpu-name; vram: root.install-vram;
         vm-name: root.install-vm-name; body: root.dialog-body; details: root.dialog-details;
         current-stage: root.current-stage; transfer: root.install-transfer; transfer-fraction: root.transfer-fraction;
         steps: root.install-steps; facts: root.install-facts;

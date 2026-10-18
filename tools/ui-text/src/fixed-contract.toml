@@ -5045,3 +5045,47 @@ intent = "Describe the current operation or a standard editing action."
 consequences = "Presentation never substitutes for fresh protected admission or readback."
 severity = "information"
 space_hint = "Review wrapping, keyboard access and minimum-size layout."
+
+[[messages]]
+key = "dialogs.install.gpu_type"
+[messages.metadata]
+screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
+state = "Operation context, compatibility advisory or failure"
+audience = "operator"
+intent = "Identify the operation target and explain its actual outcome."
+consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
+severity = "information"
+space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.install.vram"
+[messages.metadata]
+screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
+state = "Operation context, compatibility advisory or failure"
+audience = "operator"
+intent = "Identify the operation target and explain its actual outcome."
+consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
+severity = "information"
+space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.install.windows_warning"
+[messages.metadata]
+screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
+state = "Operation context, compatibility advisory or failure"
+audience = "operator"
+intent = "Identify the operation target and explain its actual outcome."
+consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
+severity = "information"
+space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
+
+[[messages]]
+key = "dialogs.install.failure_title"
+[messages.metadata]
+screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
+state = "Operation context, compatibility advisory or failure"
+audience = "operator"
+intent = "Identify the operation target and explain its actual outcome."
+consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
+severity = "information"
+space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."

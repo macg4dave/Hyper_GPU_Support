@@ -354,13 +354,6 @@ pub fn plan_reinstall(backend: &mut impl Backend, target: &Target) -> Result<Pla
 pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     let mut actions = Vec::new();
     let mut power = d.initial.power.clone();
-    if d.stale {
-        if power == Power::Off {
-            actions.push(PreviewAction::Start);
-            power = Power::Running;
-        }
-        actions.push(PreviewAction::CheckOs);
-    }
     if d.needs_changes {
         if power == Power::Running && (!d.stale || d.assignment) {
             actions.push(PreviewAction::Shutdown);
@@ -430,7 +423,7 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     let pending = d.journal.pending;
     let mut summary = Vec::new();
     if d.stale {
-        summary.push("Identify the current running guest OS before GPU or installation changes. Only Windows 11 clients are supported. An unattached VM continues into preparation within this boot after successful identification; an attached GPU requires graceful shutdown and detachment first. Failed identification blocks installation; failed power restoration retains recovery. Disks are never mounted or unlocked by detection.".into());
+        summary.push("Windows-version compatibility has not been checked. Other Windows versions may require manual configuration; this warning does not block installation.".into());
     }
     if d.reinstall {
         summary.push("Repair / Reinstall explicitly runs complete signed guest driver preparation, even when historical host receipts match. Files independently confirmed to match may be retained. Complete preparation and selected-hardware graphics verification are required; successful completion leaves the VM off. This is a one-operation request, not an automatic repair policy.".into());
