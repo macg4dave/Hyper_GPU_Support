@@ -1,0 +1,122 @@
+import { UiText } from "ui-text.slint";
+import { Button, ScrollView } from "std-widgets.slint";
+import { TechnicalDetailsButton } from "theme.slint";
+
+struct DialogAction { label: string, action: string, enabled: bool, primary: bool }
+
+// Both dialog families share action rules, keyboard visibility and the fixed footer.
+// These are presentation choices; Rust still validates every requested operation.
+export component DialogFooter inherits ScrollView {
+    in property <string> kind;
+    in property <bool> operation;
+    in property <bool> completed;
+    in property <bool> failed;
+    in property <bool> running;
+    in property <bool> review-preparing;
+    in property <bool> updating;
+    in property <bool> execution-ready;
+    in property <bool> action-recovery;
+    in property <bool> dirty;
+    in property <bool> repair-allowed;
+    in property <bool> forget-allowed;
+    in property <bool> has-details;
+    in-out property <bool> technical;
+    callback action(string);
+
+    private property <DialogAction> repair-action: {
+        action: "repair", label: UiText.dialogs-repair-review-label,
+        enabled: root.execution-ready && !root.updating && root.repair-allowed, primary: false
+    };
+    private property <[DialogAction]> choices:
+        root.kind == "switch" ? [
+            { action: "switch", label: UiText.dialogs-switch-discard-label, enabled: true, primary: false },
+            { action: "review", label: UiText.dialogs-switch-review-label, enabled: true, primary: true }
+        ] : root.kind == "exit" ? [
+            { action: "exit", label: UiText.dialogs-exit-discard-label, enabled: true, primary: false }
+        ] : root.kind == "save" ? [
+            { action: "save-only", label: UiText.operations-save-only-progress-title,
+              enabled: root.execution-ready && (!root.operation || !root.updating), primary: !root.operation }
+        ] : root.kind == "profile-deleted" || (!root.operation && root.kind == "permission-saved") ? [
+            { action: root.kind == "profile-deleted" ? "reapply" : "review",
+              label: root.kind == "profile-deleted" ? UiText.dialogs-setup-new-review-label : UiText.dialogs-setup-continue-label,
+              enabled: root.execution-ready && !root.updating && (root.dirty || root.kind == "profile-deleted") && !root.action-recovery, primary: false }
+        ] : root.kind == "reset-complete" ? [
+            root.repair-action,
+            { action: root.dirty ? "discard-review-forget" : "forget",
+              label: root.dirty ? UiText.dialogs-profile-deletion-discard-review-label : UiText.dialogs-profile-deletion-review-label,
+              enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-allowed), primary: false }
+        ] : !root.operation && root.kind == "recovery" ? [
+            { action: "reconcile", label: UiText.operations-recovery-inspection-continue-label,
+              enabled: !root.running && !root.updating && root.execution-ready, primary: false }
+        ] : !root.operation && root.kind == "recovery-needed" ? [
+            { action: "recovery", label: UiText.dialogs-recovery-review-label, enabled: !root.running, primary: true }
+        ] : !root.operation && root.kind == "recovery-blocked" ? [
+            { action: "forget-recovery-profile", label: UiText.dialogs-profile-deletion-label, enabled: !root.running && !root.updating, primary: false },
+            { action: "refresh", label: UiText.dialogs-status-retry-label, enabled: !root.updating, primary: false }
+        ] : !root.operation && root.kind == "status-error" ? [
+            { action: "refresh", label: UiText.dialogs-status-retry-label, enabled: !root.updating, primary: false }
+        ] : !root.operation && root.kind == "recovery-ended" ? [root.repair-action] : [];
+
+    public function focus-dismiss() { dismiss.focus(); }
+    function reveal-action(x: length, width: length) {
+        if root.kind == "more" { return; }
+        if x + root.content-x < 0px { root.content-x = -x; }
+        else if x + width + root.content-x > root.visible-width {
+            root.content-x = root.visible-width - x - width;
+        }
+    }
+
+    min-width: 0px;
+    vertical-stretch: 0;
+    horizontal-scrollbar-policy: root.kind == "more" ? always-off : as-needed;
+    vertical-scrollbar-policy: always-off;
+    content-width: root.kind == "more" ? root.visible-width : max(root.visible-width, buttons.min-width);
+    content-height: buttons.preferred-height;
+    min-height: buttons.preferred-height + (root.content-width > root.visible-width ? 16px : 0px);
+    preferred-height: self.min-height;
+    max-height: self.min-height;
+    buttons := HorizontalLayout {
+        x: 0px; y: 0px; width: root.content-width; height: self.preferred-height;
+        spacing: 12px; vertical-stretch: 0;
+        if !root.operation && root.has-details : TechnicalDetailsButton {
+            changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            expanded <=> root.technical;
+        }
+        if root.operation && !root.completed : TechnicalDetailsButton {
+            changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            expanded <=> root.technical;
+            accessible-expandable: true; accessible-expanded: root.technical;
+            icon: root.technical ? @image-url("icons/chevron-up.svg") : @image-url("icons/chevron-down.svg"); colorize-icon: true;
+        }
+        if root.operation && root.completed : Button {
+            changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            text: root.technical ? UiText.dialogs-install-hide-log : UiText.dialogs-install-view-log;
+            accessible-expandable: true; accessible-expanded: root.technical;
+            clicked => { root.technical = !root.technical; }
+        }
+        Rectangle { horizontal-stretch: 1; }
+        if root.action-recovery && (root.operation ? root.failed : root.kind == "error") : Button {
+            text: UiText.dialogs-recovery-review-label; enabled: !root.updating;
+            changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            clicked => { if self.enabled { root.action("recovery"); } }
+        }
+        for choice in root.choices : Button {
+            text: choice.label; enabled: choice.enabled; primary: choice.primary;
+            changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            changed x => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            changed width => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            clicked => { if self.enabled { root.action(choice.action); } }
+        }
+        dismiss := Button {
+            changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            changed x => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            changed width => { if self.has-focus { root.reveal-action(self.x, self.width); } }
+            text: root.review-preparing ? UiText.dialogs-cancel-label : root.operation ? (root.completed ? UiText.dialogs-close-label : UiText.dialogs-install-cancel)
+                : root.running ? UiText.dialogs-busy-label : root.kind == "switch" ? UiText.dialogs-switch-stay-label : root.kind == "exit" ? UiText.dialogs-draft-keep-label : UiText.dialogs-close-label;
+            enabled: root.review-preparing || (root.operation ? root.completed && !root.running : !root.running);
+            primary: root.operation ? root.completed : root.kind == "info" || root.kind == "error";
+            min-width: root.operation && !root.completed ? 160px : 120px;
+            clicked => { if self.enabled { root.action("close"); } }
+        }
+    }
+}

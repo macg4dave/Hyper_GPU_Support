@@ -293,8 +293,7 @@ pub(super) fn execute(
                 plan,
                 expected,
                 authorization.shutdown_approved,
-                None,
-                Some((backend, token)),
+                (backend, token),
                 notify,
             )
         }
@@ -324,8 +323,7 @@ pub(super) fn execute(
                 context,
                 plan,
                 authorization.shutdown_approved,
-                None,
-                Some((backend, token)),
+                (backend, token),
                 notify,
             )
         }
@@ -456,5 +454,53 @@ mod tests {
         let mut approval = Approval::new("session", &review, authorization()).unwrap();
         approval.schema = 9;
         assert!(approval.validate("session", &review).is_err());
+    }
+
+    #[test]
+    fn ordinary_prepared_scope_requires_no_credentials_but_keeps_power_and_session_approval() {
+        let mut backend = fake();
+        let target = target();
+        workflow::apply(&mut backend, &target).unwrap();
+        backend.state.power = crate::model::Power::Running;
+        let (plan, _) = workflow::prepare_apply(&mut backend, &target, false).unwrap();
+        assert!(!plan.preview.credentials_required);
+        let intent = Intent::Apply {
+            target,
+            reinstall: false,
+            expected: Revision::Missing,
+        };
+        let review = PreparedReview::Apply {
+            plan,
+            expected: Revision::Missing,
+        };
+        intent.validate_review(&review).unwrap();
+        let command = Command::Prepare { intent };
+        command.validate_submission().unwrap();
+        assert!(
+            review.command(false).is_err(),
+            "CLI power approval is still required"
+        );
+        let terminal_contract = review.command(true).unwrap();
+        assert!(
+            terminal_contract.validate_submission().is_err(),
+            "a plan cannot bypass the prepared exchange"
+        );
+        let approval = Approval::new(
+            "ordinary",
+            &review,
+            Authorization {
+                shutdown_approved: true,
+                credential: None,
+            },
+        )
+        .unwrap();
+        approval.validate("ordinary", &review).unwrap();
+        assert!(
+            Approval::new("ordinary", &review, authorization())
+                .unwrap()
+                .validate("ordinary", &review)
+                .is_err(),
+            "unexpected credentials are refused"
+        );
     }
 }

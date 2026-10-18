@@ -88,31 +88,44 @@ fn prepared_mutable_drift_rejects_before_journal_or_effects() {
 }
 
 #[test]
-fn ordinary_cli_prediction_never_hashes_missing_or_adverse_history() {
-    for pending in [false, true] {
-        let mut backend = fake();
-        let target = target();
-        if pending {
-            apply(&mut backend, &target).unwrap();
-            backend.journal.as_mut().unwrap().pending = true;
+fn ordinary_prepared_changes_share_the_exact_sequence_without_guest_work() {
+    for enabled in [true, false] {
+        for changed in [true, false] {
+            for power in [Power::Off, Power::Running] {
+                let mut backend = fake();
+                let mut wanted = extended_target();
+                wanted.vram = Some(Allocation {
+                    minimum: 10,
+                    optimal: 50,
+                    maximum: 90,
+                });
+                apply(&mut backend, &wanted).unwrap();
+                wanted.enabled = enabled;
+                if changed {
+                    wanted.vram.as_mut().unwrap().maximum -= 1;
+                }
+                // Omitted categories must not acquire a write on a retained adapter.
+                wanted.compute = None;
+                backend.state.power = power;
+                backend.events.clear();
+                backend.allocation_calls.clear();
+                backend.work = Counts::default();
+                let (plan, admitted) = prepare_apply(&mut backend, &wanted, false).unwrap();
+                assert!(!plan.preview.credentials_required);
+                assert!(!plan.preview.actions.contains(&PreviewAction::Verify));
+                let result = apply_admitted(&mut backend, admitted).unwrap();
+                assert_eq!(backend.events, trace(&plan.preview));
+                assert!(!result.prepared && !result.verified);
+                assert_eq!(result.effective.power, Power::Off);
+                assert_eq!(backend.work.get(Counter::PayloadPasses), u64::from(enabled));
+                assert!(!backend.allocation_calls.contains(&Resource::Compute));
+                assert_eq!(
+                    backend.allocation_calls.len(),
+                    usize::from(enabled && changed)
+                );
+            }
         }
-        backend.payload_reads = 0;
-        backend.events.clear();
-        assert!(plan_if_ordinary(&mut backend, &target).unwrap().is_none());
-        assert_eq!(backend.payload_reads, 0);
-        assert!(backend.events.is_empty());
     }
-    let mut backend = fake();
-    let target = target();
-    apply(&mut backend, &target).unwrap();
-    backend.work = Counts::default();
-    assert!(
-        plan_if_ordinary(&mut backend, &target)
-            .unwrap()
-            .unwrap()
-            .authentication_deferred
-    );
-    assert_eq!(backend.work.get(Counter::PayloadPasses), 0);
 }
 
 #[test]

@@ -5089,3 +5089,25 @@ intent = "Identify the operation target and explain its actual outcome."
 consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
 severity = "information"
 space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
+
+[[messages]]
+key = "operations.recovery.inspection.body"
+[messages.metadata]
+screen = "Recorded outcome dialog"
+state = "Recorded operation available for explicit recovery"
+audience = "operator"
+intent = "Explain inspection and the separate recovery continuation."
+consequences = "Inspection performs no checks or effects; continuation uses the existing protected recovery path."
+severity = "information"
+space_hint = "Wrapping dialog body above inline actions."
+
+[[messages]]
+key = "operations.recovery.inspection.continue_label"
+[messages.metadata]
+screen = "Recorded outcome dialog"
+state = "Explicit recovery continuation"
+audience = "operator"
+intent = "Request the existing protected recovery check after inspection."
+consequences = "May perform recorded guest checks and power transitions; uncertain results retain recovery."
+severity = "information"
+space_hint = "Inline dialog button."

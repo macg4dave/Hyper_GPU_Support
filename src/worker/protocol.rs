@@ -78,6 +78,14 @@ pub(super) enum Command {
 }
 
 impl Command {
+    /// A reviewed plan is a display contract, never a fresh effect admission.
+    pub(super) fn validate_submission(&self) -> Result<(), String> {
+        if matches!(self, Self::Apply { .. } | Self::Verify { .. }) {
+            return Err("GPU execution requires a fresh prepared worker session".into());
+        }
+        Ok(())
+    }
+
     /// An authenticated terminal reply must still match the submitted operation.
     /// Progress completion is never sufficient to establish a terminal outcome.
     pub(super) fn validate_outcome(&self, outcome: &Outcome, session: &str) -> Result<(), String> {

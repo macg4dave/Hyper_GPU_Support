@@ -61,10 +61,14 @@ impl State {
         readback: Result<OperationReadback, String>,
     ) -> Result<(), String> {
         self.view.needs_readback = true;
-        self.approved_plan = None;
+        // A terminal result belongs to the submitted intent, not a newer edit.
+        let draft = self.view.draft.clone().filter(|draft| draft != target);
         self.view.applied(target)?;
         if saved {
             self.view.published(target)?;
+        }
+        if draft.is_some() {
+            self.view.draft = draft;
         }
         self.finish_readback(readback)?;
         if let Some(record) = self.recovery_for_vm(&target.vm_id) {
@@ -97,7 +101,7 @@ impl State {
         readback: Result<OperationReadback, String>,
     ) -> Result<(), String> {
         self.view.needs_readback = true;
-        self.cancel_review();
+        self.result_notice = None;
         let readback = readback?;
         let mut committed = readback.committed;
         let mut recovery = readback.recovery;
@@ -184,7 +188,6 @@ impl State {
         enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
     ) -> Result<(), String> {
         use hyper_gpu_support::configuration_store::SavePhase;
-        self.removal_review = None;
         self.recoveries = recovery.into_iter().collect();
         self.recovery = self
             .recoveries
@@ -194,8 +197,6 @@ impl State {
             .cloned();
         self.import_recovery = import_recovery;
         self.enrollment_recovery = enrollment_recovery;
-        self.approved_plan = None;
-        self.verification_plan = None;
         if let Some(record) = self
             .recovery_for_vm(self.view.selected.as_deref().unwrap_or_default())
             .cloned()

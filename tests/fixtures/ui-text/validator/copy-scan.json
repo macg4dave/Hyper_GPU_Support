@@ -236,6 +236,11 @@
       "path": "src/gui_model.rs",
       "mode": "enforce",
       "reason": "Active fixed and typed dynamic presentation must use catalogue bindings. Original classification/protocol inputs remain code-owned; remaining parameterised migration is advisory."
+    },
+    {
+      "path": "src/gui/ui/dialog-footer.slint",
+      "mode": "enforce",
+      "reason": "Shared dialog footer uses compiled catalogue labels; fixed action identifiers select existing callbacks and are not displayed."
     }
   ],
   "retained_literals": [

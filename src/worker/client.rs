@@ -10,7 +10,7 @@ use crate::{
     configuration_store::Revision,
     credentials::Credential,
     windows_pipe::{self, session::Pipe},
-    workflow::{self, Plan},
+    workflow,
 };
 use std::time::{Duration, Instant};
 use windows::Win32::{
@@ -81,46 +81,9 @@ pub fn forget_pair(
 ) -> Result<Outcome, String> {
     submit(Command::ForgetPair { approved }, None, progress)
 }
-/// Launch elevation before effects; private request and progress are process-bound.
-pub fn apply(
-    approved: Plan,
-    expected: Revision,
-    shutdown_approved: bool,
-    credential: Option<Credential>,
-    progress: impl FnMut(Progress),
-) -> Result<Outcome, String> {
-    if approved.preview.guest_downtime && !shutdown_approved {
-        return Err("separate graceful guest shutdown approval is required".into());
-    }
-    submit(
-        Command::Apply {
-            approved,
-            expected,
-            shutdown_approved,
-        },
-        credential,
-        progress,
-    )
-}
 /// Retry protected publication only; this path cannot call GPU mutation adapters.
 pub fn save_only(operation_id: String, progress: impl FnMut(Progress)) -> Result<Outcome, String> {
     submit(Command::SaveOnly { operation_id }, None, progress)
-}
-/// Execute only the reviewed guest graphics check and disclosed power restoration.
-pub fn verify(
-    approved: workflow::VerificationPlan,
-    shutdown_approved: bool,
-    credential: Credential,
-    progress: impl FnMut(Progress),
-) -> Result<Outcome, String> {
-    submit(
-        Command::Verify {
-            approved,
-            shutdown_approved,
-        },
-        Some(credential),
-        progress,
-    )
 }
 /// Explicit reconciliation checks achieved state, graphics and disclosed power;
 /// it cannot repeat GPU assignment, allocation, compatibility or preparation.

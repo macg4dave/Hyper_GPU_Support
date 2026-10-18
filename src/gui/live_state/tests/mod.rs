@@ -3,6 +3,7 @@ use super::*;
 use hyper_gpu_support::{
     gui_model::Inventory,
     model::{Allocation, Discovery, Gpu, Power, Settings, Target, VmState},
+    workflow::Plan,
 };
 
 mod actions;

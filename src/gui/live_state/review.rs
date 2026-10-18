@@ -1,5 +1,5 @@
 //! Approval binding and invalidation for the current draft and saved revision.
-use super::{ReviewedPlan, State};
+use super::State;
 use hyper_gpu_support::{model::Target, workflow::Plan};
 
 impl State {
@@ -22,54 +22,41 @@ impl State {
         self.view.proposal_eligibility(current)
     }
 
-    pub fn accept_review(
-        &mut self,
-        plan: Plan,
+    /// A prepared permission request belongs to one captured selection and draft.
+    /// The worker independently checks authority and package revisions.
+    pub fn validate_permission_preparation(
+        &self,
+        expected: &Target,
         current: &Target,
-        revision: hyper_gpu_support::configuration_store::Revision,
+        pair: &hyper_gpu_support::enrollment::PairReview,
     ) -> Result<(), String> {
-        self.approved_plan = None;
+        if current != expected
+            || self.view.selected.as_deref() != Some(expected.vm_id.as_str())
+            || current.vm_id != pair.vm_id
+            || current.gpu_interface != pair.gpu_interface
+        {
+            return Err("Selection, draft or pairing changed during permission preparation. Refresh before trying again.".into());
+        }
+        Ok(())
+    }
+
+    pub fn validate_prepared(
+        &self,
+        plan: &Plan,
+        current: &Target,
+        revision: &hyper_gpu_support::configuration_store::Revision,
+    ) -> Result<(), String> {
         self.editor_eligibility(&current.vm_id)?;
         self.view.eligibility(current)?;
         if self.view.selected.as_deref() != Some(current.vm_id.as_str())
             || plan.desired != *current
             || plan.observed.vm_id != current.vm_id
-            || self.committed.revision(&current.vm_id)? != revision
+            || self.committed.revision(&current.vm_id)? != *revision
         {
             return Err(
                 "The target, draft or saved settings changed while planning. Review again.".into(),
             );
         }
-        self.approved_plan = Some(ReviewedPlan { plan, revision });
         Ok(())
-    }
-
-    pub fn reviewed_plan(&self, current: &Target) -> Result<ReviewedPlan, String> {
-        self.editor_eligibility(&current.vm_id)?;
-        self.view.eligibility(current)?;
-        let reviewed = self
-            .approved_plan
-            .as_ref()
-            .ok_or("Review the current draft before Apply")?;
-        if self.view.selected.as_deref() != Some(current.vm_id.as_str())
-            || *current != reviewed.plan.desired
-            || self.committed.revision(&current.vm_id)? != reviewed.revision
-        {
-            return Err(
-                "The target, draft or saved settings changed after review. Review again.".into(),
-            );
-        }
-        Ok(reviewed.clone())
-    }
-
-    pub fn cancel_review(&mut self) {
-        self.result_notice = None;
-        self.reset_review = None;
-        self.removal_review = None;
-        self.approved_plan = None;
-        self.enrollment_review = None;
-        self.setup_artifacts = None;
-        self.verification_plan = None;
-        self.enrollment_recovery_revision = None;
     }
 }

@@ -17,8 +17,8 @@ pub mod runner;
 mod server;
 
 pub use client::{
-    apply, enroll_pair, forget_pair, import, reconcile, reconcile_pair, reset_partial,
-    resume_import, save_only, verify,
+    enroll_pair, forget_pair, import, reconcile, reconcile_pair, reset_partial, resume_import,
+    save_only,
 };
 pub use preparation::{Authorization, PreparedReview, apply_prepared, verify_prepared};
 pub use process::available;

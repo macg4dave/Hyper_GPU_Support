@@ -18,7 +18,7 @@ pub(super) fn review_forget_live(
 ) -> Result<(), String> {
     let target = {
         let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
-        state.cancel_review();
+        state.result_notice = None;
         state.forget_target()?
     };
     let reviewed_state = state.clone();
@@ -41,12 +41,12 @@ pub(super) fn review_forget_live(
             Ok((review, available)) => {
                 ui.set_execution_ready(available);
                 if !with_state(ui, &reviewed_state, |state| {
-                    state.accept_forget_review(review)
+                    state.validate_forget_review(&review)
                 }) {
                     return;
                 }
                 super::background::continue_prepared(ui, Ok(()), || {
-                    forget_live(ui, &reviewed_state, &delete_busy)
+                    forget_live(ui, &reviewed_state, &delete_busy, review)
                 });
             }
             Err(error) => dialog(
@@ -63,19 +63,12 @@ pub(super) fn review_forget_live(
 }
 
 #[cfg(windows)]
-pub(super) fn forget_live(
+fn forget_live(
     ui: &AppWindow,
     state: &SharedState,
     busy: &Arc<AtomicBool>,
+    approved: hyper_gpu_support::enrollment::RemovalReview,
 ) -> Result<(), String> {
-    if !ui.get_execution_ready() {
-        return Err("The protected worker is unavailable. Refresh before trying again.".into());
-    }
-
-    let approved = state
-        .lock()
-        .map_err(|_| "Presentation state unavailable")?
-        .reviewed_forget()?;
     let finished_state = state.clone();
     let vm_id = approved.pair.vm_id.clone();
     let vm_name = ui.get_vm_name().to_string();

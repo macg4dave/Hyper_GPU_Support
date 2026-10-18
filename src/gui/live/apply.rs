@@ -2,12 +2,9 @@
 use super::SharedState;
 #[cfg(windows)]
 use super::{
-    background::background_operation,
-    credentials::credential_request_cancelled,
-    install_dialog, installation,
-    presentation::{draft_target, present},
-    progress::progress_to_ui,
-    state_access::{with_completion_state, with_state},
+    background::background_operation, credentials::credential_request_cancelled, install_dialog,
+    installation, presentation::draft_target, progress::progress_to_ui,
+    state_access::complete_operation,
 };
 use crate::gui::AppWindow;
 #[cfg(windows)]
@@ -92,29 +89,17 @@ pub(super) fn apply_live(
                         if !ui.get_review_preparing() {
                             return Err("Read-only preparation cancelled".into());
                         }
-                        let mut state =
-                            state.lock().map_err(|_| "Presentation state unavailable")?;
+                        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
                         let current = draft_target(ui, &state)?;
-                        state.accept_review(accepted.clone(), &current, revision)?;
-                        let reviewed = state.reviewed_plan(&current)?;
+                        state.validate_prepared(&accepted, &current, &revision)?;
                         ui.set_review_preparing(false);
                         ui.set_install_vm_name(accepted.observed.name.clone().into());
                         install_dialog::context(ui, &gpu, &accepted.desired);
                         ui.set_install_guest_work(accepted.preview.credentials_required);
-                        ui.set_dialog_body(
-                            format!(
-                                "{}\nPhysical GPU: {}\n{}\n{}",
-                                crate::gui::live_state::review_summary(&accepted),
-                                gpu,
-                                crate::gui::live_state::memory_review(&accepted),
-                                crate::gui::wording::apply_consent(&accepted)
-                            )
-                            .into(),
-                        );
                         ui.set_dialog_details(
                             crate::gui::live_state::review_text(&accepted).into(),
                         );
-                        Ok(reviewed.plan)
+                        Ok(accepted)
                     })?;
                     *prepared_plan
                         .lock()
@@ -157,23 +142,18 @@ pub(super) fn apply_live(
                 ui.set_dialog_kind("".into());
                 return;
             }
+            if let Err(error) = &result
+                && credential_request_cancelled(ui, error, false)
+            {
+                return;
+            }
+            let Some(published) =
+                complete_operation(ui, &finished_state, Some(&selected), &result, readback)
+            else {
+                return;
+            };
             match result {
                 Ok(outcome) => {
-                    let mut published = outcome.saved;
-                    if !with_state(ui, &finished_state, |state| {
-                        let status = state.finish_apply(
-                            &selected,
-                            &outcome.operation_id,
-                            outcome.saved,
-                            readback,
-                        );
-                        published = state.publication_confirmed(&selected);
-                        ui.set_dirty(state.view.draft.is_some());
-                        present(ui, state, !ui.get_dirty() && published);
-                        status
-                    }) {
-                        return;
-                    }
                     if published {
                         match install_dialog::completion(
                             &selected,
@@ -224,31 +204,6 @@ pub(super) fn apply_live(
                     }
                 }
                 Err(error) => {
-                    if credential_request_cancelled(ui, &error, false) {
-                        with_state(ui, &finished_state, |state| {
-                            state.approved_plan = None;
-                            Ok(())
-                        });
-                        return;
-                    }
-                    let stages: Vec<_> = ui.get_stages().iter().collect();
-                    let reportable = ui.get_stage_reportable();
-                    if !with_completion_state(
-                        ui,
-                        &finished_state,
-                        &Err::<(), _>(error.clone()),
-                        |state| {
-                            state.view.needs_readback = true;
-                            state.approved_plan = None;
-                            let status = state.finish_readback(readback);
-                            present(ui, state, false);
-                            status
-                        },
-                    ) {
-                        return;
-                    }
-                    ui.set_stages(model(stages));
-                    ui.set_stage_reportable(reportable);
                     if hyper_gpu_support::reporting::installation_preflight_blocked(&error) {
                         failure_dialog(
                             ui,
@@ -312,37 +267,11 @@ pub(super) fn save_only_live(
         false,
         move || hyper_gpu_support::worker::save_only(record.operation_id, progress),
         move |ui, result, readback| {
-            let mut readback = Some(readback);
-            if result.is_err()
-                && !with_completion_state(ui, &finished_state, &result, |state| {
-                    let status = state.finish_readback(
-                        readback
-                            .take()
-                            .ok_or("Completion readback was already consumed")?,
-                    );
-                    present(ui, state, false);
-                    status
-                })
-            {
+            if complete_operation(ui, &finished_state, Some(&target), &result, readback).is_none() {
                 return;
             }
             match result {
                 Ok(outcome) if outcome.saved => {
-                    if !with_state(ui, &finished_state, |state| {
-                        let status = state.finish_apply(
-                            &target,
-                            &outcome.operation_id,
-                            true,
-                            readback
-                                .take()
-                                .ok_or("Completion readback was already consumed")?,
-                        );
-                        ui.set_dirty(state.view.draft.is_some());
-                        present(ui, state, !ui.get_dirty());
-                        status
-                    }) {
-                        return;
-                    }
                     dialog(
                         ui,
                         "info",

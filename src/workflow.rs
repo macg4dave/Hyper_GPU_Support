@@ -8,26 +8,31 @@ mod journal;
 mod planning;
 mod reconciliation;
 mod reset;
+mod steps;
 mod verification;
 
-pub use apply::{apply, apply_approved};
+#[cfg(test)]
+pub(crate) use apply::{apply, apply_approved};
 pub use journal::{GuestCheck, Journal};
 pub use planning::{
     EffectPreview, Plan, PreparationPreview, PreviewAction, SettingsPreview, plan,
-    plan_if_ordinary, plan_preliminary, plan_reinstall,
+    plan_preliminary, plan_reinstall,
 };
 pub use reconciliation::reconcile_observed;
 pub use reset::ResetReview;
 pub(crate) use reset::reset_partial;
-pub use verification::{
-    VerificationPlan, plan_verification, verification_power, verify, verify_approved,
-};
+pub use verification::{VerificationPlan, plan_verification, verification_power};
+#[cfg(test)]
+pub(crate) use verification::{verify, verify_approved};
 
-pub(crate) use apply::{AdmittedApply, admit_approved, apply_admitted, prepare_apply};
+pub(crate) use apply::{AdmittedApply, apply_admitted, prepare_apply};
 pub(crate) use reconciliation::reconcile_with_graphics;
-pub(crate) use verification::{
-    AdmittedVerification, admit_verification, prepare_verification, verify_admitted,
-};
+pub(crate) use verification::{AdmittedVerification, prepare_verification, verify_admitted};
+
+#[cfg(test)]
+pub(crate) use apply::admit_approved;
+#[cfg(test)]
+pub(crate) use verification::admit_verification;
 
 #[cfg(test)]
 mod baseline_tests;

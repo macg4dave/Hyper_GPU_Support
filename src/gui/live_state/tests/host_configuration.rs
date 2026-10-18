@@ -236,6 +236,13 @@ fn host_comparison_isolates_incomplete_observations_and_requires_fresh_review() 
     );
     s.view.needs_readback = true;
     assert!(s.view.eligibility(&saved).is_err());
-    assert!(s.reviewed_plan(&saved).is_err());
+    assert!(
+        s.validate_prepared(
+            &review_plan(),
+            &saved,
+            &hyper_gpu_support::configuration_store::Revision::Missing
+        )
+        .is_err()
+    );
     assert_eq!(s.committed.documents[&vm_id].target, saved);
 }

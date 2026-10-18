@@ -26,11 +26,9 @@ pub(super) fn review_operation(
     #[cfg(windows)]
     {
         let target = {
-            let mut state = state
+            let state = state
                 .lock()
                 .map_err(|_| "Live presentation state unavailable")?;
-            state.enrollment_review = None;
-            state.approved_plan = None;
             let target = draft_target(ui, &state)?;
             state.view.proposal_eligibility(&target)?;
             (!state.enrolled(&target)).then_some(target)

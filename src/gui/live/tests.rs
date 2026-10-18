@@ -74,11 +74,12 @@ fn close_callback_abandons_review_but_retains_busy_admission_and_draft() {
     let state: SharedState = Arc::new(Mutex::new(State::default()));
     let busy = Arc::new(AtomicBool::new(true));
     actions::register(&ui, &state, &busy, &Source);
-    state.lock().unwrap().enrollment_review = Some(hyper_gpu_support::enrollment::PairReview {
+    state.lock().unwrap().result_notice = Some(crate::gui::result_notice::ResultNotice {
         vm_id: "12345678-1234-1234-1234-123456789abc".into(),
-        gpu_interface: "fixture-gpu".into(),
-        expected: hyper_gpu_support::configuration_store::Revision::Missing,
-        operator_sid: "fixture-operator".into(),
+        kind: "save".into(),
+        title: "Unsaved result".into(),
+        body: "Earlier result".into(),
+        details: "Earlier log".into(),
     });
     ui.set_dirty(true);
     ui.set_running(true);
@@ -95,7 +96,7 @@ fn close_callback_abandons_review_but_retains_busy_admission_and_draft() {
     assert!(ui.get_dirty());
     assert!(ui.get_updating());
     assert!(busy.load(Ordering::Acquire));
-    assert!(state.lock().unwrap().enrollment_review.is_none());
+    assert!(state.lock().unwrap().result_notice.is_none());
 }
 
 #[test]

@@ -322,30 +322,6 @@ pub fn plan_preliminary(backend: &mut impl Backend, target: &Target) -> Result<P
     Ok(plan_from_decision(d, target))
 }
 
-/// Predict only a completed ordinary change. Missing/adverse history returns no
-/// plan so callers can prepare/authenticate once in the effect worker instead.
-pub fn plan_if_ordinary(
-    backend: &mut impl Backend,
-    target: &Target,
-) -> Result<Option<Plan>, String> {
-    target.validate()?;
-    if !target.enabled {
-        return plan_preliminary(backend, target).map(Some);
-    }
-    if !backend.journal(target)?.is_some_and(|journal| {
-        journal.setup_eligible()
-            && !journal.pending
-            && journal.vm_id == target.vm_id
-            && journal.gpu_interface == target.gpu_interface
-    }) {
-        return Ok(None);
-    }
-    let plan = plan_preliminary(backend, target)?;
-    if !plan.authentication_deferred || plan.preview.credentials_required {
-        return Ok(None);
-    }
-    Ok(Some(plan))
-}
 /// Preview an explicit full reinstall through the ordinary protected operation path.
 pub fn plan_reinstall(backend: &mut impl Backend, target: &Target) -> Result<Plan, String> {
     let d = decision_for_operation(backend, target, true)?;
@@ -353,54 +329,15 @@ pub fn plan_reinstall(backend: &mut impl Backend, target: &Target) -> Result<Pla
 }
 pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     let mut actions = Vec::new();
-    let mut power = d.initial.power.clone();
-    if d.needs_changes {
-        if power == Power::Running && (!d.stale || d.assignment) {
-            actions.push(PreviewAction::Shutdown);
-            power = Power::Off;
+    for action in d
+        .steps(target)
+        .iter()
+        .filter_map(super::steps::Step::preview)
+    {
+        // The display groups adjacent category writes; execution retains each exact value.
+        if action != PreviewAction::Allocation || actions.last() != Some(&action) {
+            actions.push(action);
         }
-        if d.stale {
-            if d.assignment {
-                actions.push(PreviewAction::Detach);
-            }
-            if power != Power::Running {
-                actions.push(PreviewAction::Start);
-            }
-            actions.extend([PreviewAction::Prepare, PreviewAction::Shutdown]);
-            power = Power::Off;
-        }
-        if target.enabled {
-            if d.initial.settings != d.desired {
-                actions.push(PreviewAction::Settings);
-            }
-            if !d.assignment || d.stale {
-                actions.push(PreviewAction::Attach);
-            }
-            if !d.allocation_writes.is_empty() {
-                actions.push(PreviewAction::Allocation);
-            }
-        } else {
-            if d.assignment {
-                actions.push(PreviewAction::Detach);
-            }
-            if d.initial.settings != d.disabled_settings {
-                actions.push(PreviewAction::Settings);
-            }
-        }
-    }
-    if d.setup_required {
-        if power != Power::Running {
-            actions.push(PreviewAction::Start);
-            power = Power::Running;
-        }
-        actions.push(PreviewAction::Verify);
-    }
-    if power != d.restore_power {
-        actions.push(if d.restore_power == Power::Off {
-            PreviewAction::Shutdown
-        } else {
-            PreviewAction::Start
-        });
     }
     let after = if target.enabled {
         &d.desired

@@ -161,6 +161,72 @@ fn retain_render(name: &str) {
 }
 
 #[test]
+fn shared_dialog_footer_keeps_domain_actions_and_disabled_guards() {
+    use hyper_gpu_support::ui_text::{dialogs, operations};
+    use std::cell::RefCell;
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(700., 520.));
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let captured = actions.clone();
+    ui.on_action(move |action| captured.borrow_mut().push(action.to_string()));
+    for (kind, label, expected) in [
+        (
+            "recovery",
+            operations::recovery::inspection::CONTINUE_LABEL,
+            "reconcile",
+        ),
+        ("switch", dialogs::switch::REVIEW_LABEL, "review"),
+        ("save", operations::save_only::PROGRESS_TITLE, "save-only"),
+        ("reset-complete", dialogs::repair::REVIEW_LABEL, "repair"),
+        (
+            "profile-deleted",
+            dialogs::setup::NEW_REVIEW_LABEL,
+            "reapply",
+        ),
+        (
+            "operation-error",
+            dialogs::recovery::REVIEW_LABEL,
+            "recovery",
+        ),
+        (
+            "recovery-blocked",
+            dialogs::profile_deletion::LABEL,
+            "forget-recovery-profile",
+        ),
+    ] {
+        ui.set_dialog_kind("".into());
+        ui.set_running(false);
+        ui.set_updating(false);
+        ui.set_review_preparing(false);
+        ui.set_execution_ready(true);
+        ui.set_repair_allowed(true);
+        ui.set_forget_allowed(true);
+        ui.set_action_recovery(kind == "operation-error");
+        ui.set_dialog_title("Selected action".into());
+        ui.set_dialog_kind(kind.into());
+        draw(&window);
+        actions.borrow_mut().clear();
+        control(&ui, label).accessible_action(&AccessibilityAction::Default);
+        assert_eq!(&*actions.borrow(), &[expected], "{kind}");
+        if kind == "save" {
+            ui.set_updating(true);
+            draw(&window);
+            actions.borrow_mut().clear();
+            control(&ui, label).accessible_action(&AccessibilityAction::Default);
+            assert!(
+                actions.borrow().is_empty(),
+                "updating cannot retry publication"
+            );
+        }
+    }
+    ui.hide().unwrap();
+}
+
+#[test]
 fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
     use hyper_gpu_support::ui_text::{diagnostics, dialogs::install, settings};
     use std::cell::{Cell, RefCell};

@@ -6,7 +6,6 @@ use super::{
 };
 use crate::{
     configuration_store::{self, Revision, SavePhase, SaveRecord},
-    credentials::Credential,
     model::{Configuration, Gpu, Power, VmState},
     runner::NativeBackend,
     workflow::{self, Backend, OperationResult, Plan},
@@ -24,13 +23,11 @@ pub(super) fn apply(
     approved: Plan,
     expected: Revision,
     shutdown_approved: bool,
-    credential: Option<Credential>,
-    retained: Option<(NativeBackend, workflow::AdmittedApply)>,
+    (mut backend, admitted): (NativeBackend, workflow::AdmittedApply),
     mut notify: impl FnMut(Progress) -> Result<(), String>,
 ) -> Result<Outcome, String> {
     let enrollment = context.enrollment;
     let session = context.session;
-    let data = context.data.to_path_buf();
     let recovery_path = Some(context.recovery_path.to_path_buf());
     runner::require_no_vm_recovery(&approved.desired.vm_id)?;
     crate::windows_wmi::require_no_pending_operation_for(&approved.desired.vm_id)?;
@@ -52,33 +49,6 @@ pub(super) fn apply(
             &approved.desired.vm_id,
         ))?;
     }
-    let (mut backend, retained) = retained.map_or_else(
-        || {
-            (
-                NativeBackend {
-                    reads: None,
-                    credential,
-                    manifest: None,
-                    payload_hold: Vec::new(),
-                    data: data.clone(),
-                },
-                None,
-            )
-        },
-        |(backend, token)| (backend, Some(token)),
-    );
-    let (current, admitted) = if let Some(admitted) = retained {
-        (approved.clone(), admitted)
-    } else {
-        ObservedBackend {
-            backend: &mut backend,
-            notify: &mut notify,
-            before_effect: None,
-        }
-        .stage_observed("Checking reviewed VM and driver files", |backend| {
-            workflow::admit_approved(backend, &approved)
-        })?
-    };
     let mut record = SaveRecord {
         schema: 1,
         retirement: None,
@@ -87,8 +57,8 @@ pub(super) fn apply(
         target: approved.desired.clone(),
         expected,
         driver_version: admitted.driver_version().to_owned(),
-        payload_digest: current.preparation.as_ref().map(|p| p.digest.clone()),
-        plan_revision: Revision::of(&serde_json::to_vec(&current).map_err(|e| e.to_string())?),
+        payload_digest: approved.preparation.as_ref().map(|p| p.digest.clone()),
+        plan_revision: Revision::of(&serde_json::to_vec(&approved).map_err(|e| e.to_string())?),
         intended_source: Configuration {
             schema: 3,
             targets: vec![approved.desired.clone()],
@@ -98,20 +68,20 @@ pub(super) fn apply(
         .next()
         .ok_or("missing output document")?,
         publication_required: true,
-        initial: current.observed.clone(),
-        expected_power: Some(current.preview.restore_power.clone()),
+        initial: approved.observed.clone(),
+        expected_power: Some(approved.preview.restore_power.clone()),
         graphics_required: Some(
-            current
+            approved
                 .preview
                 .actions
                 .contains(&workflow::PreviewAction::Verify),
         ),
-        initial_journal: current.managed.clone(),
-        expected_settings: current
+        initial_journal: approved.managed.clone(),
+        expected_settings: approved
             .preview
             .settings
             .as_ref()
-            .map_or_else(|| current.observed.settings.clone(), |s| s.after.clone()),
+            .map_or_else(|| approved.observed.settings.clone(), |s| s.after.clone()),
         phase: SavePhase::Admitted,
     };
     runner::write_recovery_at(
@@ -171,13 +141,11 @@ pub(super) fn verify(
     context: &Context<'_>,
     approved: workflow::VerificationPlan,
     shutdown_approved: bool,
-    credential: Option<Credential>,
-    retained: Option<(NativeBackend, workflow::AdmittedVerification)>,
+    (mut backend, admitted): (NativeBackend, workflow::AdmittedVerification),
     mut notify: impl FnMut(Progress) -> Result<(), String>,
 ) -> Result<Outcome, String> {
     let enrollment = context.enrollment;
     let session = context.session;
-    let data = context.data.to_path_buf();
     let recovery_path = Some(context.recovery_path.to_path_buf());
     runner::require_no_vm_recovery(&approved.target.vm_id)?;
     crate::windows_wmi::require_no_pending_operation_for(&approved.target.vm_id)?;
@@ -191,26 +159,6 @@ pub(super) fn verify(
     }) {
         return Err("verification target is outside enrollment".into());
     }
-    let (mut backend, retained) = retained.map_or_else(
-        || {
-            (
-                NativeBackend {
-                    reads: None,
-                    credential,
-                    manifest: None,
-                    payload_hold: Vec::new(),
-                    data: data.clone(),
-                },
-                None,
-            )
-        },
-        |(backend, token)| (backend, Some(token)),
-    );
-    let admitted = if let Some(admitted) = retained {
-        admitted
-    } else {
-        workflow::admit_verification(&mut backend, &approved)?
-    };
     let mut record = SaveRecord {
         schema: 1,
         retirement: None,

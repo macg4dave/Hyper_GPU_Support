@@ -3,7 +3,7 @@ use super::SharedState;
 #[cfg(windows)]
 use super::{
     background::background_operation, credentials::credential_request_cancelled,
-    presentation::present, progress::progress_to_ui, state_access::with_completion_state,
+    progress::progress_to_ui, state_access::complete_operation,
 };
 #[cfg(windows)]
 use crate::gui::operation::{Kind, Operation};
@@ -120,7 +120,9 @@ pub(super) fn review_records(
         .join("\n\n");
     let provenance = hyper_gpu_support::ui_text::operations::inventory::PROVENANCE;
     let can_continue = recovery
-        && (state.recovery_for_vm(ui.get_selected_id().as_str()).is_some()
+        && (state
+            .recovery_for_vm(ui.get_selected_id().as_str())
+            .is_some()
             || state.enrollment_recovery.is_some());
     dialog(
         ui,
@@ -215,19 +217,15 @@ pub(super) fn reconcile_live(
             {
                 return;
             }
-            if !with_completion_state(ui, &finished_state, &result, |state| {
-                let status = if let Ok(outcome) = &result
-                    && publication
-                    && outcome.operation.is_some()
-                {
-                    state.finish_apply(&target, &outcome.operation_id, outcome.saved, readback)
-                } else {
-                    state.finish_readback(readback)
-                };
-                ui.set_dirty(state.view.draft.is_some());
-                present(ui, state, !ui.get_dirty());
-                status
-            }) {
+            if complete_operation(
+                ui,
+                &finished_state,
+                publication.then_some(&target),
+                &result,
+                readback,
+            )
+            .is_none()
+            {
                 return;
             }
             match result {

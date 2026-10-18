@@ -98,7 +98,8 @@ fn verification_plan(
     })
 }
 /// Independently check reviewed verification scope immediately before effects.
-pub fn verify_approved(
+#[cfg(test)]
+pub(crate) fn verify_approved(
     backend: &mut impl Backend,
     approved: &VerificationPlan,
 ) -> Result<OperationResult, String> {
@@ -122,6 +123,7 @@ pub(crate) fn prepare_verification(
 }
 
 /// Authenticate the reviewed manifest once before recording the operation hold.
+#[cfg(test)]
 pub(crate) fn admit_verification(
     backend: &mut impl Backend,
     approved: &VerificationPlan,
@@ -142,7 +144,11 @@ pub(crate) fn verify_admitted(
     verify_current_payload(backend, &admitted.plan)
 }
 /// Check current payload and graphics, restoring the validated recovery power intent.
-pub fn verify(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
+#[cfg(test)]
+pub(crate) fn verify(
+    backend: &mut impl Backend,
+    target: &Target,
+) -> Result<OperationResult, String> {
     let current = verification_plan(backend, target, true)?;
     verify_current_payload(backend, &current)
 }

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn forget_pairing_review_is_bound_cancelable_and_keeps_other_profiles() {
+fn deletion_preparation_is_bound_to_selection_pairing_and_saved_profiles() {
     use hyper_gpu_support::{
         configuration_store::Revision,
         enrollment::{PairReview, RemovalReview},
@@ -27,15 +27,14 @@ fn forget_pairing_review_is_bound_cancelable_and_keeps_other_profiles() {
         configurations: std::collections::BTreeMap::from([(vm_id.clone(), Revision::Missing)]),
         journals: std::collections::BTreeMap::from([(vm_id.clone(), Revision::Missing)]),
     };
-    s.accept_forget_review(review.clone()).unwrap();
-    assert_eq!(s.reviewed_forget().unwrap(), review);
-    s.cancel_review();
-    assert!(s.reviewed_forget().is_err());
+    s.validate_forget_review(&review).unwrap();
     assert!(s.enrolled(&target));
     assert!(s.committed.documents.is_empty());
-    s.accept_forget_review(review.clone()).unwrap();
+    let mut changed_pair = review.clone();
+    changed_pair.pair.gpu_interface = "different-gpu".into();
+    assert!(s.validate_forget_review(&changed_pair).is_err());
     s.view.selected = Some("another-vm".into());
-    assert!(s.reviewed_forget().is_err());
+    assert!(s.validate_forget_review(&review).is_err());
     s.view.selected = Some(vm_id.clone());
     let mut changed = target.clone();
     changed.enabled = false;
@@ -47,8 +46,7 @@ fn forget_pairing_review_is_bound_cancelable_and_keeps_other_profiles() {
             revision: Revision::of(b"new disabled intent"),
         },
     );
-    assert!(s.reviewed_forget().is_err());
-    assert!(s.accept_forget_review(review).is_err());
+    assert!(s.validate_forget_review(&review).is_err());
 }
 
 fn profiles_for_deletion() -> (State, Target, Target) {
@@ -158,7 +156,6 @@ fn failed_or_partial_deletion_keeps_cache_unknown_and_retains_recovery() {
         s.selected_actions(0, &allocation_values(&selected))
             .recovery
     );
-    assert!(s.removal_review.is_none());
 }
 
 #[test]
@@ -171,14 +168,11 @@ fn delete_profile_never_stages_host_removal_or_power_changes_for_active_support(
     assert_eq!(target.vm_id, selected.vm_id);
     assert_eq!(target.gpu_interface, selected.gpu_interface);
     assert!(!target.enabled);
-    assert!(s.reviewed_forget().is_err());
     assert_eq!(
         serde_json::to_value(s.view.vm(&selected.vm_id).unwrap()).unwrap(),
         serde_json::to_value(&vm_before).unwrap()
     );
     assert!(s.view.draft.is_none());
-    assert!(s.approved_plan.is_none());
-    assert!(s.removal_review.is_none());
     assert!(s.committed.documents.contains_key(&selected.vm_id));
 }
 
@@ -209,6 +203,5 @@ fn profile_deletion_review_remains_available_during_power_changes_and_recovery()
                 .forget_allowed,
             scenario != 4
         );
-        assert!(s.removal_review.is_none());
     }
 }

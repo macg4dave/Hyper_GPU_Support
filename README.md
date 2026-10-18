@@ -19,16 +19,16 @@ The VRAM range does not establish enforced isolation. Automatic balancing and fu
 
 ## Current state
 
-Settings contains the Appearance controls; the Credentials & diagnostics section has been removed from that page. System displays the GPU information boxes without the This computer box. These page changes await build and visual validation.
+Settings contains the Appearance controls; the Credentials & diagnostics section has been removed from that page. System displays the GPU information boxes without the This computer box. The current source passed the non-hardware build/test gate; installed visual validation remains pending.
 
-Current work is [candidate acceptance](docs/backlog.md#next-action) under the [optimization roadmap](docs/roadmap.md). Source optimizations are implemented; [recorded automated/install evidence](docs/ENGINEERING.md#optimization-validation-checkpoint) is separate from pending installed journeys, measurements and VM/GPU/guest acceptance. The [UI text guide](docs/UI_TEXT_GUIDE.md) describes the 495-key compiled catalogue and remaining migration limits.
+The next source priority is [core simplification](docs/backlog.md#next-action): a 10,000-line goal for `src/` only, excluding Rust tests, one shared operation path and the existing Slint design. Unused tests should be removed; useful tests follow the program's design. The [roadmap](docs/roadmap.md) proposes the replacement/deletion sequence; the core slice, [GUI simplification](docs/ENGINEERING.md#gui-simplification-checkpoint) and [captured-request cleanup](docs/ENGINEERING.md#captured-gui-requests-checkpoint) passed complete non-hardware gates. The corrected `src/` count is 28,541 lines. Repository tools are outside the goal; full-budget feasibility remains pending. Previous source optimizations are implemented; their [recorded automated/install evidence](docs/ENGINEERING.md#optimization-validation-checkpoint) is separate from pending installed journeys, measurements and VM/GPU/guest acceptance. The [UI text guide](docs/UI_TEXT_GUIDE.md) describes the current 497-key compiled catalogue and remaining migration limits.
 
 ## Project guidance
 
 | Document | Purpose |
 | --- | --- |
 | [Roadmap](docs/roadmap.md) | Agreed scope and milestone gates |
-| [Backlog](docs/backlog.md) | Optimization tasks, dependencies and next action |
+| [Backlog](docs/backlog.md) | Simplification tasks, dependencies and next action |
 | [Agreed workflow](#agreed-workflow) | User workflow |
 | [Architecture](docs/ARCHITECTURE.md) | Shared Rust components and boundaries |
 | [Configuration](docs/CONFIGURATION.md) | Intent formats and storage |

@@ -132,7 +132,9 @@ pub(super) fn check(
 ) -> Result<Receipt, String> {
     let deadline = Instant::now() + Duration::from_secs(300);
     let receipt = read_receipt(receipt_path);
-    compare(manifest, machine, receipt, |file| observe_file(file, windows, deadline))
+    compare(manifest, machine, receipt, |file| {
+        observe_file(file, windows, deadline)
+    })
 }
 
 /// Independently authenticate installed destinations before publishing a setup
@@ -147,59 +149,59 @@ fn observe_file(
     windows: &Path,
     deadline: Instant,
 ) -> Result<Option<(u64, String)>, String> {
-        use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::fs::OpenOptionsExt;
+    deadline_check(deadline)?;
+    let path = windows.join(&file.destination);
+    match fs::symlink_metadata(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(io_failure(e, Component::GuestPayload)),
+        Ok(_) => {}
+    }
+    crate::security::verify_system(&path)
+        .map_err(|error| security_failure(error, Component::GuestPayload))?;
+    // Deny writes/deletion while hashing; one bounded buffer, no whole-file allocation.
+    let mut input = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1)
+        .open(&path)
+        .map_err(|e| io_failure(e, Component::GuestPayload))?;
+    let bytes = input
+        .metadata()
+        .map_err(|e| io_failure(e, Component::GuestPayload))?
+        .len();
+    if bytes != file.bytes {
+        return Ok(Some((bytes, String::new())));
+    }
+    let mut hash = Sha256::new();
+    crate::work_counts::add(crate::work_counts::Counter::FileHashes, 1);
+    let mut buffer = [0_u8; 65536];
+    let mut read = 0_u64;
+    loop {
         deadline_check(deadline)?;
-        let path = windows.join(&file.destination);
-        match fs::symlink_metadata(&path) {
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(e) => return Err(io_failure(e, Component::GuestPayload)),
-            Ok(_) => {}
-        }
-        crate::security::verify_system(&path)
-            .map_err(|error| security_failure(error, Component::GuestPayload))?;
-        // Deny writes/deletion while hashing; one bounded buffer, no whole-file allocation.
-        let mut input = fs::OpenOptions::new()
-            .read(true)
-            .share_mode(1)
-            .open(&path)
+        let count = input
+            .read(&mut buffer)
             .map_err(|e| io_failure(e, Component::GuestPayload))?;
-        let bytes = input
-            .metadata()
-            .map_err(|e| io_failure(e, Component::GuestPayload))?
-            .len();
-        if bytes != file.bytes {
-            return Ok(Some((bytes, String::new())));
+        if count == 0 {
+            break;
         }
-        let mut hash = Sha256::new();
-        crate::work_counts::add(crate::work_counts::Counter::FileHashes, 1);
-        let mut buffer = [0_u8; 65536];
-        let mut read = 0_u64;
-        loop {
-            deadline_check(deadline)?;
-            let count = input
-                .read(&mut buffer)
-                .map_err(|e| io_failure(e, Component::GuestPayload))?;
-            if count == 0 {
-                break;
-            }
-            read = read
-                .checked_add(count as u64)
-                .filter(|n| *n <= bytes)
-                .ok_or_else(|| failure(Component::GuestPayload, FailureCause::FileChanged))?;
-            hash.update(&buffer[..count]);
-            crate::work_counts::add(crate::work_counts::Counter::HashedBytes, count as u64);
-        }
-        deadline_check(deadline)?;
-        if read != bytes {
-            return Err(failure(Component::GuestPayload, FailureCause::FileChanged));
-        }
-        Ok(Some((
-            bytes,
-            hash.finalize()
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect(),
-        )))
+        read = read
+            .checked_add(count as u64)
+            .filter(|n| *n <= bytes)
+            .ok_or_else(|| failure(Component::GuestPayload, FailureCause::FileChanged))?;
+        hash.update(&buffer[..count]);
+        crate::work_counts::add(crate::work_counts::Counter::HashedBytes, count as u64);
+    }
+    deadline_check(deadline)?;
+    if read != bytes {
+        return Err(failure(Component::GuestPayload, FailureCause::FileChanged));
+    }
+    Ok(Some((
+        bytes,
+        hash.finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+    )))
 }
 
 fn read_receipt(path: &Path) -> Result<Option<Receipt>, String> {

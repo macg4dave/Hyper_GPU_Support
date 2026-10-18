@@ -1,8 +1,9 @@
 import { UiText } from "ui-text.slint";
-import { Button, ProgressIndicator, ScrollView } from "std-widgets.slint";
-import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
+import { ProgressIndicator, ScrollView } from "std-widgets.slint";
+import { Theme, Heading, Label, Hint, Surface } from "theme.slint";
 import { DialogLog } from "technical-output.slint";
 import { DialogFrame } from "dialog-frame.slint";
+import { DialogFooter } from "dialog-footer.slint";
 
 export struct InstallStep {
     label: string,
@@ -61,13 +62,10 @@ export component InstallDialog inherits Rectangle {
     callback close();
     callback action(string);
     function focus-safe() {
-        if root.completed || root.review-preparing { close-button.focus(); }
+        if root.completed || root.review-preparing { footer.focus-dismiss(); }
         else { dialog-focus.focus(); }
     }
-    function reveal-action(x: length, width: length) {
-        if x + footer.content-x < 0px { footer.content-x = -x; }
-        else if x + width + footer.content-x > footer.visible-width { footer.content-x = footer.visible-width - x - width; }
-    }
+
     init => { root.focus-safe(); }
     dialog-focus := FocusScope {
         capture-key-pressed(event) => {
@@ -153,40 +151,14 @@ export component InstallDialog inherits Rectangle {
                     }
                     if root.transfer != "" : Hint { text: root.transfer; font-size: 13px; min-width: 0px; }
                 }
-                footer := ScrollView {
-                    min-width: 0px; vertical-stretch: 0;
-                    horizontal-scrollbar-policy: as-needed; vertical-scrollbar-policy: always-off;
-                    content-width: max(self.visible-width, footer-buttons.min-width);
-                    content-height: footer-buttons.preferred-height;
-                    min-height: footer-buttons.preferred-height + (self.content-width > self.visible-width ? 16px : 0px);
-                    max-height: self.min-height; preferred-height: self.min-height;
-                    footer-buttons := HorizontalLayout {
-                        x: 0px; y: 0px; width: footer.content-width; height: self.preferred-height;
-                        vertical-stretch: 0; spacing: 12px;
-                        if !root.completed : TechnicalDetailsButton {
-                            changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
-                            expanded <=> root.technical;
-                            accessible-expandable: true; accessible-expanded: root.technical;
-                            icon: root.technical ? @image-url("icons/chevron-up.svg") : @image-url("icons/chevron-down.svg"); colorize-icon: true;
-                        }
-                        if root.completed : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: root.technical ? UiText.dialogs-install-hide-log : UiText.dialogs-install-view-log; accessible-expandable: true; accessible-expanded: root.technical; clicked => { root.technical = !root.technical; } }
-                        Rectangle { horizontal-stretch: 1; }
-                        if root.failed && root.action-recovery : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-recovery-review-label; enabled: !root.updating; clicked => { root.action("recovery"); } }
-                        if root.kind == "profile-deleted" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-setup-new-review-label; enabled: root.execution-ready && !root.updating && !root.action-recovery; clicked => { root.action("reapply"); } }
-                        if root.kind == "reset-complete" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.dialogs-repair-review-label; enabled: root.execution-ready && !root.updating && root.repair-allowed; clicked => { root.action("repair"); } }
-                        if root.kind == "reset-complete" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: root.dirty ? UiText.dialogs-profile-deletion-discard-review-label : UiText.dialogs-profile-deletion-review-label; enabled: root.execution-ready && !root.updating && !root.action-recovery && (root.dirty || root.forget-allowed); clicked => { root.action(root.dirty ? "discard-review-forget" : "forget"); } }
-                        if root.kind == "save" : Button { changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } } text: UiText.operations-save-only-progress-title; enabled: root.execution-ready && !root.updating; clicked => { root.action("save-only"); } }
-                        close-button := Button {
-                            changed x => { if self.has-focus { root.reveal-action(self.x, self.width); } }
-                            changed width => { if self.has-focus { root.reveal-action(self.x, self.width); } }
-                            changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
-                            text: root.review-preparing ? UiText.dialogs-cancel-label : root.completed ? UiText.dialogs-close-label : UiText.dialogs-install-cancel;
-                            primary: root.completed; min-width: root.completed ? 120px : 160px;
-                            enabled: root.review-preparing || (root.completed && !root.running);
-                            clicked => { if self.enabled { root.close(); } }
-                        }
-
-                    }
+                footer := DialogFooter {
+                    kind: root.kind; running: root.running; review-preparing: root.review-preparing;
+                    updating: root.updating; execution-ready: root.execution-ready;
+                    action-recovery: root.action-recovery; dirty: root.dirty;
+                    repair-allowed: root.repair-allowed; forget-allowed: root.forget-allowed;
+                    technical <=> root.technical;
+                    operation: true; completed: root.completed; failed: root.failed;
+                    action(value) => { if value == "close" { root.close(); } else { root.action(value); } }
                 }
             }
         }

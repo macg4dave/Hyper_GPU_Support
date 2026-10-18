@@ -65,6 +65,40 @@ pub(super) fn with_completion_state<T>(
     completed
 }
 
+/// Merge one bound terminal result and its independent readback before presenting it.
+#[cfg(windows)]
+pub(super) fn complete_operation(
+    ui: &AppWindow,
+    state: &SharedState,
+    target: Option<&hyper_gpu_support::model::Target>,
+    outcome: &Result<hyper_gpu_support::worker::Outcome, String>,
+    readback: Result<crate::gui::live_state::OperationReadback, String>,
+) -> Option<bool> {
+    use slint::Model;
+    let stages: Vec<_> = ui.get_stages().iter().collect();
+    let reportable = ui.get_stage_reportable();
+    let mut published = false;
+    if !with_completion_state(ui, state, outcome, |state| {
+        let status = if let (Some(target), Ok(outcome)) = (target, outcome)
+            && (outcome.operation.is_some() || outcome.saved)
+        {
+            let status = state.finish_apply(target, &outcome.operation_id, outcome.saved, readback);
+            published = state.publication_confirmed(target);
+            status
+        } else {
+            state.finish_readback(readback)
+        };
+        ui.set_dirty(state.view.draft.is_some());
+        super::presentation::present(ui, state, published && !ui.get_dirty());
+        status
+    }) {
+        return None;
+    }
+    ui.set_stages(crate::gui::model(stages));
+    ui.set_stage_reportable(reportable);
+    Some(published)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

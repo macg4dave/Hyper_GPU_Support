@@ -1,21 +1,28 @@
 //! Admission and execution of reviewed selected-VM changes.
 use super::guest_check::{check_guest, record_restored_check_failure};
 use super::journal::{persist_check, verified_at};
-use super::planning::{Decision, decision, decision_for_operation, plan_from_decision};
-use super::{Backend, GuestCheck, OperationResult, Plan};
+#[cfg(test)]
+use super::planning::decision;
+use super::planning::{Decision, decision_for_operation, plan_from_decision};
+use super::{Backend, GuestCheck, OperationResult, Plan, steps::Step};
 use crate::model::{Power, Target};
 mod facts;
 use facts::ApplyFacts;
 
 /// Apply one selected target after independently reading and validating current state.
 /// Failures retain recovery intent; no disk recreation or forced shutdown is attempted.
-pub fn apply(backend: &mut impl Backend, target: &Target) -> Result<OperationResult, String> {
+#[cfg(test)]
+pub(crate) fn apply(
+    backend: &mut impl Backend,
+    target: &Target,
+) -> Result<OperationResult, String> {
     let d = decision(backend, target)?;
     execute_decision(backend, target, d)
 }
 /// Execute only when independently gathered state still matches the approved plan.
 /// This check precedes journal admission and every GPU/guest effect.
-pub fn apply_approved(
+#[cfg(test)]
+pub(crate) fn apply_approved(
     backend: &mut impl Backend,
     approved: &Plan,
 ) -> Result<OperationResult, String> {
@@ -59,6 +66,7 @@ pub(crate) fn prepare_apply(
 
 /// Independently authenticate current inputs and bind them to the approved plan.
 /// This is the worker's single pre-effect payload pass, never a persistent cache.
+#[cfg(test)]
 pub(crate) fn admit_approved(
     backend: &mut impl Backend,
     approved: &Plan,
@@ -106,35 +114,24 @@ fn execute_decision(
     target: &Target,
     d: Decision,
 ) -> Result<OperationResult, String> {
-    let Decision {
-        initial,
-        gpu,
-        mut journal,
-        restore_power,
-        settings_preserved,
-        disabled_settings,
-        desired,
-        digest,
-        stale,
-        assignment,
-        needs_changes,
-        allocation_writes,
-        setup_required,
-        managed,
-        ..
-    } = d;
-    let mut facts = ApplyFacts::new(initial.clone(), gpu.clone(), managed);
+    let initial = &d.initial;
+    let gpu = &d.gpu;
+    let restore_power = &d.restore_power;
+    let desired = &d.desired;
+    let disabled_settings = &d.disabled_settings;
+    let mut journal = d.journal.clone();
+    let mut facts = ApplyFacts::new(initial.clone(), gpu.clone(), d.managed.clone());
     facts.check(backend, target)?;
     // Record power-only ordinary operations too, before graceful shutdown.
-    if needs_changes || setup_required || initial.power != restore_power {
+    if d.needs_changes || d.setup_required || initial.power != *restore_power {
         journal.pending = true;
-        journal.verification_only = setup_required && !needs_changes;
-        if setup_required {
+        journal.verification_only = d.setup_required && !d.needs_changes;
+        if d.setup_required {
             journal.latest_check = Some(GuestCheck::Interrupted);
         }
-        journal.preparation_started = setup_required.then_some(false);
+        journal.preparation_started = d.setup_required.then_some(false);
         journal.check_restored = false;
-        if setup_required {
+        if d.setup_required {
             persist_check(backend, target, &journal)?;
         } else {
             backend.save(target, &journal)?;
@@ -143,74 +140,65 @@ fn execute_decision(
         facts.check(backend, target)?;
     }
     let operation: Result<OperationResult, String> = (|| {
-        if needs_changes {
-            if facts.state.power == Power::Running && (!stale || assignment) {
-                facts.power(backend, target, Power::Off)?;
-            }
-            if stale {
-                facts.check(backend, target)?;
-                // Journal preparation before guest files or GPU changes begin.
-                journal.prepared = None;
-                journal.preparation_started = Some(true);
-                persist_check(backend, target, &journal)?;
-                facts.journal = Some(journal.clone());
-                facts.check(backend, target)?;
-                if assignment {
-                    facts.assign(backend, target, false)?;
+        let mut verified = false;
+        for step in d.steps(target) {
+            match step {
+                Step::BeginPreparation => {
+                    facts.check(backend, target)?;
+                    journal.prepared = None;
+                    journal.preparation_started = Some(true);
+                    persist_check(backend, target, &journal)?;
+                    facts.journal = Some(journal.clone());
+                    facts.check(backend, target)?;
                 }
-                if facts.state.power != Power::Running {
-                    facts.power(backend, target, Power::Running)?;
+                Step::Power(power) => facts.power(backend, target, power)?,
+                Step::Assign(enabled) => {
+                    facts.assign(backend, target, enabled).map_err(|error| {
+                        if enabled {
+                            format!("attach selected GPU: {error}")
+                        } else {
+                            error
+                        }
+                    })?
                 }
-                let prepared = backend.prepare(target)?;
-                if Some(&prepared) != digest.as_ref() {
-                    return Err(
-                        "driver changed during preparation; reconcile and rediscover".into(),
-                    );
-                }
-                facts.power(backend, target, Power::Off)?;
-                journal.prepared = Some(prepared);
-                facts.save(backend, target, &journal)?;
-            }
-            if target.enabled {
-                if initial.settings != desired {
-                    facts
-                        .settings(backend, target, &desired)
-                        .map_err(|e| format!("apply compatibility settings: {e}"))?;
-                }
-                journal.applied = desired.clone();
-                journal.settings_released = false;
-                facts.save(backend, target, &journal)?;
-                if facts.state.gpus.is_empty() {
-                    facts
-                        .assign(backend, target, true)
-                        .map_err(|e| format!("attach selected GPU: {e}"))?;
-                }
-                for resource in allocation_writes {
-                    if let Some(value) = target.allocation(resource) {
-                        facts.allocation(backend, target, resource, value)?;
+                Step::Prepare => {
+                    if Some(backend.prepare(target)?) != d.digest {
+                        return Err(
+                            "driver changed during preparation; reconcile and rediscover".into(),
+                        );
                     }
                 }
-            } else {
-                if assignment {
-                    facts.assign(backend, target, false)?;
+                Step::RecordPreparation => {
+                    journal.prepared = d.digest.clone();
+                    facts.save(backend, target, &journal)?;
                 }
-                if initial.settings != disabled_settings {
-                    facts.settings(backend, target, &disabled_settings)?;
+                Step::Settings(settings) => {
+                    facts.settings(backend, target, settings).map_err(|error| {
+                        if target.enabled {
+                            format!("apply compatibility settings: {error}")
+                        } else {
+                            error
+                        }
+                    })?
                 }
+                Step::OwnSettings => {
+                    journal.applied = desired.clone();
+                    journal.settings_released = false;
+                    facts.save(backend, target, &journal)?;
+                }
+                Step::Allocation(resource, value) => {
+                    facts.allocation(backend, target, resource, value)?
+                }
+                Step::Verify => {
+                    facts.check(backend, target)?;
+                    let checked = check_guest(backend, target, gpu, &mut journal);
+                    facts.journal = Some(journal.clone());
+                    checked?;
+                    verified = true;
+                }
+                Step::Restore(power, _) => facts.restore(backend, target, power)?,
             }
         }
-        let mut verified = false;
-        if setup_required {
-            facts.check(backend, target)?;
-            if facts.state.power != Power::Running {
-                facts.power(backend, target, Power::Running)?;
-            }
-            let checked = check_guest(backend, target, &gpu, &mut journal);
-            facts.journal = Some(journal.clone());
-            checked?;
-            verified = true;
-        }
-        facts.restore(backend, target, &restore_power)?;
         #[cfg(windows)]
         crate::work_counts::add(crate::work_counts::Counter::CompletionReads, 1);
         let effective = backend.inspect(target)?;
@@ -220,9 +208,9 @@ fn execute_decision(
             vec![]
         };
         if effective.gpus != expected_gpus
-            || effective.power != restore_power
-            || (target.enabled && effective.settings != desired)
-            || (!target.enabled && effective.settings != disabled_settings)
+            || effective.power != *restore_power
+            || (target.enabled && effective.settings != *desired)
+            || (!target.enabled && effective.settings != *disabled_settings)
             || (target.enabled && !target.allocations_match(&effective))
         {
             return Err("independent final state verification failed".into());
@@ -237,15 +225,15 @@ fn execute_decision(
         facts.save(backend, target, &journal)?;
         Ok(OperationResult {
             effective,
-            prepared: stale,
+            prepared: d.stale,
             verified,
-            settings_preserved,
+            settings_preserved: d.settings_preserved,
         })
     })();
     // Only restore power after success. A failed preparation must not trigger an
     // attached boot using partial guest files. Pending state explains the next apply.
     operation.map_err(|error| {
-        if journal.verification_only && restore_power == Power::Off {
+        if journal.verification_only && *restore_power == Power::Off {
             let restoration = facts.restore(backend, target, &Power::Off);
             let checked = Err(error.clone());
             if let Err(proof) =

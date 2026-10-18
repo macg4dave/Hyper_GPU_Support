@@ -45,9 +45,6 @@ fn action_explanations_keep_invalid_drafts_and_other_profiles() {
     assert!(!actions.remove_allowed);
     assert_eq!(s.view.draft, Some(target));
     assert_eq!(s.view.configuration.targets, vec![other]);
-    assert!(s.approved_plan.is_none());
-    assert!(s.removal_review.is_none());
-    assert!(s.verification_plan.is_none());
     assert_eq!(values[0], "invalid");
     s.discard();
     let values = allocation_values(&s.target(id(&s)).unwrap());

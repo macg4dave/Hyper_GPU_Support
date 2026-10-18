@@ -9,32 +9,47 @@ fn initial_setup_controls_require_completed_receipts_for_the_exact_pair() {
     // A provider attachment and enrollment cannot unlock first-time editing.
     s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus = vec![target.gpu_interface.clone()];
     assert!(s.initial_setup_required(&vm_id));
-    let mut journal = review_plan().managed.unwrap_or_else(|| hyper_gpu_support::workflow::Journal {
-        schema: 1,
-        vm_id: vm_id.clone(),
-        gpu_interface: target.gpu_interface.clone(),
-        original: s.view.vm(&vm_id).unwrap().settings.clone(),
-        applied: s.view.vm(&vm_id).unwrap().settings.for_gpu(),
-        prepared: Some("checked-payload".into()),
-        pending: false,
-        restore_power: Power::Off,
-        verification_only: false,
-        last_verified: Some(1),
-        latest_check: Some(hyper_gpu_support::workflow::GuestCheck::Passed),
-        preparation_started: Some(true),
-        check_restored: false,
-        settings_released: false,
-    });
+    let mut journal =
+        review_plan()
+            .managed
+            .unwrap_or_else(|| hyper_gpu_support::workflow::Journal {
+                schema: 1,
+                vm_id: vm_id.clone(),
+                gpu_interface: target.gpu_interface.clone(),
+                original: s.view.vm(&vm_id).unwrap().settings.clone(),
+                applied: s.view.vm(&vm_id).unwrap().settings.for_gpu(),
+                prepared: Some("checked-payload".into()),
+                pending: false,
+                restore_power: Power::Off,
+                verification_only: false,
+                last_verified: Some(1),
+                latest_check: Some(hyper_gpu_support::workflow::GuestCheck::Passed),
+                preparation_started: Some(true),
+                check_restored: false,
+                settings_released: false,
+            });
     for complete in [false, true] {
         journal.last_verified = complete.then_some(1);
-        s.view.inventory.as_mut().unwrap().managed.insert(vm_id.clone(), Some(journal.clone()));
+        s.view
+            .inventory
+            .as_mut()
+            .unwrap()
+            .managed
+            .insert(vm_id.clone(), Some(journal.clone()));
         assert_eq!(s.initial_setup_required(&vm_id), !complete);
     }
     // Disabling a previously set-up VM leaves ordinary re-enablement available.
-    s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus.clear();
+    s.view.inventory.as_mut().unwrap().discovery.vms[0]
+        .gpus
+        .clear();
     assert!(!s.initial_setup_required(&vm_id));
     journal.gpu_interface = "different-gpu".into();
-    s.view.inventory.as_mut().unwrap().managed.insert(vm_id.clone(), Some(journal));
+    s.view
+        .inventory
+        .as_mut()
+        .unwrap()
+        .managed
+        .insert(vm_id.clone(), Some(journal));
     assert!(s.initial_setup_required(&vm_id));
 }
 
@@ -172,7 +187,6 @@ fn reopened_selection_survives_discovery_order_and_rename_with_or_without_recove
             inventory_before
         );
         assert!(reopened.view.draft.is_none());
-        assert!(reopened.approved_plan.is_none());
         if held {
             assert!(reopened.editor_eligibility(&selected).is_err());
             assert!(

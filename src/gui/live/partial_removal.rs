@@ -76,35 +76,16 @@ pub(super) fn review_reset(
     state: &SharedState,
     busy: &Arc<AtomicBool>,
 ) -> Result<(), String> {
-    {
-        let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
-        state.reset_review = None;
-        state.reset_review = Some(partial_removal_candidate(&state)?);
-    }
-    reset_live(ui, state, busy)
-}
-
-#[cfg(windows)]
-pub(super) fn reset_live(
-    ui: &AppWindow,
-    state: &SharedState,
-    busy: &Arc<AtomicBool>,
-) -> Result<(), String> {
     let (operation, revision, approved) = {
         let state = state.lock().map_err(|_| "Presentation state unavailable")?;
-        let record = state.recovery.as_ref().ok_or("Refresh recovery first")?;
-        let (revision, approved) = state
-            .reset_review
-            .clone()
-            .ok_or("Review partial removal first")?;
-        if revision
-            != hyper_gpu_support::configuration_store::Revision::of(
-                &serde_json::to_vec(record).map_err(|e| e.to_string())?,
-            )
-        {
-            return Err("Recovery changed; review partial removal again".into());
-        }
-        (record.operation_id.clone(), revision, approved)
+        let (revision, approved) = partial_removal_candidate(&state)?;
+        let operation = state
+            .recovery
+            .as_ref()
+            .ok_or("Refresh recovery first")?
+            .operation_id
+            .clone();
+        (operation, revision, approved)
     };
     let shutdown_approved = approved.observed.power == hyper_gpu_support::model::Power::Running;
     let name = approved.observed.name.clone();

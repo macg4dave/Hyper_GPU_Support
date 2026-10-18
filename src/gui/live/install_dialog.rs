@@ -60,7 +60,11 @@ impl Progress {
         if !event.reportable {
             return;
         }
-        let status = match if failed_step { Status::Failed } else { event.status } {
+        let status = match if failed_step {
+            Status::Failed
+        } else {
+            event.status
+        } {
             Status::Running => "In progress",
             Status::Done => ui_text::progress::status::COMPLETE,
             Status::Failed => ui_text::progress::status::FAILED,

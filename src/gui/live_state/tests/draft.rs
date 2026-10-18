@@ -446,14 +446,13 @@ fn pending_journal_blocks_new_reviews_without_a_save_record_and_retains_the_draf
                 .is_err()
         );
         assert!(
-            s.accept_review(
-                review_plan(),
+            s.validate_prepared(
+                &review_plan(),
                 &draft,
-                hyper_gpu_support::configuration_store::Revision::Missing,
+                &hyper_gpu_support::configuration_store::Revision::Missing,
             )
             .is_err()
         );
-        assert!(s.approved_plan.is_none());
         assert_eq!(s.view.draft, Some(draft));
         assert!(
             s.view.inventory.as_ref().unwrap().managed[&vm_id]

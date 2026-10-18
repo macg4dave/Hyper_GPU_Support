@@ -50,9 +50,6 @@ pub(super) fn register(ui: &AppWindow, state: &SharedState) {
 
                     return Ok(());
                 }
-                state.approved_plan = None;
-                state.enrollment_review = None;
-                state.setup_artifacts = None;
                 state.draft_gpu = state
                     .view
                     .inventory

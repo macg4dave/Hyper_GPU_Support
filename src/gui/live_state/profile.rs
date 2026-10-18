@@ -26,7 +26,7 @@ impl State {
         id: &str,
         result: Result<(), String>,
     ) -> Result<(), String> {
-        self.cancel_review();
+        self.result_notice = None;
         self.view.needs_readback = true;
         result?;
         self.view
@@ -67,7 +67,7 @@ impl State {
         Ok(())
     }
 
-    fn check_forget_review(
+    pub fn validate_forget_review(
         &self,
         review: &hyper_gpu_support::enrollment::RemovalReview,
     ) -> Result<(), String> {
@@ -91,24 +91,5 @@ impl State {
             );
         }
         Ok(())
-    }
-
-    pub fn accept_forget_review(
-        &mut self,
-        review: hyper_gpu_support::enrollment::RemovalReview,
-    ) -> Result<(), String> {
-        self.removal_review = None;
-        self.check_forget_review(&review)?;
-        self.removal_review = Some(review);
-        Ok(())
-    }
-
-    pub fn reviewed_forget(&self) -> Result<hyper_gpu_support::enrollment::RemovalReview, String> {
-        let review = self
-            .removal_review
-            .as_ref()
-            .ok_or("Open a fresh Delete profile review first.")?;
-        self.check_forget_review(review)?;
-        Ok(review.clone())
     }
 }

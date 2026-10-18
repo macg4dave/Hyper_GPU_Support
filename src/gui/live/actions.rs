@@ -138,7 +138,7 @@ pub(super) fn register(
             "close" => {
                 let cancelling = ui.get_review_preparing();
                 if with_state(&ui, &action_state, |state| {
-                    state.cancel_review();
+                    state.result_notice = None;
                     Ok(())
                 }) {
                     if cancelling {

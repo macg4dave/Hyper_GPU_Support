@@ -53,8 +53,6 @@ pub enum Operation {
     Plan,
     /// Predict ordinary changes from recorded receipts; admission authenticates afresh.
     PreliminaryPlan,
-    /// Return a cheap ordinary plan, or no plan when full worker preparation is needed.
-    OrdinaryPlan,
     /// Read-only preview of an explicitly requested complete driver reinstall.
     ReinstallPlan,
     /// Read-only review of exact pairing/profile record removal.

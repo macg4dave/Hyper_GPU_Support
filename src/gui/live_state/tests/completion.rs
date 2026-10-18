@@ -23,6 +23,33 @@ fn completion_observation(s: &State) -> hyper_gpu_support::observation::Bundle {
 }
 
 #[test]
+fn configure_completion_retains_newer_same_vm_edits_even_when_readback_fails() {
+    for saved in [false, true] {
+        let mut s = state();
+        let applied = s.target(id(&s)).unwrap();
+        let mut newer = applied.clone();
+        newer.enabled = !newer.enabled;
+        s.view.draft = Some(newer.clone());
+        assert!(
+            s.finish_apply(
+                &applied,
+                "operation",
+                saved,
+                Err("readback unavailable".into())
+            )
+            .is_err()
+        );
+        assert_eq!(s.view.draft, Some(newer));
+        assert!(s.view.needs_readback);
+        if saved {
+            assert!(s.view.configuration.targets.contains(&applied));
+        } else {
+            assert_eq!(s.view.verified_unsaved, Some(applied));
+        }
+    }
+}
+
+#[test]
 fn selected_completion_uses_fresh_rows_and_retains_draft_and_revision_conflicts() {
     let mut s = state();
     let original = s.target(id(&s)).unwrap();
@@ -156,7 +183,6 @@ fn completed_apply_read_failure_retains_known_unsaved_intent_without_retry_autho
     );
     assert_eq!(s.view.verified_unsaved, Some(target));
     assert!(s.view.unsaved && s.view.needs_readback);
-    assert!(s.approved_plan.is_none());
     assert!(s.save_only_record().is_err());
 }
 

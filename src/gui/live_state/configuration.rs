@@ -20,7 +20,6 @@ impl State {
             };
             if !unchanged {
                 self.committed_conflict = Some(draft.vm_id.clone());
-                self.approved_plan = None;
             }
         }
         // Refresh all readable intent even when one draft conflicts. This never

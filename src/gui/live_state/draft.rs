@@ -146,7 +146,7 @@ impl State {
         self.view.discard();
         self.committed_conflict = None;
         self.authority_conflict = None;
-        self.cancel_review();
+        self.result_notice = None;
         self.draft_gpu = None;
     }
 

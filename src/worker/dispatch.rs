@@ -37,6 +37,7 @@ fn execute_inner(
     mut notify: impl FnMut(Progress) -> Result<(), String>,
     mut exchange: impl FnMut(&PreparedReview) -> Result<Authorization, String>,
 ) -> Result<Outcome, String> {
+    request.command.validate_submission()?;
     let (data, _lock) = preparation_stage("Check protected worker admission", &mut notify, || {
         let data = runner::data_directory()?;
         crate::security::verify(&data)?;
@@ -224,44 +225,9 @@ fn execute_inner(
             Command::ImportResume { operation_id } => {
                 configuration_import::resume(enrollment, operation_id, &mut notify)
             }
-            Command::Apply {
-                approved,
-                expected,
-                shutdown_approved,
-            } => operations::apply(
-                &operations::Context {
-                    enrollment,
-                    session,
-                    data: &data,
-                    recovery_path: recovery_path
-                        .as_deref()
-                        .ok_or("missing bound recovery path")?,
-                },
-                approved,
-                expected,
-                shutdown_approved,
-                request.credential,
-                None,
-                &mut notify,
-            ),
-            Command::Verify {
-                approved,
-                shutdown_approved,
-            } => operations::verify(
-                &operations::Context {
-                    enrollment,
-                    session,
-                    data: &data,
-                    recovery_path: recovery_path
-                        .as_deref()
-                        .ok_or("missing bound recovery path")?,
-                },
-                approved,
-                shutdown_approved,
-                request.credential,
-                None,
-                &mut notify,
-            ),
+            Command::Apply { .. } | Command::Verify { .. } => {
+                Err("GPU execution requires a fresh prepared worker session".into())
+            }
             Command::Reconcile {
                 operation_id,
                 shutdown_approved,

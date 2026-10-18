@@ -2,11 +2,8 @@
 use super::SharedState;
 #[cfg(windows)]
 use super::{
-    background::background_operation,
-    credentials::credential_request_cancelled,
-    presentation::present,
-    progress::progress_to_ui,
-    state_access::{with_completion_state, with_state},
+    background::background_operation, credentials::credential_request_cancelled,
+    progress::progress_to_ui, state_access::complete_operation,
 };
 use crate::gui::AppWindow;
 #[cfg(windows)]
@@ -84,8 +81,7 @@ pub(super) fn review_verification(
                         if !ui.get_review_preparing() {
                             return Err("Read-only preparation cancelled".into());
                         }
-                        let mut state =
-                            state.lock().map_err(|_| "Presentation state unavailable")?;
+                        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
                         state.editor_eligibility(&requested.vm_id)?;
                         if state.view.selected.as_deref() != Some(requested.vm_id.as_str())
                             || state.view.draft.is_some()
@@ -95,16 +91,7 @@ pub(super) fn review_verification(
                         {
                             return Err("Selection or saved settings changed during verification preparation".into());
                         }
-                        state.verification_plan = Some(accepted.clone());
                         ui.set_review_preparing(false);
-                        ui.set_dialog_body(
-                            format!(
-                                "{}\n\n{}",
-                                wording::verify_review(&accepted),
-                                wording::verify_consent(&accepted)
-                            )
-                            .into(),
-                        );
                         ui.set_dialog_details(wording::verify_details(&accepted).into());
                         Ok(())
                     })?;
@@ -132,19 +119,9 @@ pub(super) fn review_verification(
             if let Err(error) = &result
                 && credential_request_cancelled(ui, error, false)
             {
-                with_state(ui, &finished_state, |state| {
-                    state.verification_plan = None;
-                    Ok(())
-                });
                 return;
             }
-            if !with_completion_state(ui, &finished_state, &result, |state| {
-                state.verification_plan = None;
-                state.view.needs_readback = true;
-                let status = state.finish_readback(readback);
-                present(ui, state, false);
-                status
-            }) {
+            if complete_operation(ui, &finished_state, None, &result, readback).is_none() {
                 return;
             }
             match result {

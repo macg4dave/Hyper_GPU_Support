@@ -289,12 +289,6 @@ pub(super) fn refresh_with_result(
                         state.observation = provenance;
                         state.worker_available = worker_available;
                         ui.set_execution_ready(false);
-                        state.enrollment_review = None;
-                        state.setup_artifacts = None;
-                        state.enrollment_recovery_revision = None;
-                        state.approved_plan = None;
-                        state.verification_plan = None;
-                        state.reset_review = None;
                         // A conflicting draft blocks that editor, not fresh VM/GPU
                         // observations or readable intent for other VMs.
                         let configuration_warning =
@@ -386,12 +380,6 @@ pub(super) fn refresh_with_result(
                         Ok(())
                     }
                     Err(error) => {
-                        state.approved_plan = None;
-                        state.verification_plan = None;
-                        state.enrollment_review = None;
-                        state.setup_artifacts = None;
-                        state.enrollment_recovery_revision = None;
-                        state.reset_review = None;
                         ui.set_execution_ready(false);
                         let (summary, details) = crate::gui::diagnostics::inventory_failure(&error);
                         state.view.needs_readback = true;

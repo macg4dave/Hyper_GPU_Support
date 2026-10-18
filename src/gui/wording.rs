@@ -1,34 +1,9 @@
 //! User-facing operation wording derived from reviewed facts, never inferred health.
 use super::operation::{GuestPurpose, Kind};
-use hyper_gpu_support::{
-    model::Power,
-    workflow::{Plan, VerificationPlan},
-};
+use hyper_gpu_support::{model::Power, workflow::VerificationPlan};
 
 fn power_name(power: &Power) -> hyper_gpu_support::ui_text::UiMessage {
     hyper_gpu_support::ui_text::power(power)
-}
-
-pub(super) fn apply_consent(plan: &Plan) -> String {
-    hyper_gpu_support::ui_text::operations::apply::power_consent(&power_name(
-        &plan.preview.restore_power,
-    ))
-    .into_string()
-}
-
-pub(super) fn verify_review(plan: &VerificationPlan) -> String {
-    let lifecycle = match plan.observed.power {
-        Power::Off => hyper_gpu_support::ui_text::operations::verify::lifecycle::off(),
-        Power::Running => hyper_gpu_support::ui_text::operations::verify::lifecycle::running(),
-        Power::Other(_) => hyper_gpu_support::ui_text::operations::verify::lifecycle::unknown(),
-    };
-    hyper_gpu_support::ui_text::operations::verify::review::body(
-        &plan.observed.name,
-        &plan.gpu.name,
-        &lifecycle,
-        &power_name(&plan.observed.power),
-    )
-    .into_string()
 }
 
 pub(super) fn verify_details(plan: &VerificationPlan) -> String {
@@ -40,14 +15,6 @@ pub(super) fn verify_details(plan: &VerificationPlan) -> String {
         &hyper_gpu_support::ui_text::power_debug(&plan.observed.power),
     )
     .into_string()
-}
-
-pub(super) fn verify_consent(plan: &VerificationPlan) -> String {
-    match plan.observed.power {
-        Power::Off => hyper_gpu_support::ui_text::operations::verify::consent::OFF.into(),
-        Power::Running => hyper_gpu_support::ui_text::operations::verify::consent::RUNNING.into(),
-        Power::Other(_) => hyper_gpu_support::ui_text::operations::verify::consent::UNKNOWN.into(),
-    }
 }
 
 pub(super) fn recovery_progress(

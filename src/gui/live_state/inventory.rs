@@ -10,12 +10,16 @@ impl State {
             return true;
         };
         !self.view.inventory.as_ref().is_some_and(|inventory| {
-            inventory.managed.get(id).and_then(Option::as_ref).is_some_and(|journal| {
-                journal.vm_id == target.vm_id
-                    && journal.gpu_interface == target.gpu_interface
-                    && journal.prepared.is_some()
-                    && journal.last_verified.is_some()
-            })
+            inventory
+                .managed
+                .get(id)
+                .and_then(Option::as_ref)
+                .is_some_and(|journal| {
+                    journal.vm_id == target.vm_id
+                        && journal.gpu_interface == target.gpu_interface
+                        && journal.prepared.is_some()
+                        && journal.last_verified.is_some()
+                })
         })
     }
 
@@ -79,7 +83,6 @@ impl State {
     }
 
     pub fn refresh(&mut self, inventory: Inventory) {
-        self.removal_review = None;
         let selected = self.view.selected.clone();
         if let Some(draft) = &self.view.draft
             && self.enrolled(draft)
@@ -89,9 +92,6 @@ impl State {
                 .any(|t| t.vm_id == draft.vm_id && t.gpu_interface == draft.gpu_interface)
         {
             self.authority_conflict = Some(draft.vm_id.clone());
-            self.approved_plan = None;
-            self.enrollment_review = None;
-            self.setup_artifacts = None;
         }
         self.view.refresh(inventory);
         if self.view.draft.is_some() {

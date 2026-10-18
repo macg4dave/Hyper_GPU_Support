@@ -28,17 +28,7 @@ pub(super) fn review_enrollment(
         state.permission_review(&target, hyper_gpu_support::setup::operator_sid()?)?
     };
     if let Some(approved) = proposed {
-        if !with_state(ui, state, |state| {
-            if draft_target(ui, state)? != target {
-                return Err("Selection or draft changed before permission preparation.".into());
-            }
-            state.enrollment_review = Some(approved);
-            state.setup_artifacts = None;
-            Ok(())
-        }) {
-            return Ok(());
-        }
-        return enroll_live(ui, state, busy, &Source);
+        return enroll_live(ui, state, busy, approved, None, target);
     }
     let reviewed_state = state.clone();
     let expected = target.clone();
@@ -78,21 +68,16 @@ pub(super) fn review_enrollment(
         },
         move |ui, result| match result {
             Ok((approved, artifacts, worker_available)) => {
-                if !with_state(ui, &reviewed_state, |state| {
-                    if draft_target(ui, state)? != expected
-                        || state.view.selected.as_deref() != Some(expected.vm_id.as_str())
-                    {
-                        return Err("Selection or draft changed during permission preparation. Refresh before trying again.".into());
-                    }
-                    state.enrollment_review = Some(approved);
-                    state.setup_artifacts = artifacts;
-                    Ok(())
-                }) {
-                    return;
-                }
                 ui.set_execution_ready(worker_available);
                 super::background::continue_prepared(ui, Ok(()), || {
-                    enroll_live(ui, &reviewed_state, &enroll_busy, &Source)
+                    enroll_live(
+                        ui,
+                        &reviewed_state,
+                        &enroll_busy,
+                        approved,
+                        artifacts,
+                        expected,
+                    )
                 });
             }
             Err(error) => dialog(ui, "error", "GPU permission preparation failed", &error),
@@ -101,30 +86,23 @@ pub(super) fn review_enrollment(
 }
 
 #[cfg(windows)]
-pub(super) fn enroll_live(
+fn enroll_live(
     ui: &AppWindow,
     state: &SharedState,
     busy: &Arc<AtomicBool>,
-    source: &Source,
+    approved: hyper_gpu_support::enrollment::PairReview,
+    artifacts: Option<std::collections::BTreeMap<String, String>>,
+    expected: Target,
 ) -> Result<(), String> {
     if !ui.get_execution_ready() {
         return Err("The protected worker is unavailable. Refresh before trying again.".into());
     }
-
-    let (approved, artifacts, expected) = {
-        let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
-        let approved = state
-            .enrollment_review
-            .take()
-            .ok_or("Review exact enrollment first")?;
-        let draft = draft_target(ui, &state)?;
-        if draft.vm_id != approved.vm_id || draft.gpu_interface != approved.gpu_interface {
-            return Err("Pair changed after enrollment review; review again".into());
-        }
-        let artifacts = state.setup_artifacts.take();
-        (approved, artifacts, draft)
-    };
-    let source = source.clone();
+    if !with_state(ui, state, |state| {
+        state.validate_permission_preparation(&expected, &draft_target(ui, state)?, &approved)
+    }) {
+        return Ok(());
+    }
+    let source = Source;
     let finished_state = state.clone();
     let refresh_busy = busy.clone();
     let progress = progress_to_ui(ui.as_weak());
