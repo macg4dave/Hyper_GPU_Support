@@ -149,10 +149,7 @@ fn execute(e: &Enrollment, request: Request) -> Result<serde_json::Value, String
         Operation::Completion => "Completion",
         Operation::Status => "Status",
         Operation::Plan => "Plan",
-        Operation::PreliminaryPlan => "PreliminaryPlan",
-        Operation::ReinstallPlan => "ReinstallPlan",
         Operation::RemovalPlan => "RemovalPlan",
-        Operation::VerifyPlan => "VerifyPlan",
         Operation::Apply => "Apply",
         Operation::Verify => "Verify",
     };
@@ -318,10 +315,7 @@ fn execute_operation(
             Ok(serde_json::json!({"desired": target, "observed": observed, "managed": inventory.managed.get(&target.vm_id), "recorded": inventory.recorded_state(&target.vm_id), "issues": issues, "provenance": "Fresh Hyper-V read; desired is supplied configuration, not committed intent. Preparation and last graphics verification are historical; current guest health unknown."}))
         },
         Operation::Plan => serde_json::to_value(crate::workflow::plan(&mut backend, &target)?),
-        Operation::PreliminaryPlan => serde_json::to_value(crate::workflow::plan_preliminary(&mut backend, &target)?),
-        Operation::ReinstallPlan => serde_json::to_value(crate::workflow::plan_reinstall(&mut backend, &target)?),
         Operation::RemovalPlan => serde_json::to_value(profile_removal::plan(&target, &e.client_sid)?),
-        Operation::VerifyPlan => serde_json::to_value(crate::workflow::plan_verification(&mut backend, &target)?),
         Operation::Apply | Operation::Verify => return Err("mutation requires the reviewed per-operation worker; update the frontend and installation".into()),
     }
     .map_err(|e| e.to_string())?;

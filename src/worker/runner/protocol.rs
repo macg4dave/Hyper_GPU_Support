@@ -51,14 +51,8 @@ pub enum Operation {
     Status,
     /// Inspect desired changes and authenticate the current preparation payload without effects.
     Plan,
-    /// Predict ordinary changes from recorded receipts; admission authenticates afresh.
-    PreliminaryPlan,
-    /// Read-only preview of an explicitly requested complete driver reinstall.
-    ReinstallPlan,
     /// Read-only review of exact pairing/profile record removal.
     RemovalPlan,
-    /// Read-only preview of the guest verification lifecycle.
-    VerifyPlan,
     /// Apply desired GPU state.
     Apply,
     /// Verify selected guest health and rendering.
@@ -114,5 +108,36 @@ pub fn request(
         credential,
         read_budget_ms: None,
         include_observation: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retired_preview_requests_are_rejected_and_current_reads_round_trip() {
+        for operation in ["PreliminaryPlan", "ReinstallPlan", "VerifyPlan"] {
+            let wire = serde_json::json!({"schema": 2, "nonce": "fixture", "operation": operation,
+                "target": null, "credential": null, "include_observation": false});
+            assert!(
+                serde_json::from_value::<Request>(wire).is_err(),
+                "{operation}"
+            );
+        }
+        for operation in [
+            Operation::Discover,
+            Operation::Observe,
+            Operation::Poll,
+            Operation::Completion,
+            Operation::Status,
+            Operation::Plan,
+            Operation::RemovalPlan,
+        ] {
+            let request = request(operation, None, None);
+            let wire = serde_json::to_value(&request).unwrap();
+            let decoded: Request = serde_json::from_value(wire.clone()).unwrap();
+            assert_eq!(serde_json::to_value(decoded).unwrap(), wire);
+        }
     }
 }

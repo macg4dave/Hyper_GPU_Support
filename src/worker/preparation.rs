@@ -62,7 +62,6 @@ impl Intent {
                 plan.desired == *target
                     && plan.reinstall == *reinstall
                     && actual == expected
-                    && !plan.authentication_deferred
                     && plan.observed.vm_id == target.vm_id
                     && plan.gpu.interface == target.gpu_interface
             }

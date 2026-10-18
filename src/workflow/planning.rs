@@ -13,15 +13,6 @@ pub(super) fn decision_for_operation(
     target: &Target,
     reinstall: bool,
 ) -> Result<Decision, String> {
-    decision_inputs(backend, target, reinstall, false)
-}
-
-fn decision_inputs(
-    backend: &mut impl Backend,
-    target: &Target,
-    reinstall: bool,
-    preliminary: bool,
-) -> Result<Decision, String> {
     target.validate()?;
     if reinstall && !target.enabled {
         return Err("driver reinstall requires enabled GPU support".into());
@@ -96,13 +87,7 @@ fn decision_inputs(
         restore_owned_settings(&initial.settings, managed.as_ref());
     let settings_preserved = !target.enabled && preserved;
     let desired = initial.settings.for_gpu();
-    // Recorded evidence predicts ordinary changes only. Admission always uses
-    // the full current payload and rejects a changed digest or effect scope.
-    let authentication_deferred =
-        preliminary && target.enabled && !reinstall && !journal.pending && journal.setup_eligible();
-    let digest = if authentication_deferred {
-        journal.prepared.clone()
-    } else if target.enabled {
+    let digest = if target.enabled {
         Some(backend.payload(target)?)
     } else {
         None
@@ -129,7 +114,6 @@ fn decision_inputs(
         || (journal.pending && !journal.verification_only)
         || (!target.enabled && initial.settings != disabled_settings);
     Ok(Decision {
-        authentication_deferred,
         reinstall,
         initial,
         gpu,
@@ -151,7 +135,6 @@ fn decision_inputs(
 
 #[derive(Clone)]
 pub(super) struct Decision {
-    authentication_deferred: bool,
     reinstall: bool,
     pub(super) initial: VmState,
     pub(super) gpu: Gpu,
@@ -270,12 +253,10 @@ pub struct EffectPreview {
     pub summary: Vec<String>,
 }
 
-/// Reviewed effect scope. Preliminary reviews defer payload authentication to admission.
+/// Authenticated effect scope; execution still requires private worker admission.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Plan {
-    /// Payload identity is historical; Apply must authenticate and compare it before effects.
-    #[serde(default)]
-    pub authentication_deferred: bool,
     /// Explicitly reviewed complete driver preparation, even with matching history.
     #[serde(default)]
     pub reinstall: bool,
@@ -290,7 +271,7 @@ pub struct Plan {
     pub gpu: Gpu,
     /// Existing durable state before the read-only preview.
     pub managed: Option<Journal>,
-    /// Payload comparison; historical when authentication is deferred, absent on disable.
+    /// Current authenticated payload comparison, absent on disable.
     pub preparation: Option<PreparationPreview>,
     /// Shared semantic effects and text.
     pub preview: EffectPreview,
@@ -312,19 +293,6 @@ impl Plan {
 /// Preview apply using the same validation and decisions, without saving or mutating guest/VM state.
 pub fn plan(backend: &mut impl Backend, target: &Target) -> Result<Plan, String> {
     let d = decision(backend, target)?;
-    Ok(plan_from_decision(d, target))
-}
-/// Predict ordinary changes from fresh host facts and completed historical receipts.
-/// Missing, adverse or pending history falls back to full payload authentication.
-/// This preview never substitutes for authenticated admission or guest health.
-pub fn plan_preliminary(backend: &mut impl Backend, target: &Target) -> Result<Plan, String> {
-    let d = decision_inputs(backend, target, false, true)?;
-    Ok(plan_from_decision(d, target))
-}
-
-/// Preview an explicit full reinstall through the ordinary protected operation path.
-pub fn plan_reinstall(backend: &mut impl Backend, target: &Target) -> Result<Plan, String> {
-    let d = decision_for_operation(backend, target, true)?;
     Ok(plan_from_decision(d, target))
 }
 pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
@@ -434,7 +402,6 @@ pub(super) fn plan_from_decision(d: Decision, target: &Target) -> Plan {
     }
     summary.push(format!("Final guest power: {:?}. Apply rechecks identity and state; a preview does not reserve them.", d.restore_power));
     Plan {
-        authentication_deferred: d.authentication_deferred,
         reinstall: d.reinstall,
         initial_setup: d.initial_setup,
         desired: target.clone(),
@@ -488,7 +455,34 @@ mod tests {
     use crate::workflow::{Plan, PreviewAction, admit_approved, apply, plan};
 
     #[test]
-    fn preliminary_ordinary_review_defers_payload_but_admission_authenticates_before_effects() {
+    fn plans_reject_retired_deferred_authentication_instead_of_ignoring_it() {
+        let current = plan(&mut fake(), &target()).unwrap();
+        let wire = serde_json::to_value(&current).unwrap();
+        assert!(serde_json::from_value::<Plan>(wire.clone()).is_ok());
+        assert!(wire.get("authentication_deferred").is_none());
+        for value in [false, true] {
+            let mut old = wire.clone();
+            old["authentication_deferred"] = value.into();
+            assert!(serde_json::from_value::<Plan>(old).is_err());
+        }
+    }
+
+    #[test]
+    fn preparation_authentication_failure_never_trusts_historical_success_or_dispatches_effects() {
+        let mut backend = fake();
+        let target = target();
+        apply(&mut backend, &target).unwrap();
+        backend.events.clear();
+        let writes = backend.journal_writes;
+        backend.fail_payload = true;
+        assert!(super::super::prepare_apply(&mut backend, &target, false).is_err());
+        assert_eq!(backend.journal_writes, writes);
+        assert!(backend.events.is_empty());
+        assert!(backend.journal.as_ref().unwrap().setup_eligible());
+    }
+
+    #[test]
+    fn ordinary_preparation_authenticates_once_without_guest_or_journal_work() {
         let mut f = fake();
         let mut t = target();
         apply(&mut f, &t).unwrap();
@@ -500,13 +494,8 @@ mod tests {
         f.events.clear();
         let reads = f.payload_reads;
         let writes = f.journal_writes;
-        let approved = super::plan_preliminary(&mut f, &t).unwrap();
-        assert!(approved.authentication_deferred);
-        assert!(!approved.preview.credentials_required);
-        assert_eq!(f.payload_reads, reads);
-        assert_eq!(f.journal_writes, writes);
-        let (current, admitted) = admit_approved(&mut f, &approved).unwrap();
-        assert!(!current.authentication_deferred);
+        let (current, admitted) = super::super::prepare_apply(&mut f, &t, false).unwrap();
+        assert!(!current.preview.credentials_required);
         assert_eq!(f.payload_reads, reads + 1);
         assert_eq!(f.journal_writes, writes);
         assert!(f.events.is_empty());
@@ -519,32 +508,7 @@ mod tests {
     }
 
     #[test]
-    fn preliminary_review_drift_and_authentication_failure_never_expand_effects() {
-        for scenario in 0..5 {
-            let mut f = fake();
-            let t = target();
-            apply(&mut f, &t).unwrap();
-            let approved = super::plan_preliminary(&mut f, &t).unwrap();
-            match scenario {
-                0 => f.driver = "changed-payload",
-                1 => f.gpu_driver = "changed-driver",
-                2 => f.state.settings.high_mmio += 1,
-                3 => {
-                    f.journal.as_mut().unwrap().latest_check =
-                        Some(super::super::GuestCheck::Failed)
-                }
-                _ => f.fail_payload = true,
-            }
-            let writes = f.journal_writes;
-            f.events.clear();
-            assert!(admit_approved(&mut f, &approved).is_err());
-            assert_eq!(f.journal_writes, writes);
-            assert!(f.events.is_empty());
-        }
-    }
-
-    #[test]
-    fn abandoned_and_reopened_ordinary_reviews_remain_read_only_without_payload_passes() {
+    fn abandoned_preparation_is_read_only_and_reopening_authenticates_again() {
         let mut f = fake();
         let mut t = target();
         apply(&mut f, &t).unwrap();
@@ -559,32 +523,14 @@ mod tests {
         let writes = f.journal_writes;
         f.events.clear();
         // Abandon the first result, then reopen review for the same draft.
-        let _ = super::plan_preliminary(&mut f, &t).unwrap();
-        let reopened = super::plan_preliminary(&mut f, &t).unwrap();
-        assert!(reopened.authentication_deferred);
+        let _ = super::super::prepare_apply(&mut f, &t, false).unwrap();
+        let (reopened, _) = super::super::prepare_apply(&mut f, &t, false).unwrap();
         assert_eq!(reopened.desired, t);
-        assert_eq!(f.payload_reads, reads);
+        assert_eq!(f.payload_reads, reads + 2);
         assert_eq!(f.journal_writes, writes);
         assert_eq!(serde_json::to_value(&f.state).unwrap(), original_state);
         assert_eq!(serde_json::to_value(&f.journal).unwrap(), original_journal);
         assert!(f.events.is_empty());
-    }
-
-    #[test]
-    fn preliminary_review_authenticates_when_setup_history_is_missing_or_adverse() {
-        for adverse in [false, true] {
-            let mut f = fake();
-            let t = target();
-            if adverse {
-                apply(&mut f, &t).unwrap();
-                f.journal.as_mut().unwrap().latest_check = Some(super::super::GuestCheck::Failed);
-            }
-            let reads = f.payload_reads;
-            let review = super::plan_preliminary(&mut f, &t).unwrap();
-            assert!(!review.authentication_deferred);
-            assert!(review.preview.credentials_required);
-            assert_eq!(f.payload_reads, reads + 1);
-        }
     }
 
     #[test]

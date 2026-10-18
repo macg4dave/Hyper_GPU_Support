@@ -2,7 +2,7 @@
 use crate::model::{Allocation, Gpu, Power, Resource, Settings, Target, VmState};
 use crate::workflow::test_support::{Fake, fake, recovery_record, target, trace};
 use crate::workflow::{
-    Backend, GuestCheck, Journal, PreviewAction, apply, apply_approved, plan, plan_reinstall,
+    Backend, GuestCheck, Journal, PreviewAction, apply, apply_approved, plan, prepare_apply,
     reconcile_observed, reconcile_with_graphics, verify,
 };
 
@@ -181,12 +181,7 @@ fn failed_verification_only_apply_can_end_without_publication_then_repair_or_rem
             assert!(pending.pending && pending.verification_only && pending.check_restored);
             assert!(pending.prepared.is_none());
             assert_eq!(pending.last_verified, history);
-            assert!(
-                plan_reinstall(&mut backend, &target())
-                    .unwrap()
-                    .preview
-                    .pending_recovery
-            );
+            assert!(prepare_apply(&mut backend, &target(), true).is_err());
             let effects = backend.events.clone();
             let retirement = record
                 .negative_completion(&backend.state, "new", &Revision::Missing, Some(&pending))
@@ -224,7 +219,9 @@ fn failed_verification_only_apply_can_end_without_publication_then_repair_or_rem
             assert_eq!(backend.events, effects); // Retirement has no guest/GPU effects.
             backend.payload_check_failure = None;
             if missing_success {
-                let repair = plan_reinstall(&mut backend, &target()).unwrap();
+                let repair = prepare_apply(&mut backend, &target(), true)
+                    .map(|(plan, _)| plan)
+                    .unwrap();
                 assert!(apply_approved(&mut backend, &repair).unwrap().verified);
             } else {
                 let mut disabled = target();
@@ -459,7 +456,9 @@ fn restored_reconciliation_failure_permits_reviewed_repair_then_removal_and_forg
         .unwrap();
     backend.journal = Some(retirement.after);
     backend.payload_check_failure = None;
-    let repair = plan_reinstall(&mut backend, &target()).unwrap();
+    let repair = prepare_apply(&mut backend, &target(), true)
+        .map(|(plan, _)| plan)
+        .unwrap();
     let result = apply_approved(&mut backend, &repair).unwrap();
     assert!(result.prepared && result.verified);
     let disabled = Target {
@@ -520,7 +519,9 @@ fn failed_verify_can_end_recovery_without_certifying_setup_then_review_repair() 
     }
     backend.save(&target(), &retirement.after).unwrap();
     backend.payload_check_failure = None;
-    let reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+    let reviewed = prepare_apply(&mut backend, &target(), true)
+        .map(|(plan, _)| plan)
+        .unwrap();
     assert!(reviewed.preview.actions.contains(&PreviewAction::Prepare));
     assert!(apply_approved(&mut backend, &reviewed).unwrap().verified);
 }
@@ -531,7 +532,9 @@ fn refused_reinstall_shutdown_can_end_without_losing_original_history_or_replayi
     apply(&mut backend, &target()).unwrap();
     backend.state.power = Power::Running;
     let mut record = recovery_record(&backend, true);
-    let reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+    let reviewed = prepare_apply(&mut backend, &target(), true)
+        .map(|(plan, _)| plan)
+        .unwrap();
     backend.events.clear();
     backend.fail_shutdown = true;
     assert!(apply_approved(&mut backend, &reviewed).is_err());
@@ -813,7 +816,9 @@ fn initial_setup_of_second_vm_preserves_first_on_the_same_gpu() {
         first_journal
     );
     assert_eq!(fleet.0[&first.vm_id].events, first_events);
-    let reinstall = plan_reinstall(&mut fleet, &second).unwrap();
+    let reinstall = prepare_apply(&mut fleet, &second, true)
+        .map(|(plan, _)| plan)
+        .unwrap();
     let repaired = apply_approved(&mut fleet, &reinstall).unwrap();
     assert!(repaired.prepared && repaired.verified);
     assert_eq!(

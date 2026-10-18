@@ -150,7 +150,9 @@ fn retained_vram_change_skips_matching_categories_but_recreated_adapter_writes_a
     apply_approved(&mut backend, &plan).unwrap();
     assert_eq!(backend.allocation_calls, [Resource::Vram]);
     backend.allocation_calls.clear();
-    let plan = plan_reinstall(&mut backend, &target).unwrap();
+    let plan = prepare_apply(&mut backend, &target, true)
+        .map(|(plan, _)| plan)
+        .unwrap();
     apply_approved(&mut backend, &plan).unwrap();
     assert_eq!(backend.allocation_calls, Resource::ALL);
 }

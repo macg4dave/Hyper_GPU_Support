@@ -67,11 +67,7 @@ pub(crate) fn admit_approved(
 ) -> Result<(Plan, super::AdmittedApply), String> {
     let target = &approved.desired;
     let (actual, admitted) = prepare_apply(backend, target, approved.reinstall)?;
-    let mut reviewed = approved.clone();
-    // Only this presentation marker differs. Every reviewed host, journal,
-    // payload and effect fact must still match the freshly authenticated plan.
-    reviewed.authentication_deferred = false;
-    if !actual.same_operation(&reviewed)? {
+    if !actual.same_operation(approved)? {
         return Err("approved plan is stale; refresh and review before effects".into());
     }
     Ok((actual, admitted))
@@ -252,7 +248,7 @@ mod tests {
     use crate::workflow::test_support::{extended_target, fake, target, trace};
     use crate::workflow::{
         GuestCheck, PreviewAction, admit_approved, apply, apply_admitted, apply_approved, plan,
-        plan_reinstall,
+        prepare_apply,
     };
 
     #[test]
@@ -271,7 +267,7 @@ mod tests {
                 backend.os_checks = 0;
                 backend.os_failure = Some("Version query must never run".into());
                 let reviewed = if path == 2 {
-                    plan_reinstall(&mut backend, &target)
+                    prepare_apply(&mut backend, &target, true).map(|(plan, _)| plan)
                 } else {
                     plan(&mut backend, &target)
                 }
@@ -417,7 +413,9 @@ mod tests {
             backend.fail_settings = true;
             let mut requested = target();
             let approved = if reinstall {
-                plan_reinstall(&mut backend, &requested).unwrap()
+                prepare_apply(&mut backend, &requested, true)
+                    .map(|(plan, _)| plan)
+                    .unwrap()
             } else {
                 requested.vram = Some(Allocation {
                     minimum: 10,
@@ -624,7 +622,9 @@ mod tests {
             backend.state.power = power.clone();
             backend.events.clear();
             let writes = backend.journal_writes;
-            let reviewed = plan_reinstall(&mut backend, &target).unwrap();
+            let reviewed = prepare_apply(&mut backend, &target, true)
+                .map(|(plan, _)| plan)
+                .unwrap();
             assert!(reviewed.reinstall && reviewed.preview.credentials_required);
             assert_eq!(reviewed.desired, target);
             assert_eq!(reviewed.preview.restore_power, Power::Off);
@@ -661,13 +661,15 @@ mod tests {
         for scenario in 0..4 {
             let mut backend = fake();
             apply(&mut backend, &target()).unwrap();
-            let mut reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+            let mut reviewed = prepare_apply(&mut backend, &target(), true)
+                .map(|(plan, _)| plan)
+                .unwrap();
             match scenario {
                 0 => reviewed.reinstall = false,
                 1 => backend.driver = "changed-after-review",
                 2 => {
                     backend.journal.as_mut().unwrap().pending = true;
-                    reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+                    assert!(prepare_apply(&mut backend, &target(), true).is_err());
                 }
                 _ => reviewed.desired.enabled = false,
             }
@@ -686,7 +688,9 @@ mod tests {
             apply(&mut backend, &target()).unwrap();
             let history = backend.journal.as_ref().unwrap().last_verified;
             backend.state.power = Power::Running;
-            let reviewed = plan_reinstall(&mut backend, &target()).unwrap();
+            let reviewed = prepare_apply(&mut backend, &target(), true)
+                .map(|(plan, _)| plan)
+                .unwrap();
             backend.events.clear();
             match scenario {
                 0 => backend.fail_shutdown = true,
@@ -711,8 +715,7 @@ mod tests {
                 assert!(!backend.events.contains(&"attach"));
             }
             let events = backend.events.clone();
-            let retry = plan_reinstall(&mut backend, &target()).unwrap();
-            assert!(apply_approved(&mut backend, &retry).is_err());
+            assert!(prepare_apply(&mut backend, &target(), true).is_err());
             assert_eq!(backend.events, events);
         }
     }

@@ -14,10 +14,7 @@ mod verification;
 #[cfg(test)]
 pub(crate) use apply::{apply, apply_approved};
 pub use journal::{GuestCheck, Journal};
-pub use planning::{
-    EffectPreview, Plan, PreparationPreview, PreviewAction, SettingsPreview, plan,
-    plan_preliminary, plan_reinstall,
-};
+pub use planning::{EffectPreview, Plan, PreparationPreview, PreviewAction, SettingsPreview, plan};
 pub use reconciliation::reconcile_observed;
 pub use reset::ResetReview;
 pub(crate) use reset::reset_partial;

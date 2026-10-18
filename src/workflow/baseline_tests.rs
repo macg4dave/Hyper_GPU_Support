@@ -2,7 +2,7 @@
 //! Updated expectations name each removed cycle/category check; isolated doubles are
 //! not provider queries, native writes, worker final authentication, or timings.
 use super::test_support::{Fake, extended_target, fake, recovery_record, trace};
-use super::{Backend, apply, apply_approved, plan, plan_preliminary, plan_reinstall};
+use super::{Backend, apply, apply_admitted, plan, prepare_apply};
 use crate::model::{Allocation, Configuration, Power, Resource, Target};
 use crate::work_counts::{Counter, Counts};
 
@@ -64,14 +64,14 @@ fn established() -> (Fake, Target) {
 #[test]
 fn setup_removes_one_unattached_boot_cycle_against_original_counts() {
     for (power, reads, cycles) in [
-        (Power::Off, [39, 36, 42], [2, 2]),
-        (Power::Running, [37, 34, 40], [1, 2]),
+        (Power::Off, [38, 35, 41], [2, 2]),
+        (Power::Running, [36, 33, 39], [1, 2]),
     ] {
         let mut backend = fake();
         backend.state.power = power;
         let target = requested();
-        let reviewed = plan(&mut backend, &target).unwrap();
-        let result = apply_approved(&mut backend, &reviewed).unwrap();
+        let (reviewed, admitted) = prepare_apply(&mut backend, &target, false).unwrap();
+        let result = apply_admitted(&mut backend, admitted).unwrap();
         assert_eq!(backend.events, trace(&reviewed.preview));
         assert!(result.prepared && result.verified);
         assert_eq!(result.effective.power, Power::Off);
@@ -82,7 +82,7 @@ fn setup_removes_one_unattached_boot_cycle_against_original_counts() {
             Expected {
                 reads,
                 journals: 7,
-                payloads: 2,
+                payloads: 1,
                 power: cycles,
                 adapters: [1, 0],
                 settings: 1,
@@ -97,14 +97,11 @@ fn retained_category_reduction_and_attached_reinstall_compared_with_original() {
     for full_plan in [false, true] {
         let (mut backend, mut target) = established();
         target.vram.as_mut().unwrap().maximum = 95;
-        let reviewed = if full_plan {
-            plan(&mut backend, &target)
-        } else {
-            plan_preliminary(&mut backend, &target)
+        if full_plan {
+            plan(&mut backend, &target).unwrap();
         }
-        .unwrap();
-        assert_eq!(reviewed.authentication_deferred, !full_plan);
-        let result = apply_approved(&mut backend, &reviewed).unwrap();
+        let (reviewed, admitted) = prepare_apply(&mut backend, &target, false).unwrap();
+        let result = apply_admitted(&mut backend, admitted).unwrap();
         assert!(!result.prepared && !result.verified);
         assert_eq!(backend.events, trace(&reviewed.preview));
         assert_eq!(result.effective.vram, target.vram);
@@ -112,7 +109,11 @@ fn retained_category_reduction_and_attached_reinstall_compared_with_original() {
             "ordinary Apply",
             backend.work,
             Expected {
-                reads: [15, 13, 13],
+                reads: if full_plan {
+                    [15, 13, 13]
+                } else {
+                    [14, 12, 12]
+                },
                 journals: 3,
                 payloads: if full_plan { 2 } else { 1 },
                 power: [0, 0],
@@ -123,17 +124,17 @@ fn retained_category_reduction_and_attached_reinstall_compared_with_original() {
         );
     }
     let (mut backend, target) = established();
-    let reviewed = plan_reinstall(&mut backend, &target).unwrap();
-    let result = apply_approved(&mut backend, &reviewed).unwrap();
+    let (reviewed, admitted) = prepare_apply(&mut backend, &target, true).unwrap();
+    let result = apply_admitted(&mut backend, admitted).unwrap();
     assert!(result.prepared && result.verified);
     assert_eq!(backend.events, trace(&reviewed.preview));
     assert_counts(
         "reinstall",
         backend.work,
         Expected {
-            reads: [40, 36, 42],
+            reads: [39, 35, 41],
             journals: 7,
-            payloads: 2,
+            payloads: 1,
             power: [2, 2],
             adapters: [1, 1],
             settings: 0,
@@ -147,8 +148,8 @@ fn original_disable_and_unchanged_apply_remain_payload_free_or_effect_free() {
     for disable in [false, true] {
         let (mut backend, mut target) = established();
         target.enabled = !disable;
-        let reviewed = plan_preliminary(&mut backend, &target).unwrap();
-        let result = apply_approved(&mut backend, &reviewed).unwrap();
+        let (reviewed, admitted) = prepare_apply(&mut backend, &target, false).unwrap();
+        let result = apply_admitted(&mut backend, admitted).unwrap();
         assert!(!result.prepared && !result.verified);
         assert_eq!(result.effective.power, Power::Off);
         assert_eq!(backend.events, trace(&reviewed.preview));
@@ -156,7 +157,7 @@ fn original_disable_and_unchanged_apply_remain_payload_free_or_effect_free() {
             "disable/unchanged",
             backend.work,
             Expected {
-                reads: if disable { [16, 13, 13] } else { [10, 8, 8] },
+                reads: if disable { [15, 12, 12] } else { [9, 7, 7] },
                 journals: if disable { 2 } else { 1 },
                 payloads: u64::from(!disable),
                 power: [0, 0],
@@ -173,8 +174,8 @@ fn original_verify_from_off_and_running_counts_include_restoration() {
     for power in [Power::Off, Power::Running] {
         let (mut backend, target) = established();
         backend.state.power = power.clone();
-        let reviewed = super::plan_verification(&mut backend, &target).unwrap();
-        let result = super::verify_approved(&mut backend, &reviewed).unwrap();
+        let (_, admitted) = super::prepare_verification(&mut backend, &target).unwrap();
+        let result = super::verify_admitted(&mut backend, admitted).unwrap();
         assert!(result.verified && !result.prepared);
         assert_eq!(result.effective.power, power);
         assert!(!backend.journal.as_ref().unwrap().pending);
@@ -182,9 +183,9 @@ fn original_verify_from_off_and_running_counts_include_restoration() {
             "Verify",
             backend.work,
             Expected {
-                reads: [8, 5, 12],
+                reads: [7, 4, 11],
                 journals: 4,
-                payloads: 2,
+                payloads: 1,
                 power: if power == Power::Off { [1, 1] } else { [0, 0] },
                 adapters: [0, 0],
                 settings: 0,
@@ -202,16 +203,15 @@ fn original_reenable_keeps_completed_preparation_but_rewrites_requested_categori
     backend.work = Counts::default();
     backend.events.clear();
     target.enabled = true;
-    let reviewed = plan_preliminary(&mut backend, &target).unwrap();
-    assert!(reviewed.authentication_deferred);
-    let result = apply_approved(&mut backend, &reviewed).unwrap();
+    let (reviewed, admitted) = prepare_apply(&mut backend, &target, false).unwrap();
+    let result = apply_admitted(&mut backend, admitted).unwrap();
     assert!(!result.prepared && !result.verified);
     assert_eq!(backend.events, trace(&reviewed.preview));
     assert_counts(
         "reenable",
         backend.work,
         Expected {
-            reads: [26, 23, 23],
+            reads: [25, 22, 22],
             journals: 3,
             payloads: 1,
             power: [0, 0],
@@ -227,8 +227,8 @@ fn failed_preparation_retains_recovery_without_a_version_identification_cycle() 
     let mut backend = fake();
     backend.state.power = Power::Off;
     backend.fail_prepare = true;
-    let reviewed = plan(&mut backend, &requested()).unwrap();
-    assert!(apply_approved(&mut backend, &reviewed).is_err());
+    let (_, admitted) = prepare_apply(&mut backend, &requested(), false).unwrap();
+    assert!(apply_admitted(&mut backend, admitted).is_err());
     assert_eq!(backend.events, ["start", "prepare"]);
     assert_eq!(backend.work.get(Counter::PowerStarts), 1);
     assert_eq!(backend.work.get(Counter::PowerShutdowns), 0);
@@ -319,10 +319,10 @@ fn failed_category_counts_attempt_without_claiming_success_or_later_writes() {
     let (mut backend, mut target) = established();
     target.vram.as_mut().unwrap().maximum = 95;
     target.encode.as_mut().unwrap().maximum = 95;
-    let reviewed = plan_preliminary(&mut backend, &target).unwrap();
+    let (_, admitted) = prepare_apply(&mut backend, &target, false).unwrap();
     backend.fail_allocation = Some(Resource::Encode);
     let writes_before = backend.allocation_writes;
-    assert!(apply_approved(&mut backend, &reviewed).is_err());
+    assert!(apply_admitted(&mut backend, admitted).is_err());
     assert_eq!(backend.work.get(Counter::EncodeWrites), 1);
     assert_eq!(backend.work.get(Counter::DecodeWrites), 0);
     assert_eq!(backend.allocation_writes - writes_before, 1);

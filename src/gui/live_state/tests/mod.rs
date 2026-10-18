@@ -144,7 +144,6 @@ fn review_plan() -> Plan {
         .draft(id(&s), true, 0, &values("10", "50", "100"))
         .unwrap();
     Plan {
-        authentication_deferred: false,
         reinstall: false,
         initial_setup: false,
         desired: target.clone(),

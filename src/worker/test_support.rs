@@ -23,7 +23,6 @@ pub(super) fn ordinary_disabled_plan() -> Plan {
     };
     Plan {
         gpu: crate::workflow::test_support::fake().gpu(&target).unwrap(),
-        authentication_deferred: false,
         reinstall: false,
         initial_setup: false,
         desired: target.clone(),
