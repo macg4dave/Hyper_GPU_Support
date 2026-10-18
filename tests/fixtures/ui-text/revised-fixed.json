@@ -22,8 +22,12 @@
   "dialogs.setup.new_review_label": "Start new GPU setup",
   "dialogs.recovery.review_label": "Check recorded outcome",
   "operations.verify.review.progress_title": "Preparing GPU verification",
-  "dashboard.setup.body": "This Generation 2 VM has no saved GPU configuration. Start GPU setup to obtain permission, prepare the guest and apply the selected GPU settings.",
+  "dashboard.setup.body": "GPU support is not enabled on this VM. Start GPU setup to enable it. Retained driver preparation is checked before deciding whether installation is required.",
   "dashboard.recovery.review_label": "Check recorded outcome",
   "dashboard.setup.review_label": "Start GPU setup",
-  "dashboard.recovery.inspect": "Check recorded outcome"
+  "dashboard.recovery.inspect": "Check recorded outcome",
+  "operations.inventory.refresh_failed": "Could not load VM and GPU information. Inspect diagnostics for the cause, then use Refresh to retry. Any previous rows are historical.",
+  "operations.apply.progress_title": "Applying GPU changes",
+  "dashboard.support.unattached": "GPU support is not enabled on this VM. Start GPU setup to enable it.",
+  "dashboard.memory.advanced_hint": "Exact VRAM request for compatibility with saved settings. Minimum ≤ Optimal ≤ Maximum, in native bytes. Default placeholders are suggestions. Editing an empty group fills its other defaults. Clear all three fields for no explicit write. Use the GPU support toggle or Remove GPU support to disable support."
 }

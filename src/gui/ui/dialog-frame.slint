@@ -30,7 +30,7 @@ export component DialogFrame inherits Rectangle {
                         vertical-stretch: 0; spacing: 8px;
                         for label[index] in root.phases : HorizontalLayout {
                             min-width: 0px; horizontal-stretch: 1; spacing: 6px;
-                            Rectangle {
+                            if root.phases.length > 1 : Rectangle {
                                 width: 28px; height: 28px; border-radius: 14px;
                                 background: index == root.active-phase ? Theme.accent : Theme.tint;
                                 Text { text: index + 1; color: index == root.active-phase ? Theme.canvas : Theme.muted; font-size: 13px; font-weight: 600; }

@@ -166,3 +166,47 @@ consequences = "Preserve the reviewed effect, uncertainty and next-step facts of
 severity = "information"
 space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
 placeholders = []
+
+[messages."resources.edit.undo"]
+text = "Undo"
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: resources.edit.undo"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+placeholders = []
+
+[messages."resources.edit.redo"]
+text = "Redo"
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: resources.edit.redo"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+placeholders = []
+
+[messages."resources.edit.cut"]
+text = "Cut"
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: resources.edit.cut"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+placeholders = []
+
+[messages."resources.edit.paste"]
+text = "Paste"
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: resources.edit.paste"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+placeholders = []

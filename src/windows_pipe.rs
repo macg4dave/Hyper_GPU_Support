@@ -130,24 +130,39 @@ pub(crate) fn wait_for_read_release(
     instance: &windows::Win32::System::TaskScheduler::IRunningTask,
     timeout: Duration,
 ) -> io::Result<()> {
-    use windows::Win32::System::TaskScheduler::TASK_STATE_QUEUED;
     let deadline = Instant::now() + timeout;
     loop {
         // SAFETY: same live apartment and exact instance returned by fixed Run.
-        match unsafe { instance.State() }.map_err(windows_error)? {
-            TASK_STATE_READY => return Ok(()),
-            state
-                if (state == TASK_STATE_RUNNING || state == TASK_STATE_QUEUED)
-                    && Instant::now() < deadline =>
-            {
-                thread::sleep(Duration::from_millis(25))
-            }
-            _ => {
-                return Err(io::Error::other(
-                    "Protected reader instance release is unconfirmed",
-                ));
-            }
+        if read_instance_released(unsafe { instance.State() })? {
+            return Ok(());
         }
+        if Instant::now() >= deadline {
+            return Err(io::Error::other(
+                "Protected reader instance release timed out",
+            ));
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
+// A completed one-shot instance can disappear before State is read. Only the
+// scheduler's explicit no-running-instance result proves release; unknown state,
+// disconnection and other COM failures must retain admission. This is used with
+// the exact IRunningTask returned by Run, never a registered task's Ready state.
+fn read_instance_released(
+    state: windows::core::Result<windows::Win32::System::TaskScheduler::TASK_STATE>,
+) -> io::Result<bool> {
+    use windows::Win32::{
+        Foundation::SCHED_E_TASK_NOT_RUNNING, System::TaskScheduler::TASK_STATE_QUEUED,
+    };
+    match state {
+        Ok(TASK_STATE_READY) => Ok(true),
+        Ok(TASK_STATE_RUNNING | TASK_STATE_QUEUED) => Ok(false),
+        Err(error) if error.code() == SCHED_E_TASK_NOT_RUNNING => Ok(true),
+        Err(error) => Err(windows_error(error)),
+        Ok(_) => Err(io::Error::other(
+            "Protected reader instance release is unconfirmed",
+        )),
     }
 }
 
@@ -578,6 +593,24 @@ fn frame_error(error: FrameError) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn exact_reader_release_accepts_completed_instance_but_never_unknown_or_failed_observation() {
+        use super::{TASK_STATE_READY, TASK_STATE_RUNNING, read_instance_released};
+        use windows::Win32::{
+            Foundation::{E_ACCESSDENIED, SCHED_E_TASK_NOT_RUNNING},
+            System::TaskScheduler::{TASK_STATE_DISABLED, TASK_STATE_QUEUED, TASK_STATE_UNKNOWN},
+        };
+        assert!(read_instance_released(Ok(TASK_STATE_READY)).unwrap());
+        assert!(read_instance_released(Err(SCHED_E_TASK_NOT_RUNNING.into())).unwrap());
+        for state in [TASK_STATE_QUEUED, TASK_STATE_RUNNING] {
+            assert!(!read_instance_released(Ok(state)).unwrap());
+        }
+        for state in [TASK_STATE_UNKNOWN, TASK_STATE_DISABLED] {
+            assert!(read_instance_released(Ok(state)).is_err());
+        }
+        assert!(read_instance_released(Err(E_ACCESSDENIED.into())).is_err());
+    }
+
     use std::fs::File;
     use std::io::Write;
     use std::os::windows::io::{AsRawHandle, FromRawHandle};

@@ -21,7 +21,11 @@ pub(in crate::gui) fn finish_startup(ui: &AppWindow, result: Result<(), String>)
     match result {
         Ok(()) => ui.set_startup_loading(false),
         Err(error) => {
-            ui.set_startup_error(error.into());
+            let (summary, details) = crate::gui::diagnostics::inventory_failure(&error);
+            ui.set_startup_error(summary.clone().into());
+            ui.set_inventory_error(summary.clone().into());
+            ui.set_notice(summary.into());
+            ui.set_inventory_details(details.into());
             ui.set_dialog_kind("".into());
         }
     }
@@ -266,6 +270,9 @@ pub(super) fn refresh_with_result(
             ))
         },
         move |ui, result| {
+            // Preserve the backend failure before with_state/dialog formatting.
+            let startup_failure = result.as_ref().err().cloned();
+            let observed = result.is_ok();
             let result_notice = notice;
             let published = with_state(ui, &state, |state| {
                 match result {
@@ -386,10 +393,7 @@ pub(super) fn refresh_with_result(
                         state.enrollment_recovery_revision = None;
                         state.reset_review = None;
                         ui.set_execution_ready(false);
-                        let error = hyper_gpu_support::reporting::operator_error(
-                            hyper_gpu_support::ui_text::operations::inventory::FAILURE_STAGE,
-                            &error,
-                        );
+                        let (summary, details) = crate::gui::diagnostics::inventory_failure(&error);
                         state.view.needs_readback = true;
                         if let Some(inventory) = state.view.inventory.as_ref() {
                             ui.set_vms(model(
@@ -407,28 +411,24 @@ pub(super) fn refresh_with_result(
                             hyper_gpu_support::ui_text::operations::inventory::DRAFT_RETAINED
                                 .into(),
                         );
-                        ui.set_inventory_details(error.clone().into());
-                        ui.set_notice(
-                            hyper_gpu_support::ui_text::operations::inventory::REFRESH_FAILED
-                                .into(),
-                        );
-                        ui.set_system_summary(
-                            format!("Live discovery unavailable: {error}").into(),
-                        );
+                        ui.set_inventory_details(details.into());
+                        ui.set_inventory_error(summary.clone().into());
+                        ui.set_notice(summary.clone().into());
+                        ui.set_system_summary(summary.clone().into());
                         if let Some(notice) = &result_notice {
                             state.result_notice = Some(notice.clone());
                             dialog(
                                 ui,
                                 "status-error",
                                 &notice.title,
-                                &notice.unavailable_body(&error),
+                                &notice.unavailable_body(&summary),
                             );
                             ui.set_dialog_details(notice.details.clone().into());
                             Ok(())
-                        } else if automatic {
-                            Ok(())
                         } else {
-                            Err(error)
+                            // The inline error and diagnostics own this failure.
+                            // Do not create a second generic action error.
+                            Ok(())
                         }
                     }
                 }
@@ -436,14 +436,19 @@ pub(super) fn refresh_with_result(
             if startup {
                 finish_startup(
                     ui,
-                    if published {
+                    if let Some(error) = startup_failure {
+                        Err(error)
+                    } else if published {
                         Ok(())
                     } else {
                         Err(ui.get_dialog_body().to_string())
                     },
                 );
             }
-            if published && let Some(expected) = review_after_enrollment {
+            if published
+                && observed
+                && let Some(expected) = review_after_enrollment
+            {
                 let continuation = state
                     .lock()
                     .map_err(|_| "Presentation state unavailable".to_owned())
@@ -477,6 +482,10 @@ fn publish_inventory_models(
     inventory: &hyper_gpu_support::gui_model::Inventory,
     stale: bool,
 ) {
+    if !stale {
+        ui.set_inventory_error("".into());
+        ui.set_startup_error("".into());
+    }
     ui.set_presenting(true);
     let rows = inventory
         .discovery
@@ -499,4 +508,52 @@ fn publish_inventory_models(
             .collect(),
     ));
     ui.set_presenting(false);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use slint::Model;
+
+    #[test]
+    fn refreshed_models_replace_vm_status_and_gpu_information_and_clear_failed_startup() {
+        slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+        let ui = AppWindow::new().unwrap();
+        let mut inventory: hyper_gpu_support::gui_model::Inventory = serde_json::from_value(
+            serde_json::json!({
+                "managed": {}, "enrolled": [],
+                "vms": [{"vm_id": "12345678-1234-1234-1234-123456789abc", "name": "VM",
+                    "power": "Off", "generation": 2, "gpus": [], "vram": null,
+                    "settings": {"low_mmio": 0, "high_mmio": 0, "cache_types": false, "automatic_checkpoints": true}}],
+                "gpus": [{"interface": "gpu", "name": "GPU", "vendor": 4318, "device": 1,
+                    "driver_version": "1", "preparation_supported": true}]
+            }),
+        ).unwrap();
+        publish_inventory_models(&ui, &inventory, false);
+        assert!(ui.get_vms().row_data(0).unwrap().power_stopped);
+        let first = ui.get_gpu_information().row_data(0).unwrap().description;
+        finish_startup(&ui, Err("failed 0x80070005".into()));
+        assert!(!ui.get_inventory_error().is_empty());
+        inventory.discovery.vms[0].power = hyper_gpu_support::model::Power::Running;
+        inventory.discovery.vms[0].name = "Renamed VM".into();
+        inventory.discovery.gpus[0].driver_version = "2".into();
+        publish_inventory_models(&ui, &inventory, false);
+        finish_startup(&ui, Ok(()));
+        assert!(ui.get_inventory_error().is_empty());
+        assert!(ui.get_startup_error().is_empty());
+        assert!(!ui.get_startup_loading());
+        let vm = ui.get_vms().row_data(0).unwrap();
+        assert!(vm.power_running);
+        assert_eq!(vm.name, "Renamed VM");
+        assert_ne!(
+            ui.get_gpu_information().row_data(0).unwrap().description,
+            first
+        );
+        inventory.discovery.vms.clear();
+        inventory.discovery.gpus.clear();
+        publish_inventory_models(&ui, &inventory, false);
+        assert_eq!(ui.get_vms().row_count(), 0);
+        assert_eq!(ui.get_gpu_information().row_count(), 0);
+        assert_eq!(ui.get_gpu_options().row_count(), 0);
+    }
 }

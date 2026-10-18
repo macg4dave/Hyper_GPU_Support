@@ -1,5 +1,6 @@
 import { UiText } from "ui-text.slint";
-import { Button, Switch, ComboBox, ScrollView, Slider, LineEdit } from "std-widgets.slint";
+import { Button, Switch, ComboBox, ScrollView, Slider } from "std-widgets.slint";
+import { TextField } from "text-field.slint";
 import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
 import { ResourceEditor, AllocationDisclosure } from "resources.slint";
 import { TechnicalOutput } from "technical-output.slint";
@@ -152,7 +153,7 @@ export component VmDetails inherits Rectangle {
                                     if self.enabled && !root.presenting && round(value) != root.memory-position { root.memory-edited(round(value)); self.value = root.memory-position; }
                                 }
                             }
-                            numeric-memory := LineEdit {
+                            numeric-memory := TextField {
                                 min-width: 86px; preferred-width: 100px; max-width: 130px;
                                 horizontal-stretch: 0;
                                 accessible-label: UiText.dashboard-memory-input-accessible;

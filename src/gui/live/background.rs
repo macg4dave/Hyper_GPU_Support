@@ -285,6 +285,13 @@ pub(super) fn background_for_vm<T: Send + 'static>(
     if operation.kind == Kind::Reconcile {
         progress::recovery_preparation(ui, guest_access);
     }
+    #[cfg(windows)]
+    if matches!(
+        operation.kind,
+        Kind::PermissionPlan | Kind::Setup | Kind::Install
+    ) {
+        progress::permission_preparation(ui);
+    }
     let weak = ui.as_weak();
     let worker_busy = busy.clone();
     let operation_kind = operation.kind;
@@ -446,6 +453,8 @@ mod tests {
                 ui.get_current_stage(),
                 if kind == Kind::Reconcile {
                     hyper_gpu_support::ui_text::progress::stage::RECOVERY_PREPARATION
+                } else if matches!(kind, Kind::PermissionPlan | Kind::Setup | Kind::Install) {
+                    hyper_gpu_support::ui_text::progress::stage::PERMISSION_PREPARATION
                 } else {
                     crate::gui::dialog_presentation::task(kind)
                 }

@@ -40,6 +40,32 @@ fn bundle(mode: Mode) -> Bundle {
 }
 
 #[test]
+fn protected_inventory_wire_roundtrip_preserves_vm_gpu_and_revision_for_every_mode() {
+    for mode in [Mode::Full, Mode::Poll, Mode::Completion] {
+        let mut original = bundle(mode);
+        original.inventory.discovery.gpus[0].vram =
+            ResourceCapability::Supported(crate::model::Allocation {
+                minimum: 0,
+                optimal: u64::MAX - 1,
+                maximum: u64::MAX,
+            });
+        let wire = serde_json::to_vec(&serde_json::to_value(&original).unwrap()).unwrap();
+        let decoded: Bundle =
+            serde_json::from_value(serde_json::from_slice(&wire).unwrap()).unwrap();
+        decoded.validate().unwrap();
+        let inventory = decoded.inventory_with_display(None).unwrap();
+        assert_eq!(
+            inventory.discovery.vms[0].operational(),
+            original.inventory.discovery.vms[0].operational()
+        );
+        assert_eq!(
+            inventory.discovery.gpus[0].vram,
+            original.inventory.discovery.gpus[0].vram
+        );
+    }
+}
+
+#[test]
 fn poll_merges_display_by_identity_and_invalidates_removed_or_changed_metadata() {
     let mut prior = bundle(Mode::Full).inventory;
     prior.discovery.gpus[0].name = "Physical GPU".into();

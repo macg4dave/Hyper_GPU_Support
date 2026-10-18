@@ -8,6 +8,38 @@ use std::sync::{
 };
 
 #[test]
+fn failed_startup_diagnostics_open_without_inventory_and_preserve_safe_original_codes() {
+    slint::platform::set_platform(Box::new(Headless)).unwrap();
+    let ui = AppWindow::new().unwrap();
+    let state: SharedState = Arc::new(Mutex::new(State::default()));
+    let busy = Arc::new(AtomicBool::new(false));
+    actions::register(&ui, &state, &busy, &Source);
+    super::refresh::finish_startup(&ui, Err(
+        "Protected reader release is unconfirmed; foreground admission remains held: 0x80070005 private-adapter-content".into(),
+    ));
+    assert!(ui.get_startup_loading());
+    assert!(ui.get_startup_error().contains("reader could not confirm"));
+    assert!(ui.get_inventory_details().contains("0x80070005"));
+    assert!(
+        !ui.get_inventory_details()
+            .contains("private-adapter-content")
+    );
+    ui.set_startup_loading(false);
+    ui.invoke_action("diagnostics".into());
+    assert_eq!(ui.get_dialog_kind(), "info");
+    assert_eq!(ui.get_dialog_body(), ui.get_inventory_error());
+    assert!(ui.get_dialog_details().contains("0x80070005"));
+    assert!(!ui.get_dialog_body().contains("Action unavailable"));
+    assert!(state.lock().unwrap().view.inventory.is_none());
+    assert!(
+        !busy.load(Ordering::Acquire),
+        "inspection starts no backend work"
+    );
+    ui.invoke_action("close".into());
+    assert!(ui.get_dialog_kind().is_empty());
+}
+
+#[test]
 fn selection_callback_keeps_dirty_draft_and_modal_memory_edits_on_original_vm() {
     slint::platform::set_platform(Box::new(Headless)).unwrap();
     let ui = AppWindow::new().unwrap();

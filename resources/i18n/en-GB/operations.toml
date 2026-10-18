@@ -179,7 +179,7 @@ space_hint = "Wrapped consent text; do not omit the conditional final-state fact
 placeholders = [{ name = "final_power", type = "message" }]
 
 [messages."operations.apply.progress_title"]
-text = "Apply approved changes"
+text = "Applying GPU changes"
 screen = "background_for_vm presentation (src/gui/live.rs)"
 state = "Selected branch: operations.apply.progress_title"
 audience = "operator"
@@ -1004,7 +1004,7 @@ space_hint = "Preserve the existing layout; review wrapping and accessibility at
 placeholders = []
 
 [messages."operations.inventory.refresh_failed"]
-text = "Could not refresh VM status. You can keep editing; use Refresh before Apply."
+text = "Could not load VM and GPU information. Inspect diagnostics for the cause, then use Refresh to retry. Any previous rows are historical."
 screen = "refresh_with_result presentation (src/gui/live.rs)"
 state = "Selected branch: operations.inventory.refresh_failed"
 audience = "operator"
@@ -2013,4 +2013,70 @@ intent = "Explain the available recovery action and its reviewed consequences."
 consequences = "Fresh worker checks remain mandatory; uncertain or changed facts retain recovery."
 severity = "information"
 space_hint = "Wrapped recovery explanation below the prominent VM heading."
+placeholders = []
+
+[messages."operations.inventory.reader_unreleased"]
+text = "The protected reader could not confirm that it stopped. New actions remain blocked. Close and reopen the application once the reader has finished; if this persists, check the protected installation."
+screen = "Inventory failure (src/gui/diagnostics.rs)"
+state = "Selected branch: operations.inventory.reader_unreleased"
+audience = "operator"
+intent = "Explain a classified inventory failure and the next action."
+consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
+severity = "error"
+space_hint = "Wrapped error on the startup splash and dashboard."
+placeholders = []
+
+[messages."operations.inventory.inconsistent"]
+text = "The protected reader returned inconsistent inventory. Check that all installed product components are from the same build, then refresh."
+screen = "Inventory failure (src/gui/diagnostics.rs)"
+state = "Selected branch: operations.inventory.inconsistent"
+audience = "operator"
+intent = "Explain a classified inventory failure and the next action."
+consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
+severity = "error"
+space_hint = "Wrapped error on the startup splash and dashboard."
+placeholders = []
+
+[messages."operations.inventory.access_denied"]
+text = "Windows denied access to the inventory reader. Check the protected installation and operator permissions, then refresh."
+screen = "Inventory failure (src/gui/diagnostics.rs)"
+state = "Selected branch: operations.inventory.access_denied"
+audience = "operator"
+intent = "Explain a classified inventory failure and the next action."
+consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
+severity = "error"
+space_hint = "Wrapped error on the startup splash and dashboard."
+placeholders = []
+
+[messages."operations.inventory.timed_out"]
+text = "The inventory read timed out. Wait for the protected reader to finish, then refresh. No VM or GPU operation was repeated."
+screen = "Inventory failure (src/gui/diagnostics.rs)"
+state = "Selected branch: operations.inventory.timed_out"
+audience = "operator"
+intent = "Explain a classified inventory failure and the next action."
+consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
+severity = "error"
+space_hint = "Wrapped error on the startup splash and dashboard."
+placeholders = []
+
+[messages."operations.apply.setup_title"]
+text = "Set up GPU support"
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: operations.apply.setup_title"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+placeholders = []
+
+[messages."operations.apply.remove_title"]
+text = "Remove GPU support"
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: operations.apply.remove_title"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
 placeholders = []

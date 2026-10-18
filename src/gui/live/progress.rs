@@ -8,6 +8,18 @@ use crate::gui::model;
 #[cfg(any(windows, test))]
 use slint::Model;
 
+/// Local preparation feedback precedes worker launch/UAC, not a worker receipt.
+#[cfg(any(windows, test))]
+pub(super) fn permission_preparation(ui: &AppWindow) {
+    let stage = hyper_gpu_support::ui_text::progress::stage::PERMISSION_PREPARATION;
+    ui.set_current_stage(stage.into());
+    ui.set_dialog_details(stage.into());
+    ui.set_stages(model(vec![stage.into()]));
+    ui.set_progress_steps(model(vec![stage.into()]));
+    ui.set_stage_reportable(model(vec![false]));
+    ui.set_transfer_fraction(-1.0);
+}
+
 /// Publish before spawning the credential/worker task, including its first repaint.
 #[cfg(any(windows, test))]
 pub(super) fn recovery_preparation(ui: &AppWindow, guest_access: bool) {
@@ -238,6 +250,16 @@ fn write_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn permission_feedback_is_available_before_any_uac_or_worker_event() {
+        slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+        let ui = AppWindow::new().unwrap();
+        permission_preparation(&ui);
+        assert!(!ui.get_dialog_details().is_empty());
+        assert!(ui.get_dialog_details().contains("UAC"));
+        assert_eq!(ui.get_stage_reportable().row_data(0), Some(false));
+        assert_eq!(ui.get_stages().row_count(), 1);
+    }
     #[test]
     fn recovery_has_named_feedback_and_details_before_any_worker_event() {
         slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();

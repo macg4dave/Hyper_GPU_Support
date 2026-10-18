@@ -1,12 +1,15 @@
 import { Button, ProgressIndicator, ScrollView } from "std-widgets.slint";
 import { UiText } from "ui-text.slint";
-import { Theme, Heading, Label, Hint } from "theme.slint";
+import { Theme, Heading, Hint, TechnicalDetailsButton } from "theme.slint";
+import { TechnicalOutput } from "technical-output.slint";
 
 export component StartupSplash inherits Rectangle {
     in property <string> error;
+    in property <string> details;
     in property <string> stage;
     in property <float> progress;
     callback continue();
+    private property <bool> technical: false;
     background: Theme.canvas;
     VerticalLayout {
         padding: 32px; spacing: 20px;
@@ -24,9 +27,7 @@ export component StartupSplash inherits Rectangle {
         Rectangle { vertical-stretch: 1; }
         if root.error == "" : VerticalLayout {
             spacing: 12px;
-            Label { text: UiText.dashboard-startup-loading; horizontal-alignment: center; }
             Hint { text: root.stage; horizontal-alignment: center; }
-            Hint { text: UiText.dashboard-startup-waiting; horizontal-alignment: center; }
             // Six actual reads, not elapsed time or a guessed byte percentage.
             ProgressIndicator { progress: root.progress; }
         }
@@ -35,7 +36,14 @@ export component StartupSplash inherits Rectangle {
             ScrollView { max-height: 100px; horizontal-scrollbar-policy: always-off;
                 VerticalLayout { Hint { text: root.error; } }
             }
-            Button { text: UiText.dashboard-startup-continue-label; primary: true; clicked => { root.continue(); } }
+            if root.technical : TechnicalOutput { text: root.details; min-height: 100px; max-height: 160px; }
+            HorizontalLayout {
+                spacing: 12px;
+                Rectangle { horizontal-stretch: 1; }
+                if root.details != "" : TechnicalDetailsButton { expanded <=> root.technical; }
+                Button { vertical-stretch: 0; text: UiText.dashboard-startup-continue-label; primary: true; clicked => { root.continue(); } }
+                Rectangle { horizontal-stretch: 1; }
+            }
         }
     }
 }

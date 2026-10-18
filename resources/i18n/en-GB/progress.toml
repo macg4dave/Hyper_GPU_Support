@@ -221,3 +221,14 @@ consequences = "Read progress does not grant authority or prove successful compl
 severity = "information"
 space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
 placeholders = []
+
+[messages."progress.stage.permission_preparation"]
+text = "Waiting for any earlier status check to finish, then checking the protected app and requesting Windows administrator permission. No GPU changes have started. A Windows UAC prompt may require your response."
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: progress.stage.permission_preparation"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+placeholders = []

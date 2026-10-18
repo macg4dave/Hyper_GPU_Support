@@ -3,6 +3,45 @@ use super::State;
 use hyper_gpu_support::{gui_model::Inventory, model::Target};
 
 impl State {
+    /// A snapshot supplies a proposal revision only; privileged enrollment still
+    /// authenticates current artifacts/policy and rejects stale authority.
+    pub fn permission_review(
+        &self,
+        target: &Target,
+        operator: String,
+    ) -> Result<Option<hyper_gpu_support::enrollment::PairReview>, String> {
+        let Some(observation) = &self.observation else {
+            return Ok(None);
+        };
+        self.editor_eligibility(&target.vm_id)?;
+        if self.observation_historical(&target.vm_id) {
+            return Err("Inventory is historical. Refresh before requesting permissions.".into());
+        }
+        let inventory = self
+            .view
+            .inventory
+            .as_ref()
+            .ok_or("Inventory unavailable")?;
+        let review = hyper_gpu_support::enrollment::PairReview {
+            vm_id: target.vm_id.clone(),
+            gpu_interface: target.gpu_interface.clone(),
+            expected: observation.authority.clone(),
+            operator_sid: operator,
+        };
+        review.target()?;
+        if matches!(
+            review.expected,
+            hyper_gpu_support::configuration_store::Revision::Missing
+        ) || inventory
+            .enrolled
+            .iter()
+            .any(|current| current.vm_id.eq_ignore_ascii_case(&target.vm_id))
+        {
+            return Err("Pair authority is absent or this VM is already enrolled. Refresh before requesting permissions.".into());
+        }
+        Ok(Some(review))
+    }
+
     /// A selected completion refreshes only its VM; other rows await a poll.
     pub fn observation_historical(&self, id: &str) -> bool {
         self.view.needs_readback

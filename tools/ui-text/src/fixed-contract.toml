@@ -4924,3 +4924,124 @@ intent = "Explain the wait until abandoned preparation releases its block."
 consequences = "No effect cancellation or completion claim; late preparation results are discarded."
 severity = "information"
 space_hint = "Wrap at minimum window size in both themes."
+
+[[messages]]
+key = "operations.inventory.reader_unreleased"
+[messages.metadata]
+screen = "Inventory failure (src/gui/diagnostics.rs)"
+state = "Selected branch: operations.inventory.reader_unreleased"
+audience = "operator"
+intent = "Explain a classified inventory failure and the next action."
+consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
+severity = "error"
+space_hint = "Wrapped error on the startup splash and dashboard."
+
+[[messages]]
+key = "operations.inventory.inconsistent"
+[messages.metadata]
+screen = "Inventory failure (src/gui/diagnostics.rs)"
+state = "Selected branch: operations.inventory.inconsistent"
+audience = "operator"
+intent = "Explain a classified inventory failure and the next action."
+consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
+severity = "error"
+space_hint = "Wrapped error on the startup splash and dashboard."
+
+[[messages]]
+key = "operations.inventory.access_denied"
+[messages.metadata]
+screen = "Inventory failure (src/gui/diagnostics.rs)"
+state = "Selected branch: operations.inventory.access_denied"
+audience = "operator"
+intent = "Explain a classified inventory failure and the next action."
+consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
+severity = "error"
+space_hint = "Wrapped error on the startup splash and dashboard."
+
+[[messages]]
+key = "operations.inventory.timed_out"
+[messages.metadata]
+screen = "Inventory failure (src/gui/diagnostics.rs)"
+state = "Selected branch: operations.inventory.timed_out"
+audience = "operator"
+intent = "Explain a classified inventory failure and the next action."
+consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
+severity = "error"
+space_hint = "Wrapped error on the startup splash and dashboard."
+
+[[messages]]
+key = "operations.apply.setup_title"
+[messages.metadata]
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: operations.apply.setup_title"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+
+[[messages]]
+key = "operations.apply.remove_title"
+[messages.metadata]
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: operations.apply.remove_title"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+
+[[messages]]
+key = "progress.stage.permission_preparation"
+[messages.metadata]
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: progress.stage.permission_preparation"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+
+[[messages]]
+key = "resources.edit.undo"
+[messages.metadata]
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: resources.edit.undo"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+
+[[messages]]
+key = "resources.edit.redo"
+[messages.metadata]
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: resources.edit.redo"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+
+[[messages]]
+key = "resources.edit.cut"
+[messages.metadata]
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: resources.edit.cut"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."
+
+[[messages]]
+key = "resources.edit.paste"
+[messages.metadata]
+screen = "GPU setup and shared text inputs"
+state = "Selected branch: resources.edit.paste"
+audience = "operator"
+intent = "Describe the current operation or a standard editing action."
+consequences = "Presentation never substitutes for fresh protected admission or readback."
+severity = "information"
+space_hint = "Review wrapping, keyboard access and minimum-size layout."

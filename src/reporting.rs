@@ -395,6 +395,7 @@ pub fn operator_error(stage: &str, error: &str) -> String {
     // message can still include secrets and must never be echoed wholesale.
     let lower = error.to_ascii_lowercase();
     let guidance = [
+        ("has not confirmed release", "An earlier protected status check has not confirmed release. No new operation started. Wait for it to finish, then refresh; if the block persists, close and reopen the application. Do not clear recovery records."),
         ("selected gpu is not attached", "The selected GPU is not attached on the host. Review GPU support changes or removal before Verify; no guest verification ran."),
         ("write-capable", "The protected installation or state has unsafe write permissions. Restore trusted administrator/SYSTEM ownership and restricted ACLs before installing or operating."),
         ("untrusted", "Protected ownership or integrity validation failed. Inspect the installed artifacts and state; do not bypass trust checks."),

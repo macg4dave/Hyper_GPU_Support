@@ -212,9 +212,7 @@ fn explain_guest_sign_in(
     name: &str,
     parent: windows::Win32::Foundation::HWND,
 ) -> Result<(), String> {
-    use windows::Win32::UI::WindowsAndMessaging::{
-        IDCANCEL, IDOK, MB_ICONINFORMATION, MB_OKCANCEL, MessageBoxW,
-    };
+    use windows::Win32::UI::WindowsAndMessaging::{IDCANCEL, IDOK, MB_OKCANCEL, MessageBoxW};
     let caption = prompt_wide(crate::ui_text::credentials::explanation::caption().as_str());
     let guest_message = guest_prompt_message(vm, name);
     let message =
@@ -225,7 +223,7 @@ fn explain_guest_sign_in(
             Some(parent),
             PCWSTR(message.as_ptr()),
             PCWSTR(caption.as_ptr()),
-            MB_OKCANCEL | MB_ICONINFORMATION,
+            MB_OKCANCEL,
         )
     };
     match result {

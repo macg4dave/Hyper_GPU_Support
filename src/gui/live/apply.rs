@@ -29,7 +29,7 @@ pub(super) fn apply_live(
     if !ui.get_execution_ready() {
         return Err("The reviewed protected worker is not available.".into());
     }
-    let (selected, revision, gpu_name, vm_name) = {
+    let (selected, revision, gpu_name, vm_name, title) = {
         let state = state.lock().map_err(|_| "Presentation state unavailable")?;
         let target = draft_target(ui, &state)?;
         state.editor_eligibility(&target.vm_id)?;
@@ -45,13 +45,12 @@ pub(super) fn apply_live(
             .iter()
             .find(|gpu| gpu.interface == target.gpu_interface)
             .map_or_else(|| target.gpu_interface.clone(), |gpu| gpu.name.clone());
-        let vm_name = state
+        let vm = state
             .view
             .vm(&target.vm_id)
-            .ok_or(hyper_gpu_support::ui_text::dashboard::selection::VM_UNAVAILABLE)?
-            .name
-            .clone();
-        (target, revision, gpu_name, vm_name)
+            .ok_or(hyper_gpu_support::ui_text::dashboard::selection::VM_UNAVAILABLE)?;
+        let title = installation::apply_title(target.enabled, !vm.gpus.is_empty());
+        (target, revision, gpu_name, vm.name.clone(), title)
     };
     let finished_state = state.clone();
     let result_vm_name = vm_name.clone();
@@ -70,10 +69,7 @@ pub(super) fn apply_live(
         ui,
         state,
         busy,
-        Operation::new(
-            Kind::Apply,
-            hyper_gpu_support::ui_text::operations::apply::PROGRESS_TITLE,
-        ),
+        Operation::new(Kind::Apply, title),
         Some(&vm_name),
         true,
         move || {

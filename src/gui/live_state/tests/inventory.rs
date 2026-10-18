@@ -1,6 +1,106 @@
 use super::*;
 
 #[test]
+fn permission_proposals_use_the_observed_revision_and_reject_duplicate_stale_or_held_targets() {
+    use hyper_gpu_support::{
+        configuration_store::Revision,
+        observation::{Mode, Provenance},
+    };
+    let mut s = state();
+    let target = s.target(id(&s)).unwrap();
+    s.observation = Some(Provenance {
+        schema: 1,
+        authority: Revision::of(b"observed authority"),
+        configuration: Revision::Missing,
+        mode: Mode::Full,
+        selected: None,
+    });
+    assert!(
+        s.permission_review(&target, "operator".into()).is_err(),
+        "already enrolled"
+    );
+    s.view.inventory.as_mut().unwrap().enrolled.clear();
+    let review = s
+        .permission_review(&target, "operator".into())
+        .unwrap()
+        .unwrap();
+    assert_eq!(review.expected, Revision::of(b"observed authority"));
+    assert_eq!(review.vm_id, target.vm_id);
+    assert_eq!(review.gpu_interface, target.gpu_interface);
+    s.view.needs_readback = true;
+    assert!(s.permission_review(&target, "operator".into()).is_err());
+    s.view.needs_readback = false;
+    s.recovery = Some(save_record(&s));
+    assert!(s.permission_review(&target, "operator".into()).is_err());
+    s.recovery = None;
+    s.observation = None;
+    assert!(
+        s.permission_review(&target, "operator".into())
+            .unwrap()
+            .is_none(),
+        "first install retains artifact preparation"
+    );
+}
+
+#[test]
+fn setup_affordance_follows_live_attachment_even_with_saved_enabled_intent_and_driver_history() {
+    slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
+    let ui = crate::gui::AppWindow::new().unwrap();
+    let mut s = state();
+    let selected = id(&s).to_owned();
+    let target = s.target(&selected).unwrap();
+    s.load_committed(committed(vec![target.clone()], "retained enabled intent"))
+        .unwrap();
+    let settings = s.view.vm(&selected).unwrap().settings.clone();
+    let history = hyper_gpu_support::workflow::Journal {
+        schema: 1,
+        vm_id: selected.clone(),
+        gpu_interface: target.gpu_interface.clone(),
+        original: settings.clone(),
+        applied: settings.for_gpu(),
+        prepared: Some("historical-payload".into()),
+        pending: false,
+        restore_power: Power::Off,
+        verification_only: false,
+        last_verified: Some(1),
+        latest_check: Some(hyper_gpu_support::workflow::GuestCheck::Passed),
+        preparation_started: Some(true),
+        check_restored: false,
+        settings_released: true,
+    };
+    assert!(history.setup_eligible());
+    s.view
+        .inventory
+        .as_mut()
+        .unwrap()
+        .managed
+        .insert(selected.clone(), Some(history));
+    crate::gui::live::presentation::present(&ui, &s, true);
+    assert!(
+        ui.get_setup_required(),
+        "an enrolled but unattached VM still needs GPU support"
+    );
+    assert!(ui.get_support_summary().contains("not enabled"));
+    s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus = vec![target.gpu_interface];
+    crate::gui::live::presentation::present(&ui, &s, true);
+    assert!(!ui.get_setup_required());
+    s.view.inventory.as_mut().unwrap().discovery.vms[0]
+        .gpus
+        .clear();
+    crate::gui::live::presentation::present(&ui, &s, true);
+    assert!(
+        ui.get_setup_required(),
+        "removal must restore the setup affordance"
+    );
+    s.view.needs_readback = true;
+    crate::gui::live::presentation::present(&ui, &s, false);
+    assert!(
+        !ui.get_setup_required(),
+        "historical rows cannot establish removal"
+    );
+}
+
+#[test]
 fn reopened_selection_survives_discovery_order_and_rename_with_or_without_recovery() {
     for held in [false, true] {
         let original = state();

@@ -118,10 +118,6 @@ export component InstallDialog inherits Rectangle {
                             HorizontalLayout {
                                 padding: 16px; spacing: 16px;
                                 if root.completed : StatusMark { status: root.failed ? 3 : 2; width: 24px; height: 24px; }
-                                if !root.completed : Rectangle {
-                                    width: 24px; height: 24px; border-radius: 12px; background: Theme.accent;
-                                    Text { text: "i"; color: Theme.canvas; font-weight: 700; }
-                                }
                                 Label { text: root.body; min-width: 0px; wrap: word-wrap; overflow: clip; font-size: 14px; }
                             }
                         }

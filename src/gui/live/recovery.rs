@@ -90,20 +90,28 @@ pub(super) fn review_records(
         );
         return Ok(());
     }
-    state
-        .view
-        .inventory
-        .as_ref()
-        .ok_or("Refresh inventory first.")?;
-    let body = crate::gui::diagnostics::selected_vm_details(state);
+    let selected = crate::gui::diagnostics::selected_vm_details(state);
+    let failure = ui.get_inventory_error();
+    // Initial discovery failure must not make its own diagnostics unavailable.
+    let body = [ui.get_inventory_details().as_str(), selected.as_str()]
+        .into_iter()
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
     let provenance = hyper_gpu_support::ui_text::operations::inventory::PROVENANCE;
     dialog(
         ui,
         "info",
         hyper_gpu_support::ui_text::operations::inventory::DETAILS_TITLE,
-        &format!(
-            "{provenance}\n\nTechnical Details contains the host observation, recorded history and authorization from that inventory. Missing or old records do not establish current guest health. Opening these details performs no new checks or changes."
-        ),
+        &if !failure.is_empty() {
+            failure.to_string()
+        } else if state.view.inventory.is_none() {
+            hyper_gpu_support::ui_text::operations::inventory::INITIAL_NOTICE.to_owned()
+        } else {
+            format!(
+                "{provenance}\n\nTechnical Details contains the host observation, recorded history and authorization from that inventory. Missing or old records do not establish current guest health. Opening these details performs no new checks or changes."
+            )
+        },
     );
     set_details(ui, &body);
     Ok(())

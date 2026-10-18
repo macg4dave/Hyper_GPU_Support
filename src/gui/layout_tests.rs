@@ -65,6 +65,90 @@ fn draw(window: &MinimalSoftwareWindow) {
     });
 }
 
+#[test]
+fn single_phase_headers_are_unnumbered_and_dialog_editors_stay_white_in_both_themes() {
+    use hyper_gpu_support::ui_text::{diagnostics, settings};
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(700., 520.));
+    for theme in [settings::appearance::LIGHT, settings::appearance::DARK] {
+        ui.set_dialog_kind("".into());
+        ui.set_page(2);
+        draw(&window);
+        control(&ui, theme).accessible_action(&AccessibilityAction::Default);
+        ui.set_page(0);
+        super::dialog_presentation::begin(&ui, super::operation::Kind::Apply);
+        super::dialog(
+            &ui,
+            "install-progress",
+            "Applying GPU changes",
+            "Preparing GPU support.",
+        );
+        ui.set_dialog_details("Read-only technical details\nNative code: 0x80070005".into());
+        draw(&window);
+        let root = ItemRc::new_root(WindowInner::from_pub(ui.window()).component());
+        let mut numbers = 0;
+        let mut information_icons = 0;
+        root.visit_descendants::<()>(|item| {
+            if item.is_visible() {
+                let label = item.accessible_string_property(AccessibleStringProperty::Label);
+                if label.as_deref() == Some("1") {
+                    numbers += 1;
+                }
+                if label.as_deref() == Some("i") {
+                    information_icons += 1;
+                }
+            }
+            ControlFlow::Continue(())
+        });
+        assert_eq!(numbers, 0, "one phase does not render a step number");
+        assert_eq!(information_icons, 0);
+        control(&ui, diagnostics::SHOW_LABEL).accessible_action(&AccessibilityAction::Default);
+        draw(&window);
+        let mut outputs = Vec::new();
+        ItemRc::new_root(WindowInner::from_pub(ui.window()).component()).visit_descendants::<()>(
+            |item| {
+                if item.accessible_role() == AccessibleRole::Groupbox
+                    && item
+                        .accessible_string_property(AccessibleStringProperty::Label)
+                        .as_deref()
+                        == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::OUTPUT_LABEL)
+                {
+                    outputs.push(item.clone());
+                }
+                ControlFlow::Continue(())
+            },
+        );
+        assert_eq!(
+            outputs.len(),
+            1,
+            "one diagnostic editor, distinct from its heading"
+        );
+        let output = outputs.pop().unwrap();
+        assert!(output.is_visible());
+        let origin = output.map_to_window(output.geometry().origin);
+        window.request_redraw();
+        window.draw_if_needed(|renderer| {
+            let size = window.size();
+            let mut pixels = vec![Rgb8Pixel::default(); (size.width * size.height) as usize];
+            renderer.render(&mut pixels, size.width as usize);
+            let pixel =
+                pixels[(origin.y as usize + 5) * size.width as usize + origin.x as usize + 5];
+            assert_eq!(
+                (pixel.r, pixel.g, pixel.b),
+                (255, 255, 255),
+                "white diagnostic background: {theme}"
+            );
+        });
+        draw(&window);
+        retain_render(&format!("white-input-dialog-{theme}"));
+    }
+    ui.hide().unwrap();
+}
+
 fn retain_render(name: &str) {
     if let Some(directory) = std::env::var_os("HYPER_GPU_LAYOUT_RENDER_DIR") {
         let directory = std::path::PathBuf::from(directory);
@@ -500,13 +584,23 @@ fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_res
         Err("Discovery failed. Continue and use Refresh to retry.".into()),
     );
     assert!(ui.get_startup_loading());
-    assert!(ui.get_startup_error().contains("Discovery failed"));
+    assert!(
+        ui.get_startup_error()
+            .contains("Could not load VM and GPU information")
+    );
     draw(&window);
     let continue_button = control(
         &ui,
         hyper_gpu_support::ui_text::dashboard::startup::CONTINUE_LABEL,
     );
     assert!(continue_button.is_visible());
+    assert!(continue_button.geometry().width() < 240.);
+    assert!(continue_button.geometry().height() < 50.);
+    let technical = control(&ui, hyper_gpu_support::ui_text::diagnostics::SHOW_LABEL);
+    assert!(technical.is_visible());
+    technical.accessible_action(&AccessibilityAction::Default);
+    draw(&window);
+    retain_render("startup-error");
     continue_button.accessible_action(&AccessibilityAction::Default);
     assert!(!ui.get_startup_loading());
     ui.set_startup_loading(true);

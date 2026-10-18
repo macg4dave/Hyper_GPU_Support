@@ -1,5 +1,6 @@
 import { UiText } from "ui-text.slint";
-import { Button, LineEdit } from "std-widgets.slint";
+import { Button } from "std-widgets.slint";
+import { TextField } from "text-field.slint";
 import { Theme, Label, Hint, Surface } from "theme.slint";
 
 export component AllocationDisclosure inherits Rectangle {
@@ -50,7 +51,7 @@ component AllocationField inherits Rectangle {
     VerticalLayout {
         spacing: 5px;
         Hint { text: root.label; }
-        input := LineEdit {
+        input := TextField {
             accessible-label: UiText.resources-field-accessible(root.label);
             enabled: !Theme.modal-active && root.editable;
             text: root.value;

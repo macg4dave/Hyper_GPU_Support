@@ -63,6 +63,7 @@ export component AppWindow inherits Window {
     in-out property <string> verification: UiText.dashboard-verification-absent;
     in property <string> support-summary;
     in property <string> inventory-details;
+    in property <string> inventory-error;
     in property <string> vm-details;
     in-out property <bool> eligible: false;
     in-out property <bool> dirty: false;
@@ -176,7 +177,11 @@ export component AppWindow inherits Window {
                                     }
                                 }
                                 if root.notice != "" : Hint { text: root.notice; color: Theme.accent; }
-                                if root.vms.length == 0 : Hint { text: UiText.dashboard-vm-list-empty; }
+                                if root.inventory-error != "" : HorizontalLayout {
+                                    Button { enabled: !Theme.modal-active; text: UiText.dashboard-diagnostics-inspect-label; clicked => { root.action("diagnostics"); } }
+                                    Rectangle { horizontal-stretch: 1; }
+                                }
+                                if root.vms.length == 0 && root.notice == "" && !root.updating : Hint { text: UiText.dashboard-vm-list-empty; }
                                 vm-list := ScrollView {
                                     accessible-role: list;
                                     horizontal-scrollbar-policy: always-off;
@@ -234,6 +239,7 @@ export component AppWindow inherits Window {
     }
     if root.startup-loading : StartupSplash {
         error: root.startup-error;
+        details: root.inventory-details;
         stage: root.startup-stage;
         progress: root.startup-progress;
         continue => { root.startup-loading = false; }

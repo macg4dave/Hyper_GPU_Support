@@ -23,6 +23,23 @@ pub(super) fn review_enrollment(
     busy: &Arc<AtomicBool>,
     target: Target,
 ) -> Result<(), String> {
+    let proposed = {
+        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        state.permission_review(&target, hyper_gpu_support::setup::operator_sid()?)?
+    };
+    if let Some(approved) = proposed {
+        if !with_state(ui, state, |state| {
+            if draft_target(ui, state)? != target {
+                return Err("Selection or draft changed before permission preparation.".into());
+            }
+            state.enrollment_review = Some(approved);
+            state.setup_artifacts = None;
+            Ok(())
+        }) {
+            return Ok(());
+        }
+        return enroll_live(ui, state, busy, &Source);
+    }
     let reviewed_state = state.clone();
     let expected = target.clone();
     let enroll_busy = busy.clone();

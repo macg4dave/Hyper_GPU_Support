@@ -2,6 +2,40 @@
 use super::live_state::State;
 use hyper_gpu_support::reporting::technical_error;
 
+/// Build both safe views from the original failure, before summary formatting.
+pub(super) fn inventory_failure(error: &str) -> (String, String) {
+    use hyper_gpu_support::ui_text::operations::inventory;
+    let reason = if error.contains("release is unconfirmed")
+        || error.contains("has not confirmed release")
+        || error.contains("launch outcome is unconfirmed")
+    {
+        inventory::READER_UNRELEASED
+    } else if error.contains("Invalid protected observation")
+        || error.contains("Observation configuration revision differs")
+        || error.contains("Protected observation mode differs")
+    {
+        inventory::INCONSISTENT
+    } else if hyper_gpu_support::reporting::technical_facts(error)
+        .native_codes
+        .iter()
+        .any(|code| matches!(code.as_str(), "0x80070005" | "0x80041003"))
+    {
+        inventory::ACCESS_DENIED
+    } else if error.to_ascii_lowercase().contains("timed out")
+        || error.to_ascii_lowercase().contains("deadline")
+    {
+        inventory::TIMED_OUT
+    } else {
+        ""
+    };
+    let summary = if reason.is_empty() {
+        inventory::REFRESH_FAILED.to_owned()
+    } else {
+        format!("{} {reason}", inventory::REFRESH_FAILED)
+    };
+    (summary, technical_error(inventory::FAILURE_STAGE, error))
+}
+
 fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }

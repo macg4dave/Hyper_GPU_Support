@@ -99,9 +99,9 @@ fn submit_read(
             release.confirm();
             response
         }
-        Err(_) => {
-            Err("Protected reader release is unconfirmed; foreground admission remains held".into())
-        }
+        Err(error) => Err(format!(
+            "Protected reader release is unconfirmed; foreground admission remains held: {error}"
+        )),
     }
 }
 /// Run exactly one authenticated request; parent task and watchdog bound its lifetime.

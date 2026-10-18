@@ -121,6 +121,16 @@ impl Foreground {
         readonly: bool,
         action: impl FnOnce() -> Result<T, String>,
     ) -> Result<T, String> {
+        self.run_after_poll(readonly, Duration::from_secs(30), action)
+    }
+
+    fn run_after_poll<T>(
+        &self,
+        readonly: bool,
+        wait: Duration,
+        action: impl FnOnce() -> Result<T, String>,
+    ) -> Result<T, String> {
+        let started = std::time::Instant::now();
         let mut reads = self
             .polling
             .reads
@@ -128,6 +138,9 @@ impl Foreground {
             .map_err(|_| "Read admission unavailable")?;
         while reads.poll.is_some() {
             self.control.check()?;
+            if started.elapsed() >= wait {
+                return Err("A protected reader has not confirmed release. Wait for the earlier status check to finish, then refresh before requesting another operation.".into());
+            }
             reads = self
                 .polling
                 .released
@@ -162,6 +175,27 @@ impl Drop for Foreground {
 mod tests {
     use super::*;
     use std::sync::atomic::AtomicBool;
+
+    #[test]
+    fn a_blocked_poll_reports_a_bounded_failure_without_starting_or_releasing_new_work() {
+        let polling = Arc::new(Polling::default());
+        let ticket = polling.begin().unwrap();
+        let foreground = polling.foreground().unwrap();
+        let error = foreground
+            .run_after_poll(false, Duration::ZERO, || -> Result<(), String> {
+                panic!("worker or UAC must not start while the previous poll remains admitted")
+            })
+            .unwrap_err();
+        assert!(error.contains("has not confirmed release"));
+        drop(foreground);
+        assert!(
+            polling.begin().is_none(),
+            "the old poll still owns admission"
+        );
+        ticket.backend_finished();
+        let retry = polling.foreground().unwrap();
+        assert_eq!(retry.run(false, || Ok(7)), Ok(7));
+    }
 
     #[test]
     fn foreground_waits_for_poll_release_and_obsolete_ticket_cannot_release_new_poll() {
