@@ -1,4 +1,4 @@
-//! Candidate comparisons against the frozen OPT-001 table in ENGINEERING.md.
+//! Candidate comparisons against the frozen OPT-001 baseline table.
 //! Updated expectations name each removed cycle/category check; isolated doubles are
 //! not provider queries, native writes, worker final authentication, or timings.
 //! Prepared cases consume one token; a separate CLI plan adds its own full read.

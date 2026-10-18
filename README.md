@@ -4,7 +4,7 @@ A Windows GUI for turning GPU support on or off for supported existing Hyper-V V
 
 The initial target is NVIDIA hardware and existing Generation 2 Windows 11 guests, including multiple VMs sharing one GPU. Keep the existing Slint design and shared Rust backend.
 
-Windows-version checking is deferred. GPU installation, driver refresh and Repair / Reinstall display a non-blocking compatibility warning without a new version probe or release allowlist. Authenticated guest transport, signed payload checks and recovery still apply; invalid replies are communication failures, not evidence of an unsupported OS. See [guest OS eligibility](docs/SECURITY.md#guest-os-eligibility-before-installation).
+Windows-version checking is deferred. GPU installation, driver refresh and Repair / Reinstall display a non-blocking compatibility warning without a new version probe or release allowlist. Authenticated guest transport, signed payload checks and recovery still apply; invalid replies are communication failures, not evidence of an unsupported OS.
 
 ## Agreed workflow
 
@@ -22,9 +22,9 @@ The VRAM range does not establish enforced isolation. Automatic balancing and fu
 
 The main VM page omits the first-install inventory banner, Check recorded outcome and Technical details controls. Recovery remains available through More actions; diagnostic details remain in operation dialogs. These presentation changes await build and visual validation.
 
-Settings contains the Appearance controls; the Credentials & diagnostics section has been removed from that page. System displays the GPU information boxes without the This computer box. The latest progress and frontend source follow-ups passed the [integrated non-hardware gate](docs/ENGINEERING.md#frontend-and-progress-integration-checkpoint); installed visual validation remains pending.
+Settings contains the Appearance controls; the Credentials & diagnostics section has been removed from that page. System displays the GPU information boxes without the This computer box. The latest progress and frontend source follow-ups passed the integrated non-hardware gate; installed visual validation remains pending.
 
-The next source priority is [core simplification](docs/backlog.md#next-action): a clearer architecture, less unnecessary complexity, one shared operation path and the existing Slint design. There is no numerical source-line target or size-enforcement gate. Unused tests should be removed; useful tests follow the program's design. The [roadmap](docs/roadmap.md) proposes the replacement/deletion sequence; the core slice, [GUI simplification](docs/ENGINEERING.md#gui-simplification-checkpoint) and [captured-request cleanup](docs/ENGINEERING.md#captured-gui-requests-checkpoint) passed complete non-hardware gates. The [worker lifecycle follow-up](docs/ENGINEERING.md#worker-lifecycle-checkpoint) also passed its complete gate. The [runner preview cleanup](docs/ENGINEERING.md#runner-preview-cleanup-checkpoint) passed its complete non-hardware gate; the protected update is installed. The [architecture review](docs/OPERATION_COMPLEXITY_REVIEW.md) records further implemented simplifications and their passing non-hardware gate. Source counts are descriptive measurements; changes are judged by clarity, maintainability and preserved functionality. Previous source optimizations are implemented; their [recorded automated/install evidence](docs/ENGINEERING.md#optimization-validation-checkpoint) is separate from pending installed journeys, measurements and VM/GPU/guest acceptance. The [UI text guide](docs/UI_TEXT_GUIDE.md) describes the current 497-key compiled catalogue and remaining migration limits.
+The next source priority is [core simplification](docs/backlog.md#next-action): a clearer architecture, less unnecessary complexity, one shared operation path and the existing Slint design. There is no numerical source-line target or size-enforcement gate. Unused tests should be removed; useful tests follow the program's design. The [roadmap](docs/roadmap.md) proposes the replacement/deletion sequence; the core slice, GUI simplification and captured-request cleanup passed complete non-hardware gates. The worker lifecycle follow-up also passed its complete gate. The runner preview cleanup passed its complete non-hardware gate; the protected update is installed. The [architecture review](docs/OPERATION_COMPLEXITY_REVIEW.md) records further implemented simplifications and their passing non-hardware gate. Source counts are descriptive measurements; changes are judged by clarity, maintainability and preserved functionality. Previous source optimizations are implemented; their recorded automated/install evidence is separate from pending installed journeys, measurements and VM/GPU/guest acceptance.
 
 ## Project guidance
 
@@ -33,13 +33,8 @@ The next source priority is [core simplification](docs/backlog.md#next-action): 
 | [Roadmap](docs/roadmap.md) | Agreed scope and milestone gates |
 | [Backlog](docs/backlog.md) | Simplification tasks, dependencies and next action |
 | [Agreed workflow](#agreed-workflow) | User workflow |
-| [Architecture](docs/ARCHITECTURE.md) | Shared Rust components and boundaries |
-| [Configuration](docs/CONFIGURATION.md) | Intent formats and storage |
-| [Security](docs/SECURITY.md) | Protected operations and recovery |
-| [Validation](docs/ENGINEERING.md#validation-and-live-acceptance) | Check effects and live acceptance boundaries |
-| [Engineering](docs/ENGINEERING.md) | Status and documentation ownership |
-| [AGENTS.md](AGENTS.md) | Authoritative Codex instructions |
+| [AGENTS.md](AGENTS.md) | Authoritative agent instructions (Codex and Claude Code) |
 
-Build prerequisites come from the current manifests/toolchain. Run the non-elevated gate with `powershell -NoProfile -File scripts/testing/check.ps1`; [testing](docs/ENGINEERING.md#validation-and-live-acceptance) defines its effects and exclusions. Keep passwords, driver payloads, VM disks and machine-specific evidence out of Git.
+Build prerequisites come from the current manifests/toolchain. Keep passwords, driver payloads, VM disks and machine-specific evidence out of Git.
 
-Codex starts with [AGENTS.md](AGENTS.md), which routes to short task prompts and focused [Rust](.github/prompts/rust.prompt.md) and [Slint](.github/prompts/slint.prompt.md) guidance. Read only the guidance relevant to the requested task; product requirements stay in the handbook.
+Codex and Claude Code start with [AGENTS.md](AGENTS.md), which routes to short task prompts and focused [Rust](.github/prompts/rust.prompt.md) and [Slint](.github/prompts/slint.prompt.md) guidance. Read only the guidance relevant to the requested task; product requirements stay in project docs.

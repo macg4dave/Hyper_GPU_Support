@@ -8,8 +8,7 @@ a release package inventory, or a set of executable setup instructions.
 The current product has [a D3D11 probe source](../src/bin/d3d11-probe.rs).
 Laboratory D3D12/CUDA identity binaries, setup/build scripts, and old evidence were
 deleted. Reassess them individually if a new task needs them; do not restore/run
-them merely because they are named below. See [baseline](../docs/ARCHITECTURE.md)
-and [testing](../docs/ENGINEERING.md#validation-and-live-acceptance).
+them merely because they are named below.
 
 ## Direct3D probes
 

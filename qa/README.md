@@ -1,6 +1,6 @@
 # QA report inbox
 
-This folder is the hand-off between **your GUI testing** and **Codex fixing defects**. Start with [the QA roadmap](../docs/roadmap.md) and [test backlog](../docs/backlog.md). The product's existing [agent rules](../AGENTS.md) and [validation boundaries](../docs/ENGINEERING.md#validation-and-live-acceptance) continue to apply.
+This folder is the hand-off between **your GUI testing** and **Codex fixing defects**. Start with [the QA roadmap](../docs/roadmap.md) and [test backlog](../docs/backlog.md). The product's existing [agent rules](../AGENTS.md) and validation boundaries continue to apply.
 
 ## The two forms
 
@@ -33,7 +33,7 @@ qa/prompts/PROCESS_QA_INBOX.md  Ready-to-use Codex instruction
 local/evidence/qa/              Local non-secret evidence, ignored by Git
 ```
 
-**Reports are temporary inputs.** You may delete them when finished. Codex leaves current submissions unchanged unless asked, respects your deletions and does not recreate or archive removed reports. Processing reports does not require separate cases, index updates or permanent report history; those are optional and need an explicit request. Fix/check results and GUI retest instructions are returned in chat. See the [report lifecycle](../docs/ENGINEERING.md#status-and-evidence). User confirmation is still required for user acceptance.
+**Reports are temporary inputs.** You may delete them when finished. Codex leaves current submissions unchanged unless asked, respects your deletions and does not recreate or archive removed reports. Processing reports does not require separate cases, index updates or permanent report history; those are optional and need an explicit request. Fix/check results and GUI retest instructions are returned in chat. See the report lifecycle. User confirmation is still required for user acceptance.
 
 ### Quick acceptance reply
 

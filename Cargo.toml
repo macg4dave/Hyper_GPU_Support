@@ -1,7 +1,7 @@
 [workspace]
 members = [".", "tools/ui-text"]
 default-members = ["."]
-exclude = ["tools/lab", "tools/ui-text/standalone", "vendor/i-slint-backend-winit"]
+exclude = ["tools/ui-text/standalone", "vendor/i-slint-backend-winit"]
 resolver = "3"
 
 [package]
