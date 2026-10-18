@@ -621,7 +621,7 @@ fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
 }
 
 #[test]
-fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_resize() {
+fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
     slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
     let ui = AppWindow::new().unwrap();
@@ -692,7 +692,6 @@ fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_res
     ui.set_resource_hints(super::model(vec![
         "Long capability information. ".repeat(20).into(),
     ]));
-    ui.set_vm_details("Diagnostic line\n".repeat(40).into());
     ui.show().unwrap();
     window.set_size(LogicalSize::new(1240., 860.));
     draw(&window);
@@ -721,12 +720,6 @@ fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_res
         control(
             &ui,
             hyper_gpu_support::ui_text::resources::advanced::collapsed_accessible().as_str(),
-        )
-        .accessible_action(&AccessibilityAction::Default);
-        draw(&window);
-        control(
-            &ui,
-            hyper_gpu_support::ui_text::diagnostics::show_label().as_str(),
         )
         .accessible_action(&AccessibilityAction::Default);
         draw(&window);
@@ -762,30 +755,13 @@ fn expanded_allocation_and_technical_output_scroll_above_fixed_actions_after_res
                 draw(&window);
             }
             retain_render(&format!("details-{theme}-{width}x{height}-{collapse}"));
-            let output = control(
-                &ui,
-                hyper_gpu_support::ui_text::dashboard::diagnostics::OUTPUT_LABEL,
-            );
-            let top = output.map_to_window(output.geometry().origin).y;
-            let bottom = top + output.geometry().height();
             let actions = control(
                 &ui,
                 hyper_gpu_support::ui_text::dashboard::apply::label().as_str(),
             );
-            let actions_top = actions.map_to_window(actions.geometry().origin).y;
-            assert!(top >= 0., "output starts inside window: {top}");
-            assert!(
-                output.is_visible(),
-                "diagnostics must be inside the scroll viewport"
-            );
-            assert!(
-                bottom <= actions_top,
-                "output bottom {bottom} must precede actions {actions_top} at {width}x{height}"
-            );
-            assert!(
-                output.geometry().height() >= 100.,
-                "diagnostics must retain a usable text viewport"
-            );
+            let top = actions.map_to_window(actions.geometry().origin).y;
+            assert!(actions.is_visible(), "fixed actions remain visible after scrolling");
+            assert!(top >= 0. && top + actions.geometry().height() <= height);
         }
     }
     ui.hide().unwrap();

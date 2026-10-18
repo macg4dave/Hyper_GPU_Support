@@ -107,6 +107,46 @@ pub(super) fn finish_progress<T>(
     }
 }
 impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> ObservedBackend<'_, B, F> {
+    // Preparation and verification share progress delivery, but keep their own
+    // backend work and return type. Mark effects before any guest dispatch.
+    fn guest_effect<T>(
+        &mut self,
+        name: &str,
+        action: impl FnOnce(
+            &mut B,
+            &mut dyn FnMut(workflow::PreparationProgress) -> Result<(), String>,
+        ) -> Result<T, String>,
+    ) -> Result<T, String> {
+        if let Some(before) = &mut self.before_effect {
+            before()?;
+        }
+        (self.notify)(Progress {
+            stage: name.into(),
+            status: StageStatus::Running,
+        })?;
+        let mut phase = None;
+        let result = crate::diagnostics::run(name, "approved-worker", || {
+            action(self.backend, &mut |event| {
+                guest_progress(event, &mut phase, self.notify)
+            })
+        });
+        let phase_delivery = finish_guest_progress(phase, result.is_ok(), self.notify);
+        // Attempt the parent notification even if the last phase could not be
+        // delivered; retain the first delivery failure and the adapter failure.
+        let delivery = (self.notify)(Progress {
+            stage: name.into(),
+            status: if result.is_ok() {
+                StageStatus::Done
+            } else {
+                StageStatus::Failed
+            },
+        });
+        finish_progress(
+            result.map_err(|error| crate::reporting::failure_at_stage(error, name)),
+            phase_delivery.and(delivery),
+        )
+    }
+
     fn effect<T>(
         &mut self,
         name: &str,
@@ -197,63 +237,14 @@ impl<B: Backend, F: FnMut(Progress) -> Result<(), String>> Backend for ObservedB
         self.effect("Provider allocation", |b| b.allocation(t, resource, a))
     }
     fn prepare(&mut self, t: &Target) -> Result<String, String> {
-        if let Some(before) = &mut self.before_effect {
-            before()?;
-        }
-        (self.notify)(Progress {
-            stage: "Prepare current signed payload".into(),
-            status: StageStatus::Running,
-        })?;
-        let mut phase = None;
-        let result =
-            crate::diagnostics::run("Prepare current signed payload", "approved-worker", || {
-                self.backend.prepare_with_progress(t, &mut |event| {
-                    guest_progress(event, &mut phase, self.notify)
-                })
-            });
-        let phase_delivery = finish_guest_progress(phase, result.is_ok(), self.notify);
-        let delivery = (self.notify)(Progress {
-            stage: "Prepare current signed payload".into(),
-            status: if result.is_ok() {
-                StageStatus::Done
-            } else {
-                StageStatus::Failed
-            },
-        });
-        finish_progress(
-            result.map_err(|error| {
-                crate::reporting::failure_at_stage(error, "Prepare current signed payload")
-            }),
-            phase_delivery.and(delivery),
-        )
+        self.guest_effect("Prepare current signed payload", |backend, progress| {
+            backend.prepare_with_progress(t, progress)
+        })
     }
     fn verify(&mut self, t: &Target, g: &Gpu) -> Result<(), String> {
-        if let Some(before) = &mut self.before_effect {
-            before()?;
-        }
-        let stage = "Check guest health and hardware rendering";
-        (self.notify)(Progress {
-            stage: stage.into(),
-            status: StageStatus::Running,
-        })?;
-        let mut phase = None;
-        let result = crate::diagnostics::run(stage, "approved-worker", || {
-            self.backend.verify_with_progress(t, g, &mut |event| {
-                guest_progress(event, &mut phase, self.notify)
-            })
-        });
-        let phase_delivery = finish_guest_progress(phase, result.is_ok(), self.notify);
-        let delivery = (self.notify)(Progress {
-            stage: stage.into(),
-            status: if result.is_ok() {
-                StageStatus::Done
-            } else {
-                StageStatus::Failed
-            },
-        });
-        finish_progress(
-            result.map_err(|error| crate::reporting::failure_at_stage(error, stage)),
-            phase_delivery.and(delivery),
+        self.guest_effect(
+            "Check guest health and hardware rendering",
+            |backend, progress| backend.verify_with_progress(t, g, progress),
         )
     }
 }
@@ -263,6 +254,152 @@ mod tests {
     use super::super::test_support::ordinary_disabled_plan;
     use super::*;
     use crate::workflow::test_support::fake;
+
+    #[test]
+    fn guest_entrypoints_mark_effects_before_progress_and_refuse_failed_admission() {
+        use std::cell::RefCell;
+        let target = ordinary_disabled_plan().desired;
+        for verify in [false, true] {
+            for fault in 0..3 {
+                let trace = RefCell::new(Vec::new());
+                let mut backend = fake();
+                let gpu = backend.gpu(&target).unwrap();
+                let mut before = || {
+                    trace.borrow_mut().push("receipt");
+                    if fault == 1 {
+                        Err("receipt persistence failed".into())
+                    } else {
+                        Ok(())
+                    }
+                };
+                let mut updates = Vec::new();
+                let mut notify = |update: Progress| {
+                    trace.borrow_mut().push("progress");
+                    updates.push(update);
+                    if fault == 2 {
+                        Err("start delivery failed".into())
+                    } else {
+                        Ok(())
+                    }
+                };
+                let mut observed = ObservedBackend {
+                    backend: &mut backend,
+                    notify: &mut notify,
+                    before_effect: Some(&mut before),
+                };
+                let result = if verify {
+                    observed.verify(&target, &gpu)
+                } else {
+                    observed.prepare(&target).map(|digest| {
+                        assert_eq!(digest, "current");
+                    })
+                };
+                assert_eq!(result.is_ok(), fault == 0);
+                assert_eq!(trace.borrow()[0], "receipt");
+                if fault == 1 {
+                    assert_eq!(*trace.borrow(), ["receipt"]);
+                    assert!(updates.is_empty());
+                } else {
+                    assert_eq!(trace.borrow()[1], "progress");
+                    assert_eq!(updates[0].status, StageStatus::Running);
+                    assert_eq!(
+                        updates[0].stage,
+                        if verify {
+                            "Check guest health and hardware rendering"
+                        } else {
+                            "Prepare current signed payload"
+                        }
+                    );
+                    assert_eq!(updates.len(), if fault == 0 { 2 } else { 1 });
+                }
+                assert_eq!(
+                    backend.events,
+                    if fault == 0 {
+                        vec![if verify { "graphics" } else { "prepare" }]
+                    } else {
+                        vec![]
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn guest_effect_keeps_phase_and_parent_outcomes_when_delivery_is_lost() {
+        for action_fails in [false, true] {
+            // Parent start, phase start, phase finish and parent finish.
+            // Case 4 loses both terminal notifications; the phase error wins.
+            for fail_delivery in [None, Some(0), Some(1), Some(2), Some(3), Some(4)] {
+                let mut backend = fake();
+                let mut updates = Vec::new();
+                let mut called = false;
+                let result = ObservedBackend {
+                    backend: &mut backend,
+                    notify: &mut |event: Progress| {
+                        let index = updates.len();
+                        updates.push(event);
+                        if fail_delivery == Some(index) || (fail_delivery == Some(4) && index >= 2)
+                        {
+                            Err(format!("progress disconnected at {index}"))
+                        } else {
+                            Ok(())
+                        }
+                    },
+                    before_effect: None,
+                }
+                .guest_effect("Prepare current signed payload", |_, progress| {
+                    called = true;
+                    progress(workflow::PreparationProgress::InstallingFiles)?;
+                    if action_fails {
+                        Err("guest installation failed".into())
+                    } else {
+                        Ok("checked digest")
+                    }
+                });
+                assert_eq!(called, fail_delivery != Some(0));
+                assert_eq!(result.is_ok(), !action_fails && fail_delivery.is_none());
+                if fail_delivery == Some(0) {
+                    assert_eq!(updates.len(), 1);
+                    continue;
+                }
+                let parent = updates.last().unwrap();
+                assert_eq!(parent.stage, "Prepare current signed payload");
+                assert_eq!(
+                    parent.status,
+                    if action_fails || fail_delivery == Some(1) {
+                        StageStatus::Failed
+                    } else {
+                        StageStatus::Done
+                    }
+                );
+                if fail_delivery == Some(1) {
+                    assert_eq!(updates.len(), 3);
+                } else {
+                    assert_eq!(updates.len(), 4);
+                    assert_eq!(updates[2].stage, "Installing GPU driver files");
+                    assert_eq!(updates[2].status, parent.status);
+                }
+                match result {
+                    Ok(digest) => assert_eq!(digest, "checked digest"),
+                    Err(error) => {
+                        if fail_delivery.is_some() {
+                            assert!(error.contains("progress disconnected"));
+                        }
+                        if action_fails && fail_delivery != Some(1) {
+                            assert!(error.contains("guest installation failed"));
+                        }
+                        if fail_delivery == Some(4) {
+                            assert!(error.contains("disconnected at 2"));
+                            assert!(!error.contains("disconnected at 3"));
+                        }
+                        if !action_fails && matches!(fail_delivery, Some(2..=4)) {
+                            assert!(error.contains("outcome uncertain"));
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn worker_preparation_reports_order_failure_and_stops_on_lost_progress() {

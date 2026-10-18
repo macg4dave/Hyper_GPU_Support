@@ -1,8 +1,8 @@
-//! GUI/CLI dispatch over the shared runtime product core.
+//! GUI startup, fixed internal modes and retained administrator record/recovery commands.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 mod gui;
 use std::process::ExitCode;
-const HELP: &str = "Hyper GPU Support\n\nUsage: hyper-gpu-support COMMAND [--config FILE] [--vm GUID]\n\nCommands:\n  inventory       Discover existing VMs and partitionable GPUs\n  import          Import intent into absent per-VM configuration files\n  plan            Preview selected VM changes without mutation\n  install         Install/enroll the protected runner (administrator console)\n  apply           Enable/disable selected targets and refresh stale preparation\n  enable          Enable one selected target\n  disable         Detach selected GPU; keep prepared guest files\n  status          Read effective Hyper-V configuration\n  verify          Check guest device health and hardware rendering\n  credentials     Store an opt-in guest credential in Windows Credential Manager\n  forget          Delete a stored guest credential\n  save-only       Retry configuration publication for a recorded operation\n  reconcile       Check a recorded operation without replaying Apply\n  import-reconcile Resume an interrupted configuration import\n  native-review   Review exact native terminal job evidence (administrator)\n  native-reconcile Approve reviewed native admission retirement (administrator)\n\nOptions:\n  --config FILE   Runtime TOML schema 2 or 3 (required for target commands and import)\n  --vm GUID       Select one target from the configuration\n  --operation ID  Recorded operation for save-only/reconcile/import-reconcile\n  --approve-shutdown Approve reviewed power changes for apply/enable/disable/verify/reconcile\n  --job REFERENCE Local terminal Hyper-V job for native-review\n  --review TOKEN  SHA256 token returned by native-review for native-reconcile\n  --help          Show this help\n  --version       Show version\n\nRecovery usage: COMMAND --operation ID [--approve-shutdown for reconcile]\n\nGUI: hyper-gpu-support (live inventory; unconnected actions unavailable)\nResource values are raw provider units, without proven enforcement guarantees.\n";
+const HELP: &str = "Hyper GPU Support\n\nLaunch without arguments to open the GUI. Use the GUI for inventory, GPU settings, verification and credentials.\n\nAdministrator record/recovery commands retained for existing data:\n  install --config FILE              Install/update the protected runner or recover legacy installation\n  import --config FILE               Import intent into absent per-VM configuration files\n  save-only --operation ID           Retry saving a recorded verified outcome\n  reconcile --operation ID [--approve-shutdown]\n                                    Check a recorded outcome without replaying Apply\n  import-reconcile --operation ID    Resume the recorded import destination set\n  native-review --job REFERENCE      Review exact local terminal Hyper-V job evidence\n  native-reconcile --review TOKEN    Approve retirement of reviewed provider admission\n\n  --help                            Show this help\n  --version                         Show version\n\nConfiguration files use runtime TOML schema 2 or 3. Import never enrolls pairs or applies GPU state.\n";
 fn main() -> ExitCode {
     #[cfg(windows)]
     {
@@ -27,7 +27,7 @@ fn main() -> ExitCode {
 }
 
 /// Only an argument-free launch enters the live GUI. Explicit commands and
-/// unknown flags stay on the CLI path and cannot trigger GUI startup/elevation.
+/// unknown flags cannot trigger GUI startup/elevation.
 fn starts_gui(args: &[String]) -> bool {
     args.is_empty()
 }
@@ -204,61 +204,10 @@ fn execute(args: &[String]) -> Result<(), String> {
             Err("publication incomplete; retain the receipt and retry saving only".into())
         };
     }
-    if ![
-        "inventory",
-        "plan",
-        "install",
-        "apply",
-        "enable",
-        "disable",
-        "status",
-        "verify",
-        "credentials",
-        "forget",
-        "import",
-    ]
-    .contains(&command.as_str())
-    {
-        return Err("unknown command; use --help".into());
-    }
-    let mut config_path = None;
-    let mut vm = None;
-    let mut shutdown_approved = false;
-    let mut iter = args[1..].iter();
-    while let Some(option) = iter.next() {
-        if option == "--approve-shutdown" && !shutdown_approved {
-            shutdown_approved = true;
-            continue;
-        }
-        let value = iter.next().ok_or("option value missing")?;
-        match option.as_str() {
-            "--config" if config_path.is_none() => config_path = Some(value),
-            "--vm" if vm.is_none() => vm = Some(value),
-            _ => return Err("unknown or repeated option".into()),
-        }
-    }
-    if shutdown_approved && !["apply", "enable", "disable", "verify"].contains(&command.as_str()) {
-        return Err("--approve-shutdown is valid only for an effect command".into());
-    }
-    if command == "inventory" {
-        if config_path.is_some() || vm.is_some() {
-            return Err("inventory takes no target options".into());
-        }
-        let result = if hyper_gpu_support::process::is_elevated()? {
-            serde_json::to_value(hyper_gpu_support::windows_hyperv::discover()?)
-                .map_err(|e| e.to_string())?
-        } else {
-            runner::submit(runner::request(Operation::Discover, None, None))?
-        };
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
-        );
-        return Ok(());
-    }
+    let config_path = record_config_path(args)?;
     use std::io::Read;
     let mut bytes = Vec::new();
-    std::fs::File::open(config_path.ok_or("--config FILE is required")?)
+    std::fs::File::open(config_path)
         .map_err(|e| e.to_string())?
         .take(runner::FRAME_LIMIT as u64 + 1)
         .read_to_end(&mut bytes)
@@ -269,9 +218,6 @@ fn execute(args: &[String]) -> Result<(), String> {
     let text = String::from_utf8(bytes).map_err(|_| "configuration must be UTF-8 TOML")?;
     let config = Configuration::parse(&text)?;
     if command == "import" {
-        if vm.is_some() {
-            return Err("import requires approval of the complete bundle destination set".into());
-        }
         let snapshot = hyper_gpu_support::configuration_store::read_committed();
         let mut expected = std::collections::BTreeMap::new();
         for (filename, source) in config.vm_documents()? {
@@ -294,112 +240,26 @@ fn execute(args: &[String]) -> Result<(), String> {
             "{}",
             serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
         );
-        return Ok(());
-    }
-    if command == "install" {
-        if vm.is_some() {
-            return Err("install enrolls the complete configuration".into());
-        }
+    } else {
         runner::install(&config)?;
         println!("Product runner installed and existing targets enrolled.");
-        return Ok(());
-    }
-    let mut targets: Vec<_> = config
-        .targets
-        .into_iter()
-        .filter(|t| vm.is_none_or(|id| t.vm_id.eq_ignore_ascii_case(id)))
-        .collect();
-    if targets.is_empty() {
-        return Err("selected VM is not in the runtime configuration".into());
-    }
-    if ["credentials", "forget", "enable", "disable"].contains(&command.as_str())
-        && targets.len() != 1
-    {
-        return Err("this command requires --vm selecting exactly one target".into());
-    }
-    for t in &mut targets {
-        if command == "enable" {
-            t.enabled = true;
-        }
-        if command == "disable" {
-            t.enabled = false;
-        }
-        if command == "forget" {
-            credentials::forget(&t.vm_id)?;
-            println!("Stored credential removed.");
-            continue;
-        }
-        if command == "credentials" {
-            let credential = prompt(&t.vm_id)?;
-            credentials::store(&t.vm_id, &credential)?;
-            println!("Credential stored in the current user's Windows vault.");
-            continue;
-        }
-        let status = command == "status" || command == "plan";
-        let operation = if command == "plan" {
-            Operation::Plan
-        } else if status {
-            Operation::Status
-        } else if command == "verify" {
-            Operation::Verify
-        } else {
-            Operation::Apply
-        };
-        let mut result = if !status {
-            let snapshot = hyper_gpu_support::configuration_store::read_committed();
-            let expected = snapshot.revision(&t.vm_id)?;
-            if command == "verify" {
-                serde_json::to_value(hyper_gpu_support::worker::verify_prepared(t.clone(), expected, |review| {
-                    let hyper_gpu_support::worker::PreparedReview::Verify {plan, ..} = review else {return Err("Unexpected prepared operation".into());};
-                    if plan.observed.power == hyper_gpu_support::model::Power::Off && !shutdown_approved {
-                        return Err("verification temporarily starts and stops this guest; supply --approve-shutdown after reviewing the lifecycle".into());
-                    }
-                    let credential = credentials::read(&t.vm_id)?.map_or_else(|| prompt(&t.vm_id), Ok)?;
-                    Ok(hyper_gpu_support::worker::Authorization {shutdown_approved, credential: Some(credential)})
-                }, |stage| eprintln!("{:?}: {}", stage.status, stage.stage))?).map_err(|e| e.to_string())?
-            } else {
-                let outcome = hyper_gpu_support::worker::apply_prepared(
-                    t.clone(),
-                    false,
-                    expected,
-                    |review| {
-                        let hyper_gpu_support::worker::PreparedReview::Apply { plan, .. } = review
-                        else {
-                            return Err("Unexpected prepared operation".into());
-                        };
-                        if plan.preview.guest_downtime && !shutdown_approved {
-                            return Err("this plan requires graceful guest shutdown; review with plan, then supply --approve-shutdown".into());
-                        }
-                        let credential = if plan.preview.credentials_required {
-                            Some(
-                                credentials::read(&t.vm_id)?
-                                    .map_or_else(|| prompt(&t.vm_id), Ok)?,
-                            )
-                        } else {
-                            None
-                        };
-                        Ok(hyper_gpu_support::worker::Authorization {
-                            shutdown_approved,
-                            credential,
-                        })
-                    },
-                    |stage| eprintln!("{:?}: {}", stage.status, stage.stage),
-                )?;
-                serde_json::to_value(outcome).map_err(|e| e.to_string())?
-            }
-        } else {
-            runner::submit(runner::request(operation, Some(t.clone()), None))?
-        };
-        hyper_gpu_support::reporting::public_result(&mut result);
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&result).map_err(|e| e.to_string())?
-        );
-        if result.get("finished").is_some_and(|v| v == false) {
-            return Err("verified operation awaits configuration publication; use save-only with its operation_id".into());
-        }
     }
     Ok(())
+}
+
+/// Validate the retained record commands before opening an input or contacting a runner.
+#[cfg(any(windows, test))]
+fn record_config_path(args: &[String]) -> Result<&str, String> {
+    match args {
+        [command, option, path]
+            if matches!(command.as_str(), "install" | "import") && option == "--config" =>
+        {
+            Ok(path)
+        }
+        _ => Err(
+            "Use the GUI for ordinary operations; see --help for record/recovery commands.".into(),
+        ),
+    }
 }
 #[cfg(windows)]
 fn prompt(vm: &str) -> Result<hyper_gpu_support::credentials::Credential, String> {
@@ -431,6 +291,52 @@ mod dispatch_tests {
 
     fn args(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).into()).collect()
+    }
+
+    #[test]
+    fn record_commands_accept_only_the_complete_bundle_without_target_or_effect_options() {
+        for command in ["install", "import"] {
+            assert_eq!(
+                record_config_path(&args(&[command, "--config", "intent.toml"])).unwrap(),
+                "intent.toml"
+            );
+            for values in [
+                vec![command],
+                vec![command, "--config"],
+                vec![command, "--vm", "vm-id"],
+                vec![command, "--config", "intent.toml", "--vm", "vm-id"],
+                vec![command, "--config", "intent.toml", "--approve-shutdown"],
+                vec![command, "--config", "a.toml", "--config", "b.toml"],
+            ] {
+                assert!(record_config_path(&args(&values)).is_err(), "{values:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn retired_ordinary_commands_cannot_reach_configuration_or_installation() {
+        for command in [
+            "inventory",
+            "plan",
+            "status",
+            "apply",
+            "enable",
+            "disable",
+            "verify",
+            "credentials",
+            "forget",
+            "unknown",
+        ] {
+            for values in [
+                vec![command],
+                vec![command, "--config", "intent.toml"],
+                vec![command, "--config", "intent.toml", "--approve-shutdown"],
+            ] {
+                let args = args(&values);
+                assert!(!starts_gui(&args));
+                assert!(record_config_path(&args).is_err(), "{values:?}");
+            }
+        }
     }
 
     #[test]

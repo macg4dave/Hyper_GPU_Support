@@ -7,6 +7,8 @@ Codex only. Complete one requested task; current user instructions take preceden
 - Inspect working-tree changes and relevant source first; preserve unrelated edits/deletions. Use targeted searches rather than reading the entire repository.
 - Follow the requested task. For backlog work, read its card and relevant roadmap gate. An open card alone does not authorize execution.
 - QA reports are temporary user-owned inputs. Do not create or maintain QA reports, case files, indexes or report archives unless explicitly requested. Summarise fixes/checks in chat; respect report deletions and repair stale references without recreating reports. See [engineering](docs/ENGINEERING.md#status-and-evidence).
+- Do not add ad hoc debugging, QA, test or synthetic recovery files to the installed app or its live data directories. Never use live app state as test fixtures or copy runtime recovery files into the project. Use isolated temporary directories for test inputs.
+- For app installs/updates, use a clean reset of app-owned runtime data, enrollment/runner registration, saved profiles/history and user preferences rather than carrying previous app state forward. Confirm the app is closed and no operation is active before resetting; stop on active work. Keep the built app binaries, source and VM/guest state separate from this cleanup. Do not reset data on ordinary app launches.
 - Reuse existing components. Keep changes cohesive; no unrelated refactors, dependency upgrades, or restored tooling. Delegate only when explicitly requested.
 - Read only applicable guidance below. Requirements belong in the handbook, not prompts.
 

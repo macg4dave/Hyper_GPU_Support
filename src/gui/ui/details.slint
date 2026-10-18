@@ -1,15 +1,14 @@
 import { UiText } from "ui-text.slint";
 import { Button, Switch, ComboBox, ScrollView, Slider } from "std-widgets.slint";
 import { TextField } from "text-field.slint";
-import { Theme, Heading, Label, Hint, Surface, TechnicalDetailsButton } from "theme.slint";
+import { Theme, Heading, Label, Hint, Surface } from "theme.slint";
 import { ResourceEditor, AllocationDisclosure } from "resources.slint";
-import { TechnicalOutput } from "technical-output.slint";
 
 export component VmDetails inherits Rectangle {
     in property <string> focus-return-action;
     in property <int> focus-return-serial;
     changed focus-return-serial => {
-        if root.focus-return-action != "refresh" && root.focus-return-action != "recovery" {
+        if root.focus-return-action != "refresh" {
             root.restore-action-focus(root.focus-return-action);
         }
     }
@@ -34,9 +33,7 @@ export component VmDetails inherits Rectangle {
     in property <string> applied;
     in property <string> verification;
     in property <string> support-summary;
-    in property <string> inventory-details;
     in property <string> recovery-summary;
-    in property <string> technical-details;
     in property <bool> dirty;
     in property <bool> eligible;
     in property <bool> execution-ready;
@@ -64,9 +61,6 @@ export component VmDetails inherits Rectangle {
     in property <[string]> resource-defaults;
     in property <bool> presenting;
     in property <string> validation;
-    private property <bool> technical: false;
-    changed identity => { root.technical = false; }
-    changed technical-details => { if root.technical-details == "" { root.technical = false; } }
     private property <bool> advanced-expanded: false;
     changed memory-position => { memory-slider.value = root.memory-position; }
     callback edited();
@@ -210,23 +204,7 @@ export component VmDetails inherits Rectangle {
                     ResourceEditor { title: UiText.dashboard-memory-vram-label; capability-text: root.resource-hints[0]; minimum : root.values[0]; optimal : root.values[1]; maximum : root.values[2]; default-minimum: root.resource-defaults[0]; default-optimal: root.resource-defaults[1]; default-maximum: root.resource-defaults[2]; editable: (root.resource-available[0] || root.values[0] != "" || root.values[1] != "" || root.values[2] != "") && root.eligible && !root.recovery && !root.initial-setup-required; edited(index, value) => { root.edit-allocation(index, value); } }
                 }
                 if root.validation != "" && !root.recovery : Hint { text: root.validation; color: Theme.accent; }
-                if root.selected-recovery || root.technical-details != "" || root.inventory-details != "" : Surface {
-                    VerticalLayout {
-                        padding: 16px; spacing: 10px;
-                        if root.selected-recovery : Hint { text: root.recovery-summary; color: Theme.accent; }
-                        Button {
-                            text: UiText.dashboard-recovery-inspect; enabled: !Theme.modal-active;
-                            property <int> restore-request: root.focus-return-serial;
-                            changed restore-request => { if root.focus-return-action == "recovery" { self.focus(); } }
-                            clicked => { if self.enabled { root.action("recovery"); } }
-                        }
-                        HorizontalLayout {
-                            TechnicalDetailsButton { enabled: !Theme.modal-active; expanded <=> root.technical; }
-                            Rectangle { horizontal-stretch: 1; }
-                        }
-                        if root.technical : TechnicalOutput { enabled: !Theme.modal-active; text: root.technical-details; }
-                    }
-                }
+                if root.selected-recovery : Hint { text: root.recovery-summary; color: Theme.accent; }
                 content-end := Rectangle { height: 0px; vertical-stretch: 0; }
             }
         }

@@ -2,9 +2,9 @@
 
 ## Next action
 
-Continue **OPT-009** by reviewing remaining simplification candidates against current callers, responsibility ownership and retained behavior before wider changes under the [core simplification roadmap](roadmap.md). There is no numerical line target, size-enforcement task or budget-feasibility blocker. Prefer concrete reductions in unnecessary complexity; preserve useful tests and adapt them to the program's design. The implemented core, GUI and worker slices passed their complete non-hardware gates.
+The **OPT-009** remaining frontend/record caller review and bounded source follow-ups are implemented under the [core simplification roadmap](roadmap.md). Ordinary CLI operation dispatch is removed; administrator record/recovery commands and stored-audit compatibility are retained. The [integrated non-hardware gate](ENGINEERING.md#frontend-and-progress-integration-checkpoint) passed for these source inputs. Next is OPT-010 source work: assess and simplify concrete foreground request/completion duplication while retaining distinct record domains. There is no numerical line target, size-enforcement task or budget-feasibility blocker. Installation and live acceptance remain separate.
 
-The requested [architecture review and simplification](OPERATION_COMPLEXITY_REVIEW.md) is complete through its [non-hardware checkpoint](ENGINEERING.md#architecture-simplification-checkpoint). Exact record equality, GUID syntax and completion input ownership are simplified; useful tests follow the production path. No new cards are needed. Installed/live candidate acceptance remains separate from source completion.
+The requested [architecture review and simplification](OPERATION_COMPLEXITY_REVIEW.md) is complete through its [non-hardware checkpoint](ENGINEERING.md#architecture-simplification-checkpoint). Exact record equality, GUID syntax and completion input ownership are simplified; useful tests follow the production path. A subsequent [guest progress source checkpoint](ENGINEERING.md#guest-progress-source-checkpoint) consolidates preparation/verification progress and adds failure regressions; its builds/tests/gate passed at the subsequent integrated checkpoint. No new cards are needed. Installed/live candidate acceptance remains separate from source completion.
 
 Preview cleanup is implemented: `PreliminaryPlan`, `ReinstallPlan` and `VerifyPlan` runner reads had no in-repository GUI/CLI submission callers and are removed, together with deferred-authentication scaffolding and stand-alone reinstall/preliminary preview APIs. Useful tests now use current preparation; obsolete deferral-only cases are removed. The integrated gate passed and the protected update is installed; see the [checkpoint](ENGINEERING.md#runner-preview-cleanup-checkpoint).
 
@@ -14,7 +14,7 @@ The prior optimization candidate's recorded automated/install checkpoint is reta
 
 | ID | Task | Implementation | Dependencies | Validation |
 | --- | --- | --- | --- | --- |
-| OPT-009 | Review the simplification design | In progress | None | Implemented slices passed complete gates; remaining candidates need caller/contract review |
+| OPT-009 | Review the simplification design | Done | None | Caller review/source follow-ups and complete non-hardware gate passed; installed/live acceptance separate |
 | OPT-010 | Replace operation coordination | Not started | OPT-009 | Pending milestone gate |
 | OPT-011 | Consolidate remaining duplication | Not started | OPT-010 | Behavior review and complete gate pending |
 | OPT-008 | Simplified candidate acceptance | In progress | OPT-011 | Prior candidate gate/install recorded; new candidate and live evidence pending |
@@ -32,6 +32,8 @@ Source checkpoint: GUI/CLI share prepared execution; the ordinary prediction/adm
 GUI checkpoint: both dialog families now share action/footer rules, focus and scrolling; prepared Apply/Verify acknowledgement is pure validation rather than a duplicate GUI plan store; unused running-body summary builders and their obsolete tests are removed. Enrollment, profile deletion and partial removal also pass checked requests directly into existing callbacks; their redundant global caches are removed. Existing resource fields, copyable logs, action callbacks and the Slint design are reused. See [GUI evidence](ENGINEERING.md#gui-simplification-checkpoint) and the [captured-request checkpoint](ENGINEERING.md#captured-gui-requests-checkpoint); broader consolidation still requires its own caller/contract review.
 
 Worker follow-up: one Apply/Verify preparation exchange, receipt builder and persisted execution/confirmation lifecycle replace the parallel paths. Apply publication remains explicit; Verify never publishes intent. Retired direct-plan command variants are removed and terminal validation uses the prepared review directly. Bound receipt paths no longer use impossible optional-path branches. See the [worker checkpoint](ENGINEERING.md#worker-lifecycle-checkpoint) for validation status.
+
+Latest source follow-ups: preparation/verification share guest progress mechanics; ordinary CLI dispatch and target-option parsing are removed. The [caller review](OPERATION_COMPLEXITY_REVIEW.md#frontend-caller-and-recovery-review) accounts for retained administrator record/recovery routes and public audit compatibility. The [frontend source checkpoint](ENGINEERING.md#frontend-caller-source-checkpoint) records implementation separately from the subsequent passing integrated gate. Historical CLI-specific acceptance below describes the earlier slice; supported ordinary execution now belongs to the GUI.
 
 Acceptance:
 

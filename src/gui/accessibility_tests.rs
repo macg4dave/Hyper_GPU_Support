@@ -113,3 +113,36 @@ fn memory_accessibility_uses_gb_for_values_ranges_and_actions_and_obeys_editing_
         assert_eq!(edits.borrow().len(), 3);
     }
 }
+
+#[test]
+fn main_page_omits_recorded_outcome_and_technical_details_controls() {
+    slint::platform::set_platform(Box::new(Headless)).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_inventory_details("Inventory diagnostics".into());
+    ui.set_vm_details("VM diagnostics".into());
+    ui.set_inventory_error("Inventory unavailable".into());
+    ui.set_has_recovery(true);
+    ui.set_recovery(true);
+    ui.set_selected_recovery(true);
+    ui.set_recovery_summary("Recovery required".into());
+    let forbidden = [
+        hyper_gpu_support::ui_text::dashboard::recovery::inspect(),
+        hyper_gpu_support::ui_text::diagnostics::show_label(),
+        hyper_gpu_support::ui_text::diagnostics::hide_label(),
+    ];
+    for selected in ["", "12345678-1234-1234-1234-123456789abc"] {
+        ui.set_selected_id(selected.into());
+        slint::platform::update_timers_and_animations();
+        let root = ItemRc::new_root(WindowInner::from_pub(ui.window()).component());
+        root.visit_descendants::<()>(|item| {
+            if let Some(label) = item.accessible_string_property(AccessibleStringProperty::Label) {
+                assert!(
+                    !forbidden.iter().any(|text| text.as_str() == label),
+                    "main page exposes {label} for selection {selected}"
+                );
+            }
+            ControlFlow::Continue(())
+        });
+    }
+}

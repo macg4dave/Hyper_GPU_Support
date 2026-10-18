@@ -2,11 +2,11 @@
 
 ## Current scope
 
-The CLI is now **defunct**. The GUI is the supported product frontend; CLI references below describe earlier implementation checkpoints and do not require retaining CLI functionality in the simplification work. This status decision does not claim that CLI source has already been removed.
+The CLI is now **defunct**. The GUI is the supported product frontend; CLI references below describe earlier implementation checkpoints and do not require retaining CLI functionality in the simplification work. Ordinary CLI inventory/planning/GPU/verification/credential dispatch is now removed. Administrator record/recovery commands remain for native evidence, legacy installation, import and recorded outcomes; their distinct contracts are documented in the [caller review](OPERATION_COMPLEXITY_REVIEW.md#frontend-caller-and-recovery-review).
 
 The requested outcome is a simpler, readable application with cohesive responsibilities, one core operation path and the existing Slint design. There is no numerical source-line target or size-enforcement gate. The earlier target prompted a broader architectural review; changes are judged by reduced unnecessary complexity, clarity and preserved functionality. The [architecture review](OPERATION_COMPLEXITY_REVIEW.md) records current findings and implemented simplifications; [engineering](ENGINEERING.md#size-accounting) defines descriptive source accounting and test policy.
 
-The first OPT-009 source slice implements shared prepared execution, Configure steps and completion merging. Remaining replacement candidates require caller and behavior evidence before implementation. Historical source inventories below provide context rather than a required reduction or a blocker to further work.
+The first OPT-009 source slice implements shared prepared execution, Configure steps and completion merging. The [guest progress source follow-up](ENGINEERING.md#guest-progress-source-checkpoint) shares preparation/verification progress delivery. The latest [frontend caller follow-up](ENGINEERING.md#frontend-caller-source-checkpoint) removes ordinary CLI dispatch and records dispositions for remaining administrator/recovery callers. Both add failure regressions and passed the [integrated non-hardware gate](ENGINEERING.md#frontend-and-progress-integration-checkpoint). OPT-009 source review and automated validation are complete; installed/live acceptance remains separate. Further replacement candidates require caller and behavior evidence before implementation. Historical source inventories below provide context rather than a required reduction or a blocker to further work.
 
 Keep the agreed workflow and protected architecture. No feature removal, dependency upgrade, transport replacement or recovery-format migration is assumed. Prefer straightforward implementations even when they are longer. If a simplification risks intended behavior, stop that change and explain the trade-off.
 
@@ -26,7 +26,7 @@ Bootstrap remains its fixed installation entrypoint. Credential management remai
 
 ### One execution path
 
-For Configure and Verify, GUI and CLI both use the existing prepared-worker exchange:
+For Configure and Verify, the supported GUI uses the existing prepared-worker exchange:
 
 ```text
 frontend request
@@ -40,7 +40,7 @@ frontend request
   -> protected completion observation, one frontend completion handler
 ```
 
-The CLI ordinary path now uses `apply_prepared`, matching the GUI and setup. `OrdinaryPlan`, direct worker client Apply/Verify functions and optional backend/readmission branches have been removed. Retired direct reviewed-plan Apply/Verify wire variants are removed. Old submissions fail request decoding; terminal replies are checked directly against the authenticated prepared review. Ordinary changes remain credential-free and the CLI retains its explicit power flag. CLI `plan` remains read-only and cannot carry reusable execution authority. Audit public callers before removing exported helpers; this package is unpublished, but that alone is not proof of no consumers.
+The earlier CLI ordinary path used `apply_prepared`, matching the GUI and setup; that duplicate frontend dispatch is now removed. `OrdinaryPlan`, direct worker client Apply/Verify functions and optional backend/readmission branches have been removed. Retired direct reviewed-plan Apply/Verify wire variants are removed. Old submissions fail request decoding; terminal replies are checked directly against the authenticated prepared review. Eligible ordinary changes remain credential-free. The removed CLI `plan` granted no reusable execution authority; the public runner read contract remains available independently of that retired frontend. Audit public callers before removing exported helpers; this package is unpublished, but that alone is not proof of no consumers.
 
 ### One definition of the steps
 

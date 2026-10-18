@@ -151,12 +151,7 @@ fn remember_os(result: InventoryRead) -> InventoryRead {
 fn discover() -> Result<(Inventory, Option<String>), String> {
     use hyper_gpu_support::{process, runner, windows_hyperv};
     if runner::pending_setup()?.is_some() || !runner::installed()? {
-        return hyper_gpu_support::setup::discover().map(|inventory| {
-            (
-                inventory,
-                Some(hyper_gpu_support::ui_text::system::discovery::INITIAL_SETUP_NOTICE.into()),
-            )
-        });
+        return hyper_gpu_support::setup::discover().map(|inventory| (inventory, None));
     }
     match runner::submit(runner::request(runner::Operation::Discover, None, None)) {
         Ok(value) => serde_json::from_value(value)

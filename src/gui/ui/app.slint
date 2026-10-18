@@ -193,8 +193,7 @@ export component AppWindow inherits Window {
                             observed: root.observed; desired: root.desired; verification: root.verification;
                             pending: root.pending; applied: root.applied;
                             support-summary: root.updating ? UiText.dashboard-inventory-updating-notice : root.support-summary;
-                            inventory-details: root.inventory-details; recovery-summary: root.recovery-summary;
-                            technical-details: root.vm-details;
+                            recovery-summary: root.recovery-summary;
                             dirty: root.dirty; eligible: root.eligible; recovery: root.recovery;
                             selected-recovery: root.selected-recovery;
                             execution-ready: root.execution-ready; updating: root.updating; gpu-problem: root.gpu-problem; verify-unavailable: root.verify-unavailable; verify-allowed: root.verify-allowed;
@@ -215,7 +214,6 @@ export component AppWindow inherits Window {
                         if root.selected-id == "" : Rectangle {
                             min-width: 610px;
                             VerticalLayout { padding: 40px; spacing: 15px; Label { text: UiText.dashboard-workspace-title; font-size: 23px; } Hint { text: UiText.dashboard-workspace-body; }
-                                if root.inventory-error != "" || root.has-recovery : Button { enabled: !Theme.modal-active; text: UiText.dashboard-recovery-inspect; clicked => { if self.enabled { root.action("recovery"); } } }
                                 Rectangle { vertical-stretch: 1; }
                             }
                         }

@@ -4,7 +4,7 @@ This page owns runtime intent, parsing, storage, and compatibility. The producti
 
 ## Runtime intent
 
-`Configuration` contains `schema` and `targets`. Each `Target` contains a stable `vm_id`, exact partitionable `gpu_interface`, `enabled`, and optional resource request triples. The same types/parser serve the CLI, GUI, imports, and sample intent. Preserve this shared production schema.
+`Configuration` contains `schema` and `targets`. Each `Target` contains a stable `vm_id`, exact partitionable `gpu_interface`, `enabled`, and optional resource request triples. The same types/parser serve the GUI, retained administrator record commands, imports, and sample intent. Preserve this shared production schema.
 
 | Schema | Supported intent |
 |---|---|
@@ -23,9 +23,9 @@ Use the toggle or More actions > Remove GPU support to disable support. Reading 
 
 ## Input and committed files
 
-- CLI `--config FILE` accepts a production configuration bundle, including a single target. Selection options do not grant authority.
+- Retained `install --config FILE` and `import --config FILE` administrator commands accept a complete production configuration bundle, including a single target. Target-selection and effect-approval options are rejected before reading the input. Ordinary CLI operation commands are removed; use the GUI.
 - Committed intent uses lowercase `<vm-guid>.toml` files, each containing exactly one target with the matching canonical GUID.
-- The per-VM reader is bounded to 64 KiB of UTF-8 TOML; the CLI bundle and protected enrollment readers use the 1 MiB frame limit. The guest preparation manifest reader is bounded to 32 MiB. These limits apply while reading, before parsing the complete input. A valid candidate file is still untrusted input, not a protected-store admission result.
+- The per-VM reader is bounded to 64 KiB of UTF-8 TOML; the administrator bundle and protected enrollment readers use the 1 MiB frame limit. The guest preparation manifest reader is bounded to 32 MiB. These limits apply while reading, before parsing the complete input. A valid candidate file is still untrusted input, not a protected-store admission result.
 - `Configuration::vm_documents` produces canonical documents without writing them. Schema 2 remains readable; current worker effect publication serializes schema 3.
 - The protected store is under the product's fixed Windows known-folder data root, in `config/vms`. Paths are derived by the product; callers do not choose privileged publication destinations.
 - Expected revisions detect external changes. Unreadable, malformed, untrusted, or conflicting committed state must be reported as unknown/blocked, not silently replaced by invented values.
@@ -60,7 +60,7 @@ This preference stores no drafts, GPU settings, credentials or operation authori
 
 GUI discovery, including setup discovery and automatic status refresh, saves each available guest-reported OS name in `%LOCALAPPDATA%/HyperGpuSupport/guest-os/<vm-guid>.txt`. These per-user display metadata files are separate from protected GPU intent. When live OS metadata is unavailable, including while a VM is off or after reopening the app, the icon uses its last saved OS name. A fresh OS name replaces it, including an unfamiliar OS that requires the generic icon. Names and renames never determine OS identity; a new VM GUID does not inherit another VM's icon. A VM never observed reporting its OS retains the generic icon. No guest is started or entered to populate this cache.
 
-Reads are bounded to 1024 bytes of UTF-8 OS text and filenames require canonical GUIDs. Missing, malformed or unreadable cache entries provide no fallback. Cache write failures appear as discovery warnings while fresh inventory remains usable. Cached OS information affects presentation only and grants no operation, enrollment or recovery authority. The CLI and protected runner continue to report live inventory without this GUI fallback.
+Reads are bounded to 1024 bytes of UTF-8 OS text and filenames require canonical GUIDs. Missing, malformed or unreadable cache entries provide no fallback. Cache write failures appear as discovery warnings while fresh inventory remains usable. Cached OS information affects presentation only and grants no operation, enrollment or recovery authority. Protected runner discovery continues to report live inventory without this GUI fallback.
 
 Installed-GUI icon acceptance remains pending.
 
