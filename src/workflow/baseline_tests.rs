@@ -1,6 +1,7 @@
 //! Candidate comparisons against the frozen OPT-001 table in ENGINEERING.md.
 //! Updated expectations name each removed cycle/category check; isolated doubles are
 //! not provider queries, native writes, worker final authentication, or timings.
+//! Prepared cases consume one token; a separate CLI plan adds its own full read.
 use super::test_support::{Fake, extended_target, fake, recovery_record, trace};
 use super::{Backend, apply, apply_admitted, plan, prepare_apply};
 use crate::model::{Allocation, Configuration, Power, Resource, Target};
@@ -94,10 +95,10 @@ fn setup_removes_one_unattached_boot_cycle_against_original_counts() {
 
 #[test]
 fn retained_category_reduction_and_attached_reinstall_compared_with_original() {
-    for full_plan in [false, true] {
+    for cli_plan in [false, true] {
         let (mut backend, mut target) = established();
         target.vram.as_mut().unwrap().maximum = 95;
-        if full_plan {
+        if cli_plan {
             plan(&mut backend, &target).unwrap();
         }
         let (reviewed, admitted) = prepare_apply(&mut backend, &target, false).unwrap();
@@ -109,13 +110,9 @@ fn retained_category_reduction_and_attached_reinstall_compared_with_original() {
             "ordinary Apply",
             backend.work,
             Expected {
-                reads: if full_plan {
-                    [15, 13, 13]
-                } else {
-                    [14, 12, 12]
-                },
+                reads: if cli_plan { [15, 13, 13] } else { [14, 12, 12] },
                 journals: 3,
-                payloads: if full_plan { 2 } else { 1 },
+                payloads: if cli_plan { 2 } else { 1 },
                 power: [0, 0],
                 adapters: [0, 0],
                 settings: 0,

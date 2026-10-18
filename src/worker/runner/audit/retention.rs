@@ -307,7 +307,7 @@ mod tests {
             "Apply",
             "Verify",
             "Plan",
-            "ReinstallPlan",
+            "RemovalPlan",
         ] {
             for outcome in ["Started", "Failed", "Succeeded"] {
                 let mut value = original.clone();
@@ -323,6 +323,15 @@ mod tests {
                         )
                 );
                 assert!(!eligible(&record, "different.json"));
+            }
+        }
+        // Retention skips undecodable records, preserving retired operation evidence.
+        for operation in ["PreliminaryPlan", "ReinstallPlan", "VerifyPlan"] {
+            for outcome in ["Started", "Failed", "Succeeded"] {
+                let mut value = original.clone();
+                value["operation"] = operation.into();
+                value["outcome"] = outcome.into();
+                assert!(serde_json::from_value::<AuditRecord>(value).is_err());
             }
         }
         let mut malformed = original;
