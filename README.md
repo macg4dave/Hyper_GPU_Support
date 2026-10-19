@@ -11,7 +11,7 @@ Windows-version checking is deferred. GPU installation, driver refresh and Repai
 - Select a VM, set GPU support on/off, and choose VRAM from 1 GB to the selected card's capacity.
 - Apply goes straight to the progress screen. Fresh checks prepare the exact request internally, then execution starts without a review dialog or second Apply click. Selecting an action includes its required VM power transitions.
 - First-time setup prepares and saves the exact VM/GPU permission, independently reads it back, then continues into fresh GPU planning and Apply for the same unchanged request. Windows credential and UAC prompts remain.
-- First GPU setup manages preparation and VM power, explains guest credentials before the local prompt, verifies GPU operation with a pass/fail result, then leaves the VM off after completed setup.
+- First GPU setup manages preparation and VM power, requests guest credentials in a native sign-in prompt kept above the app, verifies GPU operation with a pass/fail result, then leaves the VM off after completed setup. Sign-in instructions and the optional Remember choice are in that prompt; there is no preceding OK/Cancel explanation dialog.
 - Later toggle/VRAM changes prepare and apply directly without repeating unnecessary setup or initial verification.
 - Remembering guest credentials is optional. Saved settings, current observations, drafts, and failures stay truthful.
 - Setup refreshes permissions and VM status automatically. A failed operation keeps its original error and shows independently refreshed power/recovery facts when available; retrying the status update is necessary only when that read fails. An uncertain operation is never repeated automatically.

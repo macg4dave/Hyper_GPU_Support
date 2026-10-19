@@ -61,7 +61,7 @@ Status-reader release refreshes the exact Task Scheduler instance returned by la
 | Workflow and worker lifecycle | Share Configure steps and Apply/Verify receipt/effect/final-confirmation mechanics |
 | Frontend state | Use protected completion bundles directly; remove redundant preparation stores and the cloned selected recovery receipt |
 | Records and identity | Use typed equality, one GUID grammar and `security::read_optional`; retain domain decoding, exact revisions and publication rules |
-| Guest progress and credentials | Share progress mechanics; let `credentials::prompt_named` own lookup, explanation, prompt and cancellation |
+| Guest progress and credentials | Share progress mechanics; let `credentials::prompt_named` own lookup, native sign-in instructions, topmost prompt and cancellation |
 | Native/guest/security | Retain peer/process authentication, provider-job holds, trust, current-file parity, rendering and release checks; no safe deletion established |
 | Compatibility | Retain public runner values used by stored audits, exported compatibility hooks and existing locale support; no format migration |
 | Tests and dependencies | Adapt fixtures to current state ownership and retain behavior/failure coverage; no dependency removal or test deletion justified in this follow-up |

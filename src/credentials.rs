@@ -24,13 +24,11 @@ pub fn is_prompt_cancelled(error: &str) -> bool {
 
 fn prompt_if_needed<T>(
     stored: Result<Option<T>, String>,
-    explain: impl FnOnce() -> Result<(), String>,
     prompt: impl FnOnce() -> Result<T, String>,
 ) -> Result<T, String> {
     if let Some(credential) = stored? {
         return Ok(credential);
     }
-    explain()?;
     prompt()
 }
 
@@ -177,11 +175,7 @@ pub fn prompt_named(
     name: &str,
     parent: windows::Win32::Foundation::HWND,
 ) -> Result<Credential, String> {
-    prompt_if_needed(
-        read(vm),
-        || explain_guest_sign_in(vm, name, parent),
-        || prompt_native(vm, name, parent, false),
-    )
+    prompt_if_needed(read(vm), || prompt_native(vm, name, parent, false))
 }
 
 /// Manage the selected VM's opt-in vault entry without connecting to the guest.
@@ -222,33 +216,6 @@ pub fn manage_named(
     Ok(read(vm)?.is_some())
 }
 
-#[allow(unsafe_code)]
-fn explain_guest_sign_in(
-    vm: &str,
-    name: &str,
-    parent: windows::Win32::Foundation::HWND,
-) -> Result<(), String> {
-    use windows::Win32::UI::WindowsAndMessaging::{IDCANCEL, IDOK, MB_OKCANCEL, MessageBoxW};
-    let caption = prompt_wide(crate::ui_text::credentials::explanation::caption());
-    let guest_message = guest_prompt_message(vm, name);
-    let message =
-        prompt_wide(crate::ui_text::credentials::explanation::wrapper(&guest_message).as_str());
-    // SAFETY: live terminated strings, optional dialog owner; no credentials are collected here.
-    let result = unsafe {
-        MessageBoxW(
-            Some(parent),
-            PCWSTR(message.as_ptr()),
-            PCWSTR(caption.as_ptr()),
-            MB_OKCANCEL,
-        )
-    };
-    match result {
-        IDOK => Ok(()),
-        IDCANCEL => Err(PROMPT_CANCELLED.into()),
-        _ => Err("Guest sign-in explanation could not be opened.".into()),
-    }
-}
-
 fn prompt_status(status: windows::Win32::Foundation::WIN32_ERROR) -> Result<(), String> {
     if status == windows::Win32::Foundation::ERROR_CANCELLED {
         return Err(PROMPT_CANCELLED.into());
@@ -259,63 +226,159 @@ fn prompt_status(status: windows::Win32::Foundation::WIN32_ERROR) -> Result<(), 
 }
 
 #[allow(unsafe_code)]
+fn with_prompt_owner<T>(
+    parent: windows::Win32::Foundation::HWND,
+    show: impl FnOnce(windows::Win32::Foundation::HWND) -> Result<T, String>,
+) -> Result<T, String> {
+    use windows::Win32::{
+        Foundation::{HWND, RECT},
+        UI::WindowsAndMessaging::{
+            CreateWindowExW, DestroyWindow, GWL_EXSTYLE, GetDesktopWindow, GetForegroundWindow,
+            GetWindowLongPtrW, GetWindowRect, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+            SetWindowPos, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+        },
+    };
+
+    // CredUI inherits its owner's topmost status. Keep this hidden window on the
+    // prompt thread for the modal call, without making the application topmost.
+    struct PromptOwner(HWND);
+    impl Drop for PromptOwner {
+        fn drop(&mut self) {
+            // SAFETY: this guard owns the hidden window on its creating thread;
+            // CredUI has returned before the guard is released.
+            if let Err(error) = unsafe { DestroyWindow(self.0) } {
+                eprintln!("Guest sign-in owner cleanup failed: {error}");
+            }
+        }
+    }
+    let parent = (!parent.is_invalid()).then_some(parent);
+    // Use foreground geometry only for placement; it grants no ownership or authority.
+    // SAFETY: these queries borrow existing windows without changing their state.
+    let placement = parent.unwrap_or_else(|| unsafe { GetForegroundWindow() });
+    let placement = if placement.is_invalid() {
+        // SAFETY: borrow the desktop window for default dialog placement.
+        unsafe { GetDesktopWindow() }
+    } else {
+        placement
+    };
+    let mut bounds = RECT::default();
+    // SAFETY: borrowed window and writable RECT valid for the synchronous query.
+    unsafe { GetWindowRect(placement, &mut bounds) }
+        .map_err(|error| format!("Guest sign-in placement failed: {error}"))?;
+    let width = bounds
+        .right
+        .checked_sub(bounds.left)
+        .filter(|width| *width >= 0)
+        .ok_or("Guest sign-in owner width is invalid.")?;
+    let height = bounds
+        .bottom
+        .checked_sub(bounds.top)
+        .filter(|height| *height >= 0)
+        .ok_or("Guest sign-in owner height is invalid.")?;
+    // SAFETY: predefined STATIC class, no visible style or custom procedure, finite
+    // rectangle and optional borrowed owner. The returned window is owned by the guard.
+    let owner = PromptOwner(
+        unsafe {
+            CreateWindowExW(
+                WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+                windows::core::w!("STATIC"),
+                windows::core::w!(""),
+                WS_POPUP,
+                bounds.left,
+                bounds.top,
+                width,
+                height,
+                parent,
+                None,
+                None,
+                None,
+            )
+        }
+        .map_err(|error| format!("Guest sign-in owner could not be created: {error}"))?,
+    );
+    // SAFETY: owned live window; establish its z-order without showing, moving,
+    // resizing or activating it. Its owned credential dialog inherits topmost.
+    unsafe {
+        SetWindowPos(
+            owner.0,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
+        )
+    }
+    .map_err(|error| format!("Guest sign-in could not be made topmost: {error}"))?;
+    // SAFETY: query the extended style of this same owned live window. Do not
+    // open credential input if the required topmost ownership was not established.
+    if unsafe { GetWindowLongPtrW(owner.0, GWL_EXSTYLE) } & WS_EX_TOPMOST.0 as isize == 0 {
+        return Err("Guest sign-in owner is not topmost.".into());
+    }
+    show(owner.0)
+}
+
+#[allow(unsafe_code)]
 fn prompt_native(
     vm: &str,
     name: &str,
     parent: windows::Win32::Foundation::HWND,
     replacing: bool,
 ) -> Result<Credential, String> {
-    // CREDUI_MAX_CAPTION_LENGTH and CREDUI_MAX_MESSAGE_LENGTH.
-    let caption = prompt_wide_bounded(crate::ui_text::credentials::native::caption(), 128);
-    let message = prompt_wide_bounded(guest_prompt_message(vm, name).as_str(), 1024);
-    let target = prompt_wide(&format!("HyperGpuSupport/guest/{vm}"));
-    let info = CREDUI_INFOW {
-        cbSize: std::mem::size_of::<CREDUI_INFOW>() as u32,
-        hwndParent: parent,
-        pszCaptionText: PCWSTR(caption.as_ptr()),
-        pszMessageText: PCWSTR(message.as_ptr()),
-        ..Default::default()
-    };
-    let mut username = [0u16; 514];
-    let mut password = zeroize::Zeroizing::new([0u16; 256]);
-    let mut remember = windows::core::BOOL(0);
-    // SAFETY: live dialog owner, bounded mutable credential buffers, no automatic persistence.
-    let status = unsafe {
-        CredUIPromptForCredentialsW(
-            Some(&info),
-            PCWSTR(target.as_ptr()),
-            None,
-            0,
-            &mut username,
-            &mut password[..],
-            Some(&mut remember),
-            CREDUI_FLAGS(
-                CREDUI_FLAGS_GENERIC_CREDENTIALS.0
-                    | CREDUI_FLAGS_ALWAYS_SHOW_UI.0
-                    | CREDUI_FLAGS_DO_NOT_PERSIST.0
-                    | CREDUI_FLAGS_SHOW_SAVE_CHECK_BOX.0,
-            ),
+    with_prompt_owner(parent, |parent| {
+        // CREDUI_MAX_CAPTION_LENGTH and CREDUI_MAX_MESSAGE_LENGTH.
+        let caption = prompt_wide_bounded(crate::ui_text::credentials::native::caption(), 128);
+        let message = prompt_wide_bounded(guest_prompt_message(vm, name).as_str(), 1024);
+        let target = prompt_wide(&format!("HyperGpuSupport/guest/{vm}"));
+        let info = CREDUI_INFOW {
+            cbSize: std::mem::size_of::<CREDUI_INFOW>() as u32,
+            hwndParent: parent,
+            pszCaptionText: PCWSTR(caption.as_ptr()),
+            pszMessageText: PCWSTR(message.as_ptr()),
+            ..Default::default()
+        };
+        let mut username = [0u16; 514];
+        let mut password = zeroize::Zeroizing::new([0u16; 256]);
+        let mut remember = windows::core::BOOL(0);
+        // SAFETY: live dialog owner, bounded mutable credential buffers, no automatic persistence.
+        let status = unsafe {
+            CredUIPromptForCredentialsW(
+                Some(&info),
+                PCWSTR(target.as_ptr()),
+                None,
+                0,
+                &mut username,
+                &mut password[..],
+                Some(&mut remember),
+                CREDUI_FLAGS(
+                    CREDUI_FLAGS_GENERIC_CREDENTIALS.0
+                        | CREDUI_FLAGS_ALWAYS_SHOW_UI.0
+                        | CREDUI_FLAGS_DO_NOT_PERSIST.0
+                        | CREDUI_FLAGS_SHOW_SAVE_CHECK_BOX.0,
+                ),
+            )
+        };
+        prompt_status(status)?;
+        let user_end = username
+            .iter()
+            .position(|c| *c == 0)
+            .unwrap_or(username.len());
+        let password_end = password
+            .iter()
+            .position(|c| *c == 0)
+            .unwrap_or(password.len());
+        let credential = Credential {
+            username: String::from_utf16(&username[..user_end]).map_err(|_| "invalid username")?,
+            password: String::from_utf16(&password[..password_end])
+                .map_err(|_| "invalid password")?,
+        };
+        finish_input(
+            Ok((credential, remember.as_bool())),
+            replacing,
+            |credential| store(vm, credential),
+            || forget(vm),
         )
-    };
-    prompt_status(status)?;
-    let user_end = username
-        .iter()
-        .position(|c| *c == 0)
-        .unwrap_or(username.len());
-    let password_end = password
-        .iter()
-        .position(|c| *c == 0)
-        .unwrap_or(password.len());
-    let credential = Credential {
-        username: String::from_utf16(&username[..user_end]).map_err(|_| "invalid username")?,
-        password: String::from_utf16(&password[..password_end]).map_err(|_| "invalid password")?,
-    };
-    finish_input(
-        Ok((credential, remember.as_bool())),
-        replacing,
-        |credential| store(vm, credential),
-        || forget(vm),
-    )
+    })
 }
 
 fn finish_input<T>(
@@ -350,6 +413,23 @@ fn guest_prompt_message(_vm: &str, name: &str) -> crate::ui_text::UiMessage {
 #[cfg(test)]
 mod prompt_tests {
     use super::*;
+
+    #[test]
+    fn native_prompt_owner_is_topmost_and_preserves_success_or_cancellation() {
+        // Only hidden native owner windows are created: no credential prompt,
+        // vault access, guest connection or VM operation occurs in this test.
+        for result in [Ok(7), Err(PROMPT_CANCELLED.to_owned())] {
+            let mut calls = 0;
+            let returned =
+                with_prompt_owner(windows::Win32::Foundation::HWND::default(), |owner| {
+                    assert!(!owner.is_invalid());
+                    calls += 1;
+                    result.clone()
+                });
+            assert_eq!(returned, result);
+            assert_eq!(calls, 1);
+        }
+    }
 
     #[test]
     fn native_prompt_text_is_bounded_at_a_character_boundary() {
@@ -425,40 +505,31 @@ mod prompt_tests {
     }
 
     #[test]
-    fn explanation_precedes_input_and_guest_work_for_the_bound_vm() {
+    fn input_opens_directly_before_guest_work_for_the_bound_vm() {
         let events = std::cell::RefCell::new(Vec::new());
         let vm = "reviewed-vm";
-        let credential = prompt_if_needed(
-            Ok(None),
-            || {
-                events.borrow_mut().push(("explain", vm));
-                Ok(())
-            },
-            || {
-                events.borrow_mut().push(("prompt", vm));
-                Ok("ephemeral-input")
-            },
-        )
+        let credential = prompt_if_needed(Ok(None), || {
+            events.borrow_mut().push(("prompt", vm));
+            Ok("ephemeral-input")
+        })
         .unwrap();
         assert_eq!(credential, "ephemeral-input");
         events.borrow_mut().push(("guest-work", vm));
-        assert_eq!(
-            *events.borrow(),
-            [("explain", vm), ("prompt", vm), ("guest-work", vm)]
-        );
+        assert_eq!(*events.borrow(), [("prompt", vm), ("guest-work", vm)]);
     }
 
     #[test]
-    fn cancellation_or_explanation_failure_prevents_input_and_guest_work() {
-        for error in [PROMPT_CANCELLED, "Explanation unavailable"] {
-            let result = prompt_if_needed::<()>(
-                Ok(None),
-                || Err(error.into()),
-                || panic!("Input must not open after cancelled/failed explanation"),
-            );
+    fn cancelled_or_failed_input_prevents_guest_work() {
+        for error in [PROMPT_CANCELLED, "Guest credential dialog failed."] {
+            let mut prompts = 0;
+            let result = prompt_if_needed::<()>(Ok(None), || {
+                prompts += 1;
+                Err(error.into())
+            });
             let mut guest_work = false;
             let result = result.map(|()| guest_work = true);
             assert_eq!(result.unwrap_err(), error);
+            assert_eq!(prompts, 1);
             assert!(!guest_work);
             let edited_label = String::from_iter(['λ', '\n', '{', '}']);
             assert!(!is_prompt_cancelled(&edited_label));
@@ -467,25 +538,21 @@ mod prompt_tests {
     }
 
     #[test]
-    fn stored_opt_in_skips_both_panels_and_vault_errors_do_not_prompt() {
-        let stored = prompt_if_needed(
-            Ok(Some("stored-input")),
-            || panic!("No explanation without a prompt"),
-            || panic!("No prompt when stored input is available"),
-        );
+    fn stored_opt_in_skips_input_and_vault_errors_do_not_prompt() {
+        let stored = prompt_if_needed(Ok(Some("stored-input")), || {
+            panic!("No prompt when stored input is available")
+        });
         assert_eq!(stored.unwrap(), "stored-input");
-        let error = prompt_if_needed::<()>(
-            Err("Vault unavailable".into()),
-            || panic!("Vault failure must be reported"),
-            || panic!("Vault failure must not fall back to input"),
-        );
+        let error = prompt_if_needed::<()>(Err("Vault unavailable".into()), || {
+            panic!("Vault failure must not fall back to input")
+        });
         assert_eq!(error.unwrap_err(), "Vault unavailable");
     }
 
     #[test]
     fn native_cancel_is_distinct_from_dialog_failure_and_stops_guest_work() {
         use windows::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_CANCELLED, ERROR_SUCCESS};
-        let result = prompt_if_needed(Ok(None), || Ok(()), || prompt_status(ERROR_CANCELLED));
+        let result = prompt_if_needed(Ok(None), || prompt_status(ERROR_CANCELLED));
         let mut guest_work = false;
         let result = result.map(|()| guest_work = true);
         assert!(is_prompt_cancelled(&result.unwrap_err()));
