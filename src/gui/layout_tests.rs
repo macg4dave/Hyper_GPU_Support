@@ -73,6 +73,12 @@ fn save_render(size: slint::PhysicalSize, pixels: &[Rgb8Pixel]) {
 fn copy_percentage_label_follows_updates_after_its_first_visible_value() {
     let window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
     slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    for scale_factor in [1.0_f32, 1.25, 1.5] {
+        copy_percentage_repaints_at(&window, scale_factor);
+    }
+}
+
+fn copy_percentage_repaints_at(window: &Rc<MinimalSoftwareWindow>, scale_factor: f32) {
     let ui = AppWindow::new().unwrap();
     ui.set_startup_loading(false);
     ui.set_running(true);
@@ -80,46 +86,184 @@ fn copy_percentage_label_follows_updates_after_its_first_visible_value() {
     ui.set_current_stage("Preparing GPU driver files".into());
     ui.set_transfer_fraction(-1.0);
     ui.show().unwrap();
-    window.set_size(LogicalSize::new(700., 520.));
+    window.dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor });
+    window.set_size(slint::PhysicalSize::new(700, 520));
     let mut pixels = vec![Rgb8Pixel::default(); 700 * 520];
-    window.request_redraw();
-    window.draw_if_needed(|renderer| {
-        renderer.render(&mut pixels, 700);
-    });
-    for percent in [68_u8, 86, 99, 100] {
-        ui.set_transfer_fraction(f32::from(percent) / 100.0);
-        ui.set_install_transfer(
-            hyper_gpu_support::reporting::transfer_progress(u64::from(percent), 100, 1, 2).into(),
-        );
+    // Like softbuffer's present_with_damage, only returned damage reaches the screen.
+    let mut screen = pixels.clone();
+    let present = |pixels: &[Rgb8Pixel],
+                   screen: &mut [Rgb8Pixel],
+                   region: slint::platform::software_renderer::PhysicalRegion| {
+        for (position, size) in region.iter() {
+            for y in position.y as usize..position.y as usize + size.height as usize {
+                let row = y * 700 + position.x as usize;
+                screen[row..row + size.width as usize]
+                    .copy_from_slice(&pixels[row..row + size.width as usize]);
+            }
+        }
+    };
+    let mut frame = |pixels: &mut Vec<Rgb8Pixel>, screen: &mut Vec<Rgb8Pixel>| {
         window.request_redraw();
         window.draw_if_needed(|renderer| {
-            renderer.render(&mut pixels, 700);
+            let region = renderer.render(pixels, 700);
+            present(pixels, screen, region);
         });
-        // Inspect accessibility only after the native-style partial draw. Reading
-        // text bindings first can itself refresh the cached text under test.
-        let label = control(&ui, &format!("{percent}%"));
+    };
+    frame(&mut pixels, &mut screen);
+    // A second session reopens the dialog after completion, as consecutive operations do.
+    for session in 0..2 {
+        if session > 0 {
+            ui.set_dialog_kind("install-complete".into());
+            frame(&mut pixels, &mut screen);
+            ui.set_dialog_kind("".into());
+            frame(&mut pixels, &mut screen);
+            ui.set_transfer_fraction(-1.0);
+            ui.set_dialog_kind("install-progress".into());
+            frame(&mut pixels, &mut screen);
+        }
+        copy_percentage_session(
+            &ui,
+            window,
+            scale_factor,
+            &mut pixels,
+            &mut screen,
+            &mut frame,
+        );
+    }
+    ui.hide().unwrap();
+}
+
+fn copy_percentage_session(
+    ui: &AppWindow,
+    window: &Rc<MinimalSoftwareWindow>,
+    scale_factor: f32,
+    pixels: &mut Vec<Rgb8Pixel>,
+    screen: &mut Vec<Rgb8Pixel>,
+    frame: &mut impl FnMut(&mut Vec<Rgb8Pixel>, &mut Vec<Rgb8Pixel>),
+) {
+    let mut previous: Option<Vec<Rgb8Pixel>> = None;
+    for percent in [29_u8, 68, 75, 86, 99, 100] {
+        // Worker events can arrive several times per frame; each one rewrites the
+        // stage rows and briefly replaces the current stage, as the live handler does.
+        for step in [
+            percent.saturating_sub(2),
+            percent.saturating_sub(1),
+            percent,
+        ] {
+            let line = hyper_gpu_support::reporting::transfer_progress(u64::from(step), 100, 1, 2);
+            ui.set_stages(super::model(vec![line.clone().into()]));
+            ui.set_progress_steps(super::model(vec![line.clone().into()]));
+            ui.set_dialog_details(line.clone().into());
+            ui.set_current_stage(line.clone().into());
+            ui.set_transfer_fraction(f32::from(step) / 100.0);
+            ui.set_install_transfer(line.replacen("; ", "\n", 1).into());
+            ui.set_current_stage("Preparing GPU driver files".into());
+        }
+        // Assistive technology can read the label before the next frame is drawn.
+        let label = control(ui, &format!("{percent}%"));
+        frame(pixels, screen);
         assert!(label.is_visible());
         let origin = label.map_to_window(label.geometry().origin);
+        let physical = |logical: f32| (logical * scale_factor) as usize;
+        let rows = physical(origin.y)..physical(origin.y + label.geometry().height());
+        let columns = physical(origin.x)..physical(origin.x + label.geometry().width());
+        let shown: Vec<_> = rows
+            .flat_map(|y| columns.clone().map(move |x| y * 700 + x))
+            .map(|index| screen[index])
+            .collect();
+        // A full repaint shares the renderer's text cache, so it cannot reveal stale
+        // glyphs on its own; a different value must also produce different pixels.
+        assert_ne!(
+            previous.as_ref(),
+            Some(&shown),
+            "{percent}% must not repeat the previous glyphs at scale {scale_factor}"
+        );
         window.request_redraw();
         window.draw_if_needed(|renderer| {
             let mut reference = vec![Rgb8Pixel::default(); pixels.len()];
             renderer.set_repaint_buffer_type(RepaintBufferType::NewBuffer);
             renderer.render(&mut reference, 700);
             renderer.set_repaint_buffer_type(RepaintBufferType::ReusedBuffer);
-            let mut mismatches = 0;
-            for y in origin.y as usize..(origin.y + label.geometry().height()) as usize {
-                for x in origin.x as usize..(origin.x + label.geometry().width()) as usize {
-                    let index = y * 700 + x;
-                    mismatches += usize::from(pixels[index] != reference[index]);
-                }
-            }
-            assert_eq!(mismatches, 0, "partial repaint must show {percent}%");
+            let mismatches = rows_columns_mismatch(screen, &reference, &label, scale_factor);
+            assert_eq!(
+                mismatches, 0,
+                "partial repaint must show {percent}% at scale {scale_factor}"
+            );
             save_render(window.size(), &reference);
         });
+        previous = Some(shown);
         if std::env::var_os("HYPER_GPU_LAYOUT_RENDER_DIR").is_some() {
-            retain_render(&format!("copy-percentage-{percent}"));
+            retain_render(&format!("copy-percentage-{scale_factor}-{percent}"));
         }
     }
+}
+
+fn rows_columns_mismatch(
+    screen: &[Rgb8Pixel],
+    reference: &[Rgb8Pixel],
+    label: &ItemRc,
+    scale_factor: f32,
+) -> usize {
+    let origin = label.map_to_window(label.geometry().origin);
+    let physical = |logical: f32| (logical * scale_factor) as usize;
+    let mut mismatches = 0;
+    for y in physical(origin.y)..physical(origin.y + label.geometry().height()) {
+        for x in physical(origin.x)..physical(origin.x + label.geometry().width()) {
+            let index = y * 700 + x;
+            mismatches += usize::from(screen[index] != reference[index]);
+        }
+    }
+    mismatches
+}
+
+#[test]
+fn copy_percentage_repaints_after_a_long_copy_sweeps_the_text_cache() {
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_running(true);
+    ui.set_dialog_kind("install-progress".into());
+    ui.set_current_stage("Preparing GPU driver files".into());
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(700., 520.));
+    let mut pixels = vec![Rgb8Pixel::default(); 700 * 520];
+    let frame = |pixels: &mut Vec<Rgb8Pixel>| {
+        window.request_redraw();
+        window.draw_if_needed(|renderer| {
+            renderer.render(pixels, 700);
+        });
+    };
+    let label_pixels = |pixels: &[Rgb8Pixel], percent: &str| {
+        let label = control(&ui, percent);
+        let origin = label.map_to_window(label.geometry().origin);
+        let size = label.geometry().size;
+        (origin.y as usize..(origin.y + size.height) as usize)
+            .flat_map(|y| {
+                (origin.x as usize..(origin.x + size.width) as usize).map(move |x| (x, y))
+            })
+            .map(|(x, y)| pixels[y * 700 + x])
+            .collect::<Vec<_>>()
+    };
+    ui.set_transfer_fraction(0.29);
+    frame(&mut pixels);
+    let before = label_pixels(&pixels, "29%");
+    // A long copy reshapes other text on every acknowledged file while the
+    // percentage stays put, enough for the renderer to sweep its text cache.
+    // These rows are far from the percentage, so their damage never covers it.
+    for files in 0..1500_usize {
+        ui.set_install_steps(super::model(vec![super::InstallStep {
+            label: format!("Checking file {files} of 1500").into(),
+            status: 1,
+        }]));
+        frame(&mut pixels);
+    }
+    ui.set_transfer_fraction(0.75);
+    frame(&mut pixels);
+    assert!(
+        before != label_pixels(&pixels, "75%"),
+        "75% must be drawn, not the 29% glyphs"
+    );
     ui.hide().unwrap();
 }
 
@@ -759,7 +903,7 @@ fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
     assert!(ui.get_startup_loading());
     assert!(
         ui.get_startup_error()
-            .contains("Could not load VM and GPU information")
+            .contains("Couldn't load VM and GPU information")
     );
     draw(&window);
     let continue_button = control(
@@ -1257,6 +1401,56 @@ fn cancelled_reads_leave_dialog_close_usable_while_new_operations_stay_disabled(
             "dismiss while reading: {kind}"
         );
     }
+    ui.hide().unwrap();
+}
+
+#[test]
+fn more_actions_states_a_shared_reason_once_and_keeps_distinct_reasons_per_action() {
+    fn visible_count(ui: &AppWindow, label: &str) -> usize {
+        let root = ItemRc::new_root(WindowInner::from_pub(ui.window()).component());
+        let mut count = 0;
+        root.visit_descendants::<()>(|item| {
+            if item.is_visible()
+                && item
+                    .accessible_string_property(AccessibleStringProperty::Label)
+                    .as_deref()
+                    == Some(label)
+            {
+                count += 1;
+            }
+            ControlFlow::Continue(())
+        });
+        count
+    }
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_execution_ready(true);
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(700., 640.));
+    let shared = hyper_gpu_support::ui_text::dashboard::actions::permission_required();
+    ui.set_verify_unavailable(shared.into());
+    ui.set_repair_unavailable(shared.into());
+    ui.set_remove_unavailable(shared.into());
+    ui.set_dialog_kind("more".into());
+    draw(&window);
+    assert_eq!(visible_count(&ui, shared), 1, "one shared reason");
+
+    let refresh = hyper_gpu_support::ui_text::dashboard::actions::refresh_first();
+    ui.set_remove_unavailable(refresh.into());
+    draw(&window);
+    assert_eq!(visible_count(&ui, shared), 2, "per-action reasons");
+    assert_eq!(visible_count(&ui, refresh), 1);
+
+    ui.set_remove_allowed(true);
+    ui.set_remove_unavailable(shared.into());
+    draw(&window);
+    assert_eq!(
+        visible_count(&ui, shared),
+        2,
+        "an available action never shows a reason"
+    );
     ui.hide().unwrap();
 }
 

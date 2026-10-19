@@ -148,10 +148,13 @@ export component InstallDialog inherits Rectangle {
                         spacing: 16px;
                         ProgressIndicator { indeterminate: root.transfer-fraction < 0; progress: max(0, root.transfer-fraction); height: 8px; horizontal-stretch: 1; }
                         // Keep one text item through indeterminate/transfer changes.
-                        // Its binding stays attached for every acknowledged update.
+                        // Slint 1.18's text cache sweep can drop the only link from this text to a
+                        // repaint, and the width rarely changes. The renderer reads `color` on every
+                        // draw, so deriving it from the fraction repaints each acknowledged update.
                         Label {
                             visible: root.transfer-fraction >= 0;
                             text: root.transfer-fraction >= 0 ? round(root.transfer-fraction * 100) + "%" : "";
+                            color: root.transfer-fraction >= 0 ? Theme.text : transparent;
                             font-weight: 700;
                         }
                     }

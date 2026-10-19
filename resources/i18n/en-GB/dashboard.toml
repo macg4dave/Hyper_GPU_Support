@@ -2,116 +2,116 @@
 # it defines every key and argument; other languages translate the text only.
 
 [actions]
-generation_required = "GPU support requires a Generation 2 VM. Close this panel and select a supported VM."
-history_unavailable = "Managed operation history is unavailable. Use Refresh before reviewing new actions."
+generation_required = "GPU support needs a Generation 2 VM. Close this and select a supported VM."
+history_unavailable = "This VM's operation history couldn't be read. Select Refresh before choosing an action."
 more_label = "More actions…"
-observations_incomplete = "Selected VM observations are incomplete. Correct access and use Refresh; your edits are kept."
-outcome_unsaved = "The operation outcome is not saved. Use Refresh and inspect recovery before another action."
-permission_required = "This VM/GPU pair is not authorized. Close this panel and review first-time setup."
-power_unstable = "The VM is changing power state or is not running/off. Wait for a stable state, then Refresh."
-recovery_blocks = "An unfinished operation blocks new actions. Choose Review recovery; your edits are kept."
-recovery_first = "Review unfinished recovery first."
-refresh_first = "Use Refresh first."
-refresh_needed = "Current VM information is unavailable. Use Refresh; your edits are kept."
-reinstall_requires_pair = "Repair / Reinstall requires an authorized VM/GPU pair. Review enrollment first."
-review_or_discard = "Review and Apply, or discard the pending edits before Verify."
+observations_incomplete = "Some information about this VM couldn't be read. Check that you have access, then select Refresh. Your changes are kept."
+outcome_unsaved = "The result of the last operation wasn't saved. Select Refresh and review recovery before doing anything else."
+permission_required = "This VM and GPU aren't approved for GPU management yet. Close this and select Start GPU setup."
+power_unstable = "The VM isn't in a stable state. Wait until it's running or off, then select Refresh."
+recovery_blocks = "An unfinished operation needs attention first. Select Review recovery. Your changes are kept."
+recovery_first = "Review the unfinished operation first."
+refresh_first = "Select Refresh first."
+refresh_needed = "Current VM information isn't available. Select Refresh. Your changes are kept."
+reinstall_requires_pair = "Repair / Reinstall is available only after this VM and GPU are approved for GPU management. Start GPU setup first."
+review_or_discard = "Apply or discard your changes before verifying."
 select_vm = "Select a VM first."
-selected_unavailable = "The selected VM is unavailable. Use Refresh or discard its draft."
-vm_unavailable = "VM unavailable; use Refresh."
+selected_unavailable = "The selected VM isn't available. Select Refresh or discard its changes."
+vm_unavailable = "The VM isn't available. Select Refresh."
 
 [actions.partial_removal]
-windows_required = "Partial GPU removal requires Windows."
+windows_required = "Removing a partial GPU setup requires Windows."
 
 [allocation]
 not_assigned = "Not assigned"
-provider_default = "Provider default"
-provider_values = "Provider values"
+provider_default = "Hyper-V default"
+provider_values = "Hyper-V values"
 
 [apply]
 label = "Apply"
 
 [attachment]
 absent = "No GPU attached"
-identity_unknown = "Attached GPU (identity unavailable)"
+identity_unknown = "GPU attached (couldn't identify which)"
 
 [capability]
-unknown = "Capability unknown"
+unknown = "GPU capabilities unknown"
 
 [configuration]
-unavailable_title = "Configuration is unavailable"
+unavailable_title = "Settings unavailable"
 
 [diagnostics]
-inspect_label = "Inspect diagnostics"
+inspect_label = "View diagnostics"
 output_label = "Technical details"
 
 [draft]
-absent = "No unapplied edits"
-changed = "● Draft changed"
-discard_label = "Discard draft"
-vm_removed = "The draft VM is no longer present. Discard the draft and Refresh."
-vm_unavailable = "Unapplied edits retained for the unavailable VM."
+absent = "No unapplied changes"
+changed = "● Unapplied changes"
+discard_label = "Discard changes"
+vm_removed = "The VM for these changes no longer exists. Discard the changes and select Refresh."
+vm_unavailable = "Your unapplied changes are kept while this VM is unavailable."
 
 [editing]
-capacity_unmatched = "Physical VRAM capacity could not be matched to the selected GPU. Use raw Advanced Allocation within the provider range."
-configuration_changed = "Committed configuration changed or became unavailable. Draft preserved; discard it to reload the latest committed intent."
-configuration_unavailable = "Committed configuration unavailable; saved intent is unknown. Editing is blocked until the file can be read and validated."
-enrollment_changed = "Protected enrollment changed. Draft preserved; discard and Refresh before a new enrollment review."
-gpu_not_enrolled = "This selected GPU is not enrolled. Changing an enrolled GPU requires the separate replacement transition, which is not connected yet."
-gpu_unavailable = "Selected GPU is unavailable. Use Refresh to retry."
-reconciliation_required = "This VM or shared authority requires reconciliation or a save-only retry."
-recovery_pending = "The selected VM has pending or inconsistent managed recovery. Inspect and reconcile it before editing or reviewing new changes."
-removal_pair_required = "GPU removal requires this exact authorized VM/GPU pair; no enrollment or guest work was performed."
-removal_vm_changed = "The selected VM changed; review removal again."
-select_gpu = "Select an available physical GPU."
-status_unavailable = "Current VM status is unavailable. Refresh before editing or reviewing changes."
-triples_expected = "Expected four complete allocation triples"
-vram_bounds_unavailable = "VRAM bounds are unavailable. Use Refresh to retry."
-vram_fields_unavailable = "VRAM fields are unavailable."
+capacity_unmatched = "The GPU's memory size couldn't be matched to the selected GPU. Use Advanced allocation to enter values within the range Hyper-V supports."
+configuration_changed = "This VM's saved settings changed or can't be read. Your changes are kept; discard them to load the latest saved settings."
+configuration_unavailable = "This VM's saved settings can't be read, so they're unknown. Editing is unavailable until the settings file can be read and checked."
+enrollment_changed = "This VM's GPU permission changed. Your changes are kept. Discard them and select Refresh before setting up GPU support again."
+gpu_not_enrolled = "The selected GPU isn't the one approved for this VM. Switching to a different GPU isn't available yet."
+gpu_unavailable = "The selected GPU isn't available. Select Refresh to try again."
+reconciliation_required = "This VM, or the app's shared settings, need a recovery check or another attempt to save settings."
+recovery_pending = "This VM has an unfinished or inconsistent operation. Review recovery before editing or making new changes."
+removal_pair_required = "GPU support can only be removed using the VM and GPU that were approved together. Nothing was changed."
+removal_vm_changed = "The selected VM changed. Review the removal again."
+select_gpu = "Select an available GPU."
+status_unavailable = "Current VM status isn't available. Select Refresh before editing or reviewing changes."
+triples_expected = "Expected four complete sets of allocation values"
+vram_bounds_unavailable = "The GPU memory range isn't available. Select Refresh to try again."
+vram_fields_unavailable = "GPU memory values aren't available."
 
 [editing.integers_required]
 args = ["resource: text"]
-text = "Enter all three {resource} values as unsigned provider integers, or leave all three empty."
+text = "Enter all three {resource} values as whole numbers, or leave all three empty."
 
 [eligibility]
-generation = "A stable Generation 2 VM is required."
-gpu_unavailable = "The enrolled GPU is unavailable."
-not_configured = "Add this VM to configuration and enroll it first."
-not_enrolled = "This VM/GPU pair is not enrolled; separate enrollment review is required before Apply."
-observations_incomplete = "Selected VM observations are incomplete; correct access and refresh before applying."
-other_assignment = "Another GPU assignment is present; reconcile it before applying."
-other_vm_draft = "Apply or discard the other VM's pending change first."
-pair_mismatch = "Managed state belongs to a different pair; reconcile enrollment first."
-publication_mismatch = "publication does not match verified-unsaved intent"
-readback_before_retry = "Refresh/read back the uncertain operation before retrying."
-refresh_first = "Refresh first"
-refresh_inventory = "Refresh inventory first."
-refresh_uncertain = "Refresh after the uncertain operation before editing."
-refresh_vm = "Refresh VM information before applying changes."
-save_first = "Save the completed configuration before staging another operation."
-save_instead = "The operation succeeded; save its configuration instead of replaying apply."
-stage_first = "Stage a change first."
-title = "This VM is not eligible"
-unconfigured_vm = "Unconfigured VM"
-unsupported_body = "Non-Generation 2 guests are outside the GPU-P workflow."
-vendor_unsupported = "Guest preparation is not supported for this GPU vendor."
-vm_missing = "The selected VM is no longer present; refresh or discard."
-vm_unavailable = "The VM is unavailable."
+generation = "A Generation 2 VM in a stable state is required."
+gpu_unavailable = "The approved GPU isn't available."
+not_configured = "Set up GPU support for this VM first."
+not_enrolled = "This VM and GPU aren't approved for GPU management. Approve them through GPU setup before applying changes."
+observations_incomplete = "Some information about this VM couldn't be read. Check that you have access and select Refresh before applying."
+other_assignment = "A different GPU is assigned to this VM. Resolve this before applying."
+other_vm_draft = "Apply or discard your changes to the other VM first."
+pair_mismatch = "This VM's records are for a different VM and GPU pairing. Resolve the GPU permission first."
+publication_mismatch = "the saved settings don't match the verified changes waiting to be saved"
+readback_before_retry = "Select Refresh to check the result of the last operation before trying again."
+refresh_first = "Select Refresh first"
+refresh_inventory = "Select Refresh first."
+refresh_uncertain = "The last operation's result is uncertain. Select Refresh before editing."
+refresh_vm = "Select Refresh to update VM information before applying changes."
+save_first = "Save the completed settings before starting another operation."
+save_instead = "The operation succeeded. Save its settings instead of applying it again."
+stage_first = "Make a change first."
+title = "This VM isn't supported"
+unconfigured_vm = "VM not set up"
+unsupported_body = "GPU support is available only for Generation 2 VMs."
+vendor_unsupported = "Driver setup inside the VM isn't supported for this GPU's manufacturer."
+vm_missing = "The selected VM no longer exists. Select Refresh or discard your changes."
+vm_unavailable = "The VM isn't available."
 vm_unavailable_short = "VM unavailable"
 
 [gpu]
-fixed_hint = "This VM is authorized for its recorded GPU. Changing that GPU is unavailable; Refresh if the recorded GPU is missing. Your saved memory requests are kept."
+fixed_hint = "This VM is approved for one specific GPU, which can't be changed here. If that GPU is missing, select Refresh. Your memory settings are kept."
 label = "Physical GPU"
 
 [inventory]
 refresh = "Refresh"
 updating = "Updating VM status"
-updating_notice = "Updating VM status..."
+updating_notice = "Updating VM status…"
 
 [memory]
-advanced_hint = "Exact VRAM request for compatibility with saved settings. Minimum ≤ Optimal ≤ Maximum, in native bytes. Default placeholders are suggestions. Editing an empty group fills its other defaults. Clear all three fields for no explicit write. Use the GPU support toggle or Remove GPU support to disable support."
-input_accessible = "GPU memory request in decimal GB"
-label = "GPU Memory Request"
-slider_accessible = "Requested GPU memory in GB"
+advanced_hint = "Set exact GPU memory values, for example to match existing settings. Values are in bytes and must follow Minimum ≤ Optimal ≤ Maximum. Suggested defaults appear in empty fields; when you edit an empty group, its other fields are filled with their defaults. Clear all three fields to leave GPU memory unchanged. To turn off GPU support, use the GPU support switch or Remove GPU support."
+input_accessible = "GPU memory in GB (decimal)"
+label = "GPU memory"
+slider_accessible = "GPU memory in GB"
 submit = "Set"
 unit = "GB"
 vram_label = "VRAM"
@@ -120,160 +120,160 @@ vram_label = "VRAM"
 about = "About"
 dashboard = "Dashboard"
 settings = "Settings"
-system = "System Information"
+system = "System information"
 
 [observation]
-historical_prefix = "Historical: "
-unread = "Not read"
-vm_missing = "Selected VM was not returned by the latest inventory read"
+historical_prefix = "Last known: "
+unread = "Not read yet"
+vm_missing = "The selected VM wasn't found when VM information was last read"
 
 [observation.resource_default]
 args = ["resource: text"]
-text = "{resource}: unobserved or provider default"
+text = "{resource}: not read, or Hyper-V default"
 
 [observation.resource_readback]
 args = ["resource: text", "minimum: text", "optimal: text", "maximum: text"]
-text = "{resource} readback: {minimum} / {optimal} / {maximum} (raw)"
+text = "{resource} current values: {minimum} / {optimal} / {maximum} (raw)"
 
 [observation.summary]
 args = ["prefix: message", "gpu: text", "resources: text", "preparation: text"]
 text = "{prefix}{gpu}; {resources}; {preparation}"
 
 [os]
-linux_accessible = "Linux guest, sample metadata"
-unknown_accessible = "Unknown guest OS"
-windows_accessible = "Windows guest, sample metadata"
+linux_accessible = "Linux virtual machine"
+unknown_accessible = "Unknown operating system"
+windows_accessible = "Windows virtual machine"
 
 [outcome]
-absent = "No unpublished operation recorded"
+absent = "No operation is waiting to be saved"
 
 [pending]
 disable = "disable GPU support"
 enable = "enable GPU support"
-fields_unavailable = "VRAM fields unavailable"
-invalid = "Pending edits retained. Correct the VRAM fields before reviewing."
+fields_unavailable = "GPU memory values unavailable"
+invalid = "Your changes are kept. Correct the GPU memory values before applying."
 stays_disabled = "GPU support stays disabled"
 stays_enabled = "GPU support stays enabled"
 
 [pending.summary]
 args = ["change: message", "request: text"]
-text = "Pending: {change}. VRAM request: {request}. Review before applying."
+text = "Not yet applied: {change}. GPU memory: {request}. Select Apply when you're ready."
 
 [recovery]
-banner = "Pending protected recovery record. New GPU changes are blocked; inspection does not clear recovery."
-inspect = "Check recorded outcome"
-review_label = "Check recorded outcome"
+banner = "An operation didn't finish. GPU changes are unavailable until it's resolved. Viewing the details doesn't resolve it."
+inspect = "Review recovery"
+review_label = "Review recovery"
 
 [recovery_summary]
 gpu_change = "GPU change"
-gpu_verification = "GPU verification"
-import = "A configuration import requires recovery. Review recovery before new changes."
-permission_change = "permission change"
+gpu_verification = "GPU check"
+import = "A settings import didn't finish. Review recovery before making new changes."
+permission_change = "GPU permission change"
 
 [recovery_summary.other_vm]
 args = ["name: text", "id: text", "operation: message"]
-text = "Recovery is required for {name} ({id}): {operation}. Other VMs can still be changed."
+text = "{name} ({id}) has an unfinished {operation} that needs recovery. You can still change other VMs."
 
 [recovery_summary.selected]
 args = ["name: text", "operation: message"]
-text = "{name}: {operation} requires recovery. Review recovery before new changes."
+text = "{name} has an unfinished {operation}. Review recovery before making new changes."
 
 [recovery_summary.shared]
 args = ["name: text", "id: text"]
-text = "Shared authority/configuration recovery for {name} ({id}) blocks new changes. Inspect recovery before continuing."
+text = "An unfinished change to the app's shared settings for {name} ({id}) is blocking new changes. Review recovery before continuing."
 
 [refresh]
-completion_incomplete = "Completion readback is incomplete. Refresh before another operation."
-management_unavailable = "GPU management is unavailable. Refresh before reviewing setup."
-other_vm_result = "The result belongs to another VM. Close it before refreshing the selected VM."
-setup_attention = "Setup requires attention. Use Refresh to continue."
+completion_incomplete = "The result of the operation couldn't be fully read. Select Refresh before starting another operation."
+management_unavailable = "GPU management isn't available. Select Refresh before starting setup."
+other_vm_result = "This result is for a different VM. Close it before refreshing the selected VM."
+setup_attention = "Setup needs attention. Select Refresh to continue."
 
 [refresh.poll_unavailable]
 args = ["error: text"]
-text = "VM status refresh unavailable: {error}. Use Refresh to retry."
+text = "Couldn't update VM status: {error}. Select Refresh to try again."
 
 [refresh.start_failed]
 args = ["body: text", "error: text"]
-text = "{body}\n\nVM status update could not start: {error}\nRetry the status update before another review."
+text = "{body}\n\nCouldn't start updating VM status: {error}\nUpdate the status again before continuing."
 
 [refresh.status_unavailable]
 args = ["body: text", "error: text"]
-text = "{body}\n\nCurrent VM status is unavailable: {error}\nRetry the status update before another review."
+text = "{body}\n\nCurrent VM status isn't available: {error}\nUpdate the status again before continuing."
 
 [resources]
-gpu_required = "Select an available physical GPU; capability unknown"
+gpu_required = "Select an available GPU. Its capabilities are unknown."
 
 [resources.physical_memory]
 args = ["amount: text"]
-text = "; physical dedicated memory: {amount}"
+text = "; dedicated GPU memory: {amount}"
 
 [saved]
-absent = "No saved configuration"
+absent = "No saved settings"
 
 [selection]
 absent = "No VM selected"
-prompt = "Select a VM to read its state."
+prompt = "Select a VM to see its status."
 required = "Select a VM first."
 vm_unavailable = "Selected VM unavailable"
 
 [setup]
-body = "GPU support is not enabled on this VM. Start GPU setup to enable it. Retained driver preparation is checked before deciding whether installation is required."
+body = "GPU support isn't enabled for this VM. Select Start GPU setup to enable it."
 review_label = "Start GPU setup"
-title = "First-time setup"
+title = "Set up GPU support"
 
 [startup]
-configuration = "Reading saved VM settings..."
+configuration = "Reading saved VM settings…"
 continue_label = "Continue to dashboard"
-enrollment_recovery = "Inspecting permission recovery records..."
-import_recovery = "Inspecting configuration import recovery records..."
-inventory = "Reading VM and GPU status from the protected service..."
-loading = "Loading your virtual machines..."
-recovery = "Inspecting unfinished GPU operations and recovery records..."
-waiting = "An earlier cancelled check may still be finishing. These reads can take several minutes. Startup does not repair or replay GPU operations; unfinished work requires Review recovery."
-worker = "Checking protected worker availability..."
+enrollment_recovery = "Checking for unfinished permission changes…"
+import_recovery = "Checking for unfinished settings imports…"
+inventory = "Reading VM and GPU status…"
+loading = "Loading your virtual machines…"
+recovery = "Checking for unfinished GPU operations…"
+waiting = "An earlier check that was cancelled may still be finishing. This can take several minutes. Starting the app never repairs or repeats GPU operations; any unfinished work is handled through Review recovery."
+worker = "Checking the app's background service…"
 
 [state]
-authorized = "Authorized"
-recovery = "Recovery required"
+authorized = "Approved"
+recovery = "Recovery needed"
 refresh_required = "Refresh needed"
 status_unavailable = "Status unavailable"
 
 [status]
 busy = "Operation in progress"
-draft_absent = "No pending edits"
-draft_pending = "Pending edits; review required before changes"
+draft_absent = "No unapplied changes"
+draft_pending = "You have unapplied changes"
 idle = "No operation running"
-prerequisites = "Check the selected VM's status; setup or Refresh may be required"
-recovery = "Review recovery before new changes"
+prerequisites = "Check the selected VM's status. You may need to set it up or select Refresh"
+recovery = "Review recovery before making new changes"
 selection_required = "Select a VM"
 updating = "Updating VM information"
 
 [support]
 attached = "GPU support is enabled."
-configuration_warning = "GPU configuration differs from saved settings. Verify the setup and review Technical Details before making changes."
-host_unavailable = "VM status unavailable - retry the status update. Saved settings and check history are in Technical Details."
+configuration_warning = "This VM's GPU configuration doesn't match its saved settings. Verify the setup and check its technical details before making changes."
+host_unavailable = "VM status isn't available. Try updating the status again. Saved settings and check history are in Technical details."
 label = "GPU support"
-other_assignment = "Other assignment"
-recovery_hold = "This VM has an unresolved operation. Review recovery before changing GPU support."
-saved_unavailable = "Saved settings unavailable - Refresh before reviewing changes."
-toggle_accessible = "Enable GPU support in this draft"
-unattached = "GPU support is not enabled on this VM. Start GPU setup to enable it."
+other_assignment = "Different GPU assigned"
+recovery_hold = "This VM has an unfinished operation. Review recovery before changing GPU support."
+saved_unavailable = "Saved settings aren't available. Select Refresh before reviewing changes."
+toggle_accessible = "Enable GPU support"
+unattached = "GPU support isn't enabled for this VM."
 
 [support.pending]
 args = ["effective: message", "action: message"]
-text = "{effective} — Pending {action}"
+text = "{effective} — will {action} when applied"
 
 [validation]
-stage = "Configuration validation"
+stage = "Settings check"
 
 [verification]
 absent = "Not verified"
-selection_absent = "Unknown; no VM selected"
-vm_unavailable = "Unknown; the selected VM is unavailable"
+selection_absent = "Unknown (no VM selected)"
+vm_unavailable = "Unknown (the selected VM isn't available)"
 
 [vm_list]
-empty = "No live VM rows available. Check the discovery message or Refresh."
-title = "Virtual Machines"
+empty = "No virtual machines found. Check the message above or select Refresh."
+title = "Virtual machines"
 
 [vm_list.count]
 args = ["count: usize"]
@@ -282,5 +282,5 @@ one = "{count} VM shown"
 other = "{count} VMs shown"
 
 [workspace]
-body = "Choose a discovered VM on the left. Discovery never enrolls or modifies it."
-title = "Your VM workspace starts here"
+body = "Choose a virtual machine from the list to view and manage its GPU support. Nothing changes until you apply it."
+title = "Select a virtual machine"

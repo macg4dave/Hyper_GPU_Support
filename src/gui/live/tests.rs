@@ -18,7 +18,10 @@ fn failed_startup_diagnostics_open_without_inventory_and_preserve_safe_original_
         "Protected reader release is unconfirmed; foreground admission remains held: 0x80070005 private-adapter-content".into(),
     ));
     assert!(ui.get_startup_loading());
-    assert!(ui.get_startup_error().contains("reader could not confirm"));
+    assert!(
+        ui.get_startup_error()
+            .contains("status check couldn't confirm")
+    );
     assert!(ui.get_inventory_details().contains("0x80070005"));
     assert!(
         !ui.get_inventory_details()

@@ -189,7 +189,7 @@ fn unfinished_operation_explains_recovery_without_discarding_edits_or_releasing_
     assert!(!s.recovery_without_guest(&record).unwrap());
     s.recoveries = vec![record];
     let summary = crate::gui::live::presentation::recovery_summary(&s, id(&s)).unwrap();
-    assert!(summary.contains("GPU verification"));
+    assert!(summary.contains("GPU check"));
     assert!(!summary.contains("Setup interrupted"));
     let body = s.action_recovery_message().unwrap();
     assert!(body.contains("Renamable VM"));
@@ -204,7 +204,7 @@ fn unfinished_operation_explains_recovery_without_discarding_edits_or_releasing_
     // The retained hold remains visible without blocking another VM.
     s.view.selected = Some("another-vm".into());
     let summary = crate::gui::live::presentation::recovery_summary(&s, "another-vm").unwrap();
-    assert!(summary.contains("Other VMs can still be changed") && summary.contains("Renamable VM"));
+    assert!(summary.contains("You can still change other VMs") && summary.contains("Renamable VM"));
     assert!(s.action_recovery_message().is_none());
     s.recoveries.clear();
     assert!(s.action_recovery_message().is_none());
@@ -234,7 +234,7 @@ fn recovery_identity_follows_the_record_when_an_unconfigured_vm_is_selected() {
     s.recoveries = vec![record];
 
     let summary = crate::gui::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
-    assert!(summary.contains("Renamable VM") && summary.contains("GPU verification"));
+    assert!(summary.contains("Renamable VM") && summary.contains("GPU check"));
     assert!(summary.contains(&affected_id));
     assert!(!summary.contains("Untouched VM"));
     assert!(!summary.contains("setup"));
@@ -253,14 +253,14 @@ fn recovery_identity_follows_the_record_when_an_unconfigured_vm_is_selected() {
         .vms
         .retain(|vm| vm.vm_id != affected_id);
     let summary = crate::gui::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
-    assert!(summary.contains("Recorded VM name") && summary.contains("GPU verification"));
+    assert!(summary.contains("Recorded VM name") && summary.contains("GPU check"));
     assert!(s.action_recovery_message().is_none());
     assert!(s.editor_eligibility(&unrelated.vm_id).is_ok());
 
     s.recoveries.first_mut().unwrap().publication_required = true;
     let summary = crate::gui::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
     assert!(summary.contains("Recorded VM name") && summary.contains("GPU change"));
-    assert!(!summary.contains("verification"));
+    assert!(!summary.contains("GPU check"));
     assert!(matches!(
         s.recoveries.first().unwrap().phase,
         SavePhase::EffectsStarted
@@ -340,7 +340,7 @@ fn verification_recovery_requires_restoration_proof_and_rejects_changed_facts() 
         .check_restored = true;
     assert!(s.recovery_without_guest(&record).unwrap());
     let body = crate::gui::wording::recovery_progress(&record, "Renamable VM", true);
-    assert!(body.contains("does not retry the guest check"));
+    assert!(body.contains("doesn't repeat the check inside the VM"));
     s.view.inventory.as_mut().unwrap().discovery.vms[0]
         .settings
         .high_mmio += 1;
@@ -465,7 +465,7 @@ fn save_retry_is_available_only_for_publication_receipts() {
     s.sync_recovery(Some(record.clone()), None, None).unwrap();
     assert!(s.save_only_record().is_ok());
     assert!(!s.view.unsaved);
-    assert!(s.applied_text(id(&s)).contains("published"));
+    assert!(s.applied_text(id(&s)).contains("applied and saved"));
     record.publication_required = false;
     s.sync_recovery(Some(record), None, None).unwrap();
     assert!(s.save_only_record().is_err());

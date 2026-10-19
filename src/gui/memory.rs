@@ -384,7 +384,7 @@ mod tests {
     fn unspecified_request_is_not_invented_until_selection() {
         let limits = limits();
         let slider = MemorySlider::new(&limits, None, 8_000_000_000).unwrap();
-        assert_eq!(slider.label, "No explicit request");
+        assert_eq!(slider.label, "Not set");
         assert_eq!(
             slider.select(80).unwrap(),
             Allocation {
@@ -455,13 +455,7 @@ mod tests {
         assert_eq!(slider.label, "0 GB");
         assert_eq!(slider.position, 10);
         assert_eq!(slider.range_start, "1 GB");
-        assert!(
-            slider
-                .range_note
-                .as_ref()
-                .unwrap()
-                .contains("retained exactly")
-        );
+        assert!(slider.range_note.as_ref().unwrap().contains("kept exactly"));
         assert_eq!(saved.optimal, 0);
         let edited = slider.select(10).unwrap();
         assert_eq!(edited.optimal, BYTES_PER_GB);

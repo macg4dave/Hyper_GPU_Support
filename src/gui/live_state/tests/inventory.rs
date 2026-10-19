@@ -138,7 +138,7 @@ fn setup_affordance_follows_live_attachment_even_with_saved_enabled_intent_and_d
         ui.get_setup_required(),
         "an enrolled but unattached VM still needs GPU support"
     );
-    assert!(ui.get_support_summary().contains("not enabled"));
+    assert!(ui.get_support_summary().contains("isn't enabled"));
     s.view.inventory.as_mut().unwrap().discovery.vms[0].gpus = vec![target.gpu_interface];
     crate::gui::live::presentation::present(&ui, &s, true);
     assert!(!ui.get_setup_required());

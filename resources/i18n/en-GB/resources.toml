@@ -2,14 +2,14 @@
 # it defines every key and argument; other languages translate the text only.
 
 collapse_label = "Collapse"
-endpoint_rounding_note = "The maximum endpoint label is rounded to the nearest whole GB. Review and Technical Details retain the exact byte values."
+endpoint_rounding_note = "The maximum shown on the slider is rounded to the nearest whole GB. The exact value in bytes is kept and shown in the review and in Technical details."
 expand_label = "Expand"
 maximum_label = "Maximum"
 minimum_label = "Minimum"
 optimal_label = "Optimal"
-provider_unavailable = "Raw provider capability unknown; editing unavailable"
-request_absent = "No explicit request"
-retained_below_minimum_note = "The existing request is below 1 GB and has been retained exactly. The slider starts at 1 GB; edit it or use Advanced Allocation to change the request."
+provider_unavailable = "The GPU's supported range is unknown, so these values can't be edited"
+request_absent = "Not set"
+retained_below_minimum_note = "The current value is below 1 GB and has been kept exactly as it is. The slider starts at 1 GB; move it or use Advanced allocation to change the value."
 unspecified = "Not specified"
 
 [default_suffix]
@@ -17,9 +17,9 @@ args = ["default_value: formatted"]
 text = "{default_value} (default)"
 
 [advanced]
-collapsed_accessible = "Advanced Allocation, collapsed"
-expanded_accessible = "Advanced Allocation, expanded"
-label = "Advanced Allocation"
+collapsed_accessible = "Advanced allocation, collapsed"
+expanded_accessible = "Advanced allocation, expanded"
+label = "Advanced allocation"
 
 [edit]
 cut = "Cut"
@@ -32,22 +32,22 @@ args = ["field_label: message"]
 text = "{field_label} allocation"
 
 [memory]
-below_minimum = "Detected physical VRAM is below the slider's 1 GB minimum. GPU memory selection is unavailable."
-decimal_required = "Enter a decimal GB value with at most nine decimal places. The previous request is kept."
-exceeds_physical = "The current request exceeds detected physical VRAM. Use Advanced Allocation; it has not been rewritten."
-fields_incomplete = "Complete or clear all three VRAM fields to use the slider."
-fields_unavailable = "VRAM fields are unavailable."
-invalid_decimal = "Invalid decimal memory value"
-invalid_value = "Invalid memory value"
-outside_range = "The selected memory value is outside the current VRAM range."
-overflow = "Memory conversion overflow"
-precision_exceeded = "VRAM bounds exceed exact slider precision. Use Advanced Allocation."
-range_invalid = "Correct the VRAM range in Advanced Allocation to use the slider."
-too_large = "Memory value is too large"
+below_minimum = "This GPU has less than 1 GB of memory, which is below the slider's minimum. GPU memory can't be selected."
+decimal_required = "Enter a value in GB with up to nine decimal places. The previous value is kept."
+exceeds_physical = "The current value is more than the GPU's memory. It hasn't been changed; use Advanced allocation to adjust it."
+fields_incomplete = "Fill in or clear all three GPU memory fields to use the slider."
+fields_unavailable = "GPU memory values aren't available."
+invalid_decimal = "Enter a valid number of GB"
+invalid_value = "Enter a valid memory value"
+outside_range = "The selected value is outside the available GPU memory range."
+overflow = "This value is too large to convert"
+precision_exceeded = "The slider can't represent this memory range exactly. Use Advanced allocation."
+range_invalid = "Correct the GPU memory range in Advanced allocation to use the slider."
+too_large = "This memory value is too large"
 
 [memory.request_range]
 args = ["maximum: text"]
-text = "Enter a request from 1 GB to {maximum}. The previous request is kept."
+text = "Enter a value from 1 GB to {maximum}. The previous value is kept."
 
 [units.gb]
 args = ["amount: text"]

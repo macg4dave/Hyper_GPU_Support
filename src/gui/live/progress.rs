@@ -275,6 +275,127 @@ mod tests {
         assert!(ui.get_install_transfer().is_empty());
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn rendered_copy_percentage_follows_live_worker_events() {
+        use hyper_gpu_support::worker::{Progress, StageStatus};
+        use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
+        use slint::private_unstable_api::re_exports::{
+            AccessibleStringProperty, ItemRc, WindowInner,
+        };
+        use slint::{ComponentHandle, Rgb8Pixel};
+        use std::ops::ControlFlow;
+        use std::rc::Rc;
+        struct Software(Rc<MinimalSoftwareWindow>);
+        impl slint::platform::Platform for Software {
+            fn create_window_adapter(
+                &self,
+            ) -> Result<Rc<dyn slint::platform::WindowAdapter>, slint::PlatformError> {
+                Ok(self.0.clone())
+            }
+        }
+        let window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
+        slint::platform::set_platform(Box::new(Software(window.clone()))).unwrap();
+        let ui = AppWindow::new().unwrap();
+        ui.set_startup_loading(false);
+        ui.show().unwrap();
+        window.set_size(slint::PhysicalSize::new(700, 640));
+        crate::gui::dialog(&ui, "install-progress", "Set up GPU support", "");
+        ui.set_running(true);
+        let mut state = State::default();
+        let mut installation = Some(super::super::install_dialog::prepare(
+            &ui,
+            "VM1",
+            &[
+                hyper_gpu_support::workflow::PreviewAction::Prepare,
+                hyper_gpu_support::workflow::PreviewAction::Verify,
+            ],
+        ));
+        let mut pixels = vec![Rgb8Pixel::default(); 700 * 640];
+        let mut screen = pixels.clone();
+        let mut deliver = |stage: &str, status: Status| {
+            let progress = Progress {
+                stage: stage.into(),
+                status: match status {
+                    Status::Running => StageStatus::Running,
+                    Status::Done => StageStatus::Done,
+                    Status::Failed => StageStatus::Failed,
+                },
+            };
+            let event = Event::from_worker(stage, status);
+            present_progress(&ui, progress, event, &mut state, &mut installation);
+        };
+        let frame = |pixels: &mut Vec<Rgb8Pixel>, screen: &mut Vec<Rgb8Pixel>| {
+            window.request_redraw();
+            window.draw_if_needed(|renderer| {
+                // Only returned damage reaches the screen, as with present_with_damage.
+                for (position, size) in renderer.render(pixels, 700).iter() {
+                    for y in position.y as usize..position.y as usize + size.height as usize {
+                        let row = y * 700 + position.x as usize;
+                        screen[row..row + size.width as usize]
+                            .copy_from_slice(&pixels[row..row + size.width as usize]);
+                    }
+                }
+            });
+        };
+        let label_pixels = |screen: &[Rgb8Pixel], label: &str| {
+            let root = ItemRc::new_root(WindowInner::from_pub(ui.window()).component());
+            let mut found = None;
+            root.visit_descendants::<()>(|item| {
+                if item.is_visible()
+                    && item
+                        .accessible_string_property(AccessibleStringProperty::Label)
+                        .as_deref()
+                        == Some(label)
+                {
+                    found = Some(item.clone());
+                }
+                ControlFlow::Continue(())
+            });
+            let item = found.unwrap_or_else(|| panic!("visible {label}"));
+            let origin = item.map_to_window(item.geometry().origin);
+            let size = item.geometry().size;
+            (origin.y as usize..(origin.y + size.height) as usize)
+                .flat_map(|y| {
+                    (origin.x as usize..(origin.x + size.width) as usize).map(move |x| y * 700 + x)
+                })
+                .map(|index| screen[index])
+                .collect::<Vec<_>>()
+        };
+        frame(&mut pixels, &mut screen);
+        for stage in [
+            "Prepare protected worker connection",
+            "Check protected worker admission",
+            "Read current VM state",
+            "Read selected GPU and driver version",
+            "Authenticate current signed driver files",
+            "Start guest",
+        ] {
+            deliver(stage, Status::Running);
+            frame(&mut pixels, &mut screen);
+            deliver(stage, Status::Done);
+        }
+        deliver("Prepare current signed payload", Status::Running);
+        frame(&mut pixels, &mut screen);
+        let mut previous: Option<Vec<Rgb8Pixel>> = None;
+        for percent in [12_u64, 29, 41, 58, 75, 93] {
+            for bytes in percent.saturating_sub(3)..=percent {
+                let stage = hyper_gpu_support::reporting::transfer_progress(
+                    bytes,
+                    100,
+                    bytes as usize,
+                    273,
+                );
+                deliver(&stage, Status::Running);
+            }
+            frame(&mut pixels, &mut screen);
+            let shown = label_pixels(&screen, &format!("{percent}%"));
+            assert_ne!(previous.as_ref(), Some(&shown), "{percent}% is drawn");
+            previous = Some(shown);
+        }
+        ui.hide().unwrap();
+    }
+
     #[test]
     fn permission_feedback_is_available_before_any_uac_or_worker_event() {
         slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();

@@ -2,109 +2,109 @@
 # it defines every key and argument; other languages translate the text only.
 
 copy = "Copy"
-hide_label = "Hide Technical Details"
-read_only_accessible = "Technical details, read only"
-select_all = "Select All"
-show_label = "Show Technical Details"
+hide_label = "Hide technical details"
+read_only_accessible = "Technical details, read-only"
+select_all = "Select all"
+show_label = "Show technical details"
 
 [completion.unconfirmed]
 args = ["original: text", "summary: text"]
-text = "{original}\n\n{summary}\nCompletion records could not be confirmed. Use Refresh and inspect recovery before another operation."
+text = "{original}\n\n{summary}\nThe result couldn't be confirmed. Select Refresh and review recovery before starting another operation."
 
 [details.source]
 args = ["details: text"]
-text = "Source: facts captured for this review/record. Fresh protected checks are required before any effects.\n\n{details}"
+text = "Source: information recorded for this review. Everything is checked again before any changes are made.\n\n{details}"
 
 [draft]
-absent = "No draft recorded"
-present = "Unapplied draft; see editor for current raw values"
+absent = "No unapplied changes"
+present = "Unapplied changes; see the editor for the exact values"
 
 [failure]
-provenance = "Source: this reported failure and its last reported stages; current VM state may require Refresh.\n"
-stages_heading = "\nLast reported stages (not proof of final state):\n"
+provenance = "Source: this failure report and the last steps it reported. Select Refresh to see the VM's current state.\n"
+stages_heading = "\nLast reported steps (these don't confirm the final state):\n"
 
 [formatting]
-unavailable = "Diagnostic formatting unavailable"
+unavailable = "Diagnostic details couldn't be displayed"
 
 [history.graphics]
-absent = "No recorded graphics verification; attachment does not prove guest health"
-failed = "Latest guest check failed; current setup is not certified. "
-interrupted = "Latest check interrupted or incomplete; current guest state unknown. "
-mismatch = "Latest check found a guest payload mismatch; reviewed preparation is required. "
-passed = "Latest guest payload and graphics check passed; recovery/lifecycle status applies separately. "
-unavailable = "Latest guest check unavailable; current setup is unknown. "
-unknown = "Unknown; no matching graphics verification record was read"
+absent = "No successful graphics check recorded. An attached GPU doesn't confirm that graphics work inside the VM"
+failed = "The last check inside the VM failed, so the current setup isn't confirmed. "
+interrupted = "The last check was interrupted or didn't finish, so the VM's current state is unknown. "
+mismatch = "The last check found driver files that don't match. Driver setup needs to be run again. "
+passed = "The last driver and graphics check passed. Any recovery status is shown separately. "
+unavailable = "The last check result isn't available, so the current setup is unknown. "
+unknown = "Unknown; no matching graphics check record was found"
 
 [history.graphics.last_success]
 args = ["unix_time: u64"]
-text = "Last successful checked rendering: Unix UTC {unix_time} (historical; current guest health unknown)"
+text = "Last successful graphics check: Unix time {unix_time} UTC (past result; current state unknown)"
 
 [history.preparation]
-absent = "No preparation record"
-historical = "Previously prepared; current guest files and driver parity are unknown. A checkpoint rollback can undo guest setup. Use Verify to check current graphics health."
-incomplete = "No completed preparation recorded"
-pair_mismatch = "Preparation record does not match protected enrollment; inspect recovery"
-pending = "Recovery pending; preparation outcome requires inspection"
-unavailable = "Preparation record unavailable"
+absent = "No driver setup recorded"
+historical = "Drivers were set up previously, but the files currently in the VM haven't been checked. Restoring a checkpoint can undo driver setup. Use Verify GPU setup to check the current state."
+incomplete = "No completed driver setup recorded"
+pair_mismatch = "The driver setup record doesn't match this VM's GPU permission. Review recovery"
+pending = "Recovery pending; the driver setup result needs checking"
+unavailable = "Driver setup record unavailable"
 
 [history.saved]
-absent = "No saved desired configuration loaded"
+absent = "No saved settings loaded"
 
 [history.saved.no_request]
 args = ["resource: text"]
-text = "No explicit {resource} request; existing/provider values are not reset"
+text = "No {resource} value set; existing or Hyper-V values aren't changed"
 
 [history.saved.provider_values]
 args = ["resource: text", "minimum: text", "optimal: text", "maximum: text"]
-text = "{resource} provider integers: {minimum} / {optimal} / {maximum}"
+text = "{resource} Hyper-V values: {minimum} / {optimal} / {maximum}"
 
 [history.saved.summary]
 args = ["support: message", "gpu_interface: text", "allocation: text"]
 text = "GPU {support}; {gpu_interface}; {allocation}"
 
 [history.summary]
-failed = "latest check failed; current health unknown"
-incomplete = "latest check incomplete; current health unknown"
-mismatch = "latest check found a driver-file mismatch"
+failed = "last check failed; current state unknown"
+incomplete = "last check didn't finish; current state unknown"
+mismatch = "last check found mismatched driver files"
 no_record = "unknown; no matching check record"
 not_verified = "not verified"
-previously_verified = "previously verified; current health unknown"
-recovery_required = "recovery required; current health unknown"
-unavailable = "latest check unavailable; current health unknown"
+previously_verified = "previously verified; current state unknown"
+recovery_required = "recovery required; current state unknown"
+unavailable = "last check unavailable; current state unknown"
 
 [host_comparison]
-baseline_unavailable = "managed compatibility baseline is unavailable or not applicable"
-historical = "retained host observations are historical; Refresh to compare"
-inventory_unavailable = "host inventory is unavailable"
-matches = "Host configuration: compared values match the saved intent."
-observations_incomplete = "latest host observations are incomplete; inspect diagnostics"
-saved_absent = "no saved intent"
-saved_unreadable = "saved intent is unreadable"
-vm_missing = "VM was not returned by the latest host read"
+baseline_unavailable = "the app's original compatibility values aren't available or don't apply"
+historical = "the host information shown is out of date; select Refresh to compare"
+inventory_unavailable = "host information isn't available"
+matches = "Host configuration: all compared values match the saved settings."
+observations_incomplete = "the latest host information is incomplete; check the diagnostics"
+saved_absent = "no saved settings"
+saved_unreadable = "the saved settings can't be read"
+vm_missing = "the VM wasn't found when host information was last read"
 
 [host_comparison.attachment_difference]
 args = ["expected: text", "observed: text"]
-text = "GPU attachment: expected {expected}; observed {observed}"
+text = "GPU attachment: expected {expected}, found {observed}"
 
 [host_comparison.baseline_difference]
 args = ["name: message", "expected: text", "observed: text"]
-text = "{name} (managed host baseline): expected {expected}; observed {observed}"
+text = "{name} (original host value): expected {expected}, found {observed}"
 
 [host_comparison.differences]
 args = ["differences: text"]
-text = "Host configuration differences (saved intent / latest Hyper-V read): {differences}. Review changes before repair or GPU removal."
+text = "Host configuration differs from the saved settings: {differences}. Review these differences before repairing or removing GPU support."
 
 [host_comparison.no_saved_request]
 args = ["resource: text"]
-text = "{resource} has no explicit saved request"
+text = "{resource} has no saved value"
 
 [host_comparison.observed_unknown]
 args = ["resource: text", "expected: text"]
-text = "{resource}: expected {expected}; observed Unknown"
+text = "{resource}: expected {expected}, found Unknown"
 
 [host_comparison.resource_difference]
 args = ["resource: text", "expected: text", "observed: text"]
-text = "{resource}: expected {expected}; observed {observed}"
+text = "{resource}: expected {expected}, found {observed}"
 
 [host_comparison.unknown_reason]
 args = ["reason: message"]
@@ -118,12 +118,12 @@ text = " Unknown: {unknowns}."
 none = "none"
 
 [observation]
-current = "Source: latest host inventory and saved app records. No fresh guest check; setup/rendering history is historical, not current guest health."
-historical = "Current observation unavailable. Retained host observations/history below are prior reads, not current health or execution authority; use Refresh."
+current = "Source: the latest host information and the app's saved records. The VM itself wasn't checked again, so setup and graphics results are past results, not its current state."
+historical = "Current information isn't available. The host information and history below are from earlier reads and may be out of date. Select Refresh."
 
 [selected.details]
 args = ["source: message", "facts: text", "host: text", "applied: text"]
-text = "{source}\n{facts}\n\nHost comparison:\n{host}\n\nApplied operation:\n{applied}\n\nVRAM values are exact byte requests/readback; provider values do not establish reserved memory or enforced isolation. Missing records and null fields mean unavailable/absent facts, not proof of success."
+text = "{source}\n{facts}\n\nHost comparison:\n{host}\n\nLast operation:\n{applied}\n\nGPU memory values are exact byte amounts, as requested or as read from Hyper-V. Hyper-V values don't guarantee that memory is reserved or isolated. Missing records or empty fields mean the information isn't available; they don't indicate success."
 
 [stage]
 original = "Original operation"

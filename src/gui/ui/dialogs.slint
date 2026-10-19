@@ -17,7 +17,7 @@ component ActionChoice inherits Rectangle {
     VerticalLayout {
         spacing: 4px;
         Button { text: root.label; enabled: root.allowed && root.ready && !root.updating; clicked => { if self.enabled { root.activate(); } } }
-        if root.show-reason && (root.updating || !root.allowed || !root.ready) : Hint { min-width: 0px; text: root.updating ? UiText.dialogs-availability-updating : !root.allowed ? root.reason : UiText.dialogs-availability-setup-required; }
+        if root.show-reason && root.reason != "" : Hint { min-width: 0px; text: root.reason; }
     }
 }
 
@@ -50,6 +50,17 @@ export component OperationDialog inherits Rectangle {
     in property <bool> review-preparing;
     private property <bool> technical: false;
     private property <bool> follow-progress: true;
+    pure function choice-reason(allowed: bool, reason: string) -> string {
+        if root.updating { return UiText.dialogs-availability-updating; }
+        if !allowed { return reason; }
+        if !root.execution-ready { return UiText.dialogs-availability-setup-required; }
+        return "";
+    }
+    private property <string> verify-reason: root.choice-reason(root.verify-allowed, root.verify-unavailable);
+    private property <string> repair-reason: root.choice-reason(root.repair-allowed, root.repair-unavailable);
+    private property <string> remove-reason: root.choice-reason(root.remove-allowed, root.remove-unavailable);
+    // When every GPU action is blocked for the same reason, say it once above the choices.
+    private property <string> shared-reason: root.verify-reason != "" && root.verify-reason == root.repair-reason && root.repair-reason == root.remove-reason ? root.verify-reason : "";
     changed kind => { root.follow-progress = true; root.technical = false; root.focus-safe(); }
     changed title => { root.technical = false; }
     changed technical => { body-scroll.content-y = root.technical ? min(0px, body-scroll.visible-height - body-scroll.content-height) : 0px; }
@@ -101,11 +112,12 @@ export component OperationDialog inherits Rectangle {
                             text: root.updating ? UiText.dialogs-partial-removal-checking : root.reset-allowed ? UiText.dialogs-partial-removal-available : root.reset-unavailable;
                             min-width: 0px;
                         }
+                        if root.kind == "more" && root.shared-reason != "" : Hint { text: root.shared-reason; color: Theme.text; font-size: 14px; min-width: 0px; wrap: word-wrap; overflow: clip; }
                         if root.kind == "more" : VerticalLayout {
                             spacing: 12px;
-                            ActionChoice { label: UiText.operations-verify-title; reason: root.verify-unavailable; allowed: root.verify-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
-                            ActionChoice { label: UiText.dialogs-repair-label; reason: root.repair-unavailable; allowed: root.repair-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
-                            ActionChoice { label: UiText.dialogs-removal-label; reason: root.remove-unavailable; allowed: root.remove-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
+                            ActionChoice { label: UiText.operations-verify-title; reason: root.verify-reason; show-reason: root.shared-reason == ""; allowed: root.verify-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("verify"); } }
+                            ActionChoice { label: UiText.dialogs-repair-label; reason: root.repair-reason; show-reason: root.shared-reason == ""; allowed: root.repair-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("repair"); } }
+                            ActionChoice { label: UiText.dialogs-removal-label; reason: root.remove-reason; show-reason: root.shared-reason == ""; allowed: root.remove-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("remove-gpu"); } }
                             ActionChoice { label: UiText.dialogs-profile-deletion-label; show-reason: false; allowed: root.forget-allowed; ready: root.execution-ready; updating: root.updating; activate => { root.action("forget"); } }
                         }
                         if root.technical && root.details != "" && root.details != root.body : DialogLog { text: root.details; }

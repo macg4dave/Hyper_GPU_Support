@@ -74,8 +74,8 @@ fn host_comparison_uses_saved_intent_and_preserves_missing_attachment_repair() {
         ..saved.clone()
     });
     let text = s.host_configuration_text(&vm_id);
-    assert!(text.contains(&format!("expected {}; observed none", saved.gpu_interface)));
-    assert!(text.contains("observed Unknown"));
+    assert!(text.contains(&format!("expected {}, found none", saved.gpu_interface)));
+    assert!(text.contains("found Unknown"));
     assert!(s.editor_eligibility(&vm_id).is_ok());
     assert!(s.view.eligibility(&saved).is_ok());
     assert_eq!(s.committed.documents[&vm_id].source, before);
@@ -85,7 +85,7 @@ fn host_comparison_uses_saved_intent_and_preserves_missing_attachment_repair() {
     inventory.discovery.vms[0].gpus = vec!["unrelated-gpu".into()];
     assert!(
         s.host_configuration_text(&vm_id)
-            .contains("observed unrelated-gpu")
+            .contains("found unrelated-gpu")
     );
     assert!(s.view.eligibility(&saved).is_err());
 }
@@ -120,7 +120,7 @@ fn host_comparison_reports_exact_resources_and_managed_settings() {
     );
     let text = s.host_configuration_text(&vm_id);
     assert!(text.contains("compared values match"));
-    assert!(text.contains("Compute has no explicit saved request"));
+    assert!(text.contains("Compute has no saved value"));
     let vm = &mut s.view.inventory.as_mut().unwrap().discovery.vms[0];
     vm.vram.as_mut().unwrap().optimal = 60;
     vm.settings.low_mmio = 1;
@@ -128,11 +128,11 @@ fn host_comparison_reports_exact_resources_and_managed_settings() {
     vm.settings.cache_types = false;
     vm.settings.automatic_checkpoints = true;
     let text = s.host_configuration_text(&vm_id);
-    assert!(text.contains("VRAM: expected 10 / 50 / 100; observed 10 / 60 / 100"));
+    assert!(text.contains("VRAM: expected 10 / 50 / 100, found 10 / 60 / 100"));
     for name in [
         "Low MMIO",
         "High MMIO",
-        "Guest cache types",
+        "Guest-controlled cache types",
         "Automatic checkpoints",
     ] {
         assert!(text.contains(name), "{text}");
@@ -163,7 +163,7 @@ fn host_comparison_reports_exact_resources_and_managed_settings() {
         .unwrap()
         .pending = true;
     let text = s.host_configuration_text(&vm_id);
-    assert!(text.contains("baseline is unavailable"));
+    assert!(text.contains("original compatibility values aren't available"));
     assert!(!text.contains("Low MMIO"));
 }
 
@@ -172,10 +172,10 @@ fn host_comparison_handles_disabled_missing_malformed_and_stale_reads() {
     let (mut s, vm_id, _) = comparison_state(false);
     assert_eq!(
         s.host_configuration_text(&vm_id),
-        "Host configuration: compared values match the saved intent."
+        "Host configuration: all compared values match the saved settings."
     );
     s.view.needs_readback = true;
-    assert!(s.host_configuration_text(&vm_id).contains("historical"));
+    assert!(s.host_configuration_text(&vm_id).contains("out of date"));
     s.refresh(inventory());
     assert!(
         s.host_configuration_text(&vm_id)
@@ -186,19 +186,19 @@ fn host_comparison_handles_disabled_missing_malformed_and_stale_reads() {
     s.view.inventory = None;
     assert!(
         s.host_configuration_text(&vm_id)
-            .contains("inventory is unavailable")
+            .contains("host information isn't available")
     );
     s.load_committed(Default::default()).unwrap();
     assert!(
         s.host_configuration_text(&vm_id)
-            .contains("no saved intent")
+            .contains("no saved settings")
     );
     let mut store = hyper_gpu_support::configuration_store::StoreSnapshot::default();
     store.insert(&format!("{vm_id}.toml"), Ok("malformed".into()));
     s.load_committed(store).unwrap();
     assert!(
         s.host_configuration_text(&vm_id)
-            .contains("saved intent is unreadable")
+            .contains("the saved settings can't be read")
     );
 }
 
@@ -225,14 +225,14 @@ fn host_comparison_isolates_incomplete_observations_and_requires_fresh_review() 
     s.refresh(fresh);
     assert!(
         s.host_configuration_text(&vm_id)
-            .contains("observations are incomplete")
+            .contains("host information is incomplete")
     );
     let text = s.host_configuration_text(&vm_id);
-    assert!(!text.contains("configuration differences"));
+    assert!(!text.contains("Host configuration differs"));
     s.refresh(inventory());
     assert!(
         s.host_configuration_text(&vm_id)
-            .contains("configuration differences")
+            .contains("Host configuration differs")
     );
     s.view.needs_readback = true;
     assert!(s.view.eligibility(&saved).is_err());

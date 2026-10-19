@@ -4,13 +4,13 @@
 [apply]
 label = "Apply"
 review_label = "Apply changes"
-unavailable_hint = "Apply is unavailable. Close this review and use Refresh to check setup or recovery."
+unavailable_hint = "Apply isn't available right now. Close this and select Refresh to check setup or recovery."
 unavailable_label = "Apply unavailable"
 
 [availability]
-review_hint = "Opens a fresh review. Changes require separate confirmation."
-setup_required = "Use Refresh to check application setup and worker availability."
-updating = "VM information is updating. Wait for the update to finish."
+review_hint = "Opens a new review. You'll confirm any changes separately."
+setup_required = "Select Refresh to check the app's setup and background service."
+updating = "VM information is updating. Wait for it to finish."
 
 [busy]
 label = "Operation in progress"
@@ -19,66 +19,66 @@ label = "Operation in progress"
 label = "Cancel"
 
 [cancelling]
-body = "The background check is still finishing. Your request will not continue into execution. This dialog closes automatically when the check ends."
-title = "Cancelling, please wait..."
+body = "A background check is still finishing. Your request won't go ahead. This window closes automatically when the check ends."
+title = "Cancelling…"
 
 [close]
 label = "Close"
 
 [draft]
-discard_label = "Discard draft"
+discard_label = "Discard changes"
 keep_label = "Keep editing"
 
 [enrollment]
 confirm_label = "Allow GPU management"
-new_permission_hint = "Fresh enrollment requires a separate profile deletion review. Repair / Reinstall can reuse the existing permission."
-reconcile_label = "Reconcile enrollment authority"
+new_permission_hint = "To approve this VM again from the start, delete its profile first. Repair / Reinstall can use the existing approval."
+reconcile_label = "Resolve GPU permission"
 
 [exit]
-discard_label = "Discard & Close"
+discard_label = "Discard and close"
 
 [install]
 applying = "Applying changes"
 cancel = "Cancel operation"
-checking_files = "Checking VM and driver files"
+checking_files = "Checking the VM and driver files"
 checks = "Setup checks"
-completed = "Changes applied successfully"
+completed = "Changes applied"
 copy_log = "Copy log"
 failure_title = "GPU operation failed"
-finalising = "Saving checked configuration"
+finalising = "Saving settings"
 gpu = "Physical GPU"
-gpu_type = "GPU Type:"
+gpu_type = "GPU type:"
 hide_log = "Hide log"
 installing_files = "Installing GPU driver files"
 memory = "GPU memory"
-not_required = "Not required"
+not_required = "Not needed"
 pending = "Pending"
 permissions = "Permissions"
-preparation = "Driver preparation"
+preparation = "Driver setup"
 prepared = "Completed"
 preparing_files = "Preparing GPU driver files"
-readback = "Reading saved settings and recovery records"
+readback = "Checking saved settings and recovery records"
 review = "Review"
-starting = "Preparing protected worker"
-success_off = "The GPU configuration has been updated and the virtual machine is now shut down."
-success_running = "The GPU configuration has been updated and the virtual machine is running."
+starting = "Starting the background service"
+success_off = "GPU settings have been updated. The virtual machine is now shut down."
+success_running = "GPU settings have been updated. The virtual machine is running."
 summary = "Summary"
 support = "GPU support"
 technical = "Technical details"
-unchanged = "Existing preparation retained"
-unconfirmed = "The terminal installation result could not be confirmed. Refresh and inspect recovery before trying again; do not repeat Apply."
+unchanged = "Existing driver setup kept"
+unconfirmed = "The final result couldn't be confirmed. Select Refresh and review recovery before trying again. Don't select Apply again."
 view_log = "View log"
-vm = "Virtual Machine:"
-vram = "VRAM Size:"
-wait = "Please wait while the changes are applied. This includes driver preparation and GPU setup checks."
-windows_warning = "Windows-version compatibility has not been checked. Other Windows versions may require manual configuration. This warning does not block installation."
+vm = "Virtual machine:"
+vram = "VRAM size:"
+wait = "Please wait while your changes are applied. This includes setting up drivers and checking the GPU setup."
+windows_warning = "This app hasn't checked whether your version of Windows is compatible. Other versions of Windows might need manual setup. You can still continue."
 
 [inventory]
 refresh_label = "Refresh"
 
 [partial_removal]
-available = "Remove partial GPU setup restores this VM's original host settings and leaves it off. Guest driver files are kept."
-checking = "Checking whether partial removal is safe..."
+available = "Remove partial GPU setup restores this VM's original host settings and leaves it turned off. Driver files inside the VM are kept."
+checking = "Checking whether the partial setup can be removed safely…"
 confirm_label = "Remove partial GPU setup"
 review_label = "Remove partial GPU setup…"
 
@@ -86,12 +86,12 @@ review_label = "Remove partial GPU setup…"
 label = "I agree to the power changes described above."
 
 [profile_deletion]
-discard_review_label = "Discard draft and delete profile"
+discard_review_label = "Discard changes and delete profile"
 label = "Delete profile"
 review_label = "Delete profile"
 
 [recovery]
-review_label = "Check recorded outcome"
+review_label = "Review recovery"
 
 [removal]
 label = "Remove GPU support"
@@ -102,32 +102,32 @@ review_label = "Repair / Reinstall"
 
 [setup]
 continue_label = "Continue GPU setup"
-new_review_label = "Start new GPU setup"
+new_review_label = "Set up GPU support again"
 
 [status]
 retry_label = "Retry status update"
 
 [switch]
-discard_label = "Discard & Switch"
+discard_label = "Discard and switch"
 review_label = "Apply changes"
-stay_label = "Stay on VM"
+stay_label = "Stay on this VM"
 
 [workflow]
 apply = "Apply changes"
-credentials = "Manage credentials"
+credentials = "Sign-in details"
 delete = "Delete profile"
 install = "Install app"
-install_progress_title = "Install app and authorize reviewed VM/GPU pair"
+install_progress_title = "Installing the app and approving this VM and GPU"
 install_review_title = "Review app installation and GPU permission"
-permission_recovery = "Reconcile permissions"
-permission_review = "Check permissions"
-permissions = "Save permissions"
-plan = "Build plan"
+permission_recovery = "Resolve permission"
+permission_review = "Check permission"
+permissions = "Approve GPU access"
+plan = "Prepare"
 read = "Read information"
-readback = "Readback"
-recover = "Reconcile"
+readback = "Confirm result"
+recover = "Recovery check"
 remove = "Remove GPU setup"
 result = "Result"
-save = "Save configuration"
+save = "Save settings"
 verify = "Verify setup"
-verify_plan = "Prepare verification"
+verify_plan = "Prepare check"

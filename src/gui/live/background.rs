@@ -519,7 +519,7 @@ mod tests {
             "read failed"
         );
         let error = run_background_task::<()>(|| panic!("fixture panic payload")).unwrap_err();
-        assert!(error.contains("without a terminal outcome"));
+        assert!(error.contains("without reporting a result"));
         assert!(!error.contains("fixture panic payload"));
     }
 }

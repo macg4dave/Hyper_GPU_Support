@@ -20,13 +20,13 @@ The VRAM range does not establish enforced isolation. Automatic balancing and fu
 
 ## Current state
 
-The main VM page omits the first-install inventory banner, Check recorded outcome and Technical details controls. Recovery remains available through More actions; diagnostic details remain in operation dialogs. The current candidate builds; installed visual validation remains pending.
+The main VM page omits the first-install inventory banner, Review recovery and Technical details controls. Recovery remains available through More actions; diagnostic details remain in operation dialogs. The current candidate builds; installed visual validation remains pending.
 
 Settings contains the Appearance controls; the Credentials & diagnostics section has been removed from that page. System displays the GPU information boxes without the This computer box.
 
 Setup progress reuses the VM-state and GPU/driver observation rows while retaining each check in Technical Details. Repeated power actions remain separate. Copy counters and the percentage follow acknowledged transfer progress and clear when the active stage moves to guest checks; they do not establish final success. Technical Details buttons use text without a chevron. These dialog changes await installed visual and setup validation.
 
-The percentage text remains bound throughout the dialog's lifetime, including transitions into and out of file copying. Completed summary checks stay complete during later reads; their new execution is tracked separately in Technical Details, and a later failure remains visible.
+The percentage text remains bound throughout the dialog's lifetime, including transitions into and out of file copying. Its colour also follows the copy fraction: during long copies Slint 1.18.1's text cache sweep can otherwise leave a same-width value unrepainted. Completed summary checks stay complete during later reads; their new execution is tracked separately in Technical Details, and a later failure remains visible.
 
 Status polling explicitly refreshes its exact launched Task Scheduler instance before confirming release. A stale Running value after reader exit must not block Refresh or the next Apply; unknown states and failed release observations still block new work.
 

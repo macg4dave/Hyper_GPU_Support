@@ -622,7 +622,7 @@ mod tests {
         let mut inventory = inventory();
         let id = target(1).vm_id;
         for (outcome, text) in [
-            (GuestCheck::Interrupted, "incomplete"),
+            (GuestCheck::Interrupted, "didn't finish"),
             (GuestCheck::Failed, "failed"),
             (GuestCheck::Unavailable, "unavailable"),
             (GuestCheck::PayloadMismatch, "mismatch"),
@@ -665,9 +665,9 @@ mod tests {
         let id = target(1).vm_id;
         for (outcome, text) in [
             (GuestCheck::Interrupted, "interrupted"),
-            (GuestCheck::Failed, "check failed"),
-            (GuestCheck::Unavailable, "check unavailable"),
-            (GuestCheck::PayloadMismatch, "payload mismatch"),
+            (GuestCheck::Failed, "check inside the VM failed"),
+            (GuestCheck::Unavailable, "check result isn't available"),
+            (GuestCheck::PayloadMismatch, "driver files that don't match"),
             (GuestCheck::Passed, "check passed"),
         ] {
             let mut record = journal();
@@ -677,7 +677,7 @@ mod tests {
             inventory.managed.insert(id.clone(), Some(reopened));
             let shown = inventory.recorded_state(&id);
             assert!(shown.graphics.contains(text));
-            assert!(shown.graphics.contains("123") && shown.graphics.contains("historical"));
+            assert!(shown.graphics.contains("123") && shown.graphics.contains("past result"));
             assert!(shown.recovery_required);
         }
     }
@@ -691,15 +691,19 @@ mod tests {
         assert!(unavailable.graphics.contains("Unknown"));
         inventory.managed.insert(id.clone(), None);
         let absent = inventory.recorded_state(&id);
-        assert_eq!(absent.preparation, "No preparation record");
+        assert_eq!(absent.preparation, "No driver setup recorded");
         assert!(!absent.recovery_required);
         let mut record = journal();
         record.prepared = None;
         record.last_verified = None;
         inventory.managed.insert(id.clone(), Some(record));
         let unprepared = inventory.recorded_state(&id);
-        assert_eq!(unprepared.preparation, "No completed preparation recorded");
-        assert!(unprepared.graphics.contains("No recorded"));
+        assert_eq!(unprepared.preparation, "No completed driver setup recorded");
+        assert!(
+            unprepared
+                .graphics
+                .contains("No successful graphics check recorded")
+        );
         assert_ne!(unavailable, absent);
         assert_ne!(absent, unprepared);
     }
@@ -738,11 +742,11 @@ mod tests {
         assert!(
             recorded
                 .preparation
-                .contains("current guest files and driver parity are unknown")
+                .contains("the files currently in the VM haven't been checked")
         );
         assert!(recorded.graphics.contains("123"));
         assert!(recorded.graphics.contains("Last successful"));
-        assert!(recorded.graphics.contains("current guest health unknown"));
+        assert!(recorded.graphics.contains("current state unknown"));
         assert!(!recorded.recovery_required);
         // A detach does not erase history or turn it into a current check.
         inventory.discovery.vms[0].gpus.clear();
@@ -751,7 +755,7 @@ mod tests {
         record.pending = true;
         let pending = inventory.recorded_state(&id);
         assert!(pending.recovery_required);
-        assert!(pending.preparation.contains("outcome requires inspection"));
+        assert!(pending.preparation.contains("result needs checking"));
         assert_eq!(pending.graphics, recorded.graphics);
     }
     #[test]
@@ -764,10 +768,14 @@ mod tests {
         // must neither certify guest setup nor erase the enrolled authority.
         let before = serde_json::to_value(&inventory).unwrap();
         let recorded = inventory.recorded_state(&id);
-        assert!(recorded.preparation.contains("Previously prepared"));
-        assert!(recorded.preparation.contains("checkpoint rollback"));
-        assert!(recorded.preparation.contains("Use Verify"));
-        assert!(recorded.graphics.contains("current guest health unknown"));
+        assert!(
+            recorded
+                .preparation
+                .contains("Drivers were set up previously")
+        );
+        assert!(recorded.preparation.contains("Restoring a checkpoint"));
+        assert!(recorded.preparation.contains("Use Verify GPU setup"));
+        assert!(recorded.graphics.contains("current state unknown"));
         assert!(!recorded.recovery_required);
         assert_eq!(before, serde_json::to_value(&inventory).unwrap());
     }
@@ -787,7 +795,7 @@ mod tests {
             inventory.managed.insert(id.clone(), Some(record));
             let recorded = inventory.recorded_state(&id);
             assert!(recorded.recovery_required);
-            assert!(recorded.preparation.contains("does not match"));
+            assert!(recorded.preparation.contains("doesn't match"));
             assert!(recorded.graphics.starts_with("Unknown"));
             assert!(!recorded.graphics.contains("123"));
         }
@@ -870,7 +878,7 @@ mod tests {
         assert!(
             v.stage(&target(1).vm_id, true)
                 .unwrap_err()
-                .contains("not enrolled")
+                .contains("aren't approved for GPU management")
         );
         let mut data = serde_json::to_value(&v.inventory.as_ref().unwrap().discovery).unwrap();
         data["managed"] = serde_json::json!({});
@@ -933,18 +941,18 @@ mod tests {
         let vm = &mut v.inventory.as_mut().unwrap().discovery.vms[0];
         assert_eq!(allocation_text(vm), "Not assigned");
         vm.gpus.push(target(1).gpu_interface);
-        assert_eq!(allocation_text(vm), "Provider default");
+        assert_eq!(allocation_text(vm), "Hyper-V default");
         vm.vram = Some(Allocation {
             minimum: 1,
             optimal: 2,
             maximum: 3,
         });
-        assert_eq!(allocation_text(vm), "Provider values");
+        assert_eq!(allocation_text(vm), "Hyper-V values");
         assert_eq!(v.support_text(v.vm(&target(1).vm_id).unwrap()), "Enabled");
         v.stage(&target(1).vm_id, false).unwrap();
         assert!(
             v.support_text(v.vm(&target(1).vm_id).unwrap())
-                .contains("Enabled — Pending disable")
+                .contains("Enabled — will disable when applied")
         );
     }
     #[test]

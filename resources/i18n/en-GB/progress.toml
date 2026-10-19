@@ -6,32 +6,32 @@ complete = "Copying files · Complete"
 
 [log.heading]
 args = ["events: text"]
-text = "Reported events (not proof of final state):\n{events}"
+text = "Reported events (these don't confirm the final state):\n{events}"
 
 [stage]
 allocation = "Applying your GPU resource settings"
-authenticate = "Authenticating current signed driver files"
+authenticate = "Checking the signatures of the current driver files"
 compatibility = "Updating GPU compatibility settings"
-permission_preparation = "Waiting for any earlier status check to finish, then checking the protected app and requesting Windows administrator permission. No GPU changes have started. A Windows UAC prompt may require your response."
+permission_preparation = "Waiting for any earlier status check to finish, then checking the app and asking for administrator permission. No GPU changes have been made yet. Windows may show a User Account Control (UAC) prompt for you to approve."
 persist = "Saving progress"
 prepare = "Preparing GPU driver files"
 publish = "Saving the checked VM settings"
-read_gpu = "Reading selected GPU and driver version"
-read_vm = "Reading current VM state"
-recovery_credentials = "Preparing recovery: reading saved sign-in or waiting for local administrator sign-in; no guest check has started"
-recovery_outcome = "Checking the recorded recovery outcome; guest checks and final power restoration are not yet confirmed"
-recovery_preparation = "Preparing recovery: waiting for protected worker startup; the recorded outcome is not yet confirmed"
-save_only = "Retrying the bound configuration save"
+read_gpu = "Reading the selected GPU and driver version"
+read_vm = "Reading the current VM state"
+recovery_credentials = "Preparing recovery: reading saved sign-in details or waiting for you to sign in. Nothing has been checked inside the VM yet"
+recovery_outcome = "Checking the recorded result. Checks inside the VM and the final power state aren't confirmed yet"
+recovery_preparation = "Preparing recovery: waiting for the background service to start. The recorded result isn't confirmed yet"
+save_only = "Trying again to save the settings"
 shutdown = "Shutting down the VM safely"
 start = "Starting the VM"
-worker_admission = "Checking protected worker admission: waiting for the operation lock and authenticating installed files"
-worker_connection = "Preparing protected worker: checking enrollment, waiting for Windows approval or connecting securely"
+worker_admission = "Waiting for other operations to finish and checking the app's installed files"
+worker_connection = "Checking GPU permission and connecting securely to the background service. Windows may ask for your approval"
 
 [status]
 complete = "Complete"
 failed = "Failed"
 in_progress = "In progress"
-waiting_result = "Waiting for final result; completion is not yet confirmed"
+waiting_result = "Waiting for the final result"
 
 [status.line]
 args = ["label: text", "status: message"]

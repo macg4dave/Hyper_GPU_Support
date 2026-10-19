@@ -140,7 +140,7 @@ fn completed_unsaved_apply_keeps_saved_observed_and_applied_state_distinct() {
     assert!(!s.view.needs_readback);
     assert!(
         s.applied_text(&applied.vm_id)
-            .contains("publication is pending")
+            .contains("haven't been saved yet")
     );
     assert_eq!(s.save_only_record().unwrap().target, applied);
     assert!(s.editor_eligibility(id(&s)).is_err());
@@ -184,7 +184,7 @@ fn completed_apply_rejects_a_replaced_operation_receipt() {
                 Ok(completion_observation(&s, Default::default(), vec![record]))
             )
             .unwrap_err()
-            .contains("receipt changed")
+            .contains("recovery record changed")
         );
         assert!(s.view.needs_readback);
         assert!(s.editor_eligibility(id(&s)).is_err());

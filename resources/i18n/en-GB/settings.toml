@@ -4,19 +4,19 @@
 title = "Settings"
 
 [about]
-body = "Review and approve GPU support changes for your virtual machines. Available operations depend on setup, supported GPU capabilities and recovery status."
-cli_hint = "Explicit CLI commands retain their existing capabilities. Unconnected GUI operations never produce simulated success."
-qualification_hint = "NVIDIA first. Further vendor support and simultaneous GPU sharing require independent qualification."
+body = "Review and approve GPU support changes for your virtual machines. The actions available depend on setup, what your GPU supports and whether any operation needs recovery."
+cli_hint = "Command-line tools keep all their existing features. Actions that aren't available in the app yet are never simulated."
+qualification_hint = "NVIDIA GPUs are supported first. Other GPU manufacturers and sharing one GPU between several VMs need further testing."
 scope_heading = "Designed for existing VMs"
-subtitle = "Manage GPU support for existing Hyper-V virtual machines."
+subtitle = "Manage GPU support for your existing Hyper-V virtual machines."
 title = "About Hyper GPU Support"
 
 [appearance]
 dark = "Dark"
-follow_windows = "Follow Windows"
-help_label = "Show contextual help"
+follow_windows = "Use Windows setting"
+help_label = "Show help text"
 light = "Light"
-palette_hint = "Fluent controls follow the selected palette immediately."
+palette_hint = "Theme changes apply straight away."
 theme_label = "Theme"
 title = "Appearance"
 
@@ -24,17 +24,17 @@ title = "Appearance"
 version = "Hyper GPU Support · 0.1.0"
 
 [credentials]
-body = "Guest credentials use the native Windows dialog for the selected enrolled VM. Remember is an explicit opt-in to this user's Credential Manager."
-open_label = "Guest credentials for selected VM"
-title = "Credentials & diagnostics"
+body = "Manage the Windows sign-in details used for the selected VM. They're saved in Windows Credential Manager for your account only if you select Remember."
+open_label = "Sign-in details for selected VM"
+title = "Sign-in and diagnostics"
 
 [help]
-open_label = "View application help"
+open_label = "View help"
 
 # Native name shown in the Settings language picker.
 [language]
-follow_windows = "Follow Windows"
-hint = "Text changes immediately. Open dialogs and messages already shown update when they next refresh."
+follow_windows = "Use Windows setting"
+hint = "Text changes straight away. Open windows and messages update the next time they refresh."
 label = "Display language"
 title = "Language"
 
@@ -42,4 +42,4 @@ title = "Language"
 back = "Back to Settings"
 
 [preferences]
-notice = "Make the workspace yours. Preferences reset on launch."
+notice = "Personalise the app. Preferences reset each time the app starts."

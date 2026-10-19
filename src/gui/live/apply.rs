@@ -352,10 +352,10 @@ mod tests {
             assert!(body.contains("incomplete or invalid reply"), "{body}");
             assert!(body.contains("refreshed automatically"), "{body}");
             assert!(body.contains(&format!("Power: {power}.")), "{body}");
-            assert!(body.contains("Your draft is retained"), "{body}");
-            assert_eq!(body.contains("Choose Review recovery"), recovery, "{body}");
+            assert!(body.contains("Your changes are kept"), "{body}");
+            assert_eq!(body.contains("Select Review recovery"), recovery, "{body}");
             assert!(
-                !body.contains("Use Refresh") && !body.contains("use Refresh"),
+                !body.contains("Select Refresh") && !body.contains("select Refresh"),
                 "{body}"
             );
             assert!(

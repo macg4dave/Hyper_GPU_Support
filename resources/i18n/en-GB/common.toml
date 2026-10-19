@@ -2,56 +2,56 @@
 # it defines every key and argument; other languages translate the text only.
 
 [allocation]
-provider_default = "provider default"
+provider_default = "Hyper-V default"
 
 [branding]
 monogram = "H"
 title = "Hyper GPU Support"
 
 [compatibility]
-cache_types = "Guest cache types"
+cache_types = "Guest-controlled cache types"
 checkpoints = "Automatic checkpoints"
-high_mmio = "High MMIO (MiB)"
-low_mmio = "Low MMIO (MiB)"
+high_mmio = "High MMIO space (MiB)"
+low_mmio = "Low MMIO space (MiB)"
 
 [eligibility]
-unsupported = "Unsupported"
+unsupported = "Not supported"
 
 [errors]
-acknowledgement_expired = "Prepared operation acknowledgement expired"
-completion_unavailable = "Protected completion unavailable"
-inventory_unavailable = "Inventory unavailable"
-operation_running = "Another GUI operation is still running."
-polling_requires_observation = "Installed polling requires a protected observation"
-preference_directory_unavailable = "Local user preference directory unavailable"
-preparation_cancelled = "Read-only preparation cancelled"
-prepared_result_unavailable = "Prepared result unavailable"
-read_admission_unavailable = "Read admission unavailable"
-reader_unreleased = "A protected reader has not confirmed release"
-reader_unreleased_blocked = "The protected reader has not confirmed release. New actions remain blocked; no operation was retried."
-reader_unreleased_wait = "A protected reader has not confirmed release. Wait for the earlier status check to finish, then refresh before requesting another operation."
-refresh_inventory = "Refresh inventory first"
-refresh_recovery = "Refresh recovery first"
-release_observation_unavailable = "Read release observation unavailable"
-selection_directory_unavailable = "Selection preference directory unavailable"
-selection_requires_guid = "Selection preference requires a VM GUID"
-task_ended = "The backend task ended without a terminal outcome. Refresh and inspect protected recovery before retrying."
-unexpected_preparation = "Unexpected prepared operation"
-windows_required_credentials = "Guest credentials require Windows"
-windows_required_discovery = "Hyper-V discovery requires Windows x64"
-windows_required_gpu = "GPU operations require Windows"
-windows_required_publication = "Protected publication requires Windows"
-windows_required_reconciliation = "Reconciliation requires Windows"
-windows_required_recovery = "Recovery requires Windows"
-windows_required_verify = "Verify GPU setup requires Windows"
+acknowledgement_expired = "The background service didn't respond in time."
+completion_unavailable = "The result of the operation couldn't be read."
+inventory_unavailable = "VM information isn't available."
+operation_running = "Another operation is still running."
+polling_requires_observation = "Automatic status updates aren't available until setup has finished."
+preference_directory_unavailable = "Your preferences folder couldn't be opened."
+preparation_cancelled = "Preparation was cancelled. Nothing was changed."
+prepared_result_unavailable = "The prepared action couldn't be read."
+read_admission_unavailable = "VM information can't be read right now."
+reader_unreleased = "An earlier status check hasn't finished yet."
+reader_unreleased_blocked = "An earlier status check hasn't finished yet. Actions stay unavailable until it does. Nothing was retried."
+reader_unreleased_wait = "An earlier status check hasn't finished yet. Wait for it to finish, then select Refresh before trying again."
+refresh_inventory = "Select Refresh first."
+refresh_recovery = "Refresh recovery information first."
+release_observation_unavailable = "The status check couldn't be confirmed as finished."
+selection_directory_unavailable = "The folder for your saved selection couldn't be opened."
+selection_requires_guid = "Only a VM with a valid ID can be remembered."
+task_ended = "The operation stopped without reporting a result. Select Refresh and review recovery before trying again."
+unexpected_preparation = "The prepared action didn't match your request."
+windows_required_credentials = "Saved sign-in details require Windows."
+windows_required_discovery = "Finding Hyper-V virtual machines requires 64-bit Windows."
+windows_required_gpu = "GPU operations require Windows."
+windows_required_publication = "Saving settings requires Windows."
+windows_required_reconciliation = "Recovery checks require Windows."
+windows_required_recovery = "Recovery requires Windows."
+windows_required_verify = "Verify GPU setup requires Windows."
 
 [errors.poll_start_failed]
 args = ["error: text"]
-text = "Cannot start status poll: {error}"
+text = "Couldn't start checking VM status: {error}"
 
 [errors.task_start_failed]
 args = ["error: text"]
-text = "Cannot start backend task: {error}"
+text = "Couldn't start the operation: {error}"
 
 # Native name shown in the Settings language picker.
 [language]
@@ -70,9 +70,9 @@ running = "Running"
 stopped = "Stopped"
 
 [state]
-live_presentation_unavailable = "Live presentation state unavailable"
-presentation_unavailable = "Presentation state unavailable"
-restart_required = "Live presentation state is unavailable; restart the application."
+live_presentation_unavailable = "Current status isn't available"
+presentation_unavailable = "Status isn't available"
+restart_required = "Current status isn't available. Restart the app."
 unavailable = "Unavailable"
 unavailable_lower = "unavailable"
 unknown = "Unknown"

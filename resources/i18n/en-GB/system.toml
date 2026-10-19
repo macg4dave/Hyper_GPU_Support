@@ -3,22 +3,22 @@
 
 host_label = "This computer"
 preparation_available = "available"
-preparation_unsupported = "not implemented"
-subtitle = "Virtual machines and GPUs discovered on this computer."
-title = "System Information"
+preparation_unsupported = "not available yet"
+subtitle = "Virtual machines and GPUs found on this computer."
+title = "System information"
 
 [discovery]
-initial_setup_notice = "First-install inventory read through Windows elevation. Select a VM/GPU and Apply to review package setup and exact enrollment. GPU changes require a separate subsequent review."
-permission_stage = "Protected enrollment"
+initial_setup_notice = "VM information was read with administrator permission for first-time setup. Select a VM and GPU, then select Apply to review the app installation and GPU permission. GPU changes are reviewed separately afterwards."
+permission_stage = "GPU permission"
 
 [discovery.icon_metadata_failed]
 args = ["error: text"]
-text = "Could not save VM icon metadata: {error}"
+text = "Couldn't save VM icon information: {error}"
 
 [discovery.native_only]
 args = ["error: text"]
-text = "{error}. Native inventory only; editing is blocked."
+text = "{error}. Only basic VM information is available, so editing is unavailable."
 
 [gpu.description]
 args = ["interface: text", "driver: text", "resources: text", "adapter: message"]
-text = "Interface: {interface}\nDriver: {driver}\n{resources}\nPreparation adapter: {adapter}\nAttachment does not prove guest graphics health; sharing is not qualified."
+text = "Interface: {interface}\nDriver: {driver}\n{resources}\nDriver setup inside VMs: {adapter}\nAn attached GPU doesn't confirm that graphics work inside the VM. Sharing one GPU between several VMs hasn't been tested."

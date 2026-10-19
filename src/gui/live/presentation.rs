@@ -757,7 +757,9 @@ mod tests {
         ] {
             assert_eq!(
                 pending_summary(enabled, Some(enabled), &values),
-                format!("Pending: {support}. VRAM request: 4 GB. Review before applying.")
+                format!(
+                    "Not yet applied: {support}. GPU memory: 4 GB. Select Apply when you're ready."
+                )
             );
             // Returning the toggle to its saved state leaves only the memory edit.
             let changed = pending_summary(!enabled, Some(enabled), &values);
@@ -770,7 +772,7 @@ mod tests {
             assert_eq!(
                 pending_summary(enabled, Some(enabled), &["".into(), "".into(), "".into()]),
                 format!(
-                    "Pending: {support}. VRAM request: {}. Review before applying.",
+                    "Not yet applied: {support}. GPU memory: {}. Select Apply when you're ready.",
                     hyper_gpu_support::ui_text::common::allocation::provider_default()
                 )
             );
@@ -786,7 +788,7 @@ mod tests {
         ];
         assert!(
             pending_summary(true, Some(false), &values)
-                .contains("enable GPU support. VRAM request: 6.000000001 GB")
+                .contains("enable GPU support. GPU memory: 6.000000001 GB")
         );
         assert!(pending_summary(false, Some(true), &values).contains("disable GPU support"));
     }
@@ -801,7 +803,7 @@ mod tests {
             for enabled in [true, false] {
                 assert_eq!(
                     pending_summary(enabled, Some(enabled), &values),
-                    "Pending edits retained. Correct the VRAM fields before reviewing."
+                    "Your changes are kept. Correct the GPU memory values before applying."
                 );
             }
         }

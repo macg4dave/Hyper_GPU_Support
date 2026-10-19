@@ -216,7 +216,7 @@ fn new_vm_can_be_drafted_but_proposal_never_becomes_execution_authority() {
         s.view
             .eligibility(&target)
             .unwrap_err()
-            .contains("not enrolled")
+            .contains("aren't approved for GPU management")
     );
     assert!(s.view.inventory.as_ref().unwrap().enrolled.is_empty());
     s.view.draft = Some(target.clone());
@@ -365,7 +365,7 @@ fn duplicate_gpu_names_do_not_grant_a_different_pair() {
     assert!(
         s.draft(id(&s), true, 1, &values("", "", ""))
             .unwrap_err()
-            .contains("not enrolled")
+            .contains("isn't the one approved")
     );
     assert!(s.draft(id(&s), true, -1, &values("", "", "")).is_err());
 }

@@ -2,11 +2,11 @@
 # it defines every key and argument; other languages translate the text only.
 
 [action]
-menu_title = "More Actions"
-not_connected = "This action is not connected yet. Use the supported CLI; no operation was performed."
-setup_unavailable = "Use Refresh to check application setup and worker availability. Your edits are kept."
+menu_title = "More actions"
+not_connected = "This action isn't available in the app yet. Use the command-line tool instead. Nothing was changed."
+setup_unavailable = "Select Refresh to check the app's setup and background service. Your changes are kept."
 unavailable_title = "Action unavailable"
-unreadable_title = "Cannot read action availability"
+unreadable_title = "Couldn't check which actions are available"
 
 [action.review_prompt]
 args = ["vm_name: text"]
@@ -14,20 +14,20 @@ text = "Virtual machine: {vm_name}"
 
 [apply]
 failure_stage = "Applying changes"
-guest_progress = "Applying the changes you reviewed, including any required driver preparation and GPU setup checks. Successful completion leaves the VM off."
-host_progress = "Applying the reviewed GPU changes and checking host readback. The VM will be left off after successful completion. No guest credentials, preparation or graphics check are required."
-may_have_completed = "Changes may have completed. Inspect current status and recovery before another operation."
-next_inspect = " Inspect the failure before starting another operation."
-next_recovery = " Choose Review recovery before another operation; do not repeat Apply while recovery is required."
+guest_progress = "Applying the changes you reviewed, including any driver setup and GPU checks. When it finishes successfully, the VM is left turned off."
+host_progress = "Applying the GPU changes you reviewed and checking the result on the host. When it finishes successfully, the VM is left turned off. Nothing needs to run inside the VM, so you won't need to sign in."
+may_have_completed = "The changes might have been applied. Check the current status and recovery before starting another operation."
+next_inspect = " Check what went wrong before starting another operation."
+next_recovery = " Select Review recovery before doing anything else. Don't select Apply again while recovery is needed."
 progress_title = "Applying GPU changes"
 remove_title = "Remove GPU support"
 setup_title = "Set up GPU support"
-stage_absent = "No execution stage was reported."
-worker_unavailable = "The reviewed protected worker is not available."
+stage_absent = "No step was reported."
+worker_unavailable = "The app's background service isn't available."
 
 [apply.failure_context]
 args = ["stage: text", "power: text", "next: message"]
-text = "{stage}\nCurrent VM status was refreshed automatically. Power: {power}. Your draft is retained.{next}"
+text = "{stage}\nThe VM's status was refreshed automatically. Power: {power}. Your changes are kept.{next}"
 
 [apply.last_stage]
 args = ["stage: text"]
@@ -35,53 +35,53 @@ text = "Last reported step: {stage}"
 
 [apply.power_consent]
 args = ["final_power: message"]
-text = "This action includes the planned starts/shutdowns; final state after successful completion: {final_power}."
+text = "This includes the VM starts and shutdowns described. Final power state when finished: {final_power}."
 
 [apply.completed]
-title = "GPU change confirmed and configuration saved"
+title = "GPU changes applied and settings saved"
 
 [apply.completed.body]
 args = ["vm_name: text"]
-text = "{vm_name}: GPU assignment, requested settings and final-off state were confirmed; your settings were saved. No guest graphics check was run. Start the VM through Hyper-V when ready."
+text = "{vm_name}: the GPU assignment and settings were confirmed, the VM is off and your settings were saved. No graphics check was run inside the VM. Start the VM in Hyper-V when you're ready."
 
 [apply.incomplete]
-title = "Operation did not complete"
+title = "Operation didn't finish"
 
 [apply.ordinary_review]
-body = "Ordinary GPU change: no guest access or graphics check. Leave the VM off after success; start it through Hyper-V when ready."
+body = "This change doesn't need access to the VM's operating system or a graphics check. The VM is left off afterwards; start it in Hyper-V when you're ready."
 
 [apply.recovery]
 title = "Review interrupted GPU change"
 
 [apply.recovery.body]
 args = ["vm_name: text"]
-text = "Virtual machine: {vm_name}\n\nCheck the already-achieved GPU assignment, settings and final-off state without repeating changes or accessing the guest. Partial or changed state retains recovery. No guest boot, credential prompt or graphics check is required."
+text = "Virtual machine: {vm_name}\n\nCheck whether the GPU assignment, settings and shutdown were already completed, without repeating any changes or accessing the VM's operating system. If the state is partial or has changed, recovery stays in place. The VM won't be started and you won't be asked to sign in."
 
 [apply.review]
-category_no_write = "No explicit category write; new/recreated attachments use provider defaults"
-category_unspecified = "Unspecified; no explicit request"
-changed_while_planning = "The target, draft or saved settings changed while planning. Review again."
-downtime_warning = "The running VM will be interrupted. Save work inside it before Apply. Approval below is required."
-duration_unknown = "Completion time varies; no exact duration is promised. Keep the application open until it reports an outcome."
-memory_absent = "GPU memory: no explicit request.\n"
-no_effects = "No VM or guest changes are needed. Save the reviewed intent."
-power_time = "Allow time for Windows to start or shut down gracefully. Shutdown refusal stops further changes."
-recovery_required = "Interrupted work requires recovery before further changes."
-settings_preserved = "Externally changed compatibility settings will be preserved."
-steps_heading = "\nPlanned steps, in order:"
-title = "Review changes before Apply"
-transfer_time = "Driver preparation and file transfer can take several minutes."
-verify_time = "The graphics check may take additional time and requires Windows credentials inside this VM."
-vram_no_write = "No allocation write planned; existing/provider values are not explicitly reset"
-vram_unspecified = "Unspecified; no explicit VRAM request"
+category_no_write = "Not set; new or recreated GPU attachments use Hyper-V defaults"
+category_unspecified = "Not set"
+changed_while_planning = "The VM, your changes or the saved settings changed while preparing. Review again."
+downtime_warning = "The running VM will be interrupted. Save any work inside it before you continue. You need to approve this below."
+duration_unknown = "How long this takes varies. Keep the app open until it reports a result."
+memory_absent = "GPU memory: not set.\n"
+no_effects = "No changes to the VM are needed. The reviewed settings just need to be saved."
+power_time = "Allow time for Windows to start up or shut down normally. If the VM refuses to shut down, no further changes are made."
+recovery_required = "An interrupted operation needs recovery before you can make further changes."
+settings_preserved = "Compatibility settings changed outside this app will be kept."
+steps_heading = "\nSteps, in order:"
+title = "Review changes"
+transfer_time = "Preparing and copying driver files can take several minutes."
+verify_time = "The graphics check can take extra time and needs the Windows sign-in details for this VM."
+vram_no_write = "Not changed; existing or Hyper-V values stay as they are"
+vram_unspecified = "Not set"
 
 [apply.review.body]
 args = ["vm_name: text", "vm_id: text", "gpu_interface: text", "support: message", "requested: text", "planned: text", "extended: text", "summary: text", "units: text"]
-text = "VM: {vm_name}\nVM ID: {vm_id}\nGPU interface: {gpu_interface}\nDesired GPU support: {support}\nVRAM draft (Minimum / Optimal / Maximum): {requested}\nPlanned allocation write: {planned}\n{extended}\n\n{summary}\n\nAllocation units: {units}\nConfiguration publication: schema 3, retaining schema-2 input compatibility.\n\nPreview from the shared CLI planner. No VM or guest changes have been performed during review."
+text = "VM: {vm_name}\nVM ID: {vm_id}\nGPU interface: {gpu_interface}\nGPU support: {support}\nGPU memory (minimum / optimal / maximum): {requested}\nGPU memory to set: {planned}\n{extended}\n\n{summary}\n\nAllocation units: {units}\nSettings file format: version 3 (version 2 files can still be read).\n\nThis is a preview. Nothing has been changed yet."
 
 [apply.review.category]
 args = ["resource: text", "draft: text", "planned: text"]
-text = "{resource} draft (Minimum / Optimal / Maximum): {draft}\nPlanned {resource} write: {planned}"
+text = "{resource} (minimum / optimal / maximum): {draft}\n{resource} to set: {planned}"
 
 [apply.review.vm_heading]
 args = ["vm_name: text"]
@@ -89,98 +89,98 @@ text = "VM: {vm_name}"
 
 [apply.review.step]
 allocation = "Set the GPU resources shown above."
-attach = "Attach the selected physical GPU."
-check_os = "Identify the running guest OS. GPU installation proceeds only on Windows 11; failed identification stops setup."
+attach = "Attach the selected GPU."
+check_os = "Check which operating system the VM is running. GPU drivers are installed only on Windows 11; if the system can't be identified, setup stops."
 compatibility = "Update or restore GPU compatibility settings."
-detach = "Remove the GPU attachment."
-prepare = "Prepare the guest with the current signed GPU driver files."
-shutdown = "Gracefully stop the VM."
+detach = "Detach the GPU."
+prepare = "Set up the current signed GPU driver files inside the VM."
+shutdown = "Shut down the VM normally."
 start = "Start the VM."
-verify = "Verify GPU setup: check driver files, setup record, device health and hardware rendering."
+verify = "Verify GPU setup: check the driver files, setup record, device status and hardware graphics."
 
 [apply.unsaved]
-title = "GPU change confirmed; configuration not saved"
+title = "GPU changes applied, but settings not saved"
 
 [apply.unsaved.body]
 args = ["summary: message", "error: text"]
-text = "{summary}{error}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply."
+text = "{summary}{error}\nThe confirmed changes are kept separately until the settings are saved. Try saving again; don't select Apply again."
 
 [apply.unsaved.effect_summary]
 args = ["vm_name: text"]
-text = "{vm_name}: GPU changes and final-off state were confirmed. No guest graphics check was run. The VM is off.\n"
+text = "{vm_name}: the GPU changes were confirmed and the VM is off. No graphics check was run inside the VM.\n"
 
 [background]
 reading = "Reading the information needed for this action…"
 
 [configuration_import.recovery]
-title = "Configuration import requires reconciliation"
+title = "A settings import needs to be resolved"
 
 [configuration_import.recovery.body]
 args = ["operation_id: text", "destination_count: usize", "published_count: usize"]
-text = "Import operation: {operation_id}\n{destination_count} destinations, {published_count} recorded as published. Resolve this explicit CLI import with import-reconcile --operation {operation_id}. Changed files block continuation; import never changes enrollment or GPU state."
+text = "Import operation: {operation_id}\nDestinations: {destination_count}, recorded as saved: {published_count}. Resolve this command-line import by running import-reconcile --operation {operation_id}. If any files have changed, it can't continue. Importing never changes GPU permissions or GPU settings."
 
 [credentials]
-cancelled_action = "No guest operation was started. Your pending edits are kept; this does not mean setup or verification completed. Review the action again when ready."
-cancelled_recovery = "No recovery action was started. The unfinished operation and its recovery hold remain. Your pending edits are kept. Review recovery again when ready."
-cancelled_title = "Guest credential request cancelled"
-guest_progress = "Managing this VM's optional saved sign-in details. This does not connect to the VM, prepare drivers or check graphics."
-unavailable_title = "Guest credentials unavailable"
+cancelled_action = "Nothing was started inside the VM and your changes are kept. This doesn't mean setup or verification finished. Try the action again when you're ready."
+cancelled_recovery = "No recovery action was started. The unfinished operation still needs recovery, and your changes are kept. Review recovery again when you're ready."
+cancelled_title = "Sign-in cancelled"
+guest_progress = "Managing the saved sign-in details for this VM. This doesn't connect to the VM, set up drivers or check graphics."
+unavailable_title = "Sign-in details unavailable"
 
 [credentials.absent]
-body = "No stored credential is available. Apply or Verify will prompt locally when credentials are needed. Select Remember to store them in Windows Credential Manager."
-title = "Guest credentials not retained"
+body = "No sign-in details are saved. You'll be asked to sign in when Apply or Verify GPU setup needs them. To save them in Windows Credential Manager, select Remember."
+title = "No saved sign-in details"
 
 [credentials.stored]
-body = "A stored credential was confirmed in this user's Windows Credential Manager for the selected VM. No guest connection or graphics check was performed."
-title = "Stored guest credentials available"
+body = "Sign-in details for this VM are saved in Windows Credential Manager for your account. The VM wasn't contacted and no graphics check was run."
+title = "Sign-in details saved"
 
 [draft.exit]
-body = "Keep editing or discard the in-memory draft and close. Nothing has been applied."
-title = "Unapplied draft"
+body = "Keep editing, or discard your changes and close. Nothing has been applied."
+title = "Unapplied changes"
 
 [draft.switch]
-body = "There is one unapplied VM draft. Stay here, review it, or discard it before switching. Nothing has been applied."
+body = "You have unapplied changes to a VM. Stay here, apply them, or discard them before switching. Nothing has been applied."
 title = "Keep your changes?"
 
 [enrollment]
-authority_absent = "Pair authority is absent or this VM is already enrolled. Refresh before requesting permissions."
-authority_mismatch = "Authority does not match either recorded revision. Recovery remains held for administrator inspection."
-changed_during_preparation = "Selection, draft or pairing changed during permission preparation. Refresh before trying again."
-elevation_notice = "Windows permissions are required"
-install_details = "\n\nFIRST INSTALL / INTERRUPTED SETUP: install the fixed product package into Program Files, create protected ProgramData state and register the fixed SYSTEM runner task for this operator. Interrupted setup retains its original pair and package pins. If authority is already published, recovery only validates it and completes task/audit registration; authority and artifact files are never overwritten. No VM disk, CPU/RAM or Secure Boot change. Reviewed source artifact SHA-256 pins:\n"
-install_notice = "\n\nThe application also needs to install or finish setting up its management components on this Windows host. Windows will ask for administrator approval. If setup was interrupted, the original VM, GPU and application package must still match."
-inventory_historical = "Inventory is historical. Refresh before requesting permissions."
-other_pair = "Interrupted first-install setup belongs to another original pair/package. Select its original VM/GPU and reviewed package; setup recovery cannot replace authority."
-permission_changed = "The target, draft or GPU management permission changed. Review again."
-preparation_failed = "GPU permission preparation failed"
-progress_title = "Enroll reviewed VM/GPU pair"
-refresh_recovery = "Refresh enrollment recovery first"
-select_pair = "Select an available VM and physical GPU, then Refresh."
+authority_absent = "There's no permission to resolve for this VM and GPU, or they're already approved. Select Refresh before requesting permission."
+authority_mismatch = "The GPU permission doesn't match either recorded version. Recovery stays in place until an administrator checks it."
+changed_during_preparation = "The selected VM, your changes or the VM and GPU pairing changed while preparing permission. Select Refresh and try again."
+elevation_notice = "Administrator permission is needed"
+install_details = "\n\nFIRST-TIME OR INTERRUPTED SETUP: installs the app package into Program Files, creates its protected data in ProgramData and registers a scheduled task that runs as SYSTEM for your account. An interrupted setup keeps its original VM, GPU and package. If the GPU permission was already saved, recovery only checks it and finishes registering the task and audit records; existing permission and package files are never overwritten. VM disks, CPU, memory and Secure Boot aren't changed. SHA-256 hashes of the reviewed package files:\n"
+install_notice = "\n\nThe app also needs to install, or finish installing, its management components on this computer. Windows will ask for administrator approval. If setup was interrupted, the same VM, GPU and app package must be used."
+inventory_historical = "VM information is out of date. Select Refresh before requesting permission."
+other_pair = "An interrupted first-time setup belongs to a different VM, GPU or app package. Select the original VM and GPU and use the reviewed package; setup recovery can't replace an existing permission."
+permission_changed = "The VM, your changes or the GPU permission changed. Review again."
+preparation_failed = "Couldn't prepare GPU permission"
+progress_title = "Approving this VM and GPU"
+refresh_recovery = "Refresh permission recovery information first"
+select_pair = "Select an available VM and GPU, then select Refresh."
 
 [enrollment.artifact_pin]
 args = ["artifact_name: text", "digest: text"]
 text = "{artifact_name}: {digest}\n"
 
 [enrollment.completed]
-body = "Permission for the reviewed VM/GPU pair was saved. Your draft is retained. Continue to a separate setup review; GPU support and guest readiness have not been confirmed."
-title = "GPU management permission saved"
+body = "Permission for this VM and GPU was saved and your changes are kept. Continue to GPU setup next; GPU support and the VM's readiness haven't been confirmed yet."
+title = "GPU management approved"
 
 [enrollment.incomplete]
-context = "Your edits are kept. Use Refresh and Review recovery before retrying this permission step. GPU setup has not been confirmed."
-title = "App permission was not confirmed"
+context = "Your changes are kept. Select Refresh and Review recovery before trying this permission step again. GPU setup hasn't been confirmed."
+title = "Permission wasn't confirmed"
 
 [enrollment.recovery]
-name_unavailable = "VM name unavailable; see Technical Details"
-partial_deletion = "Profile removal was interrupted. Confirm finishes only remaining reviewed record deletions and authority removal after fresh inactive-VM/revision checks. Completed deletions must remain absent; changed or unrelated records stay blocked. Other VMs, guest files and shared artifacts are retained. No guest checks, credentials or VM/GPU effects run."
-policy_original = "The original policy is present; the pair was not added. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
-policy_published = "The complete new enrollment policy is present. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
-progress_title = "Reconcile enrollment authority"
-retained_title = "Enrollment recovery retained"
+name_unavailable = "VM name unavailable; see Technical details"
+partial_deletion = "Deleting the profile was interrupted. Confirming finishes only the remaining reviewed deletions and removes the permission, after checking again that the VM is inactive and nothing has changed. Records already deleted must stay deleted; changed or unrelated records stay blocked. Other VMs, files inside the VM and shared app files are kept. Nothing runs inside the VM, you won't need to sign in, and the VM and GPU aren't changed."
+policy_original = "The original permission is still in place; this VM and GPU weren't added. Confirming checks this permission again and ends the recovery. No permission change or GPU work is repeated."
+policy_published = "The new permission was saved in full. Confirming checks this permission again and ends the recovery. No permission change or GPU work is repeated."
+progress_title = "Resolving GPU permission"
+retained_title = "Permission recovery still needed"
 status_unavailable_title = "Permission status unavailable"
-title = "Review interrupted app permission"
+title = "Review interrupted permission change"
 
 [enrollment.review]
-allocation_label = "VRAM allocation:"
+allocation_label = "GPU memory:"
 title = "Checking GPU management permission"
 
 [enrollment.review.body]
@@ -188,101 +188,101 @@ args = ["vm_name: text", "gpu_name: text"]
 text = "Virtual machine: {vm_name}\nPhysical GPU: {gpu_name}"
 
 [guest]
-generic_progress = "Performing the guest steps shown in your review. Wait for the actual result before treating the operation as complete."
+generic_progress = "Carrying out the steps in your review inside the VM. Wait for the final result before treating the operation as finished."
 
 [guest.progress_body]
 args = ["vm_name: text", "purpose: message"]
-text = "Virtual machine: {vm_name}\n\n{purpose}\n\nIf prompted, use the Windows administrator account inside this VM. Remembering it is optional. Progress appears below."
+text = "Virtual machine: {vm_name}\n\n{purpose}\n\nIf asked, sign in with a Windows administrator account for this VM. Saving the sign-in details is optional. Progress is shown below."
 
 [help]
-body = "Select a real VM and physical GPU, enable GPU support in the draft and choose a VRAM request from 1 GB to the detected card capacity. Use the toggle or More actions > Remove GPU support to disable support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved. Apply, Verify, Repair / Reinstall, removal and Delete profile proceed directly after fresh checks, without a review dialog or second confirmation. Selecting an action authorizes its required VM power transitions. First setup obtains permission and reads it back before preparing GPU changes. Windows credential and UAC prompts remain separate. Settings are saved only after the required outcome checks pass. Failed saving permits a save-only retry; uncertain operations require explicit reconciliation. Delete profile removes only this VM's app settings, pairing, history and recovery records; it never changes VM power, GPU attachment or guest files. GPU replacement remains unavailable."
-title = "Application help"
+body = "Select a VM and a physical GPU, turn on GPU support and choose how much GPU memory to assign, from 1 GB up to the GPU's capacity. To turn off GPU support, use the switch or More actions > Remove GPU support. Advanced allocation keeps exact memory values, and any saved compute, encode and decode settings are kept.\n\nApply, Verify GPU setup, Repair / Reinstall, Remove GPU support and Delete profile run straight away after fresh checks, without a separate review or confirmation. Choosing an action also approves any VM starts and shutdowns it needs. Windows sign-in and administrator (UAC) prompts still appear separately. The first setup gets permission and confirms it before making any GPU changes.\n\nSettings are saved only after the required checks pass. If saving fails, you can try saving again on its own. If an operation's result is uncertain, it needs to be resolved through recovery.\n\nDelete profile removes only this app's settings, permission, history and recovery records for the VM. It never changes the VM's power state, GPU attachment or files inside the VM. Switching a VM to a different GPU isn't available yet."
+title = "Help"
 
 [inventory]
-access_denied = "Windows denied access to the inventory reader. Check the protected installation and operator permissions, then refresh."
-details_prompt = "Some VM or GPU information could not be read. See Technical Details."
-details_title = "Observed state and recovery records"
-draft_retained = "Your edits are kept. Refresh VM information before Apply."
-failure_stage = "Inventory read"
-inconsistent = "The protected reader returned inconsistent inventory. Check that all installed product components are from the same build, then refresh."
-initial_notice = "Virtual machine information has not been read yet."
-provenance = "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection."
-reader_unreleased = "The protected reader could not confirm that it stopped. New actions remain blocked. Close and reopen the application once the reader has finished; if this persists, check the protected installation."
-refresh_failed = "Could not load VM and GPU information. Inspect diagnostics for the cause, then use Refresh to retry. Any previous rows are historical."
-refresh_title = "Refreshing inventory"
-saved_unreadable = " Some committed configuration could not be read or validated. Affected intent remains unknown; other readable VM files are available."
-summary = "Hyper-V virtual machines and available GPUs. Graphics results reflect previous checks."
-timed_out = "The inventory read timed out. Wait for the protected reader to finish, then refresh. No VM or GPU operation was repeated."
+access_denied = "Windows denied access to VM information. Check the app's installation and your permissions, then select Refresh."
+details_prompt = "Some VM or GPU information couldn't be read. See Technical details."
+details_title = "Current state and recovery records"
+draft_retained = "Your changes are kept. Select Refresh to update VM information before applying."
+failure_stage = "Reading VM information"
+inconsistent = "The VM information returned was inconsistent. Check that all of the app's installed components are from the same version, then select Refresh."
+initial_notice = "VM information hasn't been read yet."
+provenance = "From the last time VM information was read; the VM itself wasn't checked again. Select Refresh to get the current state. Records of unfinished operations are kept; viewing them doesn't clear them."
+reader_unreleased = "The background status check couldn't confirm that it has stopped, so actions stay unavailable. Close and reopen the app once it has finished. If this keeps happening, check the app's installation."
+refresh_failed = "Couldn't load VM and GPU information. Check the diagnostics for the cause, then select Refresh to try again. Any VMs shown are from an earlier read."
+refresh_title = "Refreshing VM information"
+saved_unreadable = " Some saved settings couldn't be read or checked, so those settings are unknown. Settings for other VMs are available."
+summary = "Hyper-V virtual machines and available GPUs. Graphics results are from previous checks."
+timed_out = "Reading VM information took too long. Wait for the background check to finish, then select Refresh. No VM or GPU operation was repeated."
 
 [inventory.partial]
 args = ["issues: text"]
-text = "Partial inventory: {issues}. Other successful observations remain available."
+text = "Some information couldn't be read: {issues}. Everything else that was read is still shown."
 
 [inventory.refresh_failed_reason]
 args = ["summary: message", "reason: message"]
 text = "{summary} {reason}"
 
 [outcome]
-absent = "No unpublished operation is recorded; see current observations and saved intent separately."
-finalization_pending = "Applied and published; protected recovery finalization is pending."
-publication_pending = "Applied and checked; configuration publication is pending. Use the bound save-only retry."
-save_unknown = "Applied changes were checked; saving is not confirmed. Refresh for the bound receipt."
-uncertain = "Operation outcome uncertain; inspect protected recovery."
-verify_finalization_pending = "Graphics check completed; protected recovery finalization is pending. No configuration publication is authorized."
+absent = "No operation is waiting to be saved. Current information and saved settings are shown separately."
+finalization_pending = "Changes applied and saved; recovery records are still being finalised."
+publication_pending = "Changes applied and checked, but the settings haven't been saved yet. Retry saving the settings."
+save_unknown = "Changes were applied and checked, but it isn't confirmed whether the settings were saved. Select Refresh to check."
+uncertain = "The result of the operation is uncertain. Review recovery."
+verify_finalization_pending = "The graphics check finished; recovery records are still being finalised. No settings will be saved."
 
 [partial_removal]
-failed_title = "Partial GPU removal did not complete"
-gpu_missing = "Recovery GPU missing; Refresh"
-journal_missing = "Recovery journal missing; Refresh"
+failed_title = "Partial GPU setup wasn't removed"
+gpu_missing = "GPU for recovery not found; select Refresh"
+journal_missing = "Recovery record not found; select Refresh"
 no_record = "No interrupted GPU setup is recorded for this VM."
-status_unavailable = "Current VM status is unavailable. Retry the status update before reviewing removal."
-stopped_before_changes = "This attempt stopped before VM/GPU changes. Use Check recorded outcome to confirm its unchanged starting state and end recovery."
+status_unavailable = "Current VM status isn't available. Try updating the status again before reviewing removal."
+stopped_before_changes = "This attempt stopped before any VM or GPU changes were made. Select Check outcome to confirm nothing changed and end the recovery."
 title = "Remove partial GPU setup"
-vm_missing = "Recovery VM missing; Refresh"
+vm_missing = "VM for recovery not found; select Refresh"
 
 [partial_removal.completed]
-body = "The partial attachment was removed and the recorded starting compatibility settings were confirmed. The VM remains off. Old setup eligibility is invalid; guest files and failure evidence are retained. Review Delete profile here if a fresh enrollment is needed. It removes saved settings, app permission and managed history, and requires its own confirmation. Otherwise close this result and review Repair / Reinstall."
+body = "The partially attached GPU was removed and the VM's original compatibility settings were confirmed. The VM is still off. The previous setup no longer counts; files inside the VM and details of the failure are kept.\n\nTo approve this VM again from the start, choose Delete profile. This removes its saved settings, GPU permission and history, and asks for its own confirmation. Otherwise, close this and choose Repair / Reinstall."
 title = "Partial GPU setup removed"
 
 [partial_removal.review]
 title = "Review partial GPU removal"
 
 [plan]
-authenticate = "Reading current VM and authenticating signed driver files"
-check_worker = "Checking protected worker availability"
-preliminary_notice = "Preliminary review: driver evidence is historical. Apply will authenticate the current driver files before any changes. If the payload or required actions differ, it stops and requires a full review; it will not add guest setup or power actions to this approval."
-progress_body = "Checking the selected VM, GPU, settings and recorded setup for this request. Current driver files are authenticated before effects; setup and repair checks can take several minutes. Successful preparation continues directly into execution. Cancel keeps your draft and abandons only the read-only preparation."
-progress_title = "Building fresh plan"
-read_history = "Reading current VM, GPU and preparation history"
-target_mismatch = "The backend plan does not match the selected draft. Refresh before retrying."
-unavailable_title = "Plan unavailable"
+authenticate = "Reading the current VM and checking driver file signatures"
+check_worker = "Checking the app's background service"
+preliminary_notice = "Preliminary review: the driver information may be out of date. Apply checks the current driver files before making changes. If the files or required steps are different, it stops and asks for a full review. It won't add driver setup or power changes beyond what you approve here."
+progress_body = "Checking the selected VM, GPU, settings and setup history for this request. Driver files are checked before any changes are made; setup and repair checks can take several minutes. If preparation succeeds, the operation starts straight away. Cancel stops the preparation and keeps your changes."
+progress_title = "Preparing"
+read_history = "Reading the current VM, GPU and driver setup history"
+target_mismatch = "The prepared plan doesn't match your changes. Select Refresh and try again."
+unavailable_title = "Couldn't prepare the operation"
 
 [profile_deletion]
-changed = "Selection, saved profiles or pairing changed; review Delete profile again."
-failure_stage = "Profile deletion"
-no_pairing = "This VM has no authorized pairing; Refresh for current state."
-progress_title = "Delete app profile"
-refresh_first = "Refresh first."
+changed = "The selected VM, saved profiles or pairing changed. Review Delete profile again."
+failure_stage = "Deleting profile"
+no_pairing = "This VM isn't approved for GPU management. Select Refresh to see its current state."
+progress_title = "Deleting app profile"
+refresh_first = "Select Refresh first."
 
 [profile_deletion.completed]
 title = "App profile deleted"
 
 [profile_deletion.completed.body]
 args = ["vm_name: text"]
-text = "{vm_name}: deletion of this app's saved settings, authorization and managed history was verified. The Hyper-V VM, disks, checkpoints, guest files and other app profiles remain. No GPU or power changes were performed. Current status is being updated. Continue to a new permission/setup review when ready."
+text = "{vm_name}: this app's saved settings, permission and history for the VM were deleted. The Hyper-V VM, its disks, checkpoints, files inside the VM and other app profiles are unchanged. No GPU or power changes were made. The VM's status is being updated. You can set up GPU support again whenever you're ready."
 
 [profile_deletion.incomplete]
-title = "Profile deletion did not finish"
+title = "Profile wasn't fully deleted"
 
 [profile_deletion.incomplete.body]
 args = ["vm_name: text", "error: text"]
-text = "{vm_name}: {error}\nSome app profile records may have been removed; which records remain is unknown until read back. Use Refresh and review profile recovery before continuing; do not repeat deletion with a new request. This operation does not change the VM, GPU assignment or guest files."
+text = "{vm_name}: {error}\nSome profile records might have been removed. Which ones remain is unknown until the app checks again. Select Refresh and review recovery before continuing; don't start a new deletion. This doesn't change the VM, its GPU assignment or files inside the VM."
 
 [profile_deletion.recovery]
 title = "Review interrupted profile deletion"
 
 [profile_deletion.review]
-failure_stage = "Profile deletion review"
+failure_stage = "Preparing profile deletion"
 progress_title = "Preparing profile deletion"
 stale_title = "Review Delete profile again"
 title = "Delete this app profile?"
@@ -290,221 +290,221 @@ unavailable_title = "Profile deletion unavailable"
 
 [profile_deletion.review.body]
 args = ["vm_name: text", "vm_id: text", "gpu_interface: text"]
-text = "Virtual machine: {vm_name}\nVM ID: {vm_id}\nGPU: {gpu_interface}\n\nDelete this VM's app profile: its saved GPU settings, authorized VM/GPU pairing, managed setup history and interrupted-operation records. Recovery records for this profile are discarded even if an earlier operation did not finish. Pending edits for this profile are discarded too.\n\nKeep the Hyper-V VM, its current GPU support, disks, checkpoints and guest driver files. No VM power change, GPU detachment, driver removal or guest sign-in is performed. Other profiles are unchanged.\n\nDelete profile confirms this review; Windows requests approval to remove the protected app records. Cancel keeps the profile. The VM stays discoverable for a future reviewed setup."
+text = "Virtual machine: {vm_name}\nVM ID: {vm_id}\nGPU: {gpu_interface}\n\nThis deletes the app's profile for this VM: its saved GPU settings, GPU permission, setup history and records of interrupted operations. Recovery records are deleted even if an earlier operation didn't finish, and any unapplied changes for this VM are discarded.\n\nThe Hyper-V VM, its current GPU support, disks, checkpoints and the driver files inside it are kept. The VM won't be started or shut down, the GPU won't be detached, drivers won't be removed and you won't need to sign in. Other profiles aren't affected.\n\nSelect Delete profile to continue; Windows will ask for approval to remove the app's protected records. Select Cancel to keep the profile. The VM will still appear in the list so you can set it up again later."
 
 [recovery]
-completion_unavailable = "Selected VM/GPU completion read is unavailable; Refresh before another operation"
-failure_stage = "Reconciliation"
-guest_progress = "Checking the interrupted operation and any reviewed guest/power steps. GPU assignment and driver preparation are not repeated. Uncertain results keep recovery blocked."
-host_progress = "Checking the already-achieved recorded outcome without repeating GPU work or accessing the guest. Unresolved state retains recovery."
-identity_differs = "Completion identity differs from the selected VM"
-identity_missing = "Completion identity missing"
-import_unfinished = "A configuration import did not finish."
-inspected_vm_changed = "The inspected VM changed. Close this view and check its recorded outcome again."
-intent_unconfirmed = "Recovery record is absent, but verified intent is not confirmed in readable committed configuration. Refresh and inspect before another operation."
-inventory_unavailable = "Recovery inventory unavailable"
-no_receipt = "No bound save-only receipt is loaded; Refresh and inspect recovery."
-no_verified_target = "Unsaved outcome has no verified target. Refresh and inspect before another operation."
-not_loaded = "No reviewed operation recovery is loaded"
-progress_title = "Check recorded outcome"
-receipt_changed = "The protected recovery receipt changed after completion. Inspect the loaded operation before any retry."
-receipt_unavailable = "Applied changes were confirmed, but their bound save-only receipt is unavailable. Refresh and inspect recovery; do not repeat Apply."
-reconciliation_only = "This operation requires reconciliation, not a configuration save retry."
+completion_unavailable = "The result for the selected VM and GPU couldn't be read. Select Refresh before starting another operation"
+failure_stage = "Recovery check"
+guest_progress = "Checking the interrupted operation and carrying out any reviewed steps inside the VM or power changes. GPU assignment and driver setup aren't repeated. If the result is uncertain, recovery stays in place."
+host_progress = "Checking the recorded result without repeating GPU work or accessing the VM's operating system. If anything is unresolved, recovery stays in place."
+identity_differs = "The result is for a different VM from the one selected"
+identity_missing = "The result doesn't identify a VM"
+import_unfinished = "A settings import didn't finish."
+inspected_vm_changed = "The VM you were reviewing changed. Close this and review recovery again."
+intent_unconfirmed = "There's no recovery record, but the verified changes couldn't be found in the saved settings. Select Refresh and check before starting another operation."
+inventory_unavailable = "VM information for recovery is unavailable"
+no_receipt = "No settings waiting to be saved were found. Select Refresh and review recovery."
+no_verified_target = "The unsaved result doesn't identify a verified VM. Select Refresh and check before starting another operation."
+not_loaded = "No interrupted operation is loaded"
+progress_title = "Checking outcome"
+receipt_changed = "The recovery record changed after the operation finished. Check the loaded operation before trying again."
+receipt_unavailable = "The changes were confirmed, but the record needed to save the settings isn't available. Select Refresh and review recovery; don't select Apply again."
+reconciliation_only = "This operation needs a recovery check, not another attempt to save settings."
 review_first_title = "Review the unfinished operation first"
-saved_intent_changed = "Publication completed, but current saved intent changed or is unreadable. Refresh before editing; do not repeat GPU work."
-unreadable_title = "Cannot read operation state"
-vm_record_unavailable = "Recovery VM unavailable"
-vm_unavailable = "Recovery VM unavailable; Refresh first"
+saved_intent_changed = "The settings were saved, but they've since changed or can't be read. Select Refresh before editing; don't repeat the GPU changes."
+unreadable_title = "Couldn't read the operation's status"
+vm_record_unavailable = "VM for recovery unavailable"
+vm_unavailable = "VM for recovery unavailable; select Refresh first"
 
 [recovery.power_consent]
 args = ["final_power: message"]
-text = "Selecting Check recorded outcome approves the reviewed power changes. Expected final state: {final_power}."
+text = "Selecting Check outcome approves the power changes described. Expected final state: {final_power}."
 
 [recovery.records_body]
 args = ["provenance: text"]
-text = "{provenance}\n\nTechnical Details contains the host observation, recorded history and authorization from that inventory. Missing or old records do not establish current guest health. Opening these details performs no new checks or changes."
+text = "{provenance}\n\nTechnical details shows the host information, recorded history and permission from that read. Missing or old records don't tell you the VM's current state. Opening the details doesn't run any checks or make changes."
 
 [recovery.review_prompt]
 args = ["operation: text"]
-text = "{operation}\n\nBefore verifying, repairing, removing GPU support or deleting an app profile, review what happened. Choose Review recovery to see the recorded operation and the available next step. Your edits are kept. Reviewing recovery does not make changes; any available recovery action needs separate confirmation."
+text = "{operation}\n\nBefore verifying, repairing, removing GPU support or deleting the app profile, review what happened. Select Review recovery to see the recorded operation and what you can do next. Your changes are kept. Reviewing doesn't change anything; any recovery action needs your separate confirmation."
 
 [recovery.vm_unfinished]
 args = ["vm_name: text"]
-text = "An earlier operation for {vm_name} did not finish."
+text = "An earlier operation for {vm_name} didn't finish."
 
 [recovery.admitted]
-body = "This attempt stopped before any VM or GPU changes began. There is no partial GPU setup to remove.\n\nSelect Check recorded outcome to confirm that the VM still matches its recorded starting state and end this interrupted attempt. This check does not start the VM, request guest credentials or repeat GPU setup.\n\nIf the current facts no longer match, recovery stays blocked. Delete profile instead discards this VM's app settings, pairing, history and recovery records while leaving its GPU support in place. Close keeps the profile."
+body = "This attempt stopped before any VM or GPU changes were made, so there's no partial GPU setup to remove.\n\nSelect Check outcome to confirm that the VM still matches its starting state and end this interrupted attempt. This won't start the VM, ask you to sign in or repeat GPU setup.\n\nIf the VM's current state no longer matches, recovery stays in place. Alternatively, Delete profile removes this VM's app settings, permission, history and recovery records, but leaves its GPU support as it is. Select Close to keep the profile."
 
 [recovery.blocked]
-title = "Recovery remains blocked"
+title = "Recovery can't continue"
 
 [recovery.blocked.body]
 args = ["error: text"]
-text = "{error}\nUse Retry status update to read the current facts. Delete profile instead reviews deletion of this VM's app settings, pairing, history and interrupted-operation records. It leaves the VM, GPU support and guest files unchanged."
+text = "{error}\nSelect Retry status update to read the VM's current state. Alternatively, Delete profile lets you review deleting this VM's app settings, permission, history and records of interrupted operations. The VM, its GPU support and files inside it aren't changed."
 
 [recovery.confirmed]
-body = "Fresh checks established the reviewed outcome and any required configuration publication. No GPU assignment, allocation or preparation was repeated. VM status is updated before another review."
-title = "Recorded outcome confirmed"
+body = "Fresh checks confirmed the reviewed result and saved any required settings. No GPU assignment, allocation or driver setup was repeated. The VM's status is updated before you can review anything else."
+title = "Outcome confirmed"
 
 [recovery.ended]
-body = "Fresh checks established the recorded host state and safely ended the attempt without repeating GPU work or saving requested settings. Any failed or unknown guest check remains recorded; ending recovery does not certify guest setup or rendering. Review repair or another supported operation."
+body = "Fresh checks confirmed the VM's recorded host state, and the interrupted attempt was ended safely. No GPU work was repeated and the requested settings weren't saved. Any failed or unknown check inside the VM is still recorded; ending recovery doesn't confirm that GPU setup or graphics work. You can now review Repair / Reinstall or another available action."
 title = "Interrupted attempt ended"
 
 [recovery.inspection]
-body = "Inspect the recorded operation and diagnostics in Technical Details. Check current outcome independently reads the recorded result and may perform the recorded recovery's guest checks and power transitions. It does not repeat Apply. Uncertain results retain recovery. Close returns to the VM without making changes."
-continue_label = "Check current outcome"
+body = "Review the recorded operation and diagnostics in Technical details. Check outcome reads the recorded result again and may run the recorded recovery's checks inside the VM and power changes. It doesn't repeat Apply. If the result is uncertain, recovery stays in place. Select Close to return to the VM without making changes."
+continue_label = "Check outcome"
 
 [recovery.progress]
-graphics = "Checking current guest files, devices and hardware rendering after fresh host checks. The selected action includes its required VM power transitions."
-host = "Independently checking the recorded host outcome without guest sign-in or replaying Apply."
-restoration = "Independently checking the recorded restoration. This does not retry the guest check or report success; changed facts retain recovery."
+graphics = "Checking driver files, devices and hardware graphics inside the VM after fresh host checks. This includes the VM starts and shutdowns the action needs."
+host = "Checking the recorded host result without signing in to the VM or repeating Apply."
+restoration = "Checking that the original settings were restored. This doesn't repeat the check inside the VM or report success; if anything has changed, recovery stays in place."
 
 [recovery.progress.body]
 args = ["name: text", "action: message", "power: text"]
-text = "{name}: {action}\nRecorded final power: {power}. Uncertain outcomes retain their recovery hold."
+text = "{name}: {action}\nRecorded final power state: {power}. If the result is uncertain, recovery stays in place."
 
 [recovery.review]
-explanation = "Check whether the interrupted GPU change can be safely ended or its reviewed result confirmed. GPU setup will not be repeated.\n\nIf fresh checks confirm the original host state was restored, recovery can end without guest sign-in. This does not certify GPU setup or save the interrupted request.\n\nOtherwise, the check may temporarily start the VM and request its guest administrator credentials. The reviewed final power state is shown below when power changes are required. Changed or uncertain facts keep recovery blocked. Delete profile instead discards this VM's app settings, pairing, history and recovery records while leaving the VM and its GPU support unchanged."
+explanation = "Check whether the interrupted GPU change can be safely ended, or whether its reviewed result can be confirmed. GPU setup won't be repeated.\n\nIf fresh checks confirm the original host settings were restored, recovery can end without signing in to the VM. This doesn't confirm GPU setup or save the interrupted request.\n\nOtherwise, the check might start the VM temporarily and ask for its administrator sign-in details. If power changes are needed, the final power state is shown below. If anything has changed or is uncertain, recovery stays in place. Alternatively, Delete profile removes this VM's app settings, permission, history and recovery records, and leaves the VM and its GPU support as they are."
 title = "Review interrupted operation"
 
 [recovery.review.body]
 args = ["vm_name: text"]
-text = "Virtual machine: {vm_name}\n\nCheck the interrupted GPU operation without repeating it. A terminal failed guest check can end recovery after fresh reads confirm its original host lifecycle was restored; its failure remains recorded. A setup/reinstall attempt that never entered preparation can end after fresh reads confirm unchanged starting host state. These exits require no new guest check or credentials and do not certify setup. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."
+text = "Virtual machine: {vm_name}\n\nCheck the interrupted GPU operation without repeating it. In these cases, recovery can end without a new check inside the VM or signing in, but this doesn't confirm that setup worked:\n• A check inside the VM failed, and fresh checks confirm the host was restored to its original state. The failure stays recorded.\n• A setup or reinstall attempt stopped before driver setup began, and fresh checks confirm nothing changed.\n• This first setup attempt is back at its original state (VM off, no GPU attached). The attempt ends without saving the requested changes. Driver files might remain inside the VM but won't count as set up.\n\nOtherwise, the app checks whether the approved result was already reached. This might start the VM temporarily and ask for its administrator user name and password. The VM is shut down safely afterwards only with your approval. If the state is partial or has changed, recovery stays in place. No GPU setup work is repeated."
 
 [recovery.unsaved]
-title = "Outcome verified; configuration unsaved"
+title = "Outcome confirmed; settings not saved"
 
 [recovery.unsaved.body]
 args = ["error: text"]
-text = "{error}\nRetry configuration saving only."
+text = "{error}\nTry saving the settings again."
 
 [removal.review]
-body = "Remove GPU support: detach the exact managed GPU if present, restore still-owned compatibility values and leave the VM off. Keep guest driver files, authorization and setup history. No guest credentials or graphics check."
+body = "Remove GPU support: detaches this app's GPU if it's still attached, restores the compatibility settings the app still manages and leaves the VM off. Driver files inside the VM, the GPU permission and setup history are kept. You won't need to sign in and no graphics check is run."
 
 [repair.review]
-body = "Repair / Reinstall: run complete signed driver preparation even with matching history, verify current payload and selected-hardware rendering, then leave the VM off."
+body = "Repair / Reinstall: runs the full signed driver setup even if previous checks matched, checks the driver files and hardware graphics on the selected GPU, then leaves the VM off."
 title = "Review Repair / Reinstall"
 
 [review]
 stale_title = "Review again"
 
 [save]
-changed_during = "Configuration changed during save; resolve the file before retrying save."
-changed_outside = "Configuration changed outside the GUI. Resolve the file before saving; do not replay the successful VM operation."
-completed = "Save completed"
+changed_during = "The settings changed while saving. Resolve the settings file before trying again."
+changed_outside = "The settings were changed outside the app. Resolve the settings file before saving; don't repeat the VM operation that already succeeded."
+completed = "Saved"
 
 [save.cleanup_failed]
 args = ["result: text", "error: text"]
-text = "{result}; temporary save cleanup failed: {error}"
+text = "{result}; temporary files from saving couldn't be removed: {error}"
 
 [save.read_failed]
 args = ["error: text"]
-text = "Read configuration before saving: {error}"
+text = "Couldn't read the settings before saving: {error}"
 
 [save_only]
-progress_body = "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
-progress_title = "Retry configuration save only"
+progress_body = "Asking for administrator permission to save the verified settings. No GPU operation will be repeated."
+progress_title = "Retry saving settings"
 
 [save_only.blocked]
-context = "The protected recovery record remains; no GPU operation was repeated."
-title = "Save-only retry blocked"
+context = "The recovery record is kept and no GPU operation was repeated."
+title = "Couldn't retry saving"
 
 [save_only.completed]
-body = "Protected publication passed readback. No GPU operation was repeated."
-title = "Configuration saved"
+body = "The settings were saved and checked. No GPU operation was repeated."
+title = "Settings saved"
 
 [save_only.review]
-body = "GPU effects already passed independent readback. Retry saves only the bound configuration; it will not repeat GPU modification. Changed configuration, driver, payload or effective state blocks this retry."
-title = "Verified operation awaits configuration publication"
+body = "The GPU changes were already confirmed by an independent check. Retrying only saves the settings; it won't change the GPU again. If the settings, drivers, driver files or the VM's current state have changed, the retry is blocked."
+title = "Settings waiting to be saved"
 
 [save_only.unsaved]
-body = "The protected receipt remains available for inspection. No GPU operation was repeated."
-title = "Configuration still unsaved"
+body = "The recovery record is still available to review. No GPU operation was repeated."
+title = "Settings still not saved"
 
 [selection]
 fallback = "the selected VM"
 
 [setup.blocked]
-context = "This attempt stopped before driver installation or VM power changes. Your draft is retained."
-title = "GPU support installation blocked"
+context = "This attempt stopped before installing drivers or changing the VM's power state. Your changes are kept."
+title = "GPU setup couldn't continue"
 
 [setup.completed]
-title = "GPU setup/update passed"
+title = "GPU setup or update complete"
 
 [setup.incomplete]
-title = "GPU setup/update did not complete"
+title = "GPU setup or update didn't finish"
 
 [setup.review]
-body = "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes."
+body = "First-time GPU setup: checks hardware graphics, then shuts the VM down normally. Start it in Hyper-V once setup has finished."
 
 [setup.unsaved]
-title = "GPU setup/update passed; settings not saved"
+title = "GPU setup or update complete, but settings not saved"
 
 [setup.unsaved.effect_summary]
 args = ["vm_name: text"]
-text = "{vm_name}: hardware rendering passed and final shutdown was confirmed. The VM is off.\n"
+text = "{vm_name}: the hardware graphics check passed and the VM was shut down. The VM is off.\n"
 
 [setup.update_review]
-body = "GPU setup/update required: preparation changed or is invalid. Review driver work, hardware rendering and final shutdown before confirming."
+body = "GPU setup needs updating because the driver setup inside the VM changed or is no longer valid. Review the driver work, hardware graphics check and final shutdown before confirming."
 
 [validation]
-stage = "Configuration validation"
+stage = "Settings check"
 
 [verify]
-discard_draft = "Discard or Apply the draft before reviewing a separate graphics check."
-guest_progress = "Checking the current driver files, setup record, device health and hardware rendering. Drivers are not being reinstalled. VM power follows the reviewed sequence."
-selection_changed = "Selection or saved settings changed during verification preparation"
+discard_draft = "Apply or discard your changes before running a separate graphics check."
+guest_progress = "Checking the driver files, setup record, device status and hardware graphics. Drivers aren't being reinstalled. The VM is started or shut down as reviewed."
+selection_changed = "The selected VM or saved settings changed while preparing the check"
 title = "Verify GPU setup"
 
 [verify.apply_review]
-body = "Verify GPU setup required: check current guest driver files, setup record and hardware rendering without reinstalling drivers. Apply follows the final power state shown below."
+body = "Verify GPU setup is needed: checks the driver files, setup record and hardware graphics inside the VM without reinstalling drivers. Apply then leaves the VM in the final power state shown below."
 
 [verify.completed]
-title = "Verify GPU setup passed"
+title = "GPU setup verified"
 
 [verify.completed.body]
 args = ["vm_name: text"]
-text = "{vm_name}: current guest driver files and setup record matched the approved driver package; device health and hardware rendering passed. The reviewed final power state was confirmed. Refresh to read the latest check result; it is a record of this check, not a guarantee of future health."
+text = "{vm_name}: the driver files and setup record match the approved driver package, and the device status and hardware graphics checks passed. The final power state was confirmed. Select Refresh to see the latest result. This confirms the setup as it is now, not that it will keep working in future."
 
 [verify.consent]
-off = "This action includes temporarily starting this VM, then gracefully shutting it down to Off."
-running = "This VM is expected to remain Running during Verify GPU setup."
-unknown = "Power state is unknown. Refresh before trying again."
+off = "This starts the VM temporarily, then shuts it down normally."
+running = "The VM is expected to keep running during the check."
+unknown = "The power state is unknown. Select Refresh and try again."
 
 [verify.incomplete]
-title = "Verify GPU setup did not complete"
+title = "GPU setup check didn't finish"
 
 [verify.incomplete.context]
 args = ["vm_name: text", "power: text"]
-text = "{vm_name}: The check did not complete. Current VM status was refreshed automatically. Power: {power}. Inspect current status and any recovery requirement before another operation; prior successful checks do not establish current health."
+text = "{vm_name}: The check didn't finish. The VM's status was refreshed automatically. Power: {power}. Check the current status and whether recovery is needed before starting another operation. Earlier successful checks don't confirm the current state."
 
 [verify.lifecycle]
-off = "Temporarily start this VM for the check, then gracefully shut it down to Off."
-running = "This VM is already running and is expected to remain Running."
-unknown = "The VM's power state is unknown or changing. Refresh before a new review."
+off = "The VM will be started temporarily for the check, then shut down normally."
+running = "The VM is already running and will keep running."
+unknown = "The VM's power state is unknown or changing. Select Refresh before reviewing again."
 
 [verify.recovery]
-body = "Check the recorded pair and fresh graphics outcome; restore only the originally approved guest power if safe. No GPU assignment, allocation, preparation or configuration publication is performed."
-title = "Reconcile interrupted graphics check"
+body = "Check the recorded VM and GPU and get a fresh graphics result. If it's safe, the VM is returned to the power state you originally approved. No GPU assignment, allocation, driver setup or settings save takes place."
+title = "Resolve interrupted graphics check"
 
 [verify.review]
-progress_title = "Preparing GPU verification"
+progress_title = "Preparing GPU check"
 title = "Review Verify GPU setup"
 
 [verify.review.body]
 args = ["vm_name: text", "gpu_name: text", "lifecycle: message", "final_power: message"]
-text = "Virtual machine: {vm_name}\nPhysical GPU: {gpu_name}\n\nVerify GPU setup: compare the current guest driver files and setup record with the approved driver package, then check the GPU's device health and hardware rendering. This checks current setup; a past successful check alone does not establish current health.\n\n{lifecycle}\nExpected final power after successful completion: {final_power}.\n\nUse the Windows administrator sign-in for this VM if prompted. File checks, starting Windows and rendering can take time; no exact duration is promised. This refreshes the check tools and diagnostic information inside the VM, but does not reinstall drivers, change GPU assignment or save settings.\n\nVerification continues directly after preparation. Windows prompts appear before guest access when required."
+text = "Virtual machine: {vm_name}\nPhysical GPU: {gpu_name}\n\nVerify GPU setup compares the driver files and setup record inside the VM with the approved driver package, then checks the GPU's device status and hardware graphics. It checks the setup as it is now; an earlier successful check isn't enough.\n\n{lifecycle}\nFinal power state when finished: {final_power}.\n\nIf asked, sign in with a Windows administrator account for this VM. Checking files, starting Windows and testing graphics can take a while. The check tools and diagnostic information inside the VM are updated, but drivers aren't reinstalled, the GPU assignment isn't changed and settings aren't saved.\n\nThe check starts as soon as preparation finishes. Any Windows prompts appear before the VM is accessed."
 
 [verify.review.details]
 args = ["vm_id: text", "gpu_interface: text", "driver_version: text", "payload_digest: text", "power_debug: formatted"]
-text = "VM ID: {vm_id}\nGPU interface: {gpu_interface}\nDriver version: {driver_version}\nAuthenticated payload digest: {payload_digest}\nObserved power: {power_debug}\n\nCompares current guest destinations and the preparation receipt with the authenticated host manifest before device health/rendering. Protected guest helpers, manifest metadata and optional diagnostics may be refreshed. Fresh protected admission independently checks the reviewed state."
+text = "VM ID: {vm_id}\nGPU interface: {gpu_interface}\nDriver version: {driver_version}\nDriver package hash: {payload_digest}\nCurrent power state: {power_debug}\n\nCompares the files inside the VM and the driver setup record with the signed driver file list on the host, then checks device status and graphics. The app's helper tools, file list and optional diagnostics inside the VM may be updated. The reviewed state is checked again independently before starting."
 
 [verify.unknown]
-title = "Verify GPU setup outcome unknown"
+title = "GPU check result unknown"
 
 [verify.unknown.body]
 args = ["vm_name: text"]
-text = "{vm_name}: no completed check outcome was established. Use Refresh and Review recovery before another operation."
+text = "{vm_name}: the check didn't produce a result. Select Refresh and Review recovery before starting another operation."
 
 [worker]
-unavailable_refresh = "The protected worker is unavailable. Refresh before trying again."
+unavailable_refresh = "The app's background service isn't available. Select Refresh and try again."

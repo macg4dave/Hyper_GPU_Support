@@ -270,7 +270,7 @@ mod tests {
         });
         state.view.needs_readback = true;
         let details = selected_vm_details(&state);
-        assert!(details.contains("prior reads, not current health"));
+        assert!(details.contains("from earlier reads"));
         for fact in [
             "8278507520",
             "1000000000",
@@ -307,7 +307,7 @@ mod tests {
             .insert(format!("{first}.toml"), "token=private-value".into());
         let details = selected_vm_details(&state);
         assert!(details.contains(first));
-        assert!(details.contains("Current observation unavailable"));
+        assert!(details.contains("Current information isn't available"));
         assert!(details.contains("saved_intent_read_error"));
         assert!(!details.contains("private-value"));
         state.view.selected = Some(second.into());
@@ -332,7 +332,7 @@ mod tests {
             completion_failure("Completion read unavailable", "Readback facts", &primary);
         assert!(body.contains("Completion read unavailable"));
         assert!(body.contains("driver files are missing"));
-        assert!(body.contains("inspect recovery"));
+        assert!(body.contains("review recovery"));
         assert!(details.contains("Readback facts") && details.contains("GuestPayload"));
         let (body, details) =
             completion_failure("Read unavailable", "", "unlabelled-private-value");

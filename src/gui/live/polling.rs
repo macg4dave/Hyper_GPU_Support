@@ -187,7 +187,7 @@ mod tests {
                 panic!("worker or UAC must not start while the previous poll remains admitted")
             })
             .unwrap_err();
-        assert!(error.contains("has not confirmed release"));
+        assert!(error.contains("hasn't finished yet"));
         drop(foreground);
         assert!(
             polling.begin().is_none(),

@@ -38,7 +38,7 @@ fn action_explanations_keep_invalid_drafts_and_other_profiles() {
     let mut values = allocation_values(&target);
     values[0] = "invalid".into();
     let actions = s.selected_actions(0, &values);
-    assert!(actions.verify.contains("pending edits"));
+    assert!(actions.verify.contains("your changes"));
     assert!(actions.forget_allowed);
     assert!(actions.forget.is_empty());
     assert!(!actions.repair_allowed);
@@ -66,7 +66,7 @@ fn action_reasons_change_with_selection_power_and_failed_observation() {
     assert!(
         s.selected_actions(0, &values)
             .remove
-            .contains("unavailable")
+            .contains("isn't available")
     );
     s.view.selected = Some(vm_id.clone());
     s.view.inventory.as_mut().unwrap().discovery.vms[0].generation = 1;
@@ -87,7 +87,7 @@ fn action_reasons_change_with_selection_power_and_failed_observation() {
     assert!(
         s.selected_actions(0, &values)
             .verify
-            .contains("Use Refresh")
+            .contains("Select Refresh")
     );
     let fresh = s.view.inventory.clone().unwrap();
     s.refresh(fresh);
@@ -119,7 +119,7 @@ fn unavailable_managed_history_requests_refresh_without_inventing_recovery() {
         "profile deletion remains separately reviewable"
     );
     for action in ["verify", "repair", "remove-gpu"] {
-        assert!(actions.reason(action).unwrap().contains("Use Refresh"));
+        assert!(actions.reason(action).unwrap().contains("Select Refresh"));
     }
     assert!(s.recoveries.is_empty());
     assert_eq!(s.view.draft, Some(target));
@@ -157,7 +157,7 @@ fn unconfigured_actions_offer_setup_without_authorizing_the_pair() {
     let target = s.target(id(&s)).unwrap();
     let actions = s.selected_actions(0, &allocation_values(&target));
     for reason in [&actions.verify, &actions.repair, &actions.remove] {
-        assert!(reason.contains("first-time setup"));
+        assert!(reason.contains("Start GPU setup"));
     }
     assert!(!actions.forget_allowed);
     assert!(!actions.recovery);
@@ -196,7 +196,7 @@ fn unsupported_preparation_does_not_hide_host_removal_or_inactive_cleanup() {
     let values = allocation_values(&s.target(id(&s)).unwrap());
     s.view.inventory.as_mut().unwrap().discovery.gpus[0].preparation_supported = false;
     let actions = s.selected_actions(0, &values);
-    assert!(actions.repair.contains("not supported"));
+    assert!(actions.repair.contains("isn't supported"));
     assert!(actions.remove_allowed);
     s.view.inventory.as_mut().unwrap().discovery.vms[0]
         .gpus
@@ -205,7 +205,7 @@ fn unsupported_preparation_does_not_hide_host_removal_or_inactive_cleanup() {
     let vm_id = id(&s).to_owned();
     s.committed_conflict = Some(vm_id);
     let actions = s.selected_actions(0, &values);
-    assert!(actions.remove.contains("Draft preserved"));
+    assert!(actions.remove.contains("Your changes are kept"));
     assert!(actions.forget_allowed);
     assert!(s.committed_conflict.is_some());
 }
@@ -241,7 +241,12 @@ fn partial_inventory_blocks_only_actions_for_the_affected_vm() {
         "profile deletion remains separately reviewable"
     );
     for action in ["verify", "repair", "remove-gpu"] {
-        assert!(actions.reason(action).unwrap().contains("Correct access"));
+        assert!(
+            actions
+                .reason(action)
+                .unwrap()
+                .contains("Check that you have access")
+        );
     }
     assert!(!actions.recovery);
     assert_eq!(s.view.inventory.as_ref().unwrap().discovery.issues.len(), 2);

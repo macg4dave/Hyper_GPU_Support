@@ -206,8 +206,7 @@ mod tests {
         }];
         let mut other = target.clone();
         other.vm_id = "a5801e91-1083-4e79-a803-000000000002".into();
-        let unavailable =
-            "Current VM status is unavailable. Retry the status update before reviewing removal.";
+        let unavailable = "Current VM status isn't available. Try updating the status again before reviewing removal.";
         for (mode, selected, historical) in [
             (Mode::Completion, Some(other), true),
             (Mode::Completion, None, true),
@@ -232,7 +231,7 @@ mod tests {
                 if historical {
                     unavailable
                 } else {
-                    "Refresh inventory first"
+                    "Select Refresh first."
                 }
             );
             assert_eq!(state.recoveries, before);
