@@ -23,40 +23,50 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag }}
     defaults:
       run:
-        shell: pwsh
+        shell: powershell
     steps:
       - name: Check release request
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:RELEASE_TAG -notmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'An existing v<major.minor.patch> Cargo version tag is required.' }
-          if ($env:GITHUB_REF -cne "refs/tags/$env:RELEASE_TAG") { throw 'Select the existing release tag as the workflow ref as well as its tag input.' }
+          if ($env:GITHUB_REF -cne 'refs/heads/main') { throw 'Run the reviewed release workflow from main; its tag input selects the source to build.' }
           $work = Join-Path $env:RUNNER_TEMP ('HyperGpuSupport-release-' + [guid]::NewGuid().ToString('N'))
           "WORK_DIRECTORY=$work" | Out-File -LiteralPath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Check out reviewed release tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+          persist-credentials: false
       - name: Check out tagged source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.tag }}
+          path: source
           fetch-depth: 0
           persist-credentials: false
       - name: Verify tag and Cargo version
+        working-directory: source
         run: |
           $ErrorActionPreference = 'Stop'
           $tagCommit = git rev-parse --verify "refs/tags/$($env:RELEASE_TAG)^{commit}"
           if ($LASTEXITCODE -ne 0) { throw 'Release tag does not exist.' }
           $headCommit = git rev-parse HEAD
-          if ($LASTEXITCODE -ne 0 -or $tagCommit -cne $headCommit -or $headCommit -cne $env:GITHUB_SHA) { throw 'Checkout does not match the existing tag and GitHub event commit.' }
+          if ($LASTEXITCODE -ne 0 -or $tagCommit -cne $headCommit) { throw 'Checkout does not match the existing release tag.' }
           $metadataJson = cargo metadata --locked --no-deps --format-version 1
           if ($LASTEXITCODE -ne 0) { throw 'Cargo metadata failed.' }
           $metadata = $metadataJson | ConvertFrom-Json
           $product = @($metadata.packages | Where-Object name -eq 'hyper-gpu-support')
           if ($product.Count -ne 1 -or $env:RELEASE_TAG -cne "v$($product[0].version)") { throw 'Release tag and Cargo version differ.' }
           "RELEASE_VERSION=$($product[0].version)" | Out-File -LiteralPath $env:GITHUB_ENV -Append -Encoding utf8
+          "RELEASE_SOURCE_SHA=$headCommit" | Out-File -LiteralPath $env:GITHUB_ENV -Append -Encoding utf8
+          "Release source: $headCommit; workflow/tooling: $env:GITHUB_SHA" | Out-File -LiteralPath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - name: Provision pinned portable packaging tools
-        run: ./scripts/release/prepare-tools.ps1 -Directory "$env:RUNNER_TEMP\HyperGpuSupport-tools"
+        run: ./release-tools/scripts/release/prepare-tools.ps1 -Directory "$env:RUNNER_TEMP\HyperGpuSupport-tools"
       - name: Check and build both unsigned packages
-        run: ./scripts/build-installer.ps1 -WorkDirectory $env:WORK_DIRECTORY -OutputDirectory "$env:WORK_DIRECTORY\candidate" -IsccPath $env:ISCC_PATH
+        run: ./release-tools/scripts/release/invoke-ci-build.ps1 -SourceDirectory "$env:GITHUB_WORKSPACE\source" -WorkDirectory $env:WORK_DIRECTORY -IsccPath $env:ISCC_PATH
       - name: Verify metadata, unsigned status, embedded bytes and checksums
-        run: ./scripts/release/finalize-release.ps1 -WorkDirectory $env:WORK_DIRECTORY -UnpackerPath $env:INNOUNP_PATH -OutputDirectory "$env:WORK_DIRECTORY\release-ready"
+        run: ./release-tools/scripts/release/finalize-release.ps1 -WorkDirectory $env:WORK_DIRECTORY -UnpackerPath $env:INNOUNP_PATH -OutputDirectory "$env:WORK_DIRECTORY\release-ready"
       - name: Upload verified release packages and checksum manifest
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:

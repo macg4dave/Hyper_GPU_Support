@@ -28,7 +28,7 @@ Building and extracting packages does not run Setup or modify installed applicat
 ## Preparing and publishing an update
 
 1. Review the source and [third-party notices](../licenses/THIRD_PARTY_NOTICES.md), update the product and maintenance-helper Cargo versions together, and create the reviewed tag `v<Cargo version>` through your normal Git process. Only numeric three-part versions such as `v0.5.0` are supported.
-2. Run **Prepare unsigned Windows release** manually with that existing tag selected as both the workflow ref and its `tag` input. For example: `gh workflow run release.yml --ref v0.5.0 -f tag=v0.5.0`. The workflow requires the event ref, event commit, checked-out tag commit and Cargo version to agree. It uses a GitHub-hosted Windows runner and hash-pinned portable Inno Setup 6.7.3 and innounp 2.67.11. No SignPath secrets, variables or GitHub environment are required.
+2. Run **Prepare unsigned Windows release** manually from the reviewed `main` branch, with the existing release tag as its `tag` input. For example: `gh workflow run release.yml --ref main -f tag=v0.5.0`. The workflow checks out that exact tag separately from its release tooling, verifies its commit and Cargo version, and records both source and workflow commits in the run summary. This allows CI environment repairs without moving a release tag. It uses a GitHub-hosted Windows runner and hash-pinned portable Inno Setup 6.7.3 and innounp 2.67.11. No SignPath secrets, variables or GitHub environment are required.
 3. The workflow builds both packages from the same payload, checks product/version metadata and unsigned status, and extracts the ZIP and installer without running them. Every normal and temporary installer payload file must match the staged files. Missing files, unexpected files, changed bytes, invalid versions or compilation failures stop preparation before any release-ready artifact is uploaded.
 4. Download the successful workflow artifact `unsigned-release-<version>-windows-x64`. It contains the two downloads and a supplementary `SHA256SUMS.txt`. Check both hashes after downloading:
 
@@ -40,6 +40,8 @@ Building and extracting packages does not run Setup or modify installed applicat
 5. Manually attach the two packages to the matching GitHub Release. Copy both checksum lines into its release notes, state that the downloads are unsigned, and link this page. Review the tag and attached files before publishing. The workflow has read-only repository permissions and does not create, upload to or publish a GitHub Release. Do not use packages from a failed run.
 
 Protect release tags and the default branch, and review source, dependency and workflow changes before tagging. The repository owner, [macg4dave](https://github.com/macg4dave), maintains and publishes releases. The [Privacy policy](privacy.md) describes the application's local data handling.
+
+The hosted runner provisions a disposable standard Windows build account and grants it access only to the source, staging, Rust caches and packaging tools. The full shared build runs in Windows PowerShell 5.1 under that account, preserving the non-hardware tests' ordinary-user requirement and inbox module lookup. Account setup is confined to the disposable GitHub runner; local builds use the current user and do not provision accounts. The workflow removes the account after the build and the runner is discarded after the job.
 
 ## Validation boundaries
 
