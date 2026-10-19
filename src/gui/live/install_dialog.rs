@@ -11,6 +11,7 @@ struct Step {
     stage: String,
     label: String,
     status: i32,
+    execution: Status,
     log_slot: usize,
 }
 
@@ -22,8 +23,8 @@ pub(super) struct Progress {
 }
 
 impl Progress {
-    /// Append stages in first-observed execution order. A later execution of
-    /// the same stage is a distinct row; completion never moves existing rows.
+    /// Reuse observation rows while keeping each execution in the technical log.
+    /// Repeated effects remain distinct rows in execution order.
     pub fn record(&mut self, event: &Event, stage: &str, label: &str) {
         let mut log_slot = None;
         let mut failed_step = false;
@@ -31,9 +32,14 @@ impl Progress {
             let active = self
                 .steps
                 .iter()
-                .rposition(|step| step.stage == stage && step.status == 1);
+                .rposition(|step| step.stage == stage && step.execution == Status::Running);
             let row = active.or_else(|| {
-                if event.status != Status::Running {
+                if event.status != Status::Running
+                    || matches!(
+                        stage,
+                        "Read current VM state" | "Read selected GPU and driver version"
+                    )
+                {
                     self.steps.iter().rposition(|step| step.stage == stage)
                 } else {
                     None
@@ -44,18 +50,27 @@ impl Progress {
                     stage: stage.into(),
                     label: label.into(),
                     status: 1,
+                    execution: Status::Running,
                     log_slot: self.log.len(),
                 });
                 self.steps.len() - 1
             });
             let step = &mut self.steps[index];
+            if event.status == Status::Running && step.execution != Status::Running {
+                step.log_slot = self.log.len();
+            }
             log_slot = Some(step.log_slot);
+            step.execution = match (event.status, step.execution) {
+                (Status::Done, Status::Failed) => Status::Failed,
+                _ => event.status,
+            };
             step.status = match event.status {
+                Status::Running if matches!(step.status, 2 | 3) => step.status,
                 Status::Running => 1,
                 Status::Done if step.status != 3 => 2,
                 Status::Done | Status::Failed => 3,
             };
-            failed_step = step.status == 3;
+            failed_step = step.execution == Status::Failed;
         }
         if !event.reportable {
             return;
@@ -416,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn nested_and_repeated_stages_keep_execution_order_and_model_identity() {
+    fn repeated_reads_reuse_summary_rows_but_repeated_effects_keep_execution_order() {
         use slint::Model;
         slint::platform::set_platform(Box::new(crate::gui::catalogue_tests::Headless)).unwrap();
         let ui = AppWindow::new().unwrap();
@@ -456,26 +471,69 @@ mod tests {
             [
                 "Checking reviewed VM and driver files",
                 "Read current VM state",
-                "Read current VM state",
                 "Start guest",
                 "Graceful guest shutdown",
                 "Start guest"
             ]
         );
-        assert_eq!(original.row_count(), 6);
+        assert_eq!(original.row_count(), 5);
         assert_eq!(
             (
                 original.row_data(0).unwrap().status,
                 original.row_data(1).unwrap().status,
                 original.row_data(2).unwrap().status,
-                original.row_data(5).unwrap().status
+                original.row_data(4).unwrap().status
             ),
-            (2, 2, 3, 1)
+            (2, 3, 2, 1)
         );
         assert!(progress.log.iter().all(|line| !line.starts_with("00:")));
         assert_eq!(progress.log.len(), 6, "one line per actual execution");
         assert!(progress.log[2].ends_with(ui_text::progress::status::failed()));
         assert!(progress.log[5].ends_with("In progress"));
+    }
+
+    #[test]
+    fn repeated_vm_and_gpu_reads_keep_one_row_each_and_every_execution_in_the_log() {
+        let mut progress = Progress::default();
+        for _ in 0..5 {
+            for stage in [
+                "Read current VM state",
+                "Read selected GPU and driver version",
+            ] {
+                for status in [Status::Running, Status::Done] {
+                    progress.record(&Event::from_worker(stage, status), stage, stage);
+                }
+            }
+        }
+        assert_eq!(progress.steps.len(), 2);
+        assert!(progress.steps.iter().all(|step| step.status == 2));
+        assert_eq!(progress.log.len(), 10);
+        assert!(
+            progress
+                .log
+                .iter()
+                .all(|line| line.ends_with(ui_text::progress::status::complete()))
+        );
+    }
+
+    #[test]
+    fn completed_read_summary_does_not_reopen_while_fresh_execution_is_logged() {
+        let mut progress = Progress::default();
+        let stage = "Read current VM state";
+        for status in [Status::Running, Status::Done] {
+            progress.record(&Event::from_worker(stage, status), stage, stage);
+        }
+        for status in [Status::Running, Status::Running] {
+            progress.record(&Event::from_worker(stage, status), stage, stage);
+            assert_eq!(progress.steps.len(), 1);
+            assert_eq!(progress.steps[0].status, 2);
+            assert_eq!(progress.log.len(), 2);
+            assert!(progress.log[0].ends_with(ui_text::progress::status::complete()));
+            assert!(progress.log[1].ends_with(ui_text::progress::status::in_progress()));
+        }
+        progress.record(&Event::from_worker(stage, Status::Failed), stage, stage);
+        assert_eq!(progress.steps[0].status, 3, "a later failure stays visible");
+        assert!(progress.log[1].ends_with(ui_text::progress::status::failed()));
     }
 
     #[test]

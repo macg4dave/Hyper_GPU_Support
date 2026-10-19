@@ -53,16 +53,74 @@ fn draw(window: &MinimalSoftwareWindow) {
         let size = window.size();
         let mut pixels = vec![Rgb8Pixel::default(); (size.width * size.height) as usize];
         renderer.render(&mut pixels, size.width as usize);
-        if let Some(directory) = std::env::var_os("HYPER_GPU_LAYOUT_RENDER_DIR") {
-            let directory = std::path::PathBuf::from(directory);
-            std::fs::create_dir_all(&directory).unwrap();
-            let mut image = format!("P6\n{} {}\n255\n", size.width, size.height).into_bytes();
-            for pixel in pixels {
-                image.extend_from_slice(&[pixel.r, pixel.g, pixel.b]);
-            }
-            std::fs::write(directory.join("layout.ppm"), image).unwrap();
-        }
+        save_render(size, &pixels);
     });
+}
+
+fn save_render(size: slint::PhysicalSize, pixels: &[Rgb8Pixel]) {
+    if let Some(directory) = std::env::var_os("HYPER_GPU_LAYOUT_RENDER_DIR") {
+        let directory = std::path::PathBuf::from(directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        let mut image = format!("P6\n{} {}\n255\n", size.width, size.height).into_bytes();
+        for pixel in pixels {
+            image.extend_from_slice(&[pixel.r, pixel.g, pixel.b]);
+        }
+        std::fs::write(directory.join("layout.ppm"), image).unwrap();
+    }
+}
+
+#[test]
+fn copy_percentage_label_follows_updates_after_its_first_visible_value() {
+    let window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
+    slint::platform::set_platform(Box::new(LayoutPlatform(window.clone()))).unwrap();
+    let ui = AppWindow::new().unwrap();
+    ui.set_startup_loading(false);
+    ui.set_running(true);
+    ui.set_dialog_kind("install-progress".into());
+    ui.set_current_stage("Preparing GPU driver files".into());
+    ui.set_transfer_fraction(-1.0);
+    ui.show().unwrap();
+    window.set_size(LogicalSize::new(700., 520.));
+    let mut pixels = vec![Rgb8Pixel::default(); 700 * 520];
+    window.request_redraw();
+    window.draw_if_needed(|renderer| {
+        renderer.render(&mut pixels, 700);
+    });
+    for percent in [68_u8, 86, 99, 100] {
+        ui.set_transfer_fraction(f32::from(percent) / 100.0);
+        ui.set_install_transfer(
+            hyper_gpu_support::reporting::transfer_progress(u64::from(percent), 100, 1, 2).into(),
+        );
+        window.request_redraw();
+        window.draw_if_needed(|renderer| {
+            renderer.render(&mut pixels, 700);
+        });
+        // Inspect accessibility only after the native-style partial draw. Reading
+        // text bindings first can itself refresh the cached text under test.
+        let label = control(&ui, &format!("{percent}%"));
+        assert!(label.is_visible());
+        let origin = label.map_to_window(label.geometry().origin);
+        window.request_redraw();
+        window.draw_if_needed(|renderer| {
+            let mut reference = vec![Rgb8Pixel::default(); pixels.len()];
+            renderer.set_repaint_buffer_type(RepaintBufferType::NewBuffer);
+            renderer.render(&mut reference, 700);
+            renderer.set_repaint_buffer_type(RepaintBufferType::ReusedBuffer);
+            let mut mismatches = 0;
+            for y in origin.y as usize..(origin.y + label.geometry().height()) as usize {
+                for x in origin.x as usize..(origin.x + label.geometry().width()) as usize {
+                    let index = y * 700 + x;
+                    mismatches += usize::from(pixels[index] != reference[index]);
+                }
+            }
+            assert_eq!(mismatches, 0, "partial repaint must show {percent}%");
+            save_render(window.size(), &reference);
+        });
+        if std::env::var_os("HYPER_GPU_LAYOUT_RENDER_DIR").is_some() {
+            retain_render(&format!("copy-percentage-{percent}"));
+        }
+    }
+    ui.hide().unwrap();
 }
 
 #[test]

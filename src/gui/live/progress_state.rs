@@ -58,11 +58,15 @@ pub(super) struct State {
     history: Vec<(Identity, Status, bool)>,
     steps: Vec<Identity>,
     active: Vec<Identity>,
+    transfer_fraction: Option<f32>,
 }
 
 impl State {
     /// Returns the history slot, coalescing only adjacent running transfer events.
     pub fn record(&mut self, event: &Event) -> usize {
+        if event.identity == Identity::Transfer {
+            self.transfer_fraction = event.fraction;
+        }
         if !event.persistence {
             if event.copy_complete {
                 self.active
@@ -114,6 +118,15 @@ impl State {
     pub fn active_step(&self) -> Option<usize> {
         let identity = self.active.last()?;
         self.steps.iter().position(|step| step == identity)
+    }
+
+    pub fn copying(&self) -> bool {
+        self.active.contains(&Identity::Transfer)
+    }
+
+    /// Nested terminal/persistence events cannot replace acknowledged copy progress.
+    pub fn fraction(&self) -> Option<f32> {
+        self.copying().then_some(self.transfer_fraction).flatten()
     }
 }
 
@@ -251,5 +264,49 @@ mod tests {
         }
         let phase = String::from_iter(['x']);
         assert_eq!(Event::from_worker(&phase, Status::Done).fraction, None);
+    }
+
+    #[test]
+    fn copy_fraction_tracks_acknowledgements_and_retires_at_real_phase_boundaries() {
+        let mut state = State::default();
+        let parent = Event::from_worker("Prepare current signed payload", Status::Running);
+        state.record(&parent);
+        for (bytes, fraction) in [(68, 0.68), (69, 0.69), (100, 1.0)] {
+            let stage = hyper_gpu_support::reporting::transfer_progress(bytes, 100, 1, 2);
+            state.record(&Event::from_worker(&stage, Status::Running));
+            assert!(state.copying());
+            assert_eq!(state.fraction(), Some(fraction));
+            // A late terminal notification for an already closed read must not
+            // switch the bar to animation while retaining old copy counters.
+            state.record(&Event::from_worker("Read current VM state", Status::Done));
+            state.record(&Event::from_worker(
+                "Read current VM state",
+                Status::Running,
+            ));
+            assert_eq!(state.fraction(), Some(fraction));
+            state.record(&Event::from_worker("Read current VM state", Status::Done));
+            state.record(&Event::from_worker(
+                "Persist operation recovery",
+                Status::Running,
+            ));
+            assert_eq!(state.fraction(), Some(fraction));
+        }
+        state.record(&Event::from_worker(
+            "File copying complete; waiting for guest checks",
+            Status::Running,
+        ));
+        assert!(!state.copying());
+        assert_eq!(state.fraction(), None);
+        state.record(&Event::from_worker(
+            "Checking copied driver files",
+            Status::Running,
+        ));
+        assert_eq!(state.fraction(), None);
+        state.record(&Event {
+            status: Status::Failed,
+            ..parent
+        });
+        assert!(!state.copying());
+        assert_eq!(state.active_step(), None);
     }
 }

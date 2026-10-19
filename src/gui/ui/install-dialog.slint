@@ -147,7 +147,13 @@ export component InstallDialog inherits Rectangle {
                     HorizontalLayout {
                         spacing: 16px;
                         ProgressIndicator { indeterminate: root.transfer-fraction < 0; progress: max(0, root.transfer-fraction); height: 8px; horizontal-stretch: 1; }
-                        if root.transfer-fraction >= 0 : Label { text: round(root.transfer-fraction * 100) + "%"; font-weight: 700; }
+                        // Keep one text item through indeterminate/transfer changes.
+                        // Its binding stays attached for every acknowledged update.
+                        Label {
+                            visible: root.transfer-fraction >= 0;
+                            text: root.transfer-fraction >= 0 ? round(root.transfer-fraction * 100) + "%" : "";
+                            font-weight: 700;
+                        }
                     }
                     if root.transfer != "" : Hint { text: root.transfer; font-size: 13px; min-width: 0px; }
                 }

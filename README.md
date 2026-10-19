@@ -24,7 +24,13 @@ The main VM page omits the first-install inventory banner, Check recorded outcom
 
 Settings contains the Appearance controls; the Credentials & diagnostics section has been removed from that page. System displays the GPU information boxes without the This computer box.
 
-The repository-wide [architecture review and simplification](docs/OPERATION_COMPLEXITY_REVIEW.md#current-repository-wide-follow-up) is complete through its 19 October 2026 source checkpoint. Configure and Verify reuse the existing protected execution paths. Recovery has one receipt owner; credential lookup and request plumbing reuse existing components. Workspace tests, strict Clippy, binary builds and API documentation passed. The [roadmap](docs/roadmap.md) describes current responsibilities and the [backlog](docs/backlog.md#next-action) retains the separate candidate installation/live-acceptance gate. Source counts describe maintainability changes, with no numerical reduction target. This candidate has not been installed or live-qualified.
+Setup progress reuses the VM-state and GPU/driver observation rows while retaining each check in Technical Details. Repeated power actions remain separate. Copy counters and the percentage follow acknowledged transfer progress and clear when the active stage moves to guest checks; they do not establish final success. Technical Details buttons use text without a chevron. These dialog changes await installed visual and setup validation.
+
+The percentage text remains bound throughout the dialog's lifetime, including transitions into and out of file copying. Completed summary checks stay complete during later reads; their new execution is tracked separately in Technical Details, and a later failure remains visible.
+
+Status polling explicitly refreshes its exact launched Task Scheduler instance before confirming release. A stale Running value after reader exit must not block Refresh or the next Apply; unknown states and failed release observations still block new work.
+
+The repository-wide [architecture review and simplification](docs/OPERATION_COMPLEXITY_REVIEW.md#current-repository-wide-follow-up) is complete through its 19 October 2026 source checkpoint. Configure and Verify reuse the existing protected execution paths. Recovery has one receipt owner; credential lookup and request plumbing reuse existing components. Workspace tests, strict Clippy, binary builds and API documentation passed at that checkpoint. The [roadmap](docs/roadmap.md) describes current responsibilities and the [backlog](docs/backlog.md#next-action) retains the separate candidate installation/live-acceptance gate. Source counts describe maintainability changes, with no numerical reduction target. The dialog and reader-release follow-ups above are separate from that checkpoint; focused validation does not close the full acceptance gate.
 
 ## Project guidance
 

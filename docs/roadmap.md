@@ -51,6 +51,8 @@ Partial removal reuses `with_completion_state` while resetting a clean editor fr
 
 Recovery receipts have one collection owner in `State`. Selected access is derived by VM GUID; selection reconciles unsaved presentation without cloning the collection or shared recovery records. An unrelated receipt may explain a banner but cannot supply save-only or partial-removal input. Current observation, saved intent, draft, captured request and progress remain separate. Poll generations and foreground admission prevent obsolete delivery.
 
+Status-reader release refreshes the exact Task Scheduler instance returned by launch before reading its state. A cached Running value must not leave admission held after that instance exits. Only a confirmed completed instance or the scheduler's explicit no-running-instance result releases admission; cancellation, unknown state and observation errors do not.
+
 ### Consolidation decisions
 
 | Area | Implemented simplification or retained boundary |

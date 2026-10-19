@@ -132,8 +132,14 @@ pub(crate) fn wait_for_read_release(
 ) -> io::Result<()> {
     let deadline = Instant::now() + timeout;
     loop {
+        // State can retain Running after this instance exits. Refresh explicitly:
+        // its no-running-instance HRESULT must not be hidden by a cached State.
         // SAFETY: same live apartment and exact instance returned by fixed Run.
-        if read_instance_released(unsafe { instance.State() })? {
+        let refreshed = unsafe { instance.Refresh() };
+        if read_instance_released(refreshed, || {
+            // SAFETY: the same live, freshly updated task instance and apartment.
+            unsafe { instance.State() }
+        })? {
             return Ok(());
         }
         if Instant::now() >= deadline {
@@ -150,12 +156,13 @@ pub(crate) fn wait_for_read_release(
 // disconnection and other COM failures must retain admission. This is used with
 // the exact IRunningTask returned by Run, never a registered task's Ready state.
 fn read_instance_released(
-    state: windows::core::Result<windows::Win32::System::TaskScheduler::TASK_STATE>,
+    refreshed: windows::core::Result<()>,
+    state: impl FnOnce() -> windows::core::Result<windows::Win32::System::TaskScheduler::TASK_STATE>,
 ) -> io::Result<bool> {
     use windows::Win32::{
         Foundation::SCHED_E_TASK_NOT_RUNNING, System::TaskScheduler::TASK_STATE_QUEUED,
     };
-    match state {
+    match refreshed.and_then(|()| state()) {
         Ok(TASK_STATE_READY) => Ok(true),
         Ok(TASK_STATE_RUNNING | TASK_STATE_QUEUED) => Ok(false),
         Err(error) if error.code() == SCHED_E_TASK_NOT_RUNNING => Ok(true),
@@ -600,15 +607,33 @@ mod tests {
             Foundation::{E_ACCESSDENIED, SCHED_E_TASK_NOT_RUNNING},
             System::TaskScheduler::{TASK_STATE_DISABLED, TASK_STATE_QUEUED, TASK_STATE_UNKNOWN},
         };
-        assert!(read_instance_released(Ok(TASK_STATE_READY)).unwrap());
-        assert!(read_instance_released(Err(SCHED_E_TASK_NOT_RUNNING.into())).unwrap());
+        assert!(read_instance_released(Ok(()), || Ok(TASK_STATE_READY)).unwrap());
+        assert!(read_instance_released(Ok(()), || Err(SCHED_E_TASK_NOT_RUNNING.into())).unwrap());
         for state in [TASK_STATE_QUEUED, TASK_STATE_RUNNING] {
-            assert!(!read_instance_released(Ok(state)).unwrap());
+            assert!(!read_instance_released(Ok(()), || Ok(state)).unwrap());
         }
         for state in [TASK_STATE_UNKNOWN, TASK_STATE_DISABLED] {
-            assert!(read_instance_released(Ok(state)).is_err());
+            assert!(read_instance_released(Ok(()), || Ok(state)).is_err());
         }
-        assert!(read_instance_released(Err(E_ACCESSDENIED.into())).is_err());
+        assert!(read_instance_released(Ok(()), || Err(E_ACCESSDENIED.into())).is_err());
+    }
+
+    #[test]
+    fn explicit_refresh_observes_exit_without_consulting_cached_running_state() {
+        use super::read_instance_released;
+        use windows::Win32::Foundation::{E_ACCESSDENIED, SCHED_E_TASK_NOT_RUNNING};
+        assert!(
+            read_instance_released(Err(SCHED_E_TASK_NOT_RUNNING.into()), || {
+                panic!("State can remain cached as Running after the exact instance exits")
+            })
+            .unwrap()
+        );
+        assert!(
+            read_instance_released(Err(E_ACCESSDENIED.into()), || {
+                panic!("a failed refresh cannot accept even a cached Ready state")
+            })
+            .is_err()
+        );
     }
 
     use std::fs::File;

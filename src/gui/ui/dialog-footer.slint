@@ -94,7 +94,6 @@ export component DialogFooter inherits ScrollView {
             changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
             expanded <=> root.technical;
             accessible-expandable: true; accessible-expanded: root.technical;
-            icon: root.technical ? @image-url("icons/chevron-up.svg") : @image-url("icons/chevron-down.svg"); colorize-icon: true;
         }
         if root.operation && root.completed : Button {
             changed has-focus => { if self.has-focus { root.reveal-action(self.x, self.width); } }
