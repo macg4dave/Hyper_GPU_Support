@@ -1,66 +1,76 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$WorkDirectory,
-    [Parameter(Mandatory)][string]$SignedSetupDirectory,
-    [Parameter(Mandatory)][string]$SignedUninstallerPath,
-    [Parameter(Mandatory)][string]$ExpectedPublisher,
     [Parameter(Mandatory)][string]$UnpackerPath,
-    [Parameter(Mandatory)][string]$OutputDirectory,
-    [string]$SignToolPath
+    [Parameter(Mandatory)][string]$OutputDirectory
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'release-common.ps1')
+if (Test-Path -LiteralPath $OutputDirectory) { throw 'Release output already exists; never reuse a previous run output.' }
 $metadata = Get-ReleaseMetadata $WorkDirectory
-$setupName = "HyperGpuSupport-$($metadata.Version)-windows-x64-setup.exe"
-Assert-ExactFiles $SignedSetupDirectory @($setupName)
-$signedSetup = Join-Path $SignedSetupDirectory $setupName
-Assert-SigningOnlyChange $metadata.SetupPath $signedSetup
-& (Join-Path $PSScriptRoot 'verify-signatures.ps1') -Path $signedSetup -ExpectedPublisher $ExpectedPublisher -ExpectedVersion $metadata.Version -SignToolPath $SignToolPath
-$payload = Join-Path $WorkDirectory 'signed-payload'
+$setupName = "HyperGpuSupport-$($metadata.Version)-windows-x64-unsigned-setup.exe"
+$zipName = "HyperGpuSupport-$($metadata.Version)-windows-x64-unsigned-binaries.zip"
+$candidate = Split-Path -Parent ([IO.Path]::GetFullPath($metadata.SetupPath))
+if ([IO.Path]::GetFullPath($metadata.SetupPath) -cne (Join-Path $candidate $setupName) -or
+    [IO.Path]::GetFullPath($metadata.BinaryZipPath) -cne (Join-Path $candidate $zipName)) { throw 'Package paths do not match the expected unsigned release names and directory.' }
+Assert-ExactFiles $candidate @($setupName, $zipName, 'SHA256SUMS.txt')
+Assert-FileHashes $candidate @($setupName, $zipName)
+$payload = (Get-Item -LiteralPath $metadata.PayloadDirectory).FullName
+$payloadFiles = @(Get-ArtifactFiles $payload)
+foreach ($required in @($script:ProductExecutables) + @('LICENSE', 'licenses/THIRD_PARTY_NOTICES.md', 'SHA256SUMS.txt')) {
+    if ($payloadFiles -cnotcontains $required) { throw "Missing required payload file: $required" }
+}
+$executables = @($payloadFiles | Where-Object { $_.EndsWith('.exe', [StringComparison]::OrdinalIgnoreCase) })
+if ($executables.Count -ne $script:ProductExecutables.Count -or @(Compare-Object @($script:ProductExecutables | Sort-Object) @($executables | Sort-Object) -CaseSensitive).Count -ne 0) {
+    throw 'Payload must contain exactly the five product and maintenance executables.'
+}
+Assert-FileHashes $payload $script:ProductExecutables
+foreach ($name in $script:ProductExecutables) { Assert-UnsignedProduct (Join-Path $payload $name) $metadata.Version -RequireX64 }
+Assert-UnsignedProduct $metadata.SetupPath $metadata.Version
+Assert-ZipPayload $metadata.BinaryZipPath $payload $payloadFiles
 $extraction = Join-Path $WorkDirectory 'verified-extraction'
 if (Test-Path -LiteralPath $extraction) { throw 'Extraction directory already exists; use a fresh work directory.' }
 if (-not (Test-Path -LiteralPath $UnpackerPath -PathType Leaf)) { throw 'Pinned innounp is required.' }
-& $UnpackerPath -x -m -b -y -a ('-d' + $extraction) $signedSetup
+& $UnpackerPath -x -b -y -a ('-d' + $extraction) $metadata.SetupPath
 if ($LASTEXITCODE -ne 0) { throw "Non-executing installer extraction failed: $LASTEXITCODE" }
 $app = Join-Path $extraction '{app}'
-$payloadFiles = @(Get-ChildItem -LiteralPath $payload -Recurse -File | ForEach-Object { $_.FullName.Substring($payload.Length + 1).Replace('\', '/') })
 Assert-ExactFiles $app $payloadFiles
 foreach ($relative in $payloadFiles) {
-    $expected = (Get-FileHash -LiteralPath (Join-Path $payload $relative) -Algorithm SHA256).Hash
-    $actual = (Get-FileHash -LiteralPath (Join-Path $app $relative) -Algorithm SHA256).Hash
-    if ($expected -cne $actual) { throw "Embedded installer payload differs: $relative" }
+    if ((Get-FileHash -LiteralPath (Join-Path $payload $relative) -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath (Join-Path $app $relative) -Algorithm SHA256).Hash) {
+        throw "Embedded installer payload differs: $relative"
+    }
 }
-& (Join-Path $PSScriptRoot 'verify-signatures.ps1') -Path @($script:ProductExecutables | ForEach-Object { Join-Path $app $_ }) -ExpectedPublisher $ExpectedPublisher -ExpectedVersion $metadata.Version -SignToolPath $SignToolPath
-$uninstallerHash = (Get-FileHash -LiteralPath $SignedUninstallerPath -Algorithm SHA256).Hash
-if ($metadata.SignedUninstallerSha256 -cne $uninstallerHash) { throw 'Signed uninstaller differs from the cache supplied to the compiler.' }
-$uninstallerName = [IO.Path]::GetFileName($SignedUninstallerPath)
-$originalUninstaller = Join-Path $metadata.UninstallerDirectory $uninstallerName
-Assert-SigningOnlyChange $originalUninstaller $SignedUninstallerPath
-$uninstallerVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($originalUninstaller).FileVersion.Trim()
-& (Join-Path $PSScriptRoot 'verify-signatures.ps1') -Path $SignedUninstallerPath -ExpectedPublisher $ExpectedPublisher -ExpectedVersion $metadata.Version -ExpectedFileVersion $uninstallerVersion -SignToolPath $SignToolPath
-# Inno reconstructs its uninstaller from the signed runtime cache when installing.
-# innounp does not expose that runtime. The pinned compiler enforces its cache
-# identity; Package records its unchanged signed input hash. The outer PE-content
-# comparison above protects the resulting compiler output through outer signing.
-# dontcopy files are used by the setup helper before installation. Validate
-# every executable copy as well as the normal application-directory payload.
+# Inno's dontcopy files run installation guards before installed files change.
 $temporary = Join-Path $extraction '{tmp}'
 Assert-ExactFiles $temporary (@($script:ProductExecutables) + @('SHA256SUMS.txt'))
-foreach ($temporaryName in @($script:ProductExecutables) + @('SHA256SUMS.txt')) {
-    if ((Get-FileHash -LiteralPath (Join-Path $temporary $temporaryName) -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath (Join-Path $payload $temporaryName) -Algorithm SHA256).Hash) {
-        throw "Embedded temporary file differs: $temporaryName"
+foreach ($name in @($script:ProductExecutables) + @('SHA256SUMS.txt')) {
+    if ((Get-FileHash -LiteralPath (Join-Path $temporary $name) -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath (Join-Path $payload $name) -Algorithm SHA256).Hash) {
+        throw "Embedded temporary file differs: $name"
     }
 }
-foreach ($file in Get-ChildItem -LiteralPath $extraction -Recurse -File -Filter '*.exe') {
-    if ($script:ProductExecutables -cnotcontains $file.Name) { throw "Unexpected executable embedded in Setup: $($file.FullName)" }
-    if ((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash -cne (Get-FileHash -LiteralPath (Join-Path $payload $file.Name) -Algorithm SHA256).Hash) {
-        throw "Embedded temporary executable differs: $($file.Name)"
+# innounp also generates its own reconstructed script alongside extracted files.
+Assert-ExactFiles $extraction @(@($payloadFiles | ForEach-Object { '{app}/' + $_ }) + @(@($script:ProductExecutables) + @('SHA256SUMS.txt') | ForEach-Object { '{tmp}/' + $_ }) + @('install_script.iss'))
+
+$outputParent = Split-Path -Parent ([IO.Path]::GetFullPath($OutputDirectory))
+New-Item -ItemType Directory -Path $outputParent -Force | Out-Null
+$staging = Join-Path $outputParent ('.HyperGpuSupport-release-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $staging | Out-Null
+$resolvedStaging = (Get-Item -LiteralPath $staging).FullName
+if ((Split-Path -Parent $resolvedStaging) -cne (Get-Item -LiteralPath $outputParent).FullName -or
+    [IO.Path]::GetFileName($resolvedStaging) -notmatch '^\.HyperGpuSupport-release-[a-f0-9]{32}$') { throw 'Refusing release staging outside the intended output parent.' }
+try {
+    $lines = foreach ($name in @($setupName, $zipName)) {
+        $destination = Join-Path $staging $name
+        Copy-Item -LiteralPath (Join-Path $candidate $name) -Destination $destination
+        $hash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($hash -cne (Get-FileHash -LiteralPath (Join-Path $candidate $name) -Algorithm SHA256).Hash.ToLowerInvariant()) { throw "Final copy differs: $name" }
+        "$hash  $name"
     }
+    [IO.File]::WriteAllText((Join-Path $staging 'SHA256SUMS.txt'), ($lines -join "`n") + "`n", [Text.UTF8Encoding]::new($false))
+    Assert-FileHashes $staging @($setupName, $zipName)
+    Move-Item -LiteralPath $resolvedStaging -Destination ([IO.Path]::GetFullPath($OutputDirectory))
+} finally {
+    if (Test-Path -LiteralPath $resolvedStaging) { Remove-Item -LiteralPath $resolvedStaging -Recurse -Force }
 }
-if (Test-Path -LiteralPath $OutputDirectory) { throw 'Release output already exists; never reuse a previous run output.' }
-New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
-Copy-Item -LiteralPath $signedSetup -Destination (Join-Path $OutputDirectory $setupName)
-$hash = (Get-FileHash -LiteralPath (Join-Path $OutputDirectory $setupName) -Algorithm SHA256).Hash.ToLowerInvariant()
-[IO.File]::WriteAllText((Join-Path $OutputDirectory 'SHA256SUMS.txt'), "$hash  $setupName`n", [Text.UTF8Encoding]::new($false))
-Write-Host "Release-ready signed installer and final checksum: $OutputDirectory"
+Write-Host "Verified unsigned installer, binary ZIP and checksums: $OutputDirectory"

@@ -1,23 +1,20 @@
 <#
 .SYNOPSIS
-Build an unsigned local installer, or stage the two SignPath signing passes.
+Build unsigned Windows x64 installer and binary ZIP packages.
 .DESCRIPTION
-Local is the default and needs no signing account. Official automation calls
-BuildPayload, PrepareUninstaller and Package -Signed separately, then signs and
-verifies the final setup with scripts/release. This script never installs anything.
+Local is the default for source builds and release automation. BuildPayload and
+Package allow inspecting the shared staging directory before packaging. All
+packages are explicitly labelled unsigned. This script never installs anything.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Local', 'BuildPayload', 'PrepareUninstaller', 'Package')]
+    [ValidateSet('Local', 'BuildPayload', 'Package')]
     [string]$Stage = 'Local',
     [string]$WorkDirectory,
     [string]$OutputDirectory,
     [string]$PayloadDirectory,
-    [string]$UninstallerPath,
     [string]$IsccPath,
     [string]$InstallerPathFile,
-    [string]$ExpectedPublisher,
-    [switch]$Signed,
     [switch]$SkipBuild,
     [switch]$SkipChecks
 )
@@ -54,6 +51,17 @@ function Assert-Payload {
     foreach ($relative in @('LICENSE', 'licenses/THIRD_PARTY_NOTICES.md')) {
         if (-not (Test-Path -LiteralPath (Join-Path $Directory $relative) -PathType Leaf)) {
             throw "Missing installer licence material: $relative"
+        }
+    }
+    $allowedRootNames = $artifacts + @('LICENSE', 'SHA256SUMS.txt', 'licenses')
+    foreach ($entry in @(Get-Item -LiteralPath $Directory) + @(Get-ChildItem -LiteralPath $Directory -Force -Recurse)) {
+        if (($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Payload must not contain symbolic links or reparse points: $($entry.FullName)"
+        }
+    }
+    foreach ($entry in Get-ChildItem -LiteralPath $Directory -Force) {
+        if ($allowedRootNames -cnotcontains $entry.Name -or ($entry.PSIsContainer -and $entry.Name -cne 'licenses')) {
+            throw "Unexpected payload entry: $($entry.Name)"
         }
     }
 }
@@ -97,20 +105,15 @@ function Quote-NativeArgument {
 }
 
 function Invoke-Compiler {
-    param([switch]$Capture)
     $compiler = Find-Compiler
     $fileVersion = $metadata.Version + '.0'
     $parameters = @(
         "/DAppVersion=$($metadata.Version)", "/DFileVersion=$fileVersion",
         "/DPayloadDir=$PayloadDirectory", "/DOutputDir=$OutputDirectory", "/DOutputName=$outputName"
     )
-    if ($Signed -or $Capture) {
-        $parameters += @('/DSignedBuild', "/DUninstallerDir=$cacheDirectory")
-    }
     $parameters += (Join-Path $root 'packaging/HyperGpuSupport.iss')
-    # Inno's first external-signing pass deliberately writes an error to stderr.
-    # Read both streams without PowerShell converting that expected native output
-    # into a terminating error when a caller redirects its log.
+    # Read both streams concurrently so verbose compiler output cannot deadlock
+    # and failures remain visible when the caller redirects its build log.
     $start = New-Object System.Diagnostics.ProcessStartInfo
     $start.FileName = $compiler
     $start.Arguments = (($parameters | ForEach-Object { Quote-NativeArgument $_ }) -join ' ')
@@ -133,29 +136,7 @@ function Invoke-Compiler {
     }
     if ($compilerOutput) { Write-Host $compilerOutput.TrimEnd() }
     if ($compilerError) { Write-Host $compilerError.TrimEnd() }
-    if ($Capture) {
-        # Documented SignedUninstaller flow: the first compile creates an unsigned
-        # cache entry and exits with a request to sign it externally. It never runs
-        # Setup. A later compile embeds the signature from the same cache entry.
-        $candidates = @(Get-ChildItem -LiteralPath $cacheDirectory -Filter 'uninst-*.e32' -File)
-        if ($compilerExit -ne 2 -or $candidates.Count -ne 1) {
-            throw "Uninstaller preparation did not produce exactly one cache entry (compiler exit $compilerExit)."
-        }
-        $candidate = $candidates[0]
-        $signingName = [System.IO.Path]::GetFileNameWithoutExtension($candidate.Name) + '.exe'
-        Copy-Item -LiteralPath $candidate.FullName -Destination (Join-Path $captureDirectory $signingName)
-        $metadata.UninstallerCacheName = $candidate.Name
-        $metadata.UninstallerDirectory = $captureDirectory
-        Save-Metadata
-        return
-    }
     if ($compilerExit -ne 0) { throw "Inno Setup compilation failed with exit $compilerExit." }
-    if ($Signed) {
-        $cachedHash = (Get-FileHash -LiteralPath (Join-Path $cacheDirectory $metadata.UninstallerCacheName) -Algorithm SHA256).Hash
-        if ($cachedHash -cne $metadata.SignedUninstallerSha256) {
-            throw 'The signed uninstaller cache changed during compilation.'
-        }
-    }
     $setup = Join-Path $OutputDirectory ($outputName + '.exe')
     if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw "Compiler did not produce $setup." }
     $metadata.SetupPath = $setup
@@ -164,9 +145,8 @@ function Invoke-Compiler {
 
 Push-Location $root
 try {
-    if ($Signed -and $Stage -ne 'Package') { throw '-Signed is only valid for the Package stage.' }
-    if ($Stage -in @('PrepareUninstaller', 'Package') -and -not $WorkDirectory) {
-        throw "-$Stage requires -WorkDirectory from BuildPayload."
+    if ($Stage -eq 'Package' -and -not $WorkDirectory) {
+        throw 'Package requires -WorkDirectory from BuildPayload.'
     }
     $cargoJson = & cargo metadata --locked --format-version 1 --no-deps
     if ($LASTEXITCODE -ne 0) { throw 'cargo metadata failed.' }
@@ -190,6 +170,10 @@ try {
             Invoke-Cargo -Arguments @('fmt', '--all', '--check')
             Invoke-Cargo -Arguments @('clippy', '--locked', '--workspace', '--all-targets', '--', '-D', 'warnings')
             Invoke-Cargo -Arguments @('test', '--locked', '--workspace', '--all-targets')
+            & (Join-Path $root 'scripts/testing/test-installer.ps1') -IsccPath (Find-Compiler)
+            if (-not $?) { throw 'Installer regression checks failed.' }
+            & (Join-Path $root 'scripts/release/test-release.ps1')
+            if (-not $?) { throw 'Release regression checks failed.' }
         }
         if (-not $SkipBuild) {
             Invoke-Cargo -Arguments @('build', '--locked', '--release', '--target', $target, '--package', $package[0].name, '--package', 'app-install', '--bins')
@@ -208,7 +192,7 @@ try {
         Write-PayloadHashes $PayloadDirectory
         $metadata = [pscustomobject]@{
             Version = $version; Target = $target; Toolchain = $channel
-            PayloadDirectory = $PayloadDirectory; UninstallerDirectory = ''; UninstallerCacheName = ''; SignedUninstallerSha256 = ''; SetupPath = ''
+            PayloadDirectory = $PayloadDirectory; SetupPath = ''; BinaryZipPath = ''
         }
         Save-Metadata
         Write-Host "Staged payload: $PayloadDirectory"
@@ -222,49 +206,38 @@ try {
     }
     $PayloadDirectory = (Get-Item -LiteralPath $PayloadDirectory).FullName
     Assert-Payload $PayloadDirectory
+    $metadata.PayloadDirectory = $PayloadDirectory
+    $payloadPrefix = $PayloadDirectory.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if ($OutputDirectory.Equals($PayloadDirectory, [StringComparison]::OrdinalIgnoreCase) -or
+        $OutputDirectory.StartsWith($payloadPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'OutputDirectory must be outside the payload staging directory.'
+    }
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
-    $outputName = "HyperGpuSupport-$version-windows-x64-setup"
-    if ($Stage -eq 'PrepareUninstaller') {
-        $cacheDirectory = Join-Path $WorkDirectory 'uninstaller-cache'
-        $captureDirectory = Join-Path $WorkDirectory 'uninstaller'
-        foreach ($directory in @($cacheDirectory, $captureDirectory)) {
-            if (Test-Path -LiteralPath $directory) { throw "Uninstaller staging directory already exists: $directory" }
-            New-Item -ItemType Directory -Path $directory | Out-Null
-        }
-        Invoke-Compiler -Capture
-        return
-    }
-    if ($Signed) {
-        if (-not $ExpectedPublisher -or -not $UninstallerPath) { throw 'Signed packaging requires -ExpectedPublisher and -UninstallerPath.' }
-        $signedUninstaller = Get-Item -LiteralPath $UninstallerPath
-        if ($metadata.UninstallerCacheName -notmatch '^uninst-6\.7\.3-[a-fA-F0-9]+\.e32$' -or
-            $signedUninstaller.BaseName -cne [System.IO.Path]::GetFileNameWithoutExtension($metadata.UninstallerCacheName)) {
-            throw 'Signed uninstaller does not match the cache entry prepared for this build.'
-        }
-        $verify = Join-Path $root 'scripts/release/verify-signatures.ps1'
-        $verifyPaths = @($artifacts | ForEach-Object { Join-Path $PayloadDirectory $_ })
-        & $verify -Path $verifyPaths -ExpectedPublisher $ExpectedPublisher -ExpectedVersion $version
-        if (-not $?) { throw 'Signed payload verification failed.' }
-        $baseline = Join-Path $metadata.UninstallerDirectory ($signedUninstaller.BaseName + '.exe')
-        $uninstallerVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($baseline).FileVersion.Trim()
-        & $verify -Path @($signedUninstaller.FullName) -ExpectedPublisher $ExpectedPublisher -ExpectedVersion $version -ExpectedFileVersion $uninstallerVersion
-        if (-not $?) { throw 'Signed uninstaller verification failed.' }
-        $metadata.SignedUninstallerSha256 = (Get-FileHash -LiteralPath $signedUninstaller.FullName -Algorithm SHA256).Hash
-        $cacheDirectory = Join-Path $WorkDirectory ('signed-uninstaller-cache-' + [guid]::NewGuid().ToString('N'))
-        New-Item -ItemType Directory -Path $cacheDirectory | Out-Null
-        Copy-Item -LiteralPath $signedUninstaller.FullName -Destination (Join-Path $cacheDirectory $metadata.UninstallerCacheName)
-    } else {
-        $outputName = "HyperGpuSupport-$version-windows-x64-unsigned-setup"
-    }
+    $outputName = "HyperGpuSupport-$version-windows-x64-unsigned-setup"
+    $zipPath = Join-Path $OutputDirectory "HyperGpuSupport-$version-windows-x64-unsigned-binaries.zip"
     Write-PayloadHashes $PayloadDirectory
     Invoke-Compiler
-    if (-not $Signed) {
-        $hash = (Get-FileHash -LiteralPath $metadata.SetupPath -Algorithm SHA256).Hash.ToLowerInvariant()
-        Write-Utf8 (Join-Path $OutputDirectory 'SHA256SUMS.txt') ($hash + '  ' + [System.IO.Path]::GetFileName($metadata.SetupPath) + "`n")
-        Write-Host "Unsigned local installer: $($metadata.SetupPath)"
-    } else {
-        Write-Host "Candidate installer (final SignPath signature still required): $($metadata.SetupPath)"
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+    $zipTemporaryPath = Join-Path $WorkDirectory ('binaries-' + [guid]::NewGuid().ToString('N') + '.zip')
+    $archive = [System.IO.Compression.ZipFile]::Open($zipTemporaryPath, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        # Windows PowerShell 5.1's CreateFromDirectory writes backslashes. Use
+        # explicit portable entry names so local and Actions ZIPs agree.
+        foreach ($file in Get-ChildItem -LiteralPath $PayloadDirectory -File -Recurse | Sort-Object FullName) {
+            $entryName = $file.FullName.Substring($PayloadDirectory.Length + 1).Replace('\', '/')
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+        }
+    } finally { $archive.Dispose() }
+    Move-Item -LiteralPath $zipTemporaryPath -Destination $zipPath -Force
+    $metadata.BinaryZipPath = $zipPath
+    Save-Metadata
+    $packageHashes = foreach ($path in @($metadata.SetupPath, $metadata.BinaryZipPath)) {
+        $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        $hash + '  ' + [System.IO.Path]::GetFileName($path)
     }
+    Write-Utf8 (Join-Path $OutputDirectory 'SHA256SUMS.txt') (($packageHashes -join "`n") + "`n")
+    Write-Host "Unsigned installer: $($metadata.SetupPath)"
+    Write-Host "Unsigned binaries: $($metadata.BinaryZipPath)"
     if ($InstallerPathFile) { Write-Utf8 ([System.IO.Path]::GetFullPath($InstallerPathFile)) $metadata.SetupPath }
 } finally {
     Pop-Location

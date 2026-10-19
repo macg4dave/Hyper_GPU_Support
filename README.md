@@ -135,9 +135,9 @@ The current target configuration is:
 
 ### Install
 
-Official Windows downloads are distributed through [GitHub Releases](https://github.com/macg4dave/Hyper_GPU_Support/releases). Every official installer and its executable payload must be signed through SignPath Foundation. The first official release is held pending Foundation approval and successful signing; no unsigned bootstrap release is published. See the [Code signing policy](docs/code-signing.md).
+Official Windows x64 downloads are distributed through [GitHub Releases](https://github.com/macg4dave/Hyper_GPU_Support/releases) as two unsigned packages: an Inno Setup installer and a ZIP of the binaries and licence notices. Use the installer for installation or updates; the ZIP contains build outputs and does not register the protected runner or perform installation. These files have no code-signing certificate, so Windows may display an unknown-publisher warning. Check their SHA-256 hashes against the release notes. See [Release packaging](docs/releases.md).
 
-For local testing or building from source, you need Git, [Rust](https://rustup.rs), and Visual Studio C++ build tools with a Windows SDK for the `x86_64-pc-windows-msvc` target. Rustup uses [rust-toolchain.toml](rust-toolchain.toml). Building a local installer also needs [Inno Setup 6.7.3](https://github.com/jrsoftware/issrc/releases/tag/is-6_7_3). Local builds need no SignPath account, credentials or approval and are unsigned.
+For local testing or building from source, you need Git, [Rust](https://rustup.rs), and Visual Studio C++ build tools with a Windows SDK for the `x86_64-pc-windows-msvc` target. Rustup uses [rust-toolchain.toml](rust-toolchain.toml). Building the packages also needs [Inno Setup 6.7.3](https://github.com/jrsoftware/issrc/releases/tag/is-6_7_3). Builds need no signing account or credentials.
 
 Close the app and let any operation finish before installing or updating.
 
@@ -145,12 +145,12 @@ Close the app and let any operation finish before installing or updating.
 git clone https://github.com/macg4dave/Hyper_GPU_Support.git
 cd Hyper_GPU_Support
 cargo build --locked --release --bins     # compile only; does not install
-powershell -NoProfile -File scripts/build-installer.ps1  # build a local unsigned installer
+powershell -NoProfile -File scripts/build-installer.ps1  # build the unsigned installer and binaries ZIP
 ```
 
-The packaging script checks and builds the product, then creates `dist/HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe` and its `SHA256SUMS.txt`. It does not launch Setup or change installed state. If Inno is not on PATH or in its standard installation folder, pass `-IsccPath 'C:\path\to\ISCC.exe'`.
+The packaging script checks and builds the product, then creates `dist/HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe`, `dist/HyperGpuSupport-<version>-windows-x64-unsigned-binaries.zip` and `dist/SHA256SUMS.txt` with both package hashes. Both packages contain the same five executables and licence notices; the ZIP also retains the executable hash manifest. The script does not launch Setup or change installed state. If Inno is not on PATH or in its standard installation folder, pass `-IsccPath 'C:\path\to\ISCC.exe'`.
 
-Run an official signed installer, or your locally built unsigned installer, to install or update. To build and launch the local installer from the source checkout, use `cargo run -p app-install`. It asks you to type `yes` before building and launching the same setup wizard; `-- --yes` skips that launcher confirmation. Setup presents the reset warning and asks for administrator permission.
+Run the release installer, or your locally built installer, to install or update. To build and launch the local installer from the source checkout, use `cargo run -p app-install`. It asks you to type `yes` before building and launching the same setup wizard; `-- --yes` skips that launcher confirmation. Setup presents the reset warning and asks for administrator permission.
 
 > [!WARNING]
 > Installing or updating resets app-owned state, including saved profiles, history, recovery records, protected registration, preferences and remembered guest sign-in details. Protected state is archived before reset. The installer does not change VMs, disks or guest files. See [Install details](#install-details).
@@ -322,7 +322,7 @@ First-time setup in the app enrols the protected runner again. This reset happen
 
 Uninstall through Windows **Installed apps**. Uninstall refuses active work, archives protected evidence, removes protected registration/state and the installed application, and preserves individual users' preferences and saved guest credentials. It does not scan other users' profiles or vaults.
 
-Official releases require the GitHub-hosted signing workflow and maintainer approvals; locally built installers must not be uploaded as official release assets. See [release preparation and publication](docs/code-signing.md#preparing-and-publishing-an-update) and [third-party notices](licenses/THIRD_PARTY_NOTICES.md).
+Prepare official downloads with the GitHub-hosted release workflow, which verifies the tag, versions and matching ZIP/installer contents before returning both unsigned packages. Publication remains manual. See [release preparation and publication](docs/releases.md#preparing-and-publishing-an-update) and [third-party notices](licenses/THIRD_PARTY_NOTICES.md).
 
 </details>
 

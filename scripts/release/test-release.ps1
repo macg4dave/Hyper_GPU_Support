@@ -3,6 +3,8 @@ param()
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'release-common.ps1')
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression
 
 function Assert-Fails {
     param([scriptblock]$Action, [string]$Expected)
@@ -14,67 +16,121 @@ function Assert-Fails {
     if (-not $failed) { throw "Expected failure containing: $Expected" }
 }
 
+function Write-Hashes {
+    param([string]$Directory, [string[]]$Names)
+    $lines = foreach ($name in $Names) { (Get-FileHash -LiteralPath (Join-Path $Directory $name) -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $name }
+    [IO.File]::WriteAllText((Join-Path $Directory 'SHA256SUMS.txt'), ($lines -join "`n") + "`n")
+}
+
+function Write-Zip {
+    param([string]$Path, [string[]]$Names, [string[]]$Contents)
+    $archive = [IO.Compression.ZipFile]::Open($Path, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        for ($index = 0; $index -lt $Names.Count; $index++) {
+            $entry = $archive.CreateEntry($Names[$index])
+            $writer = [IO.StreamWriter]::new($entry.Open(), [Text.UTF8Encoding]::new($false))
+            try { $writer.Write($Contents[$index]) } finally { $writer.Dispose() }
+        }
+    } finally { $archive.Dispose() }
+}
+
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('HyperGpuSupport-release-tests-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture | Out-Null
 try {
     $files = Join-Path $fixture 'files'
-    New-Item -ItemType Directory -Path $files | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $files 'licenses') -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $files 'expected.exe'), 'fixture')
-    Assert-ExactFiles $files @('expected.exe')
-    [IO.File]::WriteAllText((Join-Path $files 'unexpected.txt'), 'extra')
+    [IO.File]::WriteAllText((Join-Path $files 'licenses/notice.txt'), 'licence fixture')
+    Assert-ExactFiles $files @('expected.exe', 'licenses/notice.txt')
     Assert-Fails { Assert-ExactFiles $files @('expected.exe') } 'missing or unexpected'
     Assert-Fails { Assert-ExactFiles $files @('expected.exe', 'absent.exe') } 'missing or unexpected'
-    New-Item -ItemType Directory -Path (Join-Path $files 'licenses') | Out-Null
-    [IO.File]::WriteAllText((Join-Path $files 'licenses/notice.txt'), 'licence fixture')
-    Assert-ExactFiles $files @('expected.exe', 'unexpected.txt', 'licenses/notice.txt')
+    Write-Hashes $files @('expected.exe')
+    Assert-FileHashes $files @('expected.exe')
+    Assert-Fails { Assert-FileHashes $files @('absent.exe') } 'exactly the expected'
+    $hashText = [IO.File]::ReadAllText((Join-Path $files 'SHA256SUMS.txt'))
+    [IO.File]::WriteAllText((Join-Path $files 'SHA256SUMS.txt'), $hashText + $hashText)
+    Assert-Fails { Assert-FileHashes $files @('expected.exe') } 'Duplicate checksum'
+    [IO.File]::WriteAllText((Join-Path $files 'SHA256SUMS.txt'), $hashText.Replace('expected.exe', '../expected.exe'))
+    Assert-Fails { Assert-FileHashes $files @('expected.exe') } 'Malformed checksum'
+    [IO.File]::WriteAllText((Join-Path $files 'SHA256SUMS.txt'), $hashText)
+    [IO.File]::WriteAllText((Join-Path $files 'expected.exe'), 'modified')
+    Assert-Fails { Assert-FileHashes $files @('expected.exe') } 'Checksum mismatch'
+    [IO.File]::WriteAllText((Join-Path $files 'expected.exe'), 'fixture')
+    Assert-Fails { Assert-UnsignedProduct (Join-Path $files 'expected.exe') '0.1.0' } 'not a PE image'
+    # A certificate directory is forbidden even when WinTrust cannot validate it.
+    # This minimal PE-header fixture is never executed or accepted as a product.
+    $pe = [byte[]]::new(512)
+    $pe[0] = 0x4d; $pe[1] = 0x5a
+    [BitConverter]::GetBytes([int]128).CopyTo($pe, 0x3c)
+    [BitConverter]::GetBytes([uint32]0x4550).CopyTo($pe, 128)
+    [BitConverter]::GetBytes([uint16]0x20b).CopyTo($pe, 152)
+    [BitConverter]::GetBytes([uint32]512).CopyTo($pe, 296)
+    [BitConverter]::GetBytes([uint32]16).CopyTo($pe, 300)
+    $pePath = Join-Path $fixture 'certificate-table.exe'
+    [IO.File]::WriteAllBytes($pePath, $pe)
+    Assert-Fails { Assert-UnsignedProduct $pePath '0.1.0' } 'unexpectedly has an Authenticode certificate table'
+    Assert-Fails { Assert-UnsignedProduct $pePath '0.1.0' -RequireX64 } 'not Windows x64'
 
-    # This is only a PE-content-preservation fixture, never a signature fixture.
-    # The real signature verifier below must reject it before any release output.
-    $before = [byte[]]::new(512)
-    $before[0] = 0x4d; $before[1] = 0x5a
-    [BitConverter]::GetBytes([int]128).CopyTo($before, 0x3c)
-    [BitConverter]::GetBytes([uint32]0x4550).CopyTo($before, 128)
-    [BitConverter]::GetBytes([uint16]0x20b).CopyTo($before, 152)
-    $before[400] = 42
-    $after = [byte[]]::new(528)
-    $before.CopyTo($after, 0)
-    [BitConverter]::GetBytes([uint32]512).CopyTo($after, 296)
-    [BitConverter]::GetBytes([uint32]16).CopyTo($after, 300)
-    [BitConverter]::GetBytes([uint32]1234).CopyTo($after, 216)
-    $unsigned = Join-Path $fixture 'unsigned.exe'
-    $signedLayout = Join-Path $fixture 'signed-layout.exe'
-    [IO.File]::WriteAllBytes($unsigned, $before)
-    [IO.File]::WriteAllBytes($signedLayout, $after)
-    Assert-SigningOnlyChange $unsigned $signedLayout
-    $after[400] = 43
-    [IO.File]::WriteAllBytes($signedLayout, $after)
-    Assert-Fails { Assert-SigningOnlyChange $unsigned $signedLayout } 'changed executable content'
-    $after[400] = 42
-    [BitConverter]::GetBytes([uint32]504).CopyTo($after, 296)
-    [IO.File]::WriteAllBytes($signedLayout, $after)
-    Assert-Fails { Assert-SigningOnlyChange $unsigned $signedLayout } 'changed the PE layout'
-    [IO.File]::WriteAllText($signedLayout, 'not an executable')
-    Assert-Fails { Assert-SigningOnlyChange $unsigned $signedLayout } 'not a PE image'
+    $zip = Join-Path $fixture 'payload.zip'
+    $zipFiles = @('expected.exe', 'licenses/notice.txt')
+    Write-Zip $zip $zipFiles @('fixture', 'licence fixture')
+    Assert-ZipPayload $zip $files $zipFiles
+    $wrongZip = Join-Path $fixture 'wrong.zip'
+    Write-Zip $wrongZip $zipFiles @('changed', 'licence fixture')
+    Assert-Fails { Assert-ZipPayload $wrongZip $files $zipFiles } 'ZIP payload differs'
+    Assert-Fails { Assert-ZipPayload $zip $files @('expected.exe') } 'missing or unexpected'
+    $unsafeZip = Join-Path $fixture 'unsafe.zip'
+    Write-Zip $unsafeZip @('../outside.exe') @('fixture')
+    Assert-Fails { Assert-ZipPayload $unsafeZip $files $zipFiles } 'Unsafe ZIP entry'
+    $duplicateZip = Join-Path $fixture 'duplicate.zip'
+    Write-Zip $duplicateZip @('expected.exe', 'EXPECTED.exe') @('fixture', 'fixture')
+    Assert-Fails { Assert-ZipPayload $duplicateZip $files $zipFiles } 'Duplicate ZIP entry'
+    $backslashZip = Join-Path $fixture 'backslash.zip'
+    Write-Zip $backslashZip @('licenses\notice.txt') @('licence fixture')
+    Assert-Fails { Assert-ZipPayload $backslashZip $files $zipFiles } 'Unsafe ZIP entry'
+    $directoryZip = Join-Path $fixture 'directory.zip'
+    Write-Zip $directoryZip @('unwanted/') @('')
+    Assert-Fails { Assert-ZipPayload $directoryZip $files $zipFiles } 'Unexpected ZIP directory'
 
-    $metadata = @{ Version = '0.1.0'; Target = 'x86_64-pc-windows-msvc'; SetupPath = $unsigned } | ConvertTo-Json
-    [IO.File]::WriteAllText((Join-Path $fixture 'build-metadata.json'), $metadata)
+    $candidate = Join-Path $fixture 'candidate'
+    New-Item -ItemType Directory -Path $candidate | Out-Null
+    $setupName = 'HyperGpuSupport-0.1.0-windows-x64-unsigned-setup.exe'
+    $zipName = 'HyperGpuSupport-0.1.0-windows-x64-unsigned-binaries.zip'
+    [IO.File]::WriteAllText((Join-Path $candidate $setupName), 'not an installer')
+    Copy-Item -LiteralPath $zip -Destination (Join-Path $candidate $zipName)
+    Write-Hashes $candidate @($setupName, $zipName)
+    $payload = Join-Path $fixture 'payload'
+    New-Item -ItemType Directory -Path (Join-Path $payload 'licenses') -Force | Out-Null
+    foreach ($name in $script:ProductExecutables) { [IO.File]::WriteAllText((Join-Path $payload $name), 'not an executable') }
+    [IO.File]::WriteAllText((Join-Path $payload 'LICENSE'), 'fixture licence')
+    [IO.File]::WriteAllText((Join-Path $payload 'licenses/THIRD_PARTY_NOTICES.md'), 'fixture notices')
+    Write-Hashes $payload $script:ProductExecutables
+    $metadata = @{
+        Version = '0.1.0'; Target = 'x86_64-pc-windows-msvc'; Toolchain = '1.90.0'
+        PayloadDirectory = $payload; SetupPath = (Join-Path $candidate $setupName); BinaryZipPath = (Join-Path $candidate $zipName)
+    } | ConvertTo-Json
+    $metadataPath = Join-Path $fixture 'build-metadata.json'
+    [IO.File]::WriteAllText($metadataPath, $metadata)
     $readback = Get-ReleaseMetadata $fixture
     if ($readback.Version -cne '0.1.0') { throw 'Metadata readback failed.' }
-    $metadata.Replace('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc') | Set-Content -LiteralPath (Join-Path $fixture 'build-metadata.json')
+    [IO.File]::WriteAllText($metadataPath, $metadata.Replace('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'))
     Assert-Fails { Get-ReleaseMetadata $fixture } 'Windows x64'
-    $metadata.Replace('0.1.0', 'bad-version') | Set-Content -LiteralPath (Join-Path $fixture 'build-metadata.json')
-    Assert-Fails { Get-ReleaseMetadata $fixture } 'valid Cargo version'
-    Assert-Fails { & (Join-Path $PSScriptRoot 'verify-signatures.ps1') -Path $unsigned -ExpectedPublisher 'CN=Fixture' -ExpectedVersion '0.1.0' } 'Authenticode validation failed'
-    [IO.File]::WriteAllText((Join-Path $fixture 'build-metadata.json'), $metadata)
-    $unsignedSetupDirectory = Join-Path $fixture 'unsigned-setup'
-    New-Item -ItemType Directory -Path $unsignedSetupDirectory | Out-Null
-    Copy-Item -LiteralPath $unsigned -Destination (Join-Path $unsignedSetupDirectory 'HyperGpuSupport-0.1.0-windows-x64-setup.exe')
+    [IO.File]::WriteAllText($metadataPath, $metadata.Replace('0.1.0', 'bad-version'))
+    Assert-Fails { Get-ReleaseMetadata $fixture } 'valid numeric Cargo version'
+    [IO.File]::WriteAllText($metadataPath, '{"Version":"0.1.0"}')
+    Assert-Fails { Get-ReleaseMetadata $fixture } 'missing Target'
+    [IO.File]::WriteAllText($metadataPath, $metadata)
     $releaseOutput = Join-Path $fixture 'release-ready'
     Assert-Fails {
-        & (Join-Path $PSScriptRoot 'finalize-release.ps1') -WorkDirectory $fixture -SignedSetupDirectory $unsignedSetupDirectory -SignedUninstallerPath $unsigned -ExpectedPublisher 'CN=Fixture' -UnpackerPath $unsigned -OutputDirectory $releaseOutput
-    } 'changed the PE layout or omitted its certificate'
-    if (Test-Path -LiteralPath $releaseOutput) { throw 'Unsigned setup produced release-ready output.' }
-    Write-Host 'Release staging negative checks passed; no signing service or setup executable was run.'
+        & (Join-Path $PSScriptRoot 'finalize-release.ps1') -WorkDirectory $fixture -UnpackerPath 'must-not-run.exe' -OutputDirectory $releaseOutput
+    } 'not a PE image'
+    if (Test-Path -LiteralPath $releaseOutput) { throw 'Invalid payload produced release-ready output.' }
+    [IO.File]::WriteAllText((Join-Path $candidate $setupName), 'changed installer')
+    Assert-Fails {
+        & (Join-Path $PSScriptRoot 'finalize-release.ps1') -WorkDirectory $fixture -UnpackerPath 'must-not-run.exe' -OutputDirectory $releaseOutput
+    } 'Checksum mismatch'
+    if (Test-Path -LiteralPath $releaseOutput) { throw 'Corrupt setup produced release-ready output.' }
+    Write-Host 'Release regression checks passed; only isolated fixtures were used, and no setup executable was run.'
 } finally {
     $resolved = [IO.Path]::GetFullPath($fixture)
     $temp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'

@@ -32,9 +32,9 @@ The application makes no internet connections. You may choose to open the projec
 
 Building from source downloads Rust dependencies and build tools from their respective services. That happens only when you build, not when the application runs.
 
-## Code signing
+## Release builds
 
-Official release installers are signed through SignPath. During a release build, SignPath receives the project's build executables and GitHub build metadata, but never any user data. See [SignPath's privacy policy](https://about.signpath.io/privacy-policy) and the [code signing policy](code-signing.md).
+Official release packages are unsigned and built using GitHub Actions. The build uses repository source and dependencies; it does not use application data from users' computers. No signing service receives release executables. See [Release packaging](releases.md).
 
 ## Your control over the data
 

@@ -2,7 +2,7 @@
 
 Project-authored Hyper GPU Support source is licensed under the [MIT licence](../LICENSE).
 Dependencies and the installer runtime retain their own copyright and licence terms.
-The installer includes the enabled Windows runtime dependency inventory and upstream
+Both release packages include the enabled Windows runtime dependency inventory and upstream
 licence texts in `licenses/dependencies/`.
 
 ## Slint
@@ -16,9 +16,9 @@ Project source licensing alone does not replace the terms of linked components.
 The vendored `i-slint-backend-winit` contains a local Windows exposure-region
 repainting backport. Its upstream identity and licence notices are preserved.
 
-SignPath Foundation eligibility, including the applicable Slint distribution
-licensing and this backport, requires Foundation confirmation before an official
-binary release. No Foundation acceptance or licence exception is implied here.
+The application uses Slint's Royalty-free Desktop, Mobile and Web Applications
+License option. Preserve its attribution and licence texts when redistributing
+the application, including this backport.
 
 ## Inno Setup
 

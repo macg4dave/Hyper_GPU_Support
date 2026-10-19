@@ -51,12 +51,7 @@ UninstallDisplayIcon={app}\hyper-gpu-support.exe
 UninstallDisplayName=Hyper GPU Support
 UninstallLogMode=append
 ChangesEnvironment=no
-#ifdef SignedBuild
-SignedUninstaller=yes
-SignedUninstallerDir={#UninstallerDir}
-#else
 SignedUninstaller=no
-#endif
 
 [Languages]
 Name: "enGB"; MessagesFile: "compiler:Default.isl"
