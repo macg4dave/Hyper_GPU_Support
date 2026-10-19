@@ -81,19 +81,33 @@ try {
     }
     & $icacls (Split-Path -Parent $compiler) '/grant' ('*{0}:(OI)(CI)RX' -f $account.SID.Value) '/T' '/Q'
     if ($LASTEXITCODE -ne 0) { throw 'Could not grant read access to the pinned compiler.' }
-    $stdout = Join-Path $WorkDirectory 'build-stdout.log'
-    $stderr = Join-Path $WorkDirectory 'build-stderr.log'
     $powershell = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell/v1.0/powershell.exe'
-    Write-Host 'Starting the full source build under the standard build account.'
-    $process = Start-Process -FilePath $powershell -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', ('"{0}"' -f $worker), '-ConfigPath', ('"{0}"' -f $configuration)) -Credential $credential -LoadUserProfile -WorkingDirectory $SourceDirectory -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
-    try {
-        # Start-Process -Wait also waits for descendants such as MSVC's lingering
-        # vctip process. The worker itself waits for every build/check command.
-        $process.WaitForExit()
-        Get-Content -LiteralPath $stdout | ForEach-Object { Write-Host $_ }
-        Get-Content -LiteralPath $stderr | ForEach-Object { Write-Host $_ }
-        if ($process.ExitCode -ne 0) { throw "Standard-user source build failed with exit $($process.ExitCode)." }
-    } finally { $process.Dispose() }
+    function Invoke-StandardProcess {
+        param([string[]]$Arguments, [string]$LogName)
+        $stdout = Join-Path $WorkDirectory ($LogName + '-stdout.log')
+        $stderr = Join-Path $WorkDirectory ($LogName + '-stderr.log')
+        $process = Start-Process -FilePath $powershell -ArgumentList $Arguments -Credential $credential -LoadUserProfile -WorkingDirectory $SourceDirectory -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+        try {
+            # Retain the process handle before exit. Windows PowerShell's lazy
+            # PassThru object otherwise loses its exit-code information.
+            if ($process.Handle -eq [IntPtr]::Zero) { throw 'The worker process has no usable handle.' }
+            # Wait for the worker, not lingering descendants such as MSVC vctip.
+            $process.WaitForExit()
+            $exitCode = $process.get_ExitCode()
+            Get-Content -LiteralPath $stdout | ForEach-Object { Write-Host $_ }
+            Get-Content -LiteralPath $stderr | ForEach-Object { Write-Host $_ }
+            return $exitCode
+        } finally { $process.Dispose() }
+    }
+    # Fail quickly if credentialed-process exit tracking is broken on this image;
+    # neither a missing status nor an actual failure may be treated as success.
+    foreach ($expected in @(0, 17)) {
+        $actual = Invoke-StandardProcess -Arguments @('-NoProfile', '-NonInteractive', '-Command', ('exit ' + $expected)) -LogName ('probe-' + $expected)
+        if ($actual -ne $expected) { throw "Worker exit-code probe returned $actual instead of $expected." }
+    }
+    Write-Host 'Verified successful and failing worker exit codes; starting the full standard-user source build.'
+    $exitCode = Invoke-StandardProcess -Arguments @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', ('"{0}"' -f $worker), '-ConfigPath', ('"{0}"' -f $configuration)) -LogName 'build'
+    if ($exitCode -ne 0) { throw "Standard-user source build failed with exit $exitCode." }
 } finally {
     Remove-LocalUser -SID $account.SID
 }
