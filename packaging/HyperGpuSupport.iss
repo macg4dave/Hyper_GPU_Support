@@ -47,6 +47,7 @@ SolidCompression=yes
 CloseApplications=no
 RestartApplications=no
 SetupMutex=Global\HyperGpuSupportSetup
+SetupLogging=yes
 UninstallDisplayIcon={app}\hyper-gpu-support.exe
 UninstallDisplayName=Hyper GPU Support
 UninstallLogMode=append
@@ -79,45 +80,17 @@ Source: "{#PayloadDir}\licenses\*"; DestDir: "{app}\licenses"; Flags: ignorevers
 [Icons]
 Name: "{group}\Hyper GPU Support"; Filename: "{app}\hyper-gpu-support.exe"
 
+[Dirs]
+; Remove empty folders even when they predate Inno's installation log.
+Name: "{app}"; Flags: uninsalwaysuninstall
+Name: "{group}"; Flags: uninsalwaysuninstall
+
 [Code]
 var
   PayloadExtracted: Boolean;
   MaintenanceFailed: Boolean;
 
-function Quote(const Value: String): String;
-begin
-  Result := '"' + Value + '"';
-end;
-
-function HelperError(const Action, LogPath: String; ExitCode: Integer): String;
-var
-  Details: AnsiString;
-begin
-  Result := Action + ' failed (exit ' + IntToStr(ExitCode) + ').';
-  if LoadStringFromFile(LogPath, Details) then
-    Result := Result + #13#10 + String(Details);
-end;
-
-function RunHelper(const Helper, Args, Action, LogPath: String;
-  OriginalUser: Boolean): String;
-var
-  ExitCode: Integer;
-  Started: Boolean;
-begin
-  ExitCode := -1;
-  if OriginalUser then
-    Started := ExecAsOriginalUser(Helper, Args + ' --log ' + Quote(LogPath), '',
-      SW_HIDE, ewWaitUntilTerminated, ExitCode)
-  else
-    Started := Exec(Helper, Args + ' --log ' + Quote(LogPath), '',
-      SW_HIDE, ewWaitUntilTerminated, ExitCode);
-  if not Started then
-    Result := Action + ' could not start: ' + SysErrorMessage(ExitCode)
-  else if ExitCode <> 0 then
-    Result := HelperError(Action, LogPath, ExitCode)
-  else
-    Result := '';
-end;
+#include "helpers.iss"
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
@@ -140,11 +113,11 @@ begin
   Helper := ExpandConstant('{tmp}\app-install.exe');
   LogPath := ExpandConstant('{tmp}\user-check.log');
   Result := RunHelper(Helper, '--package-check-user',
-    'Checking the initiating user', LogPath, True);
+    'Checking your app settings', LogPath, True);
   if Result <> '' then Exit;
   LogPath := ExpandConstant('{tmp}\package-check.log');
   Result := RunHelper(Helper, '--package-check --release-dir ' +
-    Quote(ExpandConstant('{tmp}')), 'Checking installation safety', LogPath, False);
+    Quote(ExpandConstant('{tmp}')), 'Checking the installation', LogPath, False);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -155,7 +128,7 @@ begin
   if CurStep = ssInstall then begin
     LogPath := ExpandConstant('{tmp}\package-reset.log');
     Failure := RunHelper(Helper, '--package-reset --release-dir ' +
-      Quote(ExpandConstant('{tmp}')), 'Archiving and resetting protected state',
+      Quote(ExpandConstant('{tmp}')), 'Backing up and resetting app data',
       LogPath, False);
     if Failure <> '' then RaiseException(Failure);
   end;
@@ -169,7 +142,7 @@ begin
     if Failure <> '' then RaiseException(Failure);
     LogPath := ExpandConstant('{tmp}\user-reset.log');
     Failure := RunHelper(Helper, '--package-reset-user',
-      'Resetting the initiating user settings', LogPath, True);
+      'Resetting your app settings', LogPath, True);
     if Failure <> '' then RaiseException(Failure);
     MaintenanceFailed := False;
   end;
@@ -188,9 +161,8 @@ begin
   if (CurPageID = wpFinished) and MaintenanceFailed then begin
     WizardForm.FinishedHeadingLabel.Caption := 'Installation checks failed';
     WizardForm.FinishedLabel.Caption :=
-      'Application files were copied, but verification or resetting settings failed. ' +
-      'Setup did not complete successfully. Review the error shown earlier and ' +
-      'the setup log. Preserve any protected archive.';
+      'Setup could not finish installing Hyper GPU Support. ' +
+      'See the error message for details.';
   end;
 end;
 
@@ -201,7 +173,7 @@ begin
   LogPath := ExpandConstant('{tmp}\uninstall-check.log');
   Failure := RunHelper(ExpandConstant('{app}\app-install.exe'),
     '--package-check --release-dir ' + Quote(ExpandConstant('{app}')),
-    'Checking uninstall safety', LogPath, False);
+    'Checking the installation', LogPath, False);
   Result := Failure = '';
   if not Result then MsgBox(Failure, mbError, MB_OK);
 end;
@@ -213,7 +185,7 @@ begin
   if CurUninstallStep = usUninstall then begin
     LogPath := ExpandConstant('{tmp}\uninstall-reset.log');
     Failure := RunHelper(ExpandConstant('{app}\app-install.exe'),
-      '--package-uninstall', 'Archiving and removing protected registration and state',
+      '--package-uninstall', 'Backing up and removing app data',
       LogPath, False);
     { Unlike ssPostInstall, Inno propagates usUninstall exceptions before removing
       any logged application files. Keep the existing installation on failure. }

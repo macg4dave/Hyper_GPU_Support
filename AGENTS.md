@@ -33,6 +33,7 @@ Applies to Codex and Claude Code. Complete one requested task; current user inst
 | Code review | [Review](.github/prompts/code-review.prompt.md), [Rust review](.github/prompts/rust-review.prompt.md) |
 | Privilege, IPC, effects, recovery | [Security review](.github/prompts/security-recovery-review.prompt.md) |
 | Documentation | [Docs](.github/prompts/maintain-docs.prompt.md) |
+| Preparing or publishing a release | [Release](.github/prompts/release.prompt.md) |
 
 ## Boundaries
 

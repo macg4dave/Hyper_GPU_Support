@@ -1,0 +1,12 @@
+# Release
+
+Follow [AGENTS.md](../../AGENTS.md) and [Release packaging](../../docs/releases.md). Load this guidance when asked to prepare, build or publish a release.
+
+1. Inspect the working tree, requested version, current Cargo versions and previous published release tag. Preserve unrelated work. Include the changes the user intends to release; do not silently discard or commit unrelated edits.
+2. Compare the release candidate with the previous release tag. Read the relevant source and changes, using commits as evidence rather than copying commit messages into release notes.
+3. Update [CHANGELOG.md](../../CHANGELOG.md) before committing or tagging the release. Move applicable unreleased changes into a section headed `v<version> — YYYY-MM-DD`, newest first, using the release date. Keep published entries unchanged. If there is no previous release, summarise the initial product without inventing a history.
+4. Write a short summary for users, normally 3–6 bullets, with fewer when appropriate. Group related work into meaningful features, fixes or changes to behaviour and requirements. Include breaking changes and any action users must take. Omit formatting, refactoring, tests and CI maintenance unless they affect users. Use plain English; avoid marketing language, commit lists, invented benefits and unverified claims. Reconcile any existing unreleased notes with what actually ships.
+5. Update product and maintenance-helper versions together, including the lockfile. Follow the documented checks, packaging and verification steps. Report actual test coverage; package verification does not prove a live installation or VM operation. Do not bypass failed checks or move an existing release tag to conceal a fix.
+6. Follow the user's existing authorisation and AGENTS.md boundaries for commits, pushes, workflow runs, publication and live installation tests. A release prompt adds no authorisation. Do not ask again for actions already authorised in the current task.
+7. Use the version's changelog bullets unchanged as the GitHub release summary. Add the unsigned-download notice, package checksums and relevant links separately; keep this packaging information out of the changelog. Publish only the two verified packages described in the release documentation, when publication is authorised.
+8. Report the version, release URL if published, included packages and checks actually completed. State clearly if the result is only prepared locally, is a draft or still needs publication.

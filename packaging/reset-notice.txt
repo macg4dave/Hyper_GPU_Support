@@ -1,7 +1,7 @@
-Close Hyper GPU Support and finish all operations before continuing.
+Setup installs Hyper GPU Support, its helper tools, licence notices and a Start menu shortcut.
 
-Installing or updating performs a clean reset of app-owned state. Setup archives protected state before removing the old protected registration, saved profiles, operation history and recovery records. Setup then resets the initiating user's preferences, display cache and remembered guest credentials. A new launch does not reset anything.
+Use the app to configure GPU support for your existing Hyper-V virtual machines.
 
-VM configuration, guest files, GPU drivers and other VM or guest state are preserved. Setup refuses to continue while an operation is active or when a safety check or archive fails. A previous unresolved recovery record remains in the protected archive; installation does not establish whether an interrupted operation completed.
+Close Hyper GPU Support before continuing. Installing or updating backs up protected app data, then clears saved app settings, profiles, history and remembered VM sign-in details. Your VMs and guest files are unchanged.
 
-Start Setup normally from your Windows account and allow its UAC prompt when requested. Do not start it from an elevated terminal or use Run as administrator: Setup needs to identify the user whose preferences it will reset.
+Start Setup normally and approve the Windows administrator prompt when asked.

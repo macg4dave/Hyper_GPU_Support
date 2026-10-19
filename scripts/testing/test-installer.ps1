@@ -1,9 +1,11 @@
-<# Compile and inspect isolated fixtures only; never launch Setup or a helper. #>
+<# Compile packages and exercise helper launching with isolated fixtures only. #>
 [CmdletBinding()]
 param([Parameter(Mandatory = $true)][string]$IsccPath)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+& (Join-Path $PSScriptRoot 'test-installer-helper.ps1') -IsccPath $IsccPath
+if (-not $?) { throw 'Installer helper execution checks failed.' }
 $builder = Join-Path $root 'scripts/build-installer.ps1'
 $fixture = Join-Path ([System.IO.Path]::GetTempPath()) ('HyperGpuSupport-installer-tests-' + [guid]::NewGuid().ToString('N'))
 $payload = Join-Path $fixture 'payload'

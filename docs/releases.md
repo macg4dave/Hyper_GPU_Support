@@ -27,6 +27,8 @@ Building and extracting packages does not run Setup or modify installed applicat
 
 ## Preparing and publishing an update
 
+Keep a short, user-facing summary for each version in [CHANGELOG.md](../CHANGELOG.md), grouping related work rather than listing commits. Reuse that version's summary in the GitHub release notes. Agent instructions for this process are in the [release prompt](../.github/prompts/release.prompt.md).
+
 1. Review the source and [third-party notices](../licenses/THIRD_PARTY_NOTICES.md), update the product and maintenance-helper Cargo versions together, and create the reviewed tag `v<Cargo version>` through your normal Git process. Only numeric three-part versions such as `v0.5.0` are supported.
 2. Run **Prepare unsigned Windows release** manually from the reviewed `main` branch, with the existing release tag as its `tag` input. For example: `gh workflow run release.yml --ref main -f tag=v0.5.0`. The workflow checks out that exact tag separately from its release tooling, verifies its commit and Cargo version, and records both source and workflow commits in the run summary. This allows CI environment repairs without moving a release tag. It uses a GitHub-hosted Windows runner and hash-pinned portable Inno Setup 6.7.3 and innounp 2.67.11. No SignPath secrets, variables or GitHub environment are required.
 3. The workflow builds both packages from the same payload, checks product/version metadata and unsigned status, and extracts the ZIP and installer without running them. Every normal and temporary installer payload file must match the staged files. Missing files, unexpected files, changed bytes, invalid versions or compilation failures stop preparation before any release-ready artifact is uploaded.
@@ -52,4 +54,14 @@ powershell -NoProfile -File scripts/testing/test-installer.ps1 -IsccPath 'C:\pat
 powershell -NoProfile -File scripts/release/test-release.ps1
 ```
 
-These checks do not run Setup or access live app state. Installer compilation and archive inspection do not establish installation, upgrade, uninstall, UAC, alternate-administrator identity, runner enrolment or VM/guest acceptance. Those remain separate explicitly authorised steps.
+The installer checks run a small Inno harness with a fake maintenance helper in a temporary folder. It exercises the production helper launcher, including a folder the normal user can read but cannot write, non-zero exit codes and missing executables. It installs nothing and does not access live app state. The package checks also compile Setup and inspect its contents.
+
+Full installation, upgrade, uninstall, UAC, alternate-administrator identity, runner enrolment and VM/guest checks remain separate explicitly authorised steps. Setup now saves a Windows Setup log automatically for diagnosing installation failures.
+
+To test a real installation on a prepared Windows PC, run:
+
+```powershell
+powershell -NoProfile -File scripts/testing/test-install-uninstall.ps1 -SetupPath 'C:\build\HyperGpuSupport-0.5.0-windows-x64-unsigned-setup.exe' -PayloadDirectory 'C:\build\payload'
+```
+
+This installs the app, checks its file hashes, shortcut and Windows Installed apps entry, runs the generated uninstaller, checks removal of app files and background registration, then reinstalls it. It requests administrator permission and resets app data. Protected backups are retained. It does not launch the app or change VMs or guest files.
