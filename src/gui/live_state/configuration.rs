@@ -46,7 +46,9 @@ impl State {
     pub fn saved_desired_text(&self, id: &str) -> String {
         match self.committed.revision(id) {
             Ok(_) => self.view.saved_desired_text(id),
-            Err(_) => "Committed configuration unavailable; saved intent is unknown. Editing is blocked until the file can be read and validated.".into(),
+            Err(_) => {
+                hyper_gpu_support::ui_text::dashboard::editing::configuration_unavailable().into()
+            }
         }
     }
 

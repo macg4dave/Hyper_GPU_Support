@@ -21,7 +21,9 @@ pub(super) fn start_recovery(
 ) -> Result<(), String> {
     review_records(
         ui,
-        &mut *state.lock().map_err(|_| "Presentation state unavailable")?,
+        &mut *state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?,
         true,
     )
 }
@@ -37,10 +39,14 @@ pub(super) fn continue_recovery(
     #[cfg(windows)]
     {
         let (permission, import, save, operation) = {
-            let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+            let state = state.lock().map_err(|_| {
+                hyper_gpu_support::ui_text::common::state::presentation_unavailable()
+            })?;
             let selected = ui.get_selected_id();
             if ui.get_recovery_vm_id() != selected {
-                return Err("The inspected VM changed. Close this view and check its recorded outcome again.".into());
+                return Err(
+                    hyper_gpu_support::ui_text::operations::recovery::inspected_vm_changed().into(),
+                );
             }
             let record = state.recovery_for_vm(selected.as_str());
             (
@@ -63,7 +69,9 @@ pub(super) fn continue_recovery(
         if import {
             return review_records(
                 ui,
-                &mut *state.lock().map_err(|_| "Presentation state unavailable")?,
+                &mut *state.lock().map_err(|_| {
+                    hyper_gpu_support::ui_text::common::state::presentation_unavailable()
+                })?,
                 true,
             );
         }
@@ -75,14 +83,16 @@ pub(super) fn continue_recovery(
         }
         review_records(
             ui,
-            &mut *state.lock().map_err(|_| "Presentation state unavailable")?,
+            &mut *state.lock().map_err(|_| {
+                hyper_gpu_support::ui_text::common::state::presentation_unavailable()
+            })?,
             false,
         )
     }
     #[cfg(not(windows))]
     {
         let _ = (ui, state, busy, source);
-        Err("Recovery requires Windows".into())
+        Err(hyper_gpu_support::ui_text::common::errors::windows_required_recovery().into())
     }
 }
 
@@ -95,7 +105,7 @@ pub(super) fn review_records(
         dialog(
             ui,
             "info",
-            hyper_gpu_support::ui_text::operations::configuration_import::recovery::TITLE,
+            hyper_gpu_support::ui_text::operations::configuration_import::recovery::title(),
             &hyper_gpu_support::ui_text::operations::configuration_import::recovery::body(
                 &(record.operation_id),
                 record.documents.len(),
@@ -118,7 +128,7 @@ pub(super) fn review_records(
         .filter(|text| !text.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n");
-    let provenance = hyper_gpu_support::ui_text::operations::inventory::PROVENANCE;
+    let provenance = hyper_gpu_support::ui_text::operations::inventory::provenance();
     let can_continue = recovery
         && (state
             .recovery_for_vm(ui.get_selected_id().as_str())
@@ -127,17 +137,15 @@ pub(super) fn review_records(
     dialog(
         ui,
         if can_continue { "recovery" } else { "info" },
-        hyper_gpu_support::ui_text::operations::inventory::DETAILS_TITLE,
+        hyper_gpu_support::ui_text::operations::inventory::details_title(),
         &if can_continue {
-            hyper_gpu_support::ui_text::operations::recovery::inspection::BODY.to_owned()
+            hyper_gpu_support::ui_text::operations::recovery::inspection::body().to_owned()
         } else if !failure.is_empty() {
             failure.to_string()
         } else if state.view.inventory.is_none() {
-            hyper_gpu_support::ui_text::operations::inventory::INITIAL_NOTICE.to_owned()
+            hyper_gpu_support::ui_text::operations::inventory::initial_notice().to_owned()
         } else {
-            format!(
-                "{provenance}\n\nTechnical Details contains the host observation, recorded history and authorization from that inventory. Missing or old records do not establish current guest health. Opening these details performs no new checks or changes."
-            )
+            hyper_gpu_support::ui_text::operations::recovery::records_body(provenance).into_string()
         },
     );
     set_details(ui, &body);
@@ -156,21 +164,23 @@ pub(super) fn reconcile_live(
 ) -> Result<(), String> {
     let record = state
         .lock()
-        .map_err(|_| "Presentation state unavailable")?
+        .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?
         .recovery_for_vm(ui.get_selected_id().as_str())
         .cloned()
-        .ok_or("No reviewed operation recovery is loaded")?;
+        .ok_or(hyper_gpu_support::ui_text::operations::recovery::not_loaded())?;
     let progress = progress_to_ui(ui.as_weak());
     let finished_state = state.clone();
     let target = record.target.clone();
     let publication = record.publication_required;
     let recovery_vm_id = target.vm_id.clone();
     let (vm_name, restored_candidate) = {
-        let s = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let s = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         let vm = s
             .view
             .vm(&target.vm_id)
-            .ok_or("Recovery VM unavailable; Refresh first")?;
+            .ok_or(hyper_gpu_support::ui_text::operations::recovery::vm_unavailable())?;
         (vm.name.clone(), s.recovery_without_guest(&record)?)
     };
     let prompt_name = vm_name.clone();
@@ -182,7 +192,7 @@ pub(super) fn reconcile_live(
         busy,
         Operation::new(
             Kind::Reconcile,
-            hyper_gpu_support::ui_text::operations::recovery::PROGRESS_TITLE,
+            hyper_gpu_support::ui_text::operations::recovery::progress_title(),
         ),
         Some(&vm_name),
         record.requires_graphics() && !restored_candidate,
@@ -232,36 +242,40 @@ pub(super) fn reconcile_live(
                 Ok(outcome) if outcome.finished && outcome.operation.is_none() => dialog(
                     ui,
                     "recovery-ended",
-                    hyper_gpu_support::ui_text::operations::recovery::ended::TITLE,
-                    hyper_gpu_support::ui_text::operations::recovery::ended::BODY,
+                    hyper_gpu_support::ui_text::operations::recovery::ended::title(),
+                    hyper_gpu_support::ui_text::operations::recovery::ended::body(),
                 ),
                 Ok(outcome) if outcome.finished => dialog(
                     ui,
                     "info",
-                    hyper_gpu_support::ui_text::operations::recovery::confirmed::TITLE,
-                    hyper_gpu_support::ui_text::operations::recovery::confirmed::BODY,
+                    hyper_gpu_support::ui_text::operations::recovery::confirmed::title(),
+                    hyper_gpu_support::ui_text::operations::recovery::confirmed::body(),
                 ),
                 Ok(outcome) => dialog(
                     ui,
                     "save",
-                    hyper_gpu_support::ui_text::operations::recovery::unsaved::TITLE,
-                    &format!(
-                        "{}\nRetry configuration saving only.",
-                        outcome.save_error.unwrap_or_default()
+                    hyper_gpu_support::ui_text::operations::recovery::unsaved::title(),
+                    &hyper_gpu_support::ui_text::operations::recovery::unsaved::body(
+                        &outcome.save_error.unwrap_or_default(),
                     ),
                 ),
                 Err(error) => {
                     dialog(
                         ui,
                         "error",
-                        hyper_gpu_support::ui_text::operations::recovery::blocked::TITLE,
+                        hyper_gpu_support::ui_text::operations::recovery::blocked::title(),
                         &error,
                     );
                     ui.set_dialog_kind("recovery-blocked".into());
-                    ui.set_dialog_body(format!(
-                        "{}\nUse Retry status update to read the current facts. Delete profile instead reviews deletion of this VM's app settings, pairing, history and interrupted-operation records. It leaves the VM, GPU support and guest files unchanged.",
-                        hyper_gpu_support::reporting::operator_error(hyper_gpu_support::ui_text::operations::recovery::FAILURE_STAGE, &error),
-                    ).into());
+                    ui.set_dialog_body(
+                        hyper_gpu_support::ui_text::operations::recovery::blocked::body(
+                            &hyper_gpu_support::reporting::operator_error(
+                                hyper_gpu_support::ui_text::operations::recovery::failure_stage(),
+                                &error,
+                            ),
+                        )
+                        .into(),
+                    );
                     ui.set_recovery_vm_id(recovery_vm_id.clone().into());
                     ui.set_recovery_heading(
                         hyper_gpu_support::ui_text::operations::action::review_prompt(
@@ -293,5 +307,5 @@ pub(super) fn reconcile_live(
     _: &SharedState,
     _: &Arc<AtomicBool>,
 ) -> Result<(), String> {
-    Err("Reconciliation requires Windows".into())
+    Err(hyper_gpu_support::ui_text::common::errors::windows_required_reconciliation().into())
 }

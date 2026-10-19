@@ -22,6 +22,10 @@ export component AppWindow inherits Window {
     in-out property <float> startup-progress: 0;
     in-out property <int> page: 0;
     in-out property <int> theme-index: 0;
+    // Language picker: entry 0 follows Windows, then each compiled language.
+    in property <[string]> language-options;
+    in-out property <int> language-index: 0;
+    callback language-selected(int);
     in-out property <bool> execution-ready: false;
     in-out property <bool> updating: false;
     in-out property <string> focus-return-action;
@@ -219,7 +223,7 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
-                if root.page != 0 : Pages { page <=> root.page; system-summary: root.system-summary; gpu-information: root.gpu-information; theme-index <=> root.theme-index; action(a) => { root.action(a); } }
+                if root.page != 0 : Pages { page <=> root.page; system-summary: root.system-summary; gpu-information: root.gpu-information; theme-index <=> root.theme-index; language-options: root.language-options; language-index <=> root.language-index; language-selected(i) => { root.language-selected(i); } action(a) => { root.action(a); } }
             }
         }
         Rectangle { height: 30px; background: Theme.surface;

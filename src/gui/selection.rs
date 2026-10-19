@@ -19,11 +19,11 @@ fn read(path: &Path) -> Option<String> {
 #[cfg(any(windows, test))]
 fn write(path: &Path, id: &str) -> Result<(), String> {
     if !valid_vm_id(id) {
-        return Err("Selection preference requires a VM GUID".into());
+        return Err(hyper_gpu_support::ui_text::common::errors::selection_requires_guid().into());
     }
     fs::create_dir_all(
         path.parent()
-            .ok_or("Selection preference directory unavailable")?,
+            .ok_or(hyper_gpu_support::ui_text::common::errors::selection_directory_unavailable())?,
     )
     .map_err(|e| e.to_string())?;
     fs::write(path, id.to_ascii_lowercase()).map_err(|e| e.to_string())
@@ -31,8 +31,8 @@ fn write(path: &Path, id: &str) -> Result<(), String> {
 
 #[cfg(windows)]
 fn path() -> Result<std::path::PathBuf, String> {
-    let directory =
-        std::env::var_os("LOCALAPPDATA").ok_or("Local user preference directory unavailable")?;
+    let directory = std::env::var_os("LOCALAPPDATA")
+        .ok_or(hyper_gpu_support::ui_text::common::errors::preference_directory_unavailable())?;
     Ok(std::path::PathBuf::from(directory).join("HyperGpuSupport/selected-vm.txt"))
 }
 

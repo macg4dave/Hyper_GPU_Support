@@ -65,11 +65,11 @@ impl Progress {
         } else {
             event.status
         } {
-            Status::Running => "In progress",
-            Status::Done => ui_text::progress::status::COMPLETE,
-            Status::Failed => ui_text::progress::status::FAILED,
+            Status::Running => ui_text::progress::status::in_progress(),
+            Status::Done => ui_text::progress::status::complete(),
+            Status::Failed => ui_text::progress::status::failed(),
         };
-        let line = format!("{label} \u{00b7} {status}");
+        let line = ui_text::progress::status::line(label, status).into_string();
         let transfer = event.identity == Identity::Transfer && event.status == Status::Running;
         if let Some(slot) = log_slot {
             // A start and its terminal status describe one execution. A fresh
@@ -142,7 +142,7 @@ pub(super) fn context(ui: &AppWindow, gpu_name: &str, target: &Target) {
             .vram
             .as_ref()
             .map_or_else(
-                || ui_text::common::allocation::PROVIDER_DEFAULT.to_owned(),
+                || ui_text::common::allocation::provider_default().to_owned(),
                 |vram| crate::gui::memory::format_gb(vram.optimal),
             )
             .into(),
@@ -159,45 +159,54 @@ pub(super) fn completion(
     final_power: &Power,
     checks_required: bool,
 ) -> Result<(String, Vec<InstallFact>), String> {
-    let operation = operation.filter(|operation| {
-        finished && published && (!checks_required || operation.verified)
-            && operation.effective.vm_id == target.vm_id
-            && if target.enabled { operation.effective.gpus == [target.gpu_interface.clone()] && target.allocations_match(&operation.effective) } else { operation.effective.gpus.is_empty() }
-            && operation.effective.power == *final_power
-            && matches!(final_power, Power::Off | Power::Running)
-    }).ok_or("The terminal installation result could not be confirmed. Refresh and inspect recovery before trying again; do not repeat Apply.")?;
+    let operation = operation
+        .filter(|operation| {
+            finished
+                && published
+                && (!checks_required || operation.verified)
+                && operation.effective.vm_id == target.vm_id
+                && if target.enabled {
+                    operation.effective.gpus == [target.gpu_interface.clone()]
+                        && target.allocations_match(&operation.effective)
+                } else {
+                    operation.effective.gpus.is_empty()
+                }
+                && operation.effective.power == *final_power
+                && matches!(final_power, Power::Off | Power::Running)
+        })
+        .ok_or(ui_text::dialogs::install::unconfirmed())?;
     let fact = |label: &str, value: String| InstallFact {
         label: label.into(),
         value: value.into(),
     };
     let mut facts = vec![
         fact(
-            text::SUPPORT,
+            text::support(),
             if target.enabled {
-                ui_text::common::support::ENABLED
+                ui_text::common::support::enabled()
             } else {
-                ui_text::common::support::DISABLED
+                ui_text::common::support::disabled()
             }
             .into(),
         ),
-        fact(text::GPU, gpu_name.into()),
+        fact(text::gpu(), gpu_name.into()),
         fact(
-            text::PREPARATION,
+            text::preparation(),
             if operation.prepared {
-                text::PREPARED
+                text::prepared()
             } else if checks_required {
-                text::UNCHANGED
+                text::unchanged()
             } else {
-                text::NOT_REQUIRED
+                text::not_required()
             }
             .into(),
         ),
         fact(
-            text::CHECKS,
+            text::checks(),
             if operation.verified {
-                text::PREPARED
+                text::prepared()
             } else {
-                text::NOT_REQUIRED
+                text::not_required()
             }
             .into(),
         ),
@@ -206,9 +215,9 @@ pub(super) fn completion(
         facts.insert(
             2,
             fact(
-                text::MEMORY,
+                text::memory(),
                 target.vram.as_ref().map_or_else(
-                    || ui_text::common::allocation::PROVIDER_DEFAULT.into(),
+                    || ui_text::common::allocation::provider_default().into(),
                     |value| crate::gui::memory::format_gb(value.optimal),
                 ),
             ),
@@ -216,9 +225,9 @@ pub(super) fn completion(
     }
     Ok((
         if operation.effective.power == Power::Off {
-            text::SUCCESS_OFF
+            text::success_off()
         } else {
-            text::SUCCESS_RUNNING
+            text::success_running()
         }
         .into(),
         facts,
@@ -292,7 +301,7 @@ mod tests {
             true,
         )
         .unwrap();
-        assert_eq!(body, text::SUCCESS_OFF);
+        assert_eq!(body, text::success_off());
         assert_eq!(facts[1].value, "GPU {name}");
         assert_eq!(facts[2].value, "7 GB");
         operation.verified = false;
@@ -320,8 +329,8 @@ mod tests {
             false,
         )
         .unwrap();
-        assert_eq!(ordinary[3].value, text::NOT_REQUIRED);
-        assert_eq!(ordinary[4].value, text::NOT_REQUIRED);
+        assert_eq!(ordinary[3].value, text::not_required());
+        assert_eq!(ordinary[4].value, text::not_required());
         assert!(
             completion(
                 &target,
@@ -348,8 +357,8 @@ mod tests {
             false,
         )
         .unwrap();
-        assert_eq!(facts[0].value, ui_text::common::support::DISABLED);
-        assert!(!facts.iter().any(|fact| fact.label == text::MEMORY));
+        assert_eq!(facts[0].value, ui_text::common::support::disabled());
+        assert!(!facts.iter().any(|fact| fact.label == text::memory()));
         assert!(
             completion(
                 &disabled,
@@ -465,7 +474,7 @@ mod tests {
         );
         assert!(progress.log.iter().all(|line| !line.starts_with("00:")));
         assert_eq!(progress.log.len(), 6, "one line per actual execution");
-        assert!(progress.log[2].ends_with(ui_text::progress::status::FAILED));
+        assert!(progress.log[2].ends_with(ui_text::progress::status::failed()));
         assert!(progress.log[5].ends_with("In progress"));
     }
 

@@ -4,6 +4,7 @@ Follow [AGENTS.md](../../AGENTS.md). Apply to `.slint` changes, Rust UI wiring a
 
 - Check the pinned Slint version; use the matching official Slint docs for uncertain APIs.
 - Keep the existing design and reusable components. Split components by responsibility; avoid one growing UI/controller file.
+- Put all user-visible GUI wording in the [catalogue](../../resources/i18n/README.md) (`en-GB` first); use `UiText` in Slint and `ui_text` accessors in Rust, never hard-coded text.
 - Keep business logic, validation, and effects in Rust. Slint renders state and forwards interactions through typed properties/callbacks; reuse existing bindings.
 - Use explicit property directions, reactive bindings, unit-correct values, and layouts. Avoid competing geometry bindings, binding loops, and hardcoded positioning where layout suffices.
 - Run blocking work off the UI thread. Return updates through the Slint event loop with weak handles; ignore obsolete completions.
@@ -23,7 +24,7 @@ Prefer Slint's embedded MCP interface for this application's GUI journeys. Use i
    cargo build --locked --bins --features slint/mcp
    ```
 
-   Keep `mcp` out of `Cargo.toml`. Locate the actual Cargo output directory, including any `CARGO_TARGET_DIR` override. Install the four artifacts through the supported protected installer and verify installed hashes against enrollment pins. For Windows GUI-subsystem CLI commands, use `Start-Process -Wait -PassThru` with redirected output to obtain the actual exit code; direct PowerShell invocation may return before the process finishes.
+   Keep `mcp` out of `Cargo.toml`. Locate the actual Cargo output directory, including any `CARGO_TARGET_DIR` override. Install the four artifacts with `cargo run -p app-install -- --skip-build` ([Install](../../README.md#install)) and verify installed hashes against enrollment pins. For Windows GUI-subsystem CLI commands, use `Start-Process -Wait -PassThru` with redirected output to obtain the actual exit code; direct PowerShell invocation may return before the process finishes.
 
 2. Launch the installed executable without arguments, using a free local port via process-scoped `SLINT_MCP_PORT` (for example `9315`). Keep the ordinary GUI backend. Record the inspection feature/build identity separately from the ordinary-feature automated gate and release candidate. Remove temporary environment overrides after launch/build.
 

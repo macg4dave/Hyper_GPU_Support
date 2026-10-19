@@ -15,7 +15,7 @@ impl State {
             || !self.enrolled(expected)
         {
             return Err(
-                "The target, draft or GPU management permission changed. Review again.".into(),
+                hyper_gpu_support::ui_text::operations::enrollment::permission_changed().into(),
             );
         }
         self.editor_eligibility(&current.vm_id)?;
@@ -35,7 +35,10 @@ impl State {
             || current.vm_id != pair.vm_id
             || current.gpu_interface != pair.gpu_interface
         {
-            return Err("Selection, draft or pairing changed during permission preparation. Refresh before trying again.".into());
+            return Err(
+                hyper_gpu_support::ui_text::operations::enrollment::changed_during_preparation()
+                    .into(),
+            );
         }
         self.editor_eligibility(&current.vm_id)?;
         self.view.proposal_eligibility(current)
@@ -55,7 +58,8 @@ impl State {
             || self.committed.revision(&current.vm_id)? != *revision
         {
             return Err(
-                "The target, draft or saved settings changed while planning. Review again.".into(),
+                hyper_gpu_support::ui_text::operations::apply::review::changed_while_planning()
+                    .into(),
             );
         }
         Ok(())

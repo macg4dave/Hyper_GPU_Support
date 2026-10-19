@@ -19,15 +19,18 @@ impl State {
                     .ok()
                     .and_then(|index| inventory.discovery.gpus.get(index))
             })
-            .ok_or("Selected GPU is unavailable. Use Refresh to retry.")?;
+            .ok_or(hyper_gpu_support::ui_text::dashboard::editing::gpu_unavailable())?;
         let limits = gpu
             .limits(Resource::Vram)
-            .ok_or("VRAM bounds are unavailable. Use Refresh to retry.")?;
-        let current = memory::request(values.get(..3).ok_or("VRAM fields are unavailable.")?)?;
+            .ok_or(hyper_gpu_support::ui_text::dashboard::editing::vram_bounds_unavailable())?;
+        let current =
+            memory::request(values.get(..3).ok_or(
+                hyper_gpu_support::ui_text::dashboard::editing::vram_fields_unavailable(),
+            )?)?;
         let capacity = gpu
             .physical_vram_bytes
             .filter(|bytes| *bytes > 0)
-            .ok_or("Physical VRAM capacity could not be matched to the selected GPU. Use raw Advanced Allocation within the provider range.")?;
+            .ok_or(hyper_gpu_support::ui_text::dashboard::editing::capacity_unmatched())?;
         memory::MemorySlider::new(limits, current.as_ref(), capacity)
     }
 
@@ -41,7 +44,7 @@ impl State {
     ) -> Result<Vec<String>, String> {
         self.editor_eligibility(id)?;
         if values.len() != 12 {
-            return Err("Expected four complete allocation triples".into());
+            return Err(hyper_gpu_support::ui_text::dashboard::editing::triples_expected().into());
         }
         let allocation = self.memory_slider(gpu_index, values)?.select(position)?;
         let mut edited = values.to_vec();
@@ -61,7 +64,7 @@ impl State {
     ) -> Result<Vec<String>, String> {
         self.editor_eligibility(id)?;
         if values.len() != 12 {
-            return Err("Expected four complete allocation triples".into());
+            return Err(hyper_gpu_support::ui_text::dashboard::editing::triples_expected().into());
         }
         let allocation = self.memory_slider(gpu_index, values)?.select_gb(text)?;
         let mut edited = values.to_vec();
@@ -100,9 +103,7 @@ impl State {
                 .as_ref()
                 .is_some_and(|i| i.enrolled.iter().any(|t| t.vm_id == target.vm_id))
         {
-            return Err(
-                "This selected GPU is not enrolled. Changing an enrolled GPU requires the separate replacement transition, which is not connected yet.".into(),
-            );
+            return Err(hyper_gpu_support::ui_text::dashboard::editing::gpu_not_enrolled().into());
         }
         self.view.draft_eligibility(target)
     }
@@ -110,19 +111,22 @@ impl State {
     pub fn editor_eligibility(&self, id: &str) -> Result<(), String> {
         if !self.view.needs_readback && self.observation_historical(id) {
             return Err(
-                "Current VM status is unavailable. Refresh before editing or reviewing changes."
-                    .into(),
+                hyper_gpu_support::ui_text::dashboard::editing::status_unavailable().into(),
             );
         }
         if self.authority_conflict.as_deref() == Some(id) {
-            return Err("Protected enrollment changed. Draft preserved; discard and Refresh before a new enrollment review.".into());
+            return Err(
+                hyper_gpu_support::ui_text::dashboard::editing::enrollment_changed().into(),
+            );
         }
         if self.committed_conflict.as_deref() == Some(id) {
-            return Err("Committed configuration changed or became unavailable. Draft preserved; discard it to reload the latest committed intent.".into());
+            return Err(
+                hyper_gpu_support::ui_text::dashboard::editing::configuration_changed().into(),
+            );
         }
         if self.blocks_vm(id) {
             return Err(
-                "This VM or shared authority requires reconciliation or a save-only retry.".into(),
+                hyper_gpu_support::ui_text::dashboard::editing::reconciliation_required().into(),
             );
         }
         if self
@@ -131,7 +135,7 @@ impl State {
             .as_ref()
             .is_some_and(|inventory| inventory.recorded_state(id).recovery_required)
         {
-            return Err("The selected VM has pending or inconsistent managed recovery. Inspect and reconcile it before editing or reviewing new changes.".into());
+            return Err(hyper_gpu_support::ui_text::dashboard::editing::recovery_pending().into());
         }
         self.committed.revision(id)?;
         let mut pair = self.target(id)?;
@@ -163,22 +167,30 @@ impl State {
             .view
             .inventory
             .as_ref()
-            .ok_or("Refresh inventory first.")?;
+            .ok_or(hyper_gpu_support::ui_text::dashboard::eligibility::refresh_inventory())?;
         let gpu = usize::try_from(gpu_index)
             .ok()
             .and_then(|i| inventory.discovery.gpus.get(i))
-            .ok_or("Select an available physical GPU.")?;
+            .ok_or(hyper_gpu_support::ui_text::dashboard::editing::select_gpu())?;
         target.gpu_interface = gpu.interface.clone();
         target.enabled = enabled;
         if values.len() != 12 {
-            return Err("Expected four complete allocation triples".into());
+            return Err(hyper_gpu_support::ui_text::dashboard::editing::triples_expected().into());
         }
         for (resource, values) in Resource::ALL.into_iter().zip(values.chunks_exact(3)) {
             let value = if values.iter().all(|v| v.trim().is_empty()) {
                 None
             } else {
-                let parsed = values.iter().map(|v| v.trim().parse::<u64>()
-                    .map_err(|_| format!("Enter all three {} values as unsigned provider integers, or leave all three empty.", resource.name())))
+                let parsed = values
+                    .iter()
+                    .map(|v| {
+                        v.trim().parse::<u64>().map_err(|_| {
+                            hyper_gpu_support::ui_text::dashboard::editing::integers_required(
+                                resource.name(),
+                            )
+                            .into_string()
+                        })
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 Some(Allocation {
                     minimum: parsed[0],
@@ -200,12 +212,14 @@ impl State {
         values: &[String],
     ) -> Result<Target, String> {
         if self.view.selected.as_deref() != Some(id) {
-            return Err("The selected VM changed; review removal again.".into());
+            return Err(
+                hyper_gpu_support::ui_text::dashboard::editing::removal_vm_changed().into(),
+            );
         }
         let target = self.draft(id, false, gpu_index, values)?;
         if !self.enrolled(&target) {
             return Err(
-                "GPU removal requires this exact authorized VM/GPU pair; no enrollment or guest work was performed.".into(),
+                hyper_gpu_support::ui_text::dashboard::editing::removal_pair_required().into(),
             );
         }
         Ok(target)

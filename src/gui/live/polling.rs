@@ -46,12 +46,11 @@ impl Polling {
         }
     }
     pub(super) fn foreground(self: &Arc<Self>) -> Result<Foreground, String> {
-        let mut reads = self
-            .reads
-            .lock()
-            .map_err(|_| "Read admission unavailable")?;
+        let mut reads = self.reads.lock().map_err(|_| {
+            hyper_gpu_support::ui_text::common::errors::read_admission_unavailable()
+        })?;
         if reads.foreground.is_some() {
-            return Err("A protected reader has not confirmed release".into());
+            return Err(hyper_gpu_support::ui_text::common::errors::reader_unreleased().into());
         }
         self.generation.fetch_add(1, Ordering::AcqRel);
         if let Some((_, poll)) = &reads.poll {
@@ -131,21 +130,23 @@ impl Foreground {
         action: impl FnOnce() -> Result<T, String>,
     ) -> Result<T, String> {
         let started = std::time::Instant::now();
-        let mut reads = self
-            .polling
-            .reads
-            .lock()
-            .map_err(|_| "Read admission unavailable")?;
+        let mut reads = self.polling.reads.lock().map_err(|_| {
+            hyper_gpu_support::ui_text::common::errors::read_admission_unavailable()
+        })?;
         while reads.poll.is_some() {
             self.control.check()?;
             if started.elapsed() >= wait {
-                return Err("A protected reader has not confirmed release. Wait for the earlier status check to finish, then refresh before requesting another operation.".into());
+                return Err(
+                    hyper_gpu_support::ui_text::common::errors::reader_unreleased_wait().into(),
+                );
             }
             reads = self
                 .polling
                 .released
                 .wait_timeout(reads, Duration::from_millis(25))
-                .map_err(|_| "Read release observation unavailable")?
+                .map_err(|_| {
+                    hyper_gpu_support::ui_text::common::errors::release_observation_unavailable()
+                })?
                 .0;
         }
         drop(reads);

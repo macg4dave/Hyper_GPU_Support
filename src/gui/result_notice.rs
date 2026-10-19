@@ -13,10 +13,8 @@ impl ResultNotice {
         self.vm_id == vm_id
     }
     pub fn unavailable_body(&self, error: &str) -> String {
-        format!(
-            "{}\n\nCurrent VM status is unavailable: {error}\nRetry the status update before another review.",
-            self.body
-        )
+        hyper_gpu_support::ui_text::dashboard::refresh::status_unavailable(&self.body, error)
+            .into_string()
     }
 }
 

@@ -1,2104 +1,510 @@
-schema = 1
-locale = "en-GB"
-feature = "operations"
+# Operation review, progress and results. British English is the reference catalogue:
+# it defines every key and argument; other languages translate the text only.
 
-[messages."operations.plan.read_history"]
-text = "Reading current VM, GPU and preparation history"
-screen = "review_operation presentation (src/gui/live.rs)"
-state = "Selected branch: operations.plan.read_history"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
+[action]
+menu_title = "More Actions"
+not_connected = "This action is not connected yet. Use the supported CLI; no operation was performed."
+setup_unavailable = "Use Refresh to check application setup and worker availability. Your edits are kept."
+unavailable_title = "Action unavailable"
+unreadable_title = "Cannot read action availability"
 
-[messages."operations.plan.authenticate"]
-text = "Reading current VM and authenticating signed driver files"
-screen = "review_operation presentation (src/gui/live.rs)"
-state = "Selected branch: operations.plan.authenticate"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.plan.check_worker"]
-text = "Checking protected worker availability"
-screen = "review_operation presentation (src/gui/live.rs)"
-state = "Selected branch: operations.plan.check_worker"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.action.menu_title"]
-text = "More Actions"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.action.menu_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.action.review_prompt"]
+[action.review_prompt]
+args = ["vm_name: text"]
 text = "Virtual machine: {vm_name}"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.action.review_prompt"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.action.setup_unavailable"]
-text = "Use Refresh to check application setup and worker availability. Your edits are kept."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.action.setup_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply]
+failure_stage = "Applying changes"
+guest_progress = "Applying the changes you reviewed, including any required driver preparation and GPU setup checks. Successful completion leaves the VM off."
+host_progress = "Applying the reviewed GPU changes and checking host readback. The VM will be left off after successful completion. No guest credentials, preparation or graphics check are required."
+may_have_completed = "Changes may have completed. Inspect current status and recovery before another operation."
+next_inspect = " Inspect the failure before starting another operation."
+next_recovery = " Choose Review recovery before another operation; do not repeat Apply while recovery is required."
+progress_title = "Applying GPU changes"
+remove_title = "Remove GPU support"
+setup_title = "Set up GPU support"
+stage_absent = "No execution stage was reported."
+worker_unavailable = "The reviewed protected worker is not available."
 
-[messages."operations.action.unavailable_title"]
-text = "Action unavailable"
-screen = "with_state presentation (src/gui/live.rs)"
-state = "Selected branch: operations.action.unavailable_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.failure_context]
+args = ["stage: text", "power: text", "next: message"]
+text = "{stage}\nCurrent VM status was refreshed automatically. Power: {power}. Your draft is retained.{next}"
 
-[messages."operations.action.unreadable_title"]
-text = "Cannot read action availability"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.action.unreadable_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.last_stage]
+args = ["stage: text"]
+text = "Last reported step: {stage}"
 
-[messages."operations.apply.completed.body"]
-text = "{vm_name}: GPU assignment, requested settings and final-off state were confirmed; your settings were saved. No guest graphics check was run. Start the VM through Hyper-V when ready."
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.completed.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
-
-[messages."operations.apply.completed.title"]
-text = "GPU change confirmed and configuration saved"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.completed.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.failure_stage"]
-text = "Applying changes"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.failure_stage"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.guest_progress"]
-text = "Applying the changes you reviewed, including any required driver preparation and GPU setup checks. Successful completion leaves the VM off."
-screen = "guest_progress presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.apply.guest_progress"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.host_progress"]
-text = "Applying the reviewed GPU changes and checking host readback. The VM will be left off after successful completion. No guest credentials, preparation or graphics check are required."
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.host_progress"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.incomplete.title"]
-text = "Operation did not complete"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.incomplete.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.ordinary_review.body"]
-text = "Ordinary GPU change: no guest access or graphics check. Leave the VM off after success; start it through Hyper-V when ready."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.ordinary_review.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.power_consent"]
+[apply.power_consent]
+args = ["final_power: message"]
 text = "This action includes the planned starts/shutdowns; final state after successful completion: {final_power}."
-screen = "Apply review consent"
-state = "Reviewed power changes require consent"
-audience = "operator"
-intent = "Approve the reviewed lifecycle and disclose its successful final power."
-consequences = "Use the plan's final power; success is conditional, and the checkbox is separate authority."
-severity = "warning"
-space_hint = "Wrapped consent text; do not omit the conditional final-state fact."
-placeholders = [{ name = "final_power", type = "message" }]
 
-[messages."operations.apply.progress_title"]
-text = "Applying GPU changes"
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.completed]
+title = "GPU change confirmed and configuration saved"
 
-[messages."operations.apply.recovery.body"]
+[apply.completed.body]
+args = ["vm_name: text"]
+text = "{vm_name}: GPU assignment, requested settings and final-off state were confirmed; your settings were saved. No guest graphics check was run. Start the VM through Hyper-V when ready."
+
+[apply.incomplete]
+title = "Operation did not complete"
+
+[apply.ordinary_review]
+body = "Ordinary GPU change: no guest access or graphics check. Leave the VM off after success; start it through Hyper-V when ready."
+
+[apply.recovery]
+title = "Review interrupted GPU change"
+
+[apply.recovery.body]
+args = ["vm_name: text"]
 text = "Virtual machine: {vm_name}\n\nCheck the already-achieved GPU assignment, settings and final-off state without repeating changes or accessing the guest. Partial or changed state retains recovery. No guest boot, credential prompt or graphics check is required."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.recovery.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.apply.recovery.title"]
-text = "Review interrupted GPU change"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.recovery.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.review]
+category_no_write = "No explicit category write; new/recreated attachments use provider defaults"
+category_unspecified = "Unspecified; no explicit request"
+changed_while_planning = "The target, draft or saved settings changed while planning. Review again."
+downtime_warning = "The running VM will be interrupted. Save work inside it before Apply. Approval below is required."
+duration_unknown = "Completion time varies; no exact duration is promised. Keep the application open until it reports an outcome."
+memory_absent = "GPU memory: no explicit request.\n"
+no_effects = "No VM or guest changes are needed. Save the reviewed intent."
+power_time = "Allow time for Windows to start or shut down gracefully. Shutdown refusal stops further changes."
+recovery_required = "Interrupted work requires recovery before further changes."
+settings_preserved = "Externally changed compatibility settings will be preserved."
+steps_heading = "\nPlanned steps, in order:"
+title = "Review changes before Apply"
+transfer_time = "Driver preparation and file transfer can take several minutes."
+verify_time = "The graphics check may take additional time and requires Windows credentials inside this VM."
+vram_no_write = "No allocation write planned; existing/provider values are not explicitly reset"
+vram_unspecified = "Unspecified; no explicit VRAM request"
 
-[messages."operations.apply.review.category_no_write"]
-text = "No explicit category write; new/recreated attachments use provider defaults"
-screen = "review_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.category_no_write"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.review.body]
+args = ["vm_name: text", "vm_id: text", "gpu_interface: text", "support: message", "requested: text", "planned: text", "extended: text", "summary: text", "units: text"]
+text = "VM: {vm_name}\nVM ID: {vm_id}\nGPU interface: {gpu_interface}\nDesired GPU support: {support}\nVRAM draft (Minimum / Optimal / Maximum): {requested}\nPlanned allocation write: {planned}\n{extended}\n\n{summary}\n\nAllocation units: {units}\nConfiguration publication: schema 3, retaining schema-2 input compatibility.\n\nPreview from the shared CLI planner. No VM or guest changes have been performed during review."
 
-[messages."operations.apply.review.category_unspecified"]
-text = "Unspecified; no explicit request"
-screen = "review_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.category_unspecified"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.review.category]
+args = ["resource: text", "draft: text", "planned: text"]
+text = "{resource} draft (Minimum / Optimal / Maximum): {draft}\nPlanned {resource} write: {planned}"
 
-[messages."operations.apply.review.downtime_warning"]
-text = "The running VM will be interrupted. Save work inside it before Apply. Approval below is required."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.downtime_warning"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.duration_unknown"]
-text = "Completion time varies; no exact duration is promised. Keep the application open until it reports an outcome."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.duration_unknown"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.memory_absent"]
-text = "GPU memory: no explicit request.\n"
-screen = "memory_review presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.memory_absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.no_effects"]
-text = "No VM or guest changes are needed. Save the reviewed intent."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.no_effects"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.power_time"]
-text = "Allow time for Windows to start or shut down gracefully. Shutdown refusal stops further changes."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.power_time"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.recovery_required"]
-text = "Interrupted work requires recovery before further changes."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.recovery_required"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.settings_preserved"]
-text = "Externally changed compatibility settings will be preserved."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.settings_preserved"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.step.allocation"]
-text = "Set the GPU resources shown above."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.step.allocation"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.step.attach"]
-text = "Attach the selected physical GPU."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.step.attach"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.step.compatibility"]
-text = "Update or restore GPU compatibility settings."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.step.compatibility"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.step.detach"]
-text = "Remove the GPU attachment."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.step.detach"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.step.prepare"]
-text = "Prepare the guest with the current signed GPU driver files."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.step.prepare"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.step.check_os"]
-text = "Identify the running guest OS. GPU installation proceeds only on Windows 11; failed identification stops setup."
-screen = "review_summary presentation (src/gui/live_state/review_text.rs)"
-state = "GPU installation review"
-audience = "operator"
-intent = "Explain the read-only OS check before GPU and driver changes."
-consequences = "An off VM is started with reviewed consent; identification failure blocks installation."
-severity = "information"
-space_hint = "Use the existing scrolling review."
-placeholders = []
-
-[messages."operations.apply.review.step.shutdown"]
-text = "Gracefully stop the VM."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.step.shutdown"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.step.start"]
-text = "Start the VM."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.step.start"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.step.verify"]
-text = "Verify GPU setup: check driver files, setup record, device health and hardware rendering."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.step.verify"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.steps_heading"]
-text = "\nPlanned steps, in order:"
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.steps_heading"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.title"]
-text = "Review changes before Apply"
-screen = "review_operation presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.review.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.transfer_time"]
-text = "Driver preparation and file transfer can take several minutes."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.transfer_time"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.verify_time"]
-text = "The graphics check may take additional time and requires Windows credentials inside this VM."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.verify_time"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.apply.review.vm_heading"]
+[apply.review.vm_heading]
+args = ["vm_name: text"]
 text = "VM: {vm_name}"
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.vm_heading"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.apply.review.vram_no_write"]
-text = "No allocation write planned; existing/provider values are not explicitly reset"
-screen = "review_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.vram_no_write"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.review.step]
+allocation = "Set the GPU resources shown above."
+attach = "Attach the selected physical GPU."
+check_os = "Identify the running guest OS. GPU installation proceeds only on Windows 11; failed identification stops setup."
+compatibility = "Update or restore GPU compatibility settings."
+detach = "Remove the GPU attachment."
+prepare = "Prepare the guest with the current signed GPU driver files."
+shutdown = "Gracefully stop the VM."
+start = "Start the VM."
+verify = "Verify GPU setup: check driver files, setup record, device health and hardware rendering."
 
-[messages."operations.apply.review.vram_unspecified"]
-text = "Unspecified; no explicit VRAM request"
-screen = "review_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.apply.review.vram_unspecified"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.unsaved]
+title = "GPU change confirmed; configuration not saved"
 
-[messages."operations.apply.stage_absent"]
-text = "No execution stage was reported."
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.stage_absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[apply.unsaved.body]
+args = ["summary: message", "error: text"]
+text = "{summary}{error}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply."
 
-[messages."operations.apply.unsaved.effect_summary"]
+[apply.unsaved.effect_summary]
+args = ["vm_name: text"]
 text = "{vm_name}: GPU changes and final-off state were confirmed. No guest graphics check was run. The VM is off.\n"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.unsaved.effect_summary"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.apply.unsaved.title"]
-text = "GPU change confirmed; configuration not saved"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.apply.unsaved.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[background]
+reading = "Reading the information needed for this action…"
 
-[messages."operations.background.reading"]
-text = "Reading the information needed for this action…"
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.background.reading"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[configuration_import.recovery]
+title = "Configuration import requires reconciliation"
 
-[messages."operations.configuration_import.recovery.body"]
+[configuration_import.recovery.body]
+args = ["operation_id: text", "destination_count: usize", "published_count: usize"]
 text = "Import operation: {operation_id}\n{destination_count} destinations, {published_count} recorded as published. Resolve this explicit CLI import with import-reconcile --operation {operation_id}. Changed files block continuation; import never changes enrollment or GPU state."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.configuration_import.recovery.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "operation_id", type = "text" }, { name = "destination_count", type = "usize" }, { name = "published_count", type = "usize" }]
 
-[messages."operations.configuration_import.recovery.title"]
-text = "Configuration import requires reconciliation"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.configuration_import.recovery.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[credentials]
+cancelled_action = "No guest operation was started. Your pending edits are kept; this does not mean setup or verification completed. Review the action again when ready."
+cancelled_recovery = "No recovery action was started. The unfinished operation and its recovery hold remain. Your pending edits are kept. Review recovery again when ready."
+cancelled_title = "Guest credential request cancelled"
+guest_progress = "Managing this VM's optional saved sign-in details. This does not connect to the VM, prepare drivers or check graphics."
+unavailable_title = "Guest credentials unavailable"
 
-[messages."operations.credentials.absent.body"]
-text = "No stored credential is available. Apply or Verify will prompt locally when credentials are needed. Select Remember to store them in Windows Credential Manager."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.credentials.absent.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[credentials.absent]
+body = "No stored credential is available. Apply or Verify will prompt locally when credentials are needed. Select Remember to store them in Windows Credential Manager."
+title = "Guest credentials not retained"
 
-[messages."operations.credentials.absent.title"]
-text = "Guest credentials not retained"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.credentials.absent.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[credentials.stored]
+body = "A stored credential was confirmed in this user's Windows Credential Manager for the selected VM. No guest connection or graphics check was performed."
+title = "Stored guest credentials available"
 
-[messages."operations.credentials.cancelled_action"]
-text = "No guest operation was started. Your pending edits are kept; this does not mean setup or verification completed. Review the action again when ready."
-screen = "credential_cancellation presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.credentials.cancelled_action"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[draft.exit]
+body = "Keep editing or discard the in-memory draft and close. Nothing has been applied."
+title = "Unapplied draft"
 
-[messages."operations.credentials.cancelled_recovery"]
-text = "No recovery action was started. The unfinished operation and its recovery hold remain. Your pending edits are kept. Review recovery again when ready."
-screen = "credential_cancellation presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.credentials.cancelled_recovery"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[draft.switch]
+body = "There is one unapplied VM draft. Stay here, review it, or discard it before switching. Nothing has been applied."
+title = "Keep your changes?"
 
-[messages."operations.credentials.cancelled_title"]
-text = "Guest credential request cancelled"
-screen = "credential_request_cancelled presentation (src/gui/live.rs)"
-state = "Selected branch: operations.credentials.cancelled_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[enrollment]
+authority_absent = "Pair authority is absent or this VM is already enrolled. Refresh before requesting permissions."
+authority_mismatch = "Authority does not match either recorded revision. Recovery remains held for administrator inspection."
+changed_during_preparation = "Selection, draft or pairing changed during permission preparation. Refresh before trying again."
+elevation_notice = "Windows permissions are required"
+install_details = "\n\nFIRST INSTALL / INTERRUPTED SETUP: install the fixed product package into Program Files, create protected ProgramData state and register the fixed SYSTEM runner task for this operator. Interrupted setup retains its original pair and package pins. If authority is already published, recovery only validates it and completes task/audit registration; authority and artifact files are never overwritten. No VM disk, CPU/RAM or Secure Boot change. Reviewed source artifact SHA-256 pins:\n"
+install_notice = "\n\nThe application also needs to install or finish setting up its management components on this Windows host. Windows will ask for administrator approval. If setup was interrupted, the original VM, GPU and application package must still match."
+inventory_historical = "Inventory is historical. Refresh before requesting permissions."
+other_pair = "Interrupted first-install setup belongs to another original pair/package. Select its original VM/GPU and reviewed package; setup recovery cannot replace authority."
+permission_changed = "The target, draft or GPU management permission changed. Review again."
+preparation_failed = "GPU permission preparation failed"
+progress_title = "Enroll reviewed VM/GPU pair"
+refresh_recovery = "Refresh enrollment recovery first"
+select_pair = "Select an available VM and physical GPU, then Refresh."
 
-[messages."operations.credentials.guest_progress"]
-text = "Managing this VM's optional saved sign-in details. This does not connect to the VM, prepare drivers or check graphics."
-screen = "guest_progress presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.credentials.guest_progress"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.credentials.stored.body"]
-text = "A stored credential was confirmed in this user's Windows Credential Manager for the selected VM. No guest connection or graphics check was performed."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.credentials.stored.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.credentials.stored.title"]
-text = "Stored guest credentials available"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.credentials.stored.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.credentials.unavailable_title"]
-text = "Guest credentials unavailable"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.credentials.unavailable_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.draft.exit.body"]
-text = "Keep editing or discard the in-memory draft and close. Nothing has been applied."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.draft.exit.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.draft.exit.title"]
-text = "Unapplied draft"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.draft.exit.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.draft.switch.body"]
-text = "There is one unapplied VM draft. Stay here, review it, or discard it before switching. Nothing has been applied."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.draft.switch.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.draft.switch.title"]
-text = "Keep your changes?"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.draft.switch.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.artifact_pin"]
+[enrollment.artifact_pin]
+args = ["artifact_name: text", "digest: text"]
 text = "{artifact_name}: {digest}\n"
-screen = "review_enrollment presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.artifact_pin"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "artifact_name", type = "text" }, { name = "digest", type = "text" }]
 
-[messages."operations.enrollment.completed.body"]
-text = "Permission for the reviewed VM/GPU pair was saved. Your draft is retained. Continue to a separate setup review; GPU support and guest readiness have not been confirmed."
-screen = "enroll_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.completed.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[enrollment.completed]
+body = "Permission for the reviewed VM/GPU pair was saved. Your draft is retained. Continue to a separate setup review; GPU support and guest readiness have not been confirmed."
+title = "GPU management permission saved"
 
-[messages."operations.enrollment.completed.title"]
-text = "GPU management permission saved"
-screen = "enroll_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.completed.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[enrollment.incomplete]
+context = "Your edits are kept. Use Refresh and Review recovery before retrying this permission step. GPU setup has not been confirmed."
+title = "App permission was not confirmed"
 
-[messages."operations.enrollment.elevation_notice"]
-text = "Windows permissions are required"
-screen = "review_enrollment presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.elevation_notice"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[enrollment.recovery]
+name_unavailable = "VM name unavailable; see Technical Details"
+partial_deletion = "Profile removal was interrupted. Confirm finishes only remaining reviewed record deletions and authority removal after fresh inactive-VM/revision checks. Completed deletions must remain absent; changed or unrelated records stay blocked. Other VMs, guest files and shared artifacts are retained. No guest checks, credentials or VM/GPU effects run."
+policy_original = "The original policy is present; the pair was not added. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
+policy_published = "The complete new enrollment policy is present. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
+progress_title = "Reconcile enrollment authority"
+retained_title = "Enrollment recovery retained"
+status_unavailable_title = "Permission status unavailable"
+title = "Review interrupted app permission"
 
-[messages."operations.enrollment.incomplete.title"]
-text = "App permission was not confirmed"
-screen = "enroll_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.incomplete.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[enrollment.review]
+allocation_label = "VRAM allocation:"
+title = "Checking GPU management permission"
 
-[messages."operations.enrollment.install_details"]
-text = "\n\nFIRST INSTALL / INTERRUPTED SETUP: install the fixed product package into Program Files, create protected ProgramData state and register the fixed SYSTEM runner task for this operator. Interrupted setup retains its original pair and package pins. If authority is already published, recovery only validates it and completes task/audit registration; authority and artifact files are never overwritten. No VM disk, CPU/RAM or Secure Boot change. Reviewed source artifact SHA-256 pins:\n"
-screen = "review_enrollment presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.install_details"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.install_notice"]
-text = "\n\nThe application also needs to install or finish setting up its management components on this Windows host. Windows will ask for administrator approval. If setup was interrupted, the original VM, GPU and application package must still match."
-screen = "review_enrollment presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.install_notice"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.progress_title"]
-text = "Enroll reviewed VM/GPU pair"
-screen = "enroll_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.recovery.name_unavailable"]
-text = "VM name unavailable; see Technical Details"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.recovery.name_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.recovery.partial_deletion"]
-text = "Profile removal was interrupted. Confirm finishes only remaining reviewed record deletions and authority removal after fresh inactive-VM/revision checks. Completed deletions must remain absent; changed or unrelated records stay blocked. Other VMs, guest files and shared artifacts are retained. No guest checks, credentials or VM/GPU effects run."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.recovery.partial_deletion"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.recovery.policy_original"]
-text = "The original policy is present; the pair was not added. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.recovery.policy_original"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.recovery.policy_published"]
-text = "The complete new enrollment policy is present. Confirm independently checks this reviewed authority and ends the hold; no enrollment write or GPU work is replayed."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.recovery.policy_published"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.recovery.progress_title"]
-text = "Reconcile enrollment authority"
-screen = "reconcile_enrollment_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.recovery.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.recovery.retained_title"]
-text = "Enrollment recovery retained"
-screen = "reconcile_enrollment_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.recovery.retained_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.recovery.status_unavailable_title"]
-text = "Permission status unavailable"
-screen = "reconcile_enrollment_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.recovery.status_unavailable_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.recovery.title"]
-text = "Review interrupted app permission"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.recovery.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.enrollment.review.body"]
+[enrollment.review.body]
+args = ["vm_name: text", "gpu_name: text"]
 text = "Virtual machine: {vm_name}\nPhysical GPU: {gpu_name}"
-screen = "review_enrollment presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.review.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }, { name = "gpu_name", type = "text" }]
 
-[messages."operations.enrollment.review.title"]
-text = "Checking GPU management permission"
-screen = "review_enrollment presentation (src/gui/live.rs)"
-state = "Selected branch: operations.enrollment.review.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[guest]
+generic_progress = "Performing the guest steps shown in your review. Wait for the actual result before treating the operation as complete."
 
-[messages."operations.guest.generic_progress"]
-text = "Performing the guest steps shown in your review. Wait for the actual result before treating the operation as complete."
-screen = "guest_progress presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.guest.generic_progress"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.guest.progress_body"]
+[guest.progress_body]
+args = ["vm_name: text", "purpose: message"]
 text = "Virtual machine: {vm_name}\n\n{purpose}\n\nIf prompted, use the Windows administrator account inside this VM. Remembering it is optional. Progress appears below."
-screen = "guest_progress presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.guest.progress_body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }, { name = "purpose", type = "message" }]
 
-[messages."operations.help.body"]
-text = "Select a real VM and physical GPU, enable GPU support in the draft and choose a VRAM request from 1 GB to the detected card capacity. Use the toggle or More actions > Remove GPU support to disable support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved. Apply, Verify, Repair / Reinstall, removal and Delete profile proceed directly after fresh checks, without a review dialog or second confirmation. Selecting an action authorizes its required VM power transitions. First setup obtains permission and reads it back before preparing GPU changes. Windows credential and UAC prompts remain separate. Settings are saved only after the required outcome checks pass. Failed saving permits a save-only retry; uncertain operations require explicit reconciliation. Delete profile removes only this VM's app settings, pairing, history and recovery records; it never changes VM power, GPU attachment or guest files. GPU replacement remains unavailable."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.help.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[help]
+body = "Select a real VM and physical GPU, enable GPU support in the draft and choose a VRAM request from 1 GB to the detected card capacity. Use the toggle or More actions > Remove GPU support to disable support. Advanced Allocation retains exact VRAM triples; saved Compute/Encode/Decode requests are preserved. Apply, Verify, Repair / Reinstall, removal and Delete profile proceed directly after fresh checks, without a review dialog or second confirmation. Selecting an action authorizes its required VM power transitions. First setup obtains permission and reads it back before preparing GPU changes. Windows credential and UAC prompts remain separate. Settings are saved only after the required outcome checks pass. Failed saving permits a save-only retry; uncertain operations require explicit reconciliation. Delete profile removes only this VM's app settings, pairing, history and recovery records; it never changes VM power, GPU attachment or guest files. GPU replacement remains unavailable."
+title = "Application help"
 
-[messages."operations.help.title"]
-text = "Application help"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.help.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[inventory]
+access_denied = "Windows denied access to the inventory reader. Check the protected installation and operator permissions, then refresh."
+details_prompt = "Some VM or GPU information could not be read. See Technical Details."
+details_title = "Observed state and recovery records"
+draft_retained = "Your edits are kept. Refresh VM information before Apply."
+failure_stage = "Inventory read"
+inconsistent = "The protected reader returned inconsistent inventory. Check that all installed product components are from the same build, then refresh."
+initial_notice = "Virtual machine information has not been read yet."
+provenance = "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection."
+reader_unreleased = "The protected reader could not confirm that it stopped. New actions remain blocked. Close and reopen the application once the reader has finished; if this persists, check the protected installation."
+refresh_failed = "Could not load VM and GPU information. Inspect diagnostics for the cause, then use Refresh to retry. Any previous rows are historical."
+refresh_title = "Refreshing inventory"
+saved_unreadable = " Some committed configuration could not be read or validated. Affected intent remains unknown; other readable VM files are available."
+summary = "Hyper-V virtual machines and available GPUs. Graphics results reflect previous checks."
+timed_out = "The inventory read timed out. Wait for the protected reader to finish, then refresh. No VM or GPU operation was repeated."
 
-[messages."operations.inventory.details_prompt"]
-text = "Some VM or GPU information could not be read. See Technical Details."
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.details_prompt"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[inventory.partial]
+args = ["issues: text"]
+text = "Partial inventory: {issues}. Other successful observations remain available."
 
-[messages."operations.inventory.details_title"]
-text = "Observed state and recovery records"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.details_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[inventory.refresh_failed_reason]
+args = ["summary: message", "reason: message"]
+text = "{summary} {reason}"
 
-[messages."operations.inventory.draft_retained"]
-text = "Your edits are kept. Refresh VM information before Apply."
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.draft_retained"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[outcome]
+absent = "No unpublished operation is recorded; see current observations and saved intent separately."
+finalization_pending = "Applied and published; protected recovery finalization is pending."
+publication_pending = "Applied and checked; configuration publication is pending. Use the bound save-only retry."
+save_unknown = "Applied changes were checked; saving is not confirmed. Refresh for the bound receipt."
+uncertain = "Operation outcome uncertain; inspect protected recovery."
+verify_finalization_pending = "Graphics check completed; protected recovery finalization is pending. No configuration publication is authorized."
 
-[messages."operations.inventory.failure_stage"]
-text = "Inventory read"
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.failure_stage"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[partial_removal]
+failed_title = "Partial GPU removal did not complete"
+gpu_missing = "Recovery GPU missing; Refresh"
+journal_missing = "Recovery journal missing; Refresh"
+no_record = "No interrupted GPU setup is recorded for this VM."
+status_unavailable = "Current VM status is unavailable. Retry the status update before reviewing removal."
+stopped_before_changes = "This attempt stopped before VM/GPU changes. Use Check recorded outcome to confirm its unchanged starting state and end recovery."
+title = "Remove partial GPU setup"
+vm_missing = "Recovery VM missing; Refresh"
 
-[messages."operations.inventory.initial_notice"]
-text = "Virtual machine information has not been read yet."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.initial_notice"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[partial_removal.completed]
+body = "The partial attachment was removed and the recorded starting compatibility settings were confirmed. The VM remains off. Old setup eligibility is invalid; guest files and failure evidence are retained. Review Delete profile here if a fresh enrollment is needed. It removes saved settings, app permission and managed history, and requires its own confirmation. Otherwise close this result and review Repair / Reinstall."
+title = "Partial GPU setup removed"
 
-[messages."operations.inventory.provenance"]
-text = "Last protected inventory read; no fresh guest verification. Refresh obtains current host state. Pending journals are retained and are not cleared by inspection."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.provenance"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[partial_removal.review]
+title = "Review partial GPU removal"
 
-[messages."operations.inventory.refresh_failed"]
-text = "Could not load VM and GPU information. Inspect diagnostics for the cause, then use Refresh to retry. Any previous rows are historical."
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.refresh_failed"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[plan]
+authenticate = "Reading current VM and authenticating signed driver files"
+check_worker = "Checking protected worker availability"
+preliminary_notice = "Preliminary review: driver evidence is historical. Apply will authenticate the current driver files before any changes. If the payload or required actions differ, it stops and requires a full review; it will not add guest setup or power actions to this approval."
+progress_body = "Checking the selected VM, GPU, settings and recorded setup for this request. Current driver files are authenticated before effects; setup and repair checks can take several minutes. Successful preparation continues directly into execution. Cancel keeps your draft and abandons only the read-only preparation."
+progress_title = "Building fresh plan"
+read_history = "Reading current VM, GPU and preparation history"
+target_mismatch = "The backend plan does not match the selected draft. Refresh before retrying."
+unavailable_title = "Plan unavailable"
 
-[messages."operations.inventory.refresh_title"]
-text = "Refreshing inventory"
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.refresh_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[profile_deletion]
+changed = "Selection, saved profiles or pairing changed; review Delete profile again."
+failure_stage = "Profile deletion"
+no_pairing = "This VM has no authorized pairing; Refresh for current state."
+progress_title = "Delete app profile"
+refresh_first = "Refresh first."
 
-[messages."operations.inventory.saved_unreadable"]
-text = " Some committed configuration could not be read or validated. Affected intent remains unknown; other readable VM files are available."
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.saved_unreadable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[profile_deletion.completed]
+title = "App profile deleted"
 
-[messages."operations.inventory.summary"]
-text = "Hyper-V virtual machines and available GPUs. Graphics results reflect previous checks."
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: operations.inventory.summary"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.outcome.absent"]
-text = "No unpublished operation is recorded; see current observations and saved intent separately."
-screen = "applied_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.outcome.absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.outcome.finalization_pending"]
-text = "Applied and published; protected recovery finalization is pending."
-screen = "applied_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.outcome.finalization_pending"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.outcome.publication_pending"]
-text = "Applied and checked; configuration publication is pending. Use the bound save-only retry."
-screen = "applied_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.outcome.publication_pending"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.outcome.save_unknown"]
-text = "Applied changes were checked; saving is not confirmed. Refresh for the bound receipt."
-screen = "applied_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.outcome.save_unknown"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.outcome.uncertain"]
-text = "Operation outcome uncertain; inspect protected recovery."
-screen = "applied_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.outcome.uncertain"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.outcome.verify_finalization_pending"]
-text = "Graphics check completed; protected recovery finalization is pending. No configuration publication is authorized."
-screen = "applied_text presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.outcome.verify_finalization_pending"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.partial_removal.completed.body"]
-text = "The partial attachment was removed and the recorded starting compatibility settings were confirmed. The VM remains off. Old setup eligibility is invalid; guest files and failure evidence are retained. Review Delete profile here if a fresh enrollment is needed. It removes saved settings, app permission and managed history, and requires its own confirmation. Otherwise close this result and review Repair / Reinstall."
-screen = "reset_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.partial_removal.completed.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.partial_removal.completed.title"]
-text = "Partial GPU setup removed"
-screen = "reset_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.partial_removal.completed.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.partial_removal.review.title"]
-text = "Review partial GPU removal"
-screen = "review_reset presentation (src/gui/live.rs)"
-state = "Selected branch: operations.partial_removal.review.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.partial_removal.title"]
-text = "Remove partial GPU setup"
-screen = "reset_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.partial_removal.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.plan.progress_body"]
-text = "Checking the selected VM, GPU, settings and recorded setup for this request. Current driver files are authenticated before effects; setup and repair checks can take several minutes. Successful preparation continues directly into execution. Cancel keeps your draft and abandons only the read-only preparation."
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.plan.progress_body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.plan.progress_title"]
-text = "Building fresh plan"
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.plan.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.plan.target_mismatch"]
-text = "The backend plan does not match the selected draft. Refresh before retrying."
-screen = "review_operation presentation (src/gui/live.rs)"
-state = "Selected branch: operations.plan.target_mismatch"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.plan.unavailable_title"]
-text = "Plan unavailable"
-screen = "review_operation presentation (src/gui/live.rs)"
-state = "Selected branch: operations.plan.unavailable_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.profile_deletion.completed.body"]
+[profile_deletion.completed.body]
+args = ["vm_name: text"]
 text = "{vm_name}: deletion of this app's saved settings, authorization and managed history was verified. The Hyper-V VM, disks, checkpoints, guest files and other app profiles remain. No GPU or power changes were performed. Current status is being updated. Continue to a new permission/setup review when ready."
-screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.completed.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.profile_deletion.completed.title"]
-text = "App profile deleted"
-screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.completed.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[profile_deletion.incomplete]
+title = "Profile deletion did not finish"
 
-[messages."operations.profile_deletion.failure_stage"]
-text = "Profile deletion"
-screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.failure_stage"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[profile_deletion.incomplete.body]
+args = ["vm_name: text", "error: text"]
+text = "{vm_name}: {error}\nSome app profile records may have been removed; which records remain is unknown until read back. Use Refresh and review profile recovery before continuing; do not repeat deletion with a new request. This operation does not change the VM, GPU assignment or guest files."
 
-[messages."operations.profile_deletion.incomplete.title"]
-text = "Profile deletion did not finish"
-screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.incomplete.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[profile_deletion.recovery]
+title = "Review interrupted profile deletion"
 
-[messages."operations.profile_deletion.progress_title"]
-text = "Delete app profile"
-screen = "forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[profile_deletion.review]
+failure_stage = "Profile deletion review"
+progress_title = "Preparing profile deletion"
+stale_title = "Review Delete profile again"
+title = "Delete this app profile?"
+unavailable_title = "Profile deletion unavailable"
 
-[messages."operations.profile_deletion.recovery.title"]
-text = "Review interrupted profile deletion"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.profile_deletion.recovery.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.profile_deletion.review.body"]
+[profile_deletion.review.body]
+args = ["vm_name: text", "vm_id: text", "gpu_interface: text"]
 text = "Virtual machine: {vm_name}\nVM ID: {vm_id}\nGPU: {gpu_interface}\n\nDelete this VM's app profile: its saved GPU settings, authorized VM/GPU pairing, managed setup history and interrupted-operation records. Recovery records for this profile are discarded even if an earlier operation did not finish. Pending edits for this profile are discarded too.\n\nKeep the Hyper-V VM, its current GPU support, disks, checkpoints and guest driver files. No VM power change, GPU detachment, driver removal or guest sign-in is performed. Other profiles are unchanged.\n\nDelete profile confirms this review; Windows requests approval to remove the protected app records. Cancel keeps the profile. The VM stays discoverable for a future reviewed setup."
-screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.review.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }, { name = "vm_id", type = "text" }, { name = "gpu_interface", type = "text" }]
 
-[messages."operations.profile_deletion.review.failure_stage"]
-text = "Profile deletion review"
-screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.review.failure_stage"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery]
+completion_unavailable = "Selected VM/GPU completion read is unavailable; Refresh before another operation"
+failure_stage = "Reconciliation"
+guest_progress = "Checking the interrupted operation and any reviewed guest/power steps. GPU assignment and driver preparation are not repeated. Uncertain results keep recovery blocked."
+host_progress = "Checking the already-achieved recorded outcome without repeating GPU work or accessing the guest. Unresolved state retains recovery."
+identity_differs = "Completion identity differs from the selected VM"
+identity_missing = "Completion identity missing"
+import_unfinished = "A configuration import did not finish."
+inspected_vm_changed = "The inspected VM changed. Close this view and check its recorded outcome again."
+intent_unconfirmed = "Recovery record is absent, but verified intent is not confirmed in readable committed configuration. Refresh and inspect before another operation."
+inventory_unavailable = "Recovery inventory unavailable"
+no_receipt = "No bound save-only receipt is loaded; Refresh and inspect recovery."
+no_verified_target = "Unsaved outcome has no verified target. Refresh and inspect before another operation."
+not_loaded = "No reviewed operation recovery is loaded"
+progress_title = "Check recorded outcome"
+receipt_changed = "The protected recovery receipt changed after completion. Inspect the loaded operation before any retry."
+receipt_unavailable = "Applied changes were confirmed, but their bound save-only receipt is unavailable. Refresh and inspect recovery; do not repeat Apply."
+reconciliation_only = "This operation requires reconciliation, not a configuration save retry."
+review_first_title = "Review the unfinished operation first"
+saved_intent_changed = "Publication completed, but current saved intent changed or is unreadable. Refresh before editing; do not repeat GPU work."
+unreadable_title = "Cannot read operation state"
+vm_record_unavailable = "Recovery VM unavailable"
+vm_unavailable = "Recovery VM unavailable; Refresh first"
 
-[messages."operations.profile_deletion.review.progress_title"]
-text = "Preparing profile deletion"
-screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.review.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.profile_deletion.review.stale_title"]
-text = "Review Delete profile again"
-screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.review.stale_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.profile_deletion.review.title"]
-text = "Delete this app profile?"
-screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.review.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.profile_deletion.review.unavailable_title"]
-text = "Profile deletion unavailable"
-screen = "review_forget_live presentation (src/gui/live/profile_removal.rs)"
-state = "Selected branch: operations.profile_deletion.review.unavailable_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.blocked.title"]
-text = "Recovery remains blocked"
-screen = "reconcile_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.blocked.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.confirmed.body"]
-text = "Fresh checks established the reviewed outcome and any required configuration publication. No GPU assignment, allocation or preparation was repeated. VM status is updated before another review."
-screen = "reconcile_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.confirmed.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.confirmed.title"]
-text = "Recorded outcome confirmed"
-screen = "reconcile_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.confirmed.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.ended.body"]
-text = "Fresh checks established the recorded host state and safely ended the attempt without repeating GPU work or saving requested settings. Any failed or unknown guest check remains recorded; ending recovery does not certify guest setup or rendering. Review repair or another supported operation."
-screen = "reconcile_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.ended.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.ended.title"]
-text = "Interrupted attempt ended"
-screen = "reconcile_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.ended.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.failure_stage"]
-text = "Reconciliation"
-screen = "reconcile_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.failure_stage"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.guest_progress"]
-text = "Checking the interrupted operation and any reviewed guest/power steps. GPU assignment and driver preparation are not repeated. Uncertain results keep recovery blocked."
-screen = "guest_progress presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.recovery.guest_progress"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.host_progress"]
-text = "Checking the already-achieved recorded outcome without repeating GPU work or accessing the guest. Unresolved state retains recovery."
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.host_progress"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.import_unfinished"]
-text = "A configuration import did not finish."
-screen = "action_recovery_message presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.recovery.import_unfinished"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.power_consent"]
+[recovery.power_consent]
+args = ["final_power: message"]
 text = "Selecting Check recorded outcome approves the reviewed power changes. Expected final state: {final_power}."
-screen = "recovery_consent presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.recovery.power_consent"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "final_power", type = "message" }]
 
-[messages."operations.recovery.progress_title"]
-text = "Check recorded outcome"
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.records_body]
+args = ["provenance: text"]
+text = "{provenance}\n\nTechnical Details contains the host observation, recorded history and authorization from that inventory. Missing or old records do not establish current guest health. Opening these details performs no new checks or changes."
 
-[messages."operations.recovery.review.body"]
-text = "Virtual machine: {vm_name}\n\nCheck the interrupted GPU operation without repeating it. A terminal failed guest check can end recovery after fresh reads confirm its original host lifecycle was restored; its failure remains recorded. A setup/reinstall attempt that never entered preparation can end after fresh reads confirm unchanged starting host state. These exits require no new guest check or credentials and do not certify setup. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.review.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
+[recovery.review_prompt]
+args = ["operation: text"]
+text = "{operation}\n\nBefore verifying, repairing, removing GPU support or deleting an app profile, review what happened. Choose Review recovery to see the recorded operation and the available next step. Your edits are kept. Reviewing recovery does not make changes; any available recovery action needs separate confirmation."
 
-[messages."operations.recovery.review.title"]
-text = "Review interrupted operation"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.review.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.review_first_title"]
-text = "Review the unfinished operation first"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.review_first_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.unreadable_title"]
-text = "Cannot read operation state"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.unreadable_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.unsaved.title"]
-text = "Outcome verified; configuration unsaved"
-screen = "reconcile_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.unsaved.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.vm_unfinished"]
+[recovery.vm_unfinished]
+args = ["vm_name: text"]
 text = "An earlier operation for {vm_name} did not finish."
-screen = "action_recovery_message presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.recovery.vm_unfinished"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.removal.review.body"]
-text = "Remove GPU support: detach the exact managed GPU if present, restore still-owned compatibility values and leave the VM off. Keep guest driver files, authorization and setup history. No guest credentials or graphics check."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.removal.review.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.admitted]
+body = "This attempt stopped before any VM or GPU changes began. There is no partial GPU setup to remove.\n\nSelect Check recorded outcome to confirm that the VM still matches its recorded starting state and end this interrupted attempt. This check does not start the VM, request guest credentials or repeat GPU setup.\n\nIf the current facts no longer match, recovery stays blocked. Delete profile instead discards this VM's app settings, pairing, history and recovery records while leaving its GPU support in place. Close keeps the profile."
 
-[messages."operations.repair.review.body"]
-text = "Repair / Reinstall: run complete signed driver preparation even with matching history, verify current payload and selected-hardware rendering, then leave the VM off."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.repair.review.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.blocked]
+title = "Recovery remains blocked"
 
-[messages."operations.repair.review.title"]
-text = "Review Repair / Reinstall"
-screen = "review_operation presentation (src/gui/live.rs)"
-state = "Selected branch: operations.repair.review.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.blocked.body]
+args = ["error: text"]
+text = "{error}\nUse Retry status update to read the current facts. Delete profile instead reviews deletion of this VM's app settings, pairing, history and interrupted-operation records. It leaves the VM, GPU support and guest files unchanged."
 
-[messages."operations.review.stale_title"]
-text = "Review again"
-screen = "review_operation presentation (src/gui/live.rs)"
-state = "Selected branch: operations.review.stale_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.confirmed]
+body = "Fresh checks established the reviewed outcome and any required configuration publication. No GPU assignment, allocation or preparation was repeated. VM status is updated before another review."
+title = "Recorded outcome confirmed"
 
-[messages."operations.save_only.blocked.title"]
-text = "Save-only retry blocked"
-screen = "save_only_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.blocked.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.ended]
+body = "Fresh checks established the recorded host state and safely ended the attempt without repeating GPU work or saving requested settings. Any failed or unknown guest check remains recorded; ending recovery does not certify guest setup or rendering. Review repair or another supported operation."
+title = "Interrupted attempt ended"
 
-[messages."operations.save_only.completed.body"]
-text = "Protected publication passed readback. No GPU operation was repeated."
-screen = "save_only_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.completed.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.inspection]
+body = "Inspect the recorded operation and diagnostics in Technical Details. Check current outcome independently reads the recorded result and may perform the recorded recovery's guest checks and power transitions. It does not repeat Apply. Uncertain results retain recovery. Close returns to the VM without making changes."
+continue_label = "Check current outcome"
 
-[messages."operations.save_only.completed.title"]
-text = "Configuration saved"
-screen = "save_only_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.completed.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.progress]
+graphics = "Checking current guest files, devices and hardware rendering after fresh host checks. The selected action includes its required VM power transitions."
+host = "Independently checking the recorded host outcome without guest sign-in or replaying Apply."
+restoration = "Independently checking the recorded restoration. This does not retry the guest check or report success; changed facts retain recovery."
 
-[messages."operations.save_only.progress_body"]
-text = "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.progress_body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.progress.body]
+args = ["name: text", "action: message", "power: text"]
+text = "{name}: {action}\nRecorded final power: {power}. Uncertain outcomes retain their recovery hold."
 
-[messages."operations.save_only.progress_title"]
-text = "Retry configuration save only"
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.review]
+explanation = "Check whether the interrupted GPU change can be safely ended or its reviewed result confirmed. GPU setup will not be repeated.\n\nIf fresh checks confirm the original host state was restored, recovery can end without guest sign-in. This does not certify GPU setup or save the interrupted request.\n\nOtherwise, the check may temporarily start the VM and request its guest administrator credentials. The reviewed final power state is shown below when power changes are required. Changed or uncertain facts keep recovery blocked. Delete profile instead discards this VM's app settings, pairing, history and recovery records while leaving the VM and its GPU support unchanged."
+title = "Review interrupted operation"
 
-[messages."operations.save_only.review.body"]
-text = "GPU effects already passed independent readback. Retry saves only the bound configuration; it will not repeat GPU modification. Changed configuration, driver, payload or effective state blocks this retry."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.review.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.review.body]
+args = ["vm_name: text"]
+text = "Virtual machine: {vm_name}\n\nCheck the interrupted GPU operation without repeating it. A terminal failed guest check can end recovery after fresh reads confirm its original host lifecycle was restored; its failure remains recorded. A setup/reinstall attempt that never entered preparation can end after fresh reads confirm unchanged starting host state. These exits require no new guest check or credentials and do not certify setup. If fresh checks prove that this first setup attempt is back at its original stopped, unattached host configuration, end that attempt without saving its requested changes. Guest files may remain and will not count as verified preparation.\n\nOtherwise, check the already-achieved approved outcome. This may temporarily start the VM and require its guest administrator username and password. Stop it safely afterward only with your approval. Partial or changed state stays blocked; no GPU setup work is replayed."
 
-[messages."operations.save_only.review.title"]
-text = "Verified operation awaits configuration publication"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.review.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.unsaved]
+title = "Outcome verified; configuration unsaved"
 
-[messages."operations.save_only.unsaved.body"]
-text = "The protected receipt remains available for inspection. No GPU operation was repeated."
-screen = "save_only_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.unsaved.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[recovery.unsaved.body]
+args = ["error: text"]
+text = "{error}\nRetry configuration saving only."
 
-[messages."operations.save_only.unsaved.title"]
-text = "Configuration still unsaved"
-screen = "save_only_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.save_only.unsaved.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[removal.review]
+body = "Remove GPU support: detach the exact managed GPU if present, restore still-owned compatibility values and leave the VM off. Keep guest driver files, authorization and setup history. No guest credentials or graphics check."
 
-[messages."operations.selection.fallback"]
-text = "the selected VM"
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: operations.selection.fallback"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[repair.review]
+body = "Repair / Reinstall: run complete signed driver preparation even with matching history, verify current payload and selected-hardware rendering, then leave the VM off."
+title = "Review Repair / Reinstall"
 
-[messages."operations.setup.completed.title"]
-text = "GPU setup/update passed"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.setup.completed.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[review]
+stale_title = "Review again"
 
-[messages."operations.setup.incomplete.title"]
-text = "GPU setup/update did not complete"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.setup.incomplete.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[save]
+changed_during = "Configuration changed during save; resolve the file before retrying save."
+changed_outside = "Configuration changed outside the GUI. Resolve the file before saving; do not replay the successful VM operation."
+completed = "Save completed"
 
-[messages."operations.setup.review.body"]
-text = "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.setup.review.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[save.cleanup_failed]
+args = ["result: text", "error: text"]
+text = "{result}; temporary save cleanup failed: {error}"
 
-[messages."operations.setup.unsaved.effect_summary"]
+[save.read_failed]
+args = ["error: text"]
+text = "Read configuration before saving: {error}"
+
+[save_only]
+progress_body = "Requesting Windows elevation to save the verified configuration. No GPU operation will be repeated."
+progress_title = "Retry configuration save only"
+
+[save_only.blocked]
+context = "The protected recovery record remains; no GPU operation was repeated."
+title = "Save-only retry blocked"
+
+[save_only.completed]
+body = "Protected publication passed readback. No GPU operation was repeated."
+title = "Configuration saved"
+
+[save_only.review]
+body = "GPU effects already passed independent readback. Retry saves only the bound configuration; it will not repeat GPU modification. Changed configuration, driver, payload or effective state blocks this retry."
+title = "Verified operation awaits configuration publication"
+
+[save_only.unsaved]
+body = "The protected receipt remains available for inspection. No GPU operation was repeated."
+title = "Configuration still unsaved"
+
+[selection]
+fallback = "the selected VM"
+
+[setup.blocked]
+context = "This attempt stopped before driver installation or VM power changes. Your draft is retained."
+title = "GPU support installation blocked"
+
+[setup.completed]
+title = "GPU setup/update passed"
+
+[setup.incomplete]
+title = "GPU setup/update did not complete"
+
+[setup.review]
+body = "Initial GPU setup: check hardware rendering, then gracefully leave the VM off. Start it through Hyper-V after setup passes."
+
+[setup.unsaved]
+title = "GPU setup/update passed; settings not saved"
+
+[setup.unsaved.effect_summary]
+args = ["vm_name: text"]
 text = "{vm_name}: hardware rendering passed and final shutdown was confirmed. The VM is off.\n"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.setup.unsaved.effect_summary"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.setup.unsaved.title"]
-text = "GPU setup/update passed; settings not saved"
-screen = "apply_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.setup.unsaved.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[setup.update_review]
+body = "GPU setup/update required: preparation changed or is invalid. Review driver work, hardware rendering and final shutdown before confirming."
 
-[messages."operations.setup.update_review.body"]
-text = "GPU setup/update required: preparation changed or is invalid. Review driver work, hardware rendering and final shutdown before confirming."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.setup.update_review.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[validation]
+stage = "Configuration validation"
 
-[messages."operations.validation.stage"]
-text = "Configuration validation"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.validation.stage"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify]
+discard_draft = "Discard or Apply the draft before reviewing a separate graphics check."
+guest_progress = "Checking the current driver files, setup record, device health and hardware rendering. Drivers are not being reinstalled. VM power follows the reviewed sequence."
+selection_changed = "Selection or saved settings changed during verification preparation"
+title = "Verify GPU setup"
 
-[messages."operations.verify.apply_review.body"]
-text = "Verify GPU setup required: check current guest driver files, setup record and hardware rendering without reinstalling drivers. Apply follows the final power state shown below."
-screen = "review_summary presentation (src/gui/live_state.rs)"
-state = "Selected branch: operations.verify.apply_review.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify.apply_review]
+body = "Verify GPU setup required: check current guest driver files, setup record and hardware rendering without reinstalling drivers. Apply follows the final power state shown below."
 
-[messages."operations.verify.completed.body"]
+[verify.completed]
+title = "Verify GPU setup passed"
+
+[verify.completed.body]
+args = ["vm_name: text"]
 text = "{vm_name}: current guest driver files and setup record matched the approved driver package; device health and hardware rendering passed. The reviewed final power state was confirmed. Refresh to read the latest check result; it is a record of this check, not a guarantee of future health."
-screen = "verify_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.completed.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.verify.completed.title"]
-text = "Verify GPU setup passed"
-screen = "verify_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.completed.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify.consent]
+off = "This action includes temporarily starting this VM, then gracefully shutting it down to Off."
+running = "This VM is expected to remain Running during Verify GPU setup."
+unknown = "Power state is unknown. Refresh before trying again."
 
-[messages."operations.verify.consent.off"]
-text = "This action includes temporarily starting this VM, then gracefully shutting it down to Off."
-screen = "verify_consent presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.consent.off"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify.incomplete]
+title = "Verify GPU setup did not complete"
 
-[messages."operations.verify.consent.running"]
-text = "This VM is expected to remain Running during Verify GPU setup."
-screen = "verify_consent presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.consent.running"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify.incomplete.context]
+args = ["vm_name: text", "power: text"]
+text = "{vm_name}: The check did not complete. Current VM status was refreshed automatically. Power: {power}. Inspect current status and any recovery requirement before another operation; prior successful checks do not establish current health."
 
-[messages."operations.verify.consent.unknown"]
-text = "Power state is unknown. Refresh before trying again."
-screen = "verify_consent presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.consent.unknown"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify.lifecycle]
+off = "Temporarily start this VM for the check, then gracefully shut it down to Off."
+running = "This VM is already running and is expected to remain Running."
+unknown = "The VM's power state is unknown or changing. Refresh before a new review."
 
-[messages."operations.verify.guest_progress"]
-text = "Checking the current driver files, setup record, device health and hardware rendering. Drivers are not being reinstalled. VM power follows the reviewed sequence."
-screen = "guest_progress presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.guest_progress"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify.recovery]
+body = "Check the recorded pair and fresh graphics outcome; restore only the originally approved guest power if safe. No GPU assignment, allocation, preparation or configuration publication is performed."
+title = "Reconcile interrupted graphics check"
 
-[messages."operations.verify.incomplete.title"]
-text = "Verify GPU setup did not complete"
-screen = "verify_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.incomplete.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify.review]
+progress_title = "Preparing GPU verification"
+title = "Review Verify GPU setup"
 
-[messages."operations.verify.lifecycle.off"]
-text = "Temporarily start this VM for the check, then gracefully shut it down to Off."
-screen = "verify_review presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.lifecycle.off"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.verify.lifecycle.running"]
-text = "This VM is already running and is expected to remain Running."
-screen = "verify_review presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.lifecycle.running"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.verify.lifecycle.unknown"]
-text = "The VM's power state is unknown or changing. Refresh before a new review."
-screen = "verify_review presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.lifecycle.unknown"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.verify.recovery.body"]
-text = "Check the recorded pair and fresh graphics outcome; restore only the originally approved guest power if safe. No GPU assignment, allocation, preparation or configuration publication is performed."
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.recovery.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.verify.recovery.title"]
-text = "Reconcile interrupted graphics check"
-screen = "run presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.recovery.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.verify.review.body"]
+[verify.review.body]
+args = ["vm_name: text", "gpu_name: text", "lifecycle: message", "final_power: message"]
 text = "Virtual machine: {vm_name}\nPhysical GPU: {gpu_name}\n\nVerify GPU setup: compare the current guest driver files and setup record with the approved driver package, then check the GPU's device health and hardware rendering. This checks current setup; a past successful check alone does not establish current health.\n\n{lifecycle}\nExpected final power after successful completion: {final_power}.\n\nUse the Windows administrator sign-in for this VM if prompted. File checks, starting Windows and rendering can take time; no exact duration is promised. This refreshes the check tools and diagnostic information inside the VM, but does not reinstall drivers, change GPU assignment or save settings.\n\nVerification continues directly after preparation. Windows prompts appear before guest access when required."
-screen = "verify_review presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.review.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }, { name = "gpu_name", type = "text" }, { name = "lifecycle", type = "message" }, { name = "final_power", type = "message" }]
 
-[messages."operations.verify.review.details"]
+[verify.review.details]
+args = ["vm_id: text", "gpu_interface: text", "driver_version: text", "payload_digest: text", "power_debug: formatted"]
 text = "VM ID: {vm_id}\nGPU interface: {gpu_interface}\nDriver version: {driver_version}\nAuthenticated payload digest: {payload_digest}\nObserved power: {power_debug}\n\nCompares current guest destinations and the preparation receipt with the authenticated host manifest before device health/rendering. Protected guest helpers, manifest metadata and optional diagnostics may be refreshed. Fresh protected admission independently checks the reviewed state."
-screen = "verify_details presentation (src/gui/wording.rs)"
-state = "Selected branch: operations.verify.review.details"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_id", type = "text" }, { name = "gpu_interface", type = "text" }, { name = "driver_version", type = "text" }, { name = "payload_digest", type = "text" }, { name = "power_debug", type = "formatted" }]
 
-[messages."operations.verify.review.progress_title"]
-text = "Preparing GPU verification"
-screen = "review_verification presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.review.progress_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[verify.unknown]
+title = "Verify GPU setup outcome unknown"
 
-[messages."operations.verify.review.title"]
-text = "Review Verify GPU setup"
-screen = "review_verification presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.review.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.verify.title"]
-text = "Verify GPU setup"
-screen = "Verify review and operation dialog"
-state = "Verify selected; title only"
-audience = "operator"
-intent = "Name the reviewed current-setup check."
-consequences = "Title only; never selects an operation or grants approval."
-severity = "information"
-space_hint = "Dialog heading or action button; inspect long wording at supported width/scaling."
-placeholders = []
-
-[messages."operations.verify.unknown.body"]
+[verify.unknown.body]
+args = ["vm_name: text"]
 text = "{vm_name}: no completed check outcome was established. Use Refresh and Review recovery before another operation."
-screen = "verify_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.unknown.body"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "vm_name", type = "text" }]
 
-[messages."operations.verify.unknown.title"]
-text = "Verify GPU setup outcome unknown"
-screen = "verify_live presentation (src/gui/live.rs)"
-state = "Selected branch: operations.verify.unknown.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.plan.preliminary_notice"]
-text = "Preliminary review: driver evidence is historical. Apply will authenticate the current driver files before any changes. If the payload or required actions differ, it stops and requires a full review; it will not add guest setup or power actions to this approval."
-screen = "Apply review (src/gui/live_state.rs)"
-state = "Ordinary change with deferred payload authentication"
-audience = "operator"
-intent = "Explain preliminary review and fresh admission without implying current guest health."
-consequences = "A changed payload or effect scope requires another review before effects."
-severity = "information"
-space_hint = "Wrapped review paragraph; inspect long content and reachable approval actions."
-placeholders = []
-
-[messages."operations.enrollment.review.allocation_label"]
-text = "VRAM allocation:"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: operations.enrollment.review.allocation_label"
-audience = "operator"
-intent = "Present the selected UI label or explanation."
-consequences = "No effects; presentation only."
-severity = "neutral"
-space_hint = "Inspect wrapping and keyboard access at supported sizes and scaling."
-placeholders = []
-
-[messages."operations.recovery.admitted.body"]
-text = "This attempt stopped before any VM or GPU changes began. There is no partial GPU setup to remove.\n\nSelect Check recorded outcome to confirm that the VM still matches its recorded starting state and end this interrupted attempt. This check does not start the VM, request guest credentials or repeat GPU setup.\n\nIf the current facts no longer match, recovery stays blocked. Delete profile instead discards this VM's app settings, pairing, history and recovery records while leaving its GPU support in place. Close keeps the profile."
-screen = "Interrupted operation review (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.admitted.body"
-audience = "operator"
-intent = "Explain the available recovery action and its reviewed consequences."
-consequences = "Fresh worker checks remain mandatory; uncertain or changed facts retain recovery."
-severity = "information"
-space_hint = "Wrapped recovery explanation below the prominent VM heading."
-placeholders = []
-
-[messages."operations.recovery.review.explanation"]
-text = "Check whether the interrupted GPU change can be safely ended or its reviewed result confirmed. GPU setup will not be repeated.\n\nIf fresh checks confirm the original host state was restored, recovery can end without guest sign-in. This does not certify GPU setup or save the interrupted request.\n\nOtherwise, the check may temporarily start the VM and request its guest administrator credentials. The reviewed final power state is shown below when power changes are required. Changed or uncertain facts keep recovery blocked. Delete profile instead discards this VM's app settings, pairing, history and recovery records while leaving the VM and its GPU support unchanged."
-screen = "Interrupted operation review (src/gui/live.rs)"
-state = "Selected branch: operations.recovery.review.explanation"
-audience = "operator"
-intent = "Explain the available recovery action and its reviewed consequences."
-consequences = "Fresh worker checks remain mandatory; uncertain or changed facts retain recovery."
-severity = "information"
-space_hint = "Wrapped recovery explanation below the prominent VM heading."
-placeholders = []
-
-[messages."operations.inventory.reader_unreleased"]
-text = "The protected reader could not confirm that it stopped. New actions remain blocked. Close and reopen the application once the reader has finished; if this persists, check the protected installation."
-screen = "Inventory failure (src/gui/diagnostics.rs)"
-state = "Selected branch: operations.inventory.reader_unreleased"
-audience = "operator"
-intent = "Explain a classified inventory failure and the next action."
-consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
-severity = "error"
-space_hint = "Wrapped error on the startup splash and dashboard."
-placeholders = []
-
-[messages."operations.inventory.inconsistent"]
-text = "The protected reader returned inconsistent inventory. Check that all installed product components are from the same build, then refresh."
-screen = "Inventory failure (src/gui/diagnostics.rs)"
-state = "Selected branch: operations.inventory.inconsistent"
-audience = "operator"
-intent = "Explain a classified inventory failure and the next action."
-consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
-severity = "error"
-space_hint = "Wrapped error on the startup splash and dashboard."
-placeholders = []
-
-[messages."operations.inventory.access_denied"]
-text = "Windows denied access to the inventory reader. Check the protected installation and operator permissions, then refresh."
-screen = "Inventory failure (src/gui/diagnostics.rs)"
-state = "Selected branch: operations.inventory.access_denied"
-audience = "operator"
-intent = "Explain a classified inventory failure and the next action."
-consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
-severity = "error"
-space_hint = "Wrapped error on the startup splash and dashboard."
-placeholders = []
-
-[messages."operations.inventory.timed_out"]
-text = "The inventory read timed out. Wait for the protected reader to finish, then refresh. No VM or GPU operation was repeated."
-screen = "Inventory failure (src/gui/diagnostics.rs)"
-state = "Selected branch: operations.inventory.timed_out"
-audience = "operator"
-intent = "Explain a classified inventory failure and the next action."
-consequences = "Observations remain unavailable; no effect or recovery replay is authorized."
-severity = "error"
-space_hint = "Wrapped error on the startup splash and dashboard."
-placeholders = []
-
-[messages."operations.apply.setup_title"]
-text = "Set up GPU support"
-screen = "GPU setup and shared text inputs"
-state = "Selected branch: operations.apply.setup_title"
-audience = "operator"
-intent = "Describe the current operation or a standard editing action."
-consequences = "Presentation never substitutes for fresh protected admission or readback."
-severity = "information"
-space_hint = "Review wrapping, keyboard access and minimum-size layout."
-placeholders = []
-
-[messages."operations.apply.remove_title"]
-text = "Remove GPU support"
-screen = "GPU setup and shared text inputs"
-state = "Selected branch: operations.apply.remove_title"
-audience = "operator"
-intent = "Describe the current operation or a standard editing action."
-consequences = "Presentation never substitutes for fresh protected admission or readback."
-severity = "information"
-space_hint = "Review wrapping, keyboard access and minimum-size layout."
-placeholders = []
-[messages."operations.recovery.inspection.body"]
-text = "Inspect the recorded operation and diagnostics in Technical Details. Check current outcome independently reads the recorded result and may perform the recorded recovery's guest checks and power transitions. It does not repeat Apply. Uncertain results retain recovery. Close returns to the VM without making changes."
-screen = "Recorded outcome dialog"
-state = "Recorded operation available for explicit recovery"
-audience = "operator"
-intent = "Explain inspection and the separate recovery continuation."
-consequences = "Inspection performs no checks or effects; continuation uses the existing protected recovery path."
-severity = "information"
-space_hint = "Wrapping dialog body above inline actions."
-placeholders = []
-
-[messages."operations.recovery.inspection.continue_label"]
-text = "Check current outcome"
-screen = "Recorded outcome dialog"
-state = "Explicit recovery continuation"
-audience = "operator"
-intent = "Request the existing protected recovery check after inspection."
-consequences = "May perform recorded guest checks and power transitions; uncertain results retain recovery."
-severity = "information"
-space_hint = "Inline dialog button."
-placeholders = []
-
+[worker]
+unavailable_refresh = "The protected worker is unavailable. Refresh before trying again."

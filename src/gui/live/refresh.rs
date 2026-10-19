@@ -43,12 +43,13 @@ pub(super) fn refresh(
             ui.get_dialog_kind().as_str(),
             "status-error" | "recovery-blocked"
         ) {
-        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let state = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         if let Some(notice) = &state.result_notice {
             if !notice.matches_selection(ui.get_selected_id().as_str()) {
                 return Err(
-                    "The result belongs to another VM. Close it before refreshing the selected VM."
-                        .into(),
+                    hyper_gpu_support::ui_text::dashboard::refresh::other_vm_result().into(),
                 );
             }
             Some(notice.clone())
@@ -90,9 +91,9 @@ pub(super) fn refresh_after_result(ui: &AppWindow, state: &SharedState, busy: &A
             ui,
             "status-error",
             &notice.title,
-            &format!(
-                "{}\n\nVM status update could not start: {error}\nRetry the status update before another review.",
-                notice.body
+            &hyper_gpu_support::ui_text::dashboard::refresh::start_failed(
+                &notice.body,
+                &error.to_string(),
             ),
         );
         ui.set_dialog_details(notice.details.into());
@@ -144,7 +145,7 @@ pub(super) fn finish_result_observation(ui: &AppWindow, state: &SharedState) {
                 "status-error",
                 &notice.title,
                 &notice.unavailable_body(
-                    "Completion readback is incomplete. Refresh before another operation.",
+                    hyper_gpu_support::ui_text::dashboard::refresh::completion_incomplete(),
                 ),
             );
             ui.set_dialog_details(notice.details.clone().into());
@@ -165,7 +166,9 @@ pub(super) fn refresh_with_result(
     review_after_enrollment: Option<Target>,
 ) -> Result<(), String> {
     let poll = {
-        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let state = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         if automatic {
             // First-install observations remain usable until an explicit refresh.
             if !state.can_poll() {
@@ -182,7 +185,7 @@ pub(super) fn refresh_with_result(
     };
     let previous = state
         .lock()
-        .map_err(|_| "Presentation state unavailable")?
+        .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?
         .view
         .inventory
         .clone();
@@ -200,12 +203,12 @@ pub(super) fn refresh_with_result(
         if automatic || notice.is_some() {
             Operation::new(
                 Kind::StatusRefresh,
-                hyper_gpu_support::ui_text::dashboard::inventory::UPDATING,
+                hyper_gpu_support::ui_text::dashboard::inventory::updating(),
             )
         } else {
             Operation::new(
                 Kind::Read,
-                hyper_gpu_support::ui_text::operations::inventory::REFRESH_TITLE,
+                hyper_gpu_support::ui_text::operations::inventory::refresh_title(),
             )
         },
         move || {
@@ -221,7 +224,7 @@ pub(super) fn refresh_with_result(
                 }
             };
             use hyper_gpu_support::ui_text::dashboard::startup as text;
-            report(0, text::INVENTORY);
+            report(0, text::inventory());
             let mode = if automatic {
                 hyper_gpu_support::observation::Mode::Poll
             } else {
@@ -229,7 +232,7 @@ pub(super) fn refresh_with_result(
             };
             if let Some(bundle) = source.observe(mode, None)? {
                 let inventory = bundle.inventory_with_display(previous.as_ref())?;
-                report(6, text::WORKER);
+                report(6, text::worker());
                 return Ok((
                     inventory,
                     None,
@@ -244,20 +247,23 @@ pub(super) fn refresh_with_result(
             // First-install discovery remains explicit and retains its existing
             // permission/continuation path; automatic polls never enter it.
             if automatic {
-                return Err("Installed polling requires a protected observation".into());
+                return Err(
+                    hyper_gpu_support::ui_text::common::errors::polling_requires_observation()
+                        .into(),
+                );
             }
             let (inventory, warning) = source.discover()?;
-            report(1, text::CONFIGURATION);
+            report(1, text::configuration());
             let committed = source.committed();
-            report(2, text::RECOVERY);
+            report(2, text::recovery());
             let recovery = source.recovery()?;
-            report(3, text::IMPORT_RECOVERY);
+            report(3, text::import_recovery());
             let import_recovery = source.import_recovery()?;
-            report(4, text::ENROLLMENT_RECOVERY);
+            report(4, text::enrollment_recovery());
             let enrollment_recovery = source.enrollment_recovery()?;
-            report(5, text::WORKER);
+            report(5, text::worker());
             let worker_available = protected_worker_available();
-            report(6, text::WORKER);
+            report(6, text::worker());
             Ok((
                 inventory,
                 warning,
@@ -322,42 +328,51 @@ pub(super) fn refresh_with_result(
                             ui.set_validation(validation.err().unwrap_or_default().into());
                         }
                         ui.set_system_summary(
-                            hyper_gpu_support::ui_text::operations::inventory::SUMMARY.into(),
+                            hyper_gpu_support::ui_text::operations::inventory::summary().into(),
                         );
                         let issues = &state
                             .view
                             .inventory
                             .as_ref()
-                            .ok_or("inventory unavailable")?
+                            .ok_or(
+                                hyper_gpu_support::ui_text::common::errors::inventory_unavailable(),
+                            )?
                             .discovery
                             .issues;
                         let mut notice = if issues.is_empty() {
                             warning.unwrap_or_default()
                         } else {
-                            format!(
-                                "Partial inventory: {}. Other successful observations remain available.",
-                                issues
+                            hyper_gpu_support::ui_text::operations::inventory::partial(
+                                &issues
                                     .iter()
                                     .map(|issue| issue.text())
                                     .collect::<Vec<_>>()
-                                    .join(" ")
+                                    .join(" "),
                             )
+                            .into_string()
                         };
                         if let Some(warning) = &configuration_warning {
-                            notice.push_str(&format!(" {warning}"));
+                            notice.push_str(&hyper_gpu_support::ui_text::common::list::sentence(
+                                warning,
+                            ));
                         }
                         if let Some(warning) = &recovery_warning {
-                            notice.push_str(&format!(" {warning}"));
+                            notice.push_str(&hyper_gpu_support::ui_text::common::list::sentence(
+                                warning,
+                            ));
                         }
                         if !state.committed.errors.is_empty() {
                             notice.push_str(
-                                hyper_gpu_support::ui_text::operations::inventory::SAVED_UNREADABLE,
+                                hyper_gpu_support::ui_text::operations::inventory::saved_unreadable(
+                                ),
                             );
                         }
                         if let Some(summary) =
                             presentation::recovery_summary(state, ui.get_selected_id().as_str())
                         {
-                            notice.push_str(&format!(" {summary}"));
+                            notice.push_str(&hyper_gpu_support::ui_text::common::list::sentence(
+                                &summary,
+                            ));
                         }
                         ui.set_inventory_details(notice.clone().into());
                         if !issues.is_empty()
@@ -366,7 +381,7 @@ pub(super) fn refresh_with_result(
                             && state.committed.errors.is_empty()
                         {
                             notice =
-                                hyper_gpu_support::ui_text::operations::inventory::DETAILS_PROMPT
+                                hyper_gpu_support::ui_text::operations::inventory::details_prompt()
                                     .into();
                         }
                         ui.set_notice(notice.into());
@@ -396,7 +411,7 @@ pub(super) fn refresh_with_result(
                         present(ui, state, false);
                         ui.set_draft_valid(false);
                         ui.set_validation(
-                            hyper_gpu_support::ui_text::operations::inventory::DRAFT_RETAINED
+                            hyper_gpu_support::ui_text::operations::inventory::draft_retained()
                                 .into(),
                         );
                         ui.set_inventory_details(details.into());
@@ -439,15 +454,12 @@ pub(super) fn refresh_with_result(
             {
                 let continuation = state
                     .lock()
-                    .map_err(|_| "Presentation state unavailable".to_owned())
+                    .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable().to_owned())
                     .and_then(|state| {
                         let current = draft_target(ui, &state)?;
                         state.enrollment_continuation(&expected, &current)?;
                         if !ui.get_execution_ready() {
-                            return Err(
-                                "GPU management is unavailable. Refresh before reviewing setup."
-                                    .into(),
-                            );
+                            return Err(hyper_gpu_support::ui_text::dashboard::refresh::management_unavailable().into());
                         }
                         Ok(())
                     })
@@ -456,7 +468,7 @@ pub(super) fn refresh_with_result(
                     dialog(
                         ui,
                         "error",
-                        hyper_gpu_support::ui_text::operations::plan::UNAVAILABLE_TITLE,
+                        hyper_gpu_support::ui_text::operations::plan::unavailable_title(),
                         &error,
                     );
                 }
@@ -482,10 +494,32 @@ fn publish_inventory_models(
         .map(|vm| observed_row(vm, inventory, stale))
         .collect();
     ui.set_vms(update_model(ui.get_vms(), rows));
-    ui.set_gpu_information(update_model(ui.get_gpu_information(), inventory.discovery.gpus.iter().map(|gpu| GpuRow {
-    name: gpu.name.clone().into(),
-    description: format!("Interface: {}\nDriver: {}\n{}\nPreparation adapter: {}\nAttachment does not prove guest graphics health; sharing is not qualified.", gpu.interface, gpu.driver_version, Resource::ALL.into_iter().map(|resource| gpu.resource_text(resource)).collect::<Vec<_>>().join("\n"), if gpu.preparation_supported { "available" } else { hyper_gpu_support::ui_text::system::PREPARATION_UNSUPPORTED }).into(),
-                    }).collect()));
+    ui.set_gpu_information(update_model(
+        ui.get_gpu_information(),
+        inventory
+            .discovery
+            .gpus
+            .iter()
+            .map(|gpu| GpuRow {
+                name: gpu.name.clone().into(),
+                description: hyper_gpu_support::ui_text::system::gpu::description(
+                    &gpu.interface,
+                    &gpu.driver_version,
+                    &Resource::ALL
+                        .into_iter()
+                        .map(|resource| gpu.resource_text(resource))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    if gpu.preparation_supported {
+                        hyper_gpu_support::ui_text::system::preparation_available()
+                    } else {
+                        hyper_gpu_support::ui_text::system::preparation_unsupported()
+                    },
+                )
+                .into(),
+            })
+            .collect(),
+    ));
     ui.set_gpu_options(update_model(
         ui.get_gpu_options(),
         inventory

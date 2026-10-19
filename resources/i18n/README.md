@@ -1,9 +1,38 @@
-# Compiled UI wording
+# UI text and languages
 
-`en-GB/` contains the 408-key active catalogue in ten feature TOML files. Additional inventory keys/files are activated by later extraction work.
+All user-visible GUI wording comes from this folder. Each language is a directory named by its BCP 47 tag (for example `en-GB`, `fr-FR`), with one TOML file per feature (`common.toml`, `dashboard.toml`, …). Every language is compiled into the application; the Settings page switches between them at runtime (default: follow the Windows display language, falling back to British English).
 
-The current decoded wording is verbatim. British English editing is a later phase after migration acceptance; developers own keys, metadata, parameters, API bounds and consumers.
+`en-GB` is the reference catalogue. It defines every key, the arguments each message accepts and their types. Other languages only translate text.
 
-The root build discovers locale directories, validates every complete catalogue and compiles one resolved locale's Rust/Slint accessors into `OUT_DIR`. British English is the required default/fallback and the sole available language. The optional contributor build variable `HYPER_GPU_UI_LOCALE` requests an exact locale; unavailable requests resolve to `en-GB`. Installed binaries do not read this directory at startup or refresh. Generated files are never edited or stored here. Historical comparison text remains in test fixtures, not a runtime fallback.
+## File format
 
-Future authorized translations use the same feature files and stable keys under their own locale directory, with matching locale headers; no application call sites or registration list change. Do not add incomplete or placeholder catalogues. Only regular locale directories and this regular `README.md` are permitted at the root.
+```toml
+# Plain message: section path + key, for example dashboard.actions.more_label
+[actions]
+more_label = "More actions…"
+
+# Message with arguments (declared in en-GB only); {name} inserts an argument, {{ and }} are literal braces
+[credentials.guest_sign_in.message]
+args = ["vm_name: text"]
+text = "Sign in to {vm_name}"
+
+# Plural message: `plural` names the count argument; forms follow the language's CLDR rule
+[vm_list.count]
+args = ["count: usize"]
+plural = "count"
+one = "{count} VM shown"
+other = "{count} VMs shown"
+```
+
+Argument types: `text` (plain data), `message` (another catalogue message), `formatted` (a code-formatted value), `usize`, `u64`, `i32`. Key segments use lowercase words joined by `_`; `text`, `args`, `plural` and the plural category names are reserved. `common.language.name` is the language's native name shown in the picker.
+
+## Adding a language
+
+1. Create a directory for the tag, for example `resources/i18n/fr-FR/`, with any of the reference feature files.
+2. Translate the text, keeping each key and using exactly the reference placeholders. Do not copy `args` or `plural` lines; they are declared once in `en-GB`. Plural messages use the forms of the language (French: `one`, `other`; Russian: `one`, `few`, `many`, `other`).
+3. Set `[language] name` in `common.toml` (for example `name = "Français (France)"`).
+4. Build. The build fails on unknown keys or files, placeholder mismatches, invalid templates or plural forms the language does not use. Untranslated messages fall back to British English with a build warning.
+
+Plural rules are defined in [plural.rs](../../tools/ui-text/src/plural.rs). A language without a rule fails the build until one is added there. Wording is never read from disk at runtime and installed binaries do not use this folder. The generator is described in [tools/ui-text](../../tools/ui-text/README.md).
+
+Backend and worker messages (errors from protected operations, guest checks and the administrator command line) are not yet in the catalogue and remain English.

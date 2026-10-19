@@ -6,18 +6,18 @@ use slint::Model;
 pub(super) fn task(kind: Kind) -> &'static str {
     use dialogs::workflow as text;
     match kind {
-        Kind::Read | Kind::StatusRefresh => text::READ,
-        Kind::PermissionPlan => text::PERMISSION_REVIEW,
-        Kind::PermissionRecovery => text::PERMISSION_RECOVERY,
-        Kind::Apply => text::APPLY,
-        Kind::Verify => text::VERIFY,
-        Kind::Reconcile => text::RECOVER,
-        Kind::SaveOnly => text::SAVE,
-        Kind::Setup => text::PERMISSIONS,
-        Kind::Install => text::INSTALL,
-        Kind::Remove => text::REMOVE,
-        Kind::Forget => text::DELETE,
-        Kind::Credentials => text::CREDENTIALS,
+        Kind::Read | Kind::StatusRefresh => text::read(),
+        Kind::PermissionPlan => text::permission_review(),
+        Kind::PermissionRecovery => text::permission_recovery(),
+        Kind::Apply => text::apply(),
+        Kind::Verify => text::verify(),
+        Kind::Reconcile => text::recover(),
+        Kind::SaveOnly => text::save(),
+        Kind::Setup => text::permissions(),
+        Kind::Install => text::install(),
+        Kind::Remove => text::remove(),
+        Kind::Forget => text::delete(),
+        Kind::Credentials => text::credentials(),
     }
 }
 
@@ -33,7 +33,7 @@ fn set(ui: &AppWindow, phases: &[&str], active: usize) {
 /// Called only after the task has returned, before independent protected readback.
 pub(super) fn readback(ui: &AppWindow) {
     let mut phases: Vec<_> = ui.get_dialog_phases().iter().collect();
-    phases.push(dialogs::workflow::READBACK.into());
+    phases.push(dialogs::workflow::readback().into());
     ui.set_dialog_phase(i32::try_from(phases.len() - 1).unwrap_or(0));
     ui.set_dialog_phases(model(phases));
 }
@@ -51,9 +51,9 @@ pub(super) fn opened(ui: &AppWindow, kind: &str, continuing: bool) {
         }
         phases.push(
             if failed {
-                progress::status::FAILED
+                progress::status::failed()
             } else {
-                dialogs::workflow::RESULT
+                dialogs::workflow::result()
             }
             .into(),
         );
@@ -98,25 +98,29 @@ mod tests {
                 assert!(
                     !labels
                         .iter()
-                        .any(|label| label == dialogs::workflow::PERMISSIONS)
+                        .any(|label| label == dialogs::workflow::permissions())
                 );
             }
             if kind != Kind::Apply {
-                assert!(!labels.iter().any(|label| label == dialogs::workflow::APPLY));
+                assert!(
+                    !labels
+                        .iter()
+                        .any(|label| label == dialogs::workflow::apply())
+                );
             }
             readback(&ui);
             assert_eq!(
                 ui.get_dialog_phases()
                     .row_data(ui.get_dialog_phase() as usize)
                     .unwrap(),
-                dialogs::workflow::READBACK
+                dialogs::workflow::readback()
             );
             opened(&ui, "operation-complete", true);
             assert_eq!(
                 ui.get_dialog_phases()
                     .row_data(ui.get_dialog_phase() as usize)
                     .unwrap(),
-                dialogs::workflow::RESULT
+                dialogs::workflow::result()
             );
             opened(&ui, "info", false);
             assert_eq!(ui.get_dialog_phases().row_count(), 0);
@@ -125,12 +129,12 @@ mod tests {
         opened(&ui, "operation-error", true);
         assert_eq!(
             ui.get_dialog_phases().iter().last().unwrap(),
-            progress::status::FAILED
+            progress::status::failed()
         );
         assert!(
             !ui.get_dialog_phases()
                 .iter()
-                .any(|label| label == dialogs::workflow::RESULT)
+                .any(|label| label == dialogs::workflow::result())
         );
     }
 }

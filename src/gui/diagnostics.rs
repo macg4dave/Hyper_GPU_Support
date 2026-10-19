@@ -8,32 +8,33 @@ pub(super) fn inventory_failure(error: &str) -> (String, String) {
     let reason = if error.contains("release is unconfirmed")
         || error.contains("has not confirmed release")
         || error.contains("launch outcome is unconfirmed")
+        || error.contains(hyper_gpu_support::ui_text::common::errors::reader_unreleased())
     {
-        inventory::READER_UNRELEASED
+        inventory::reader_unreleased()
     } else if error.contains("Invalid protected observation")
         || error.contains("Observation configuration revision differs")
         || error.contains("Protected observation mode differs")
     {
-        inventory::INCONSISTENT
+        inventory::inconsistent()
     } else if hyper_gpu_support::reporting::technical_facts(error)
         .native_codes
         .iter()
         .any(|code| matches!(code.as_str(), "0x80070005" | "0x80041003"))
     {
-        inventory::ACCESS_DENIED
+        inventory::access_denied()
     } else if error.to_ascii_lowercase().contains("timed out")
         || error.to_ascii_lowercase().contains("deadline")
     {
-        inventory::TIMED_OUT
+        inventory::timed_out()
     } else {
         ""
     };
     let summary = if reason.is_empty() {
-        inventory::REFRESH_FAILED.to_owned()
+        inventory::refresh_failed().to_owned()
     } else {
-        format!("{} {reason}", inventory::REFRESH_FAILED)
+        inventory::refresh_failed_reason(inventory::refresh_failed(), reason).into_string()
     };
-    (summary, technical_error(inventory::FAILURE_STAGE, error))
+    (summary, technical_error(inventory::failure_stage(), error))
 }
 
 fn normalized(text: &str) -> String {
@@ -51,18 +52,17 @@ pub(super) fn failure_summary(title: &str, error: &str, context: &str) -> String
 #[cfg(any(windows, test))]
 pub(super) fn completion_failure(summary: &str, details: &str, primary: &str) -> (String, String) {
     let original = hyper_gpu_support::reporting::operator_error(
-        hyper_gpu_support::ui_text::diagnostics::stage::ORIGINAL,
+        hyper_gpu_support::ui_text::diagnostics::stage::original(),
         primary,
     );
     let primary_details = failure_details(
-        hyper_gpu_support::ui_text::diagnostics::stage::ORIGINAL,
+        hyper_gpu_support::ui_text::diagnostics::stage::original(),
         primary,
         &[],
     );
     (
-        format!(
-            "{original}\n\n{summary}\nCompletion records could not be confirmed. Use Refresh and inspect recovery before another operation."
-        ),
+        hyper_gpu_support::ui_text::diagnostics::completion::unconfirmed(&original, summary)
+            .into_string(),
         [primary_details.as_str(), details]
             .into_iter()
             .filter(|text| !text.is_empty())
@@ -93,12 +93,12 @@ pub(super) fn failure_details(title: &str, error: &str, stages: &[String]) -> St
     if !collected && safe_stages.is_empty() {
         return String::new();
     }
-    let mut result = hyper_gpu_support::ui_text::diagnostics::failure::PROVENANCE.to_owned();
+    let mut result = hyper_gpu_support::ui_text::diagnostics::failure::provenance().to_owned();
     if collected {
         result.push_str(&details);
     }
     if !safe_stages.is_empty() {
-        result.push_str(hyper_gpu_support::ui_text::diagnostics::failure::STAGES_HEADING);
+        result.push_str(hyper_gpu_support::ui_text::diagnostics::failure::stages_heading());
         result.push_str(&safe_stages.join("\n"));
     }
     result
@@ -150,7 +150,7 @@ pub(super) fn selected_vm_details(state: &State) -> String {
         "observed_host_state": state.view.vm(id),
         "saved_intent_revision": saved.as_ref().ok(),
         "saved_intent_read_error": saved.as_ref().err(),
-        "pending_edits": if state.view.draft.is_some() { hyper_gpu_support::ui_text::diagnostics::draft::PRESENT } else { hyper_gpu_support::ui_text::diagnostics::draft::ABSENT },
+        "pending_edits": if state.view.draft.is_some() { hyper_gpu_support::ui_text::diagnostics::draft::present() } else { hyper_gpu_support::ui_text::diagnostics::draft::absent() },
         "saved_intent": if saved.is_ok() { state.committed.documents.get(id).map(|document| &document.target) } else { None },
         "authorized_pair": pair,
         "selected_gpu_interface": gpu_interface,
@@ -160,18 +160,20 @@ pub(super) fn selected_vm_details(state: &State) -> String {
         "recorded_history_status": inventory.map(|inventory| inventory.recorded_state(id)),
     });
     let source = if state.view.needs_readback || state.view.vm(id).is_none() {
-        hyper_gpu_support::ui_text::diagnostics::observation::HISTORICAL
+        hyper_gpu_support::ui_text::diagnostics::observation::historical()
     } else {
-        hyper_gpu_support::ui_text::diagnostics::observation::CURRENT
+        hyper_gpu_support::ui_text::diagnostics::observation::current()
     };
     let facts = serde_json::to_string_pretty(&facts).unwrap_or_else(|_| {
-        hyper_gpu_support::ui_text::diagnostics::formatting::UNAVAILABLE.into()
+        hyper_gpu_support::ui_text::diagnostics::formatting::unavailable().into()
     });
-    format!(
-        "{source}\n{facts}\n\nHost comparison:\n{}\n\nApplied operation:\n{}\n\nVRAM values are exact byte requests/readback; provider values do not establish reserved memory or enforced isolation. Missing records and null fields mean unavailable/absent facts, not proof of success.",
-        state.host_configuration_text(id),
-        state.applied_text(id)
+    hyper_gpu_support::ui_text::diagnostics::selected::details(
+        source,
+        &facts,
+        &state.host_configuration_text(id),
+        &state.applied_text(id),
     )
+    .into_string()
 }
 
 #[cfg(test)]

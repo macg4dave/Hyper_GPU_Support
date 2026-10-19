@@ -1,234 +1,45 @@
-schema = 1
-locale = "en-GB"
-feature = "settings"
+# Settings and About. British English is the reference catalogue:
+# it defines every key and argument; other languages translate the text only.
 
-[messages."settings.about.body"]
-text = "Review and approve GPU support changes for your virtual machines. Available operations depend on setup, supported GPU capabilities and recovery status."
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.about.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+title = "Settings"
 
-[messages."settings.about.cli_hint"]
-text = "Explicit CLI commands retain their existing capabilities. Unconnected GUI operations never produce simulated success."
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.about.cli_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[about]
+body = "Review and approve GPU support changes for your virtual machines. Available operations depend on setup, supported GPU capabilities and recovery status."
+cli_hint = "Explicit CLI commands retain their existing capabilities. Unconnected GUI operations never produce simulated success."
+qualification_hint = "NVIDIA first. Further vendor support and simultaneous GPU sharing require independent qualification."
+scope_heading = "Designed for existing VMs"
+subtitle = "Manage GPU support for existing Hyper-V virtual machines."
+title = "About Hyper GPU Support"
 
-[messages."settings.about.qualification_hint"]
-text = "NVIDIA first. Further vendor support and simultaneous GPU sharing require independent qualification."
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.about.qualification_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[appearance]
+dark = "Dark"
+follow_windows = "Follow Windows"
+help_label = "Show contextual help"
+light = "Light"
+palette_hint = "Fluent controls follow the selected palette immediately."
+theme_label = "Theme"
+title = "Appearance"
 
-[messages."settings.about.scope_heading"]
-text = "Designed for existing VMs"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.about.scope_heading"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[branding]
+version = "Hyper GPU Support · 0.1.0"
 
-[messages."settings.about.subtitle"]
-text = "Manage GPU support for existing Hyper-V virtual machines."
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.about.subtitle"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[credentials]
+body = "Guest credentials use the native Windows dialog for the selected enrolled VM. Remember is an explicit opt-in to this user's Credential Manager."
+open_label = "Guest credentials for selected VM"
+title = "Credentials & diagnostics"
 
-[messages."settings.about.title"]
-text = "About Hyper GPU Support"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.about.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[help]
+open_label = "View application help"
 
-[messages."settings.appearance.dark"]
-text = "Dark"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.appearance.dark"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+# Native name shown in the Settings language picker.
+[language]
+follow_windows = "Follow Windows"
+hint = "Text changes immediately. Open dialogs and messages already shown update when they next refresh."
+label = "Display language"
+title = "Language"
 
-[messages."settings.appearance.follow_windows"]
-text = "Follow Windows"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.appearance.follow_windows"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[navigation]
+back = "Back to Settings"
 
-[messages."settings.appearance.help_label"]
-text = "Show contextual help"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.appearance.help_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.appearance.light"]
-text = "Light"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.appearance.light"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.appearance.palette_hint"]
-text = "Fluent controls follow the selected palette immediately."
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.appearance.palette_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.appearance.theme_label"]
-text = "Theme"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.appearance.theme_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.appearance.title"]
-text = "Appearance"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.appearance.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.branding.version"]
-text = "Hyper GPU Support · 0.1.0"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.branding.version"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.credentials.body"]
-text = "Guest credentials use the native Windows dialog for the selected enrolled VM. Remember is an explicit opt-in to this user's Credential Manager."
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.credentials.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.credentials.open_label"]
-text = "Guest credentials for selected VM"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.credentials.open_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.credentials.title"]
-text = "Credentials & diagnostics"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.credentials.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.help.open_label"]
-text = "View application help"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.help.open_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.preferences.notice"]
-text = "Make the workspace yours. Preferences reset on launch."
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.preferences.notice"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.title"]
-text = "Settings"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."settings.navigation.back"]
-text = "Back to Settings"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: settings.navigation.back"
-audience = "operator"
-intent = "Return from System Information or About to Settings."
-consequences = "Navigation only; retain the selected VM and pending edits."
-severity = "information"
-space_hint = "Compact button above the subpage heading."
-placeholders = []
+[preferences]
+notice = "Make the workspace yours. Preferences reset on launch."

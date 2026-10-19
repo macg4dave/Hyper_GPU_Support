@@ -17,7 +17,9 @@ pub(super) fn review_forget_live(
     busy: &Arc<AtomicBool>,
 ) -> Result<(), String> {
     let target = {
-        let mut state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let mut state = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         state.result_notice = None;
         state.forget_target()?
     };
@@ -29,7 +31,7 @@ pub(super) fn review_forget_live(
         busy,
         Operation::new(
             Kind::Read,
-            hyper_gpu_support::ui_text::operations::profile_deletion::review::PROGRESS_TITLE,
+            hyper_gpu_support::ui_text::operations::profile_deletion::review::progress_title(),
         ),
         move || {
             Ok((
@@ -52,9 +54,11 @@ pub(super) fn review_forget_live(
             Err(error) => dialog(
                 ui,
                 "error",
-                hyper_gpu_support::ui_text::operations::profile_deletion::review::UNAVAILABLE_TITLE,
+                hyper_gpu_support::ui_text::operations::profile_deletion::review::unavailable_title(
+                ),
                 &hyper_gpu_support::reporting::operator_error(
-                    hyper_gpu_support::ui_text::operations::profile_deletion::review::FAILURE_STAGE,
+                    hyper_gpu_support::ui_text::operations::profile_deletion::review::failure_stage(
+                    ),
                     &error,
                 ),
             ),
@@ -80,7 +84,7 @@ fn forget_live(
         busy,
         Operation::new(
             Kind::Forget,
-            hyper_gpu_support::ui_text::operations::profile_deletion::PROGRESS_TITLE,
+            hyper_gpu_support::ui_text::operations::profile_deletion::progress_title(),
         ),
         move || hyper_gpu_support::worker::forget_pair(approved, progress).map(|_| ()),
         move |ui, result| {
@@ -97,7 +101,7 @@ fn forget_live(
                 None => dialog(
                     ui,
                     "profile-deleted",
-                    hyper_gpu_support::ui_text::operations::profile_deletion::completed::TITLE,
+                    hyper_gpu_support::ui_text::operations::profile_deletion::completed::title(),
                     &hyper_gpu_support::ui_text::operations::profile_deletion::completed::body(
                         &(vm_name),
                     )
@@ -106,13 +110,14 @@ fn forget_live(
                 Some(error) => dialog(
                     ui,
                     "error",
-                    hyper_gpu_support::ui_text::operations::profile_deletion::incomplete::TITLE,
-                    &format!(
-                        "{vm_name}: {}\nSome app profile records may have been removed; which records remain is unknown until read back. Use Refresh and review profile recovery before continuing; do not repeat deletion with a new request. This operation does not change the VM, GPU assignment or guest files.",
-                        hyper_gpu_support::reporting::operator_error(
-                            hyper_gpu_support::ui_text::operations::profile_deletion::FAILURE_STAGE,
-                            &error
-                        )
+                    hyper_gpu_support::ui_text::operations::profile_deletion::incomplete::title(),
+                    &hyper_gpu_support::ui_text::operations::profile_deletion::incomplete::body(
+                        &vm_name,
+                        &hyper_gpu_support::reporting::operator_error(
+                            hyper_gpu_support::ui_text::operations::profile_deletion::failure_stage(
+                            ),
+                            &error,
+                        ),
                     ),
                 ),
             }

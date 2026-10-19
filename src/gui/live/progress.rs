@@ -11,7 +11,7 @@ use slint::Model;
 /// Local preparation feedback precedes worker launch/UAC, not a worker receipt.
 #[cfg(any(windows, test))]
 pub(super) fn permission_preparation(ui: &AppWindow) {
-    let stage = hyper_gpu_support::ui_text::progress::stage::PERMISSION_PREPARATION;
+    let stage = hyper_gpu_support::ui_text::progress::stage::permission_preparation();
     ui.set_current_stage(stage.into());
     ui.set_dialog_details(stage.into());
     ui.set_stages(model(vec![stage.into()]));
@@ -24,9 +24,9 @@ pub(super) fn permission_preparation(ui: &AppWindow) {
 #[cfg(any(windows, test))]
 pub(super) fn recovery_preparation(ui: &AppWindow, guest_access: bool) {
     let stage = if guest_access {
-        hyper_gpu_support::ui_text::progress::stage::RECOVERY_CREDENTIALS
+        hyper_gpu_support::ui_text::progress::stage::recovery_credentials()
     } else {
-        hyper_gpu_support::ui_text::progress::stage::RECOVERY_PREPARATION
+        hyper_gpu_support::ui_text::progress::stage::recovery_preparation()
     };
     ui.set_current_stage(stage.into());
     ui.set_progress_steps(model(vec![stage.into()]));
@@ -79,62 +79,66 @@ fn progress_callback(
             let (state, installation) = &mut *state;
             let stage = match progress.stage.as_str() {
                 "Check recorded recovery outcome" => {
-                    hyper_gpu_support::ui_text::progress::stage::RECOVERY_OUTCOME
+                    hyper_gpu_support::ui_text::progress::stage::recovery_outcome()
                 }
                 "Prepare protected worker connection" => {
-                    hyper_gpu_support::ui_text::progress::stage::WORKER_CONNECTION
+                    hyper_gpu_support::ui_text::progress::stage::worker_connection()
                 }
                 "Check protected worker admission" => {
-                    hyper_gpu_support::ui_text::progress::stage::WORKER_ADMISSION
+                    hyper_gpu_support::ui_text::progress::stage::worker_admission()
                 }
-                "Read current VM state" => hyper_gpu_support::ui_text::progress::stage::READ_VM,
+                "Read current VM state" => hyper_gpu_support::ui_text::progress::stage::read_vm(),
                 "Read selected GPU and driver version" => {
-                    hyper_gpu_support::ui_text::progress::stage::READ_GPU
+                    hyper_gpu_support::ui_text::progress::stage::read_gpu()
                 }
                 "Authenticate current signed driver files" => {
-                    hyper_gpu_support::ui_text::progress::stage::AUTHENTICATE
+                    hyper_gpu_support::ui_text::progress::stage::authenticate()
                 }
                 "Persist operation recovery" => {
-                    hyper_gpu_support::ui_text::progress::stage::PERSIST
+                    hyper_gpu_support::ui_text::progress::stage::persist()
                 }
                 "Prepare current signed payload" => {
-                    hyper_gpu_support::ui_text::progress::stage::PREPARE
+                    hyper_gpu_support::ui_text::progress::stage::prepare()
                 }
                 "Compatibility settings" => {
-                    hyper_gpu_support::ui_text::progress::stage::COMPATIBILITY
+                    hyper_gpu_support::ui_text::progress::stage::compatibility()
                 }
-                "Provider allocation" => hyper_gpu_support::ui_text::progress::stage::ALLOCATION,
-                "Graceful guest shutdown" => hyper_gpu_support::ui_text::progress::stage::SHUTDOWN,
-                "Start guest" => hyper_gpu_support::ui_text::progress::stage::START,
+                "Provider allocation" => hyper_gpu_support::ui_text::progress::stage::allocation(),
+                "Graceful guest shutdown" => {
+                    hyper_gpu_support::ui_text::progress::stage::shutdown()
+                }
+                "Start guest" => hyper_gpu_support::ui_text::progress::stage::start(),
                 "Publish checked VM configuration" => {
-                    hyper_gpu_support::ui_text::progress::stage::PUBLISH
+                    hyper_gpu_support::ui_text::progress::stage::publish()
                 }
                 "Save verified configuration only" => {
-                    hyper_gpu_support::ui_text::progress::stage::SAVE_ONLY
+                    hyper_gpu_support::ui_text::progress::stage::save_only()
                 }
                 _ => progress.stage.as_str(),
             };
             let status = match progress.status {
-                hyper_gpu_support::worker::StageStatus::Running => "In progress",
+                hyper_gpu_support::worker::StageStatus::Running => {
+                    hyper_gpu_support::ui_text::progress::status::in_progress()
+                }
                 hyper_gpu_support::worker::StageStatus::Done => {
-                    hyper_gpu_support::ui_text::progress::status::COMPLETE
+                    hyper_gpu_support::ui_text::progress::status::complete()
                 }
                 hyper_gpu_support::worker::StageStatus::Failed => {
-                    hyper_gpu_support::ui_text::progress::status::FAILED
+                    hyper_gpu_support::ui_text::progress::status::failed()
                 }
             };
-            let row: slint::SharedString = format!("{stage} · {status}").into();
+            let row: slint::SharedString =
+                hyper_gpu_support::ui_text::progress::status::line(stage, status).into();
             let slot = state.record(&event);
             let stages = write_row(ui.get_stages(), slot, row.clone());
             ui.set_stage_reportable(model(state.reportable().collect()));
             ui.set_dialog_details(
-                format!(
-                    "Reported events (not proof of final state):\n{}",
-                    stages
+                hyper_gpu_support::ui_text::progress::log::heading(
+                    &stages
                         .iter()
                         .map(|row| row.to_string())
                         .collect::<Vec<_>>()
-                        .join("\n")
+                        .join("\n"),
                 )
                 .into(),
             );
@@ -145,13 +149,13 @@ fn progress_callback(
                     steps = write_row(
                         steps,
                         state.step(&Identity::Transfer),
-                        hyper_gpu_support::ui_text::progress::copy::COMPLETE.into(),
+                        hyper_gpu_support::ui_text::progress::copy::complete().into(),
                     );
                 }
                 let steps = write_row(steps, state.step(&event.identity), row);
                 let current = state.active_step().and_then(|slot| steps.row_data(slot));
                 ui.set_current_stage(current.unwrap_or_else(|| {
-                    hyper_gpu_support::ui_text::progress::status::WAITING_RESULT.into()
+                    hyper_gpu_support::ui_text::progress::status::waiting_result().into()
                 }));
                 ui.set_transfer_fraction(if event.status == Status::Running {
                     event.fraction.unwrap_or(-1.0)
@@ -167,7 +171,7 @@ fn progress_callback(
                 installation.present(&ui);
                 if event.identity == Identity::Transfer {
                     ui.set_current_stage(
-                        hyper_gpu_support::ui_text::dialogs::install::PREPARING_FILES.into(),
+                        hyper_gpu_support::ui_text::dialogs::install::preparing_files().into(),
                     );
                     ui.set_install_transfer(progress.stage.replacen("; ", "\n", 1).into());
                 } else {
@@ -235,9 +239,9 @@ mod tests {
             crate::gui::dialog(&ui, "progress", "Recovery", "Progress appears below");
             recovery_preparation(&ui, guest_access);
             let expected = if guest_access {
-                hyper_gpu_support::ui_text::progress::stage::RECOVERY_CREDENTIALS
+                hyper_gpu_support::ui_text::progress::stage::recovery_credentials()
             } else {
-                hyper_gpu_support::ui_text::progress::stage::RECOVERY_PREPARATION
+                hyper_gpu_support::ui_text::progress::stage::recovery_preparation()
             };
             assert_eq!(ui.get_current_stage(), expected);
             assert_eq!(ui.get_progress_steps().row_data(0).unwrap(), expected);

@@ -26,12 +26,12 @@ impl State {
         let vm = self
             .view
             .vm(&record.target.vm_id)
-            .ok_or("Recovery VM unavailable")?;
+            .ok_or(hyper_gpu_support::ui_text::operations::recovery::vm_record_unavailable())?;
         let inventory = self
             .view
             .inventory
             .as_ref()
-            .ok_or("Recovery inventory unavailable")?;
+            .ok_or(hyper_gpu_support::ui_text::operations::recovery::inventory_unavailable())?;
         let journal = inventory
             .managed
             .get(&record.target.vm_id)
@@ -76,12 +76,14 @@ impl State {
             if record.operation_id != operation_id || record.target != *target {
                 self.view.needs_readback = true;
                 return Err(
-                    "The protected recovery receipt changed after completion. Inspect the loaded operation before any retry.".into(),
+                    hyper_gpu_support::ui_text::operations::recovery::receipt_changed().into(),
                 );
             }
         } else if !saved && self.view.unsaved {
             self.view.needs_readback = true;
-            return Err("Applied changes were confirmed, but their bound save-only receipt is unavailable. Refresh and inspect recovery; do not repeat Apply.".into());
+            return Err(
+                hyper_gpu_support::ui_text::operations::recovery::receipt_unavailable().into(),
+            );
         }
         if saved
             && (self.committed.revision(&target.vm_id).is_err()
@@ -92,7 +94,9 @@ impl State {
                     .is_none_or(|d| d.target != *target))
         {
             self.view.needs_readback = true;
-            return Err("Publication completed, but current saved intent changed or is unreadable. Refresh before editing; do not repeat GPU work.".into());
+            return Err(
+                hyper_gpu_support::ui_text::operations::recovery::saved_intent_changed().into(),
+            );
         }
         Ok(())
     }
@@ -106,11 +110,13 @@ impl State {
             .provenance
             .selected
             .as_ref()
-            .ok_or("Completion identity missing")?;
+            .ok_or(hyper_gpu_support::ui_text::operations::recovery::identity_missing())?;
         if observation.provenance.mode != Mode::Completion
             || self.view.selected.as_deref() != Some(selected.vm_id.as_str())
         {
-            return Err("Completion identity differs from the selected VM".into());
+            return Err(
+                hyper_gpu_support::ui_text::operations::recovery::identity_differs().into(),
+            );
         }
         let selected_error = (!observation
             .inventory
@@ -125,8 +131,7 @@ impl State {
                 .iter()
                 .any(|gpu| gpu.interface == selected.gpu_interface))
         .then(|| {
-            "Selected VM/GPU completion read is unavailable; Refresh before another operation"
-                .to_owned()
+            hyper_gpu_support::ui_text::operations::recovery::completion_unavailable().to_owned()
         });
         let selected_id = selected.vm_id.clone();
         self.refresh(inventory);
@@ -154,7 +159,7 @@ impl State {
         let record = self
             .recovery
             .as_ref()
-            .ok_or("No bound save-only receipt is loaded; Refresh and inspect recovery.")?;
+            .ok_or(hyper_gpu_support::ui_text::operations::recovery::no_receipt())?;
         if !record.publication_required
             || !matches!(
                 record.phase,
@@ -162,7 +167,7 @@ impl State {
             )
         {
             return Err(
-                "This operation requires reconciliation, not a configuration save retry.".into(),
+                hyper_gpu_support::ui_text::operations::recovery::reconciliation_only().into(),
             );
         }
         Ok(record.clone())
@@ -211,13 +216,13 @@ impl State {
             if !published {
                 self.view.needs_readback = true;
                 return Err(
-                    "Recovery record is absent, but verified intent is not confirmed in readable committed configuration. Refresh and inspect before another operation.".into(),
+                    hyper_gpu_support::ui_text::operations::recovery::intent_unconfirmed().into(),
                 );
             }
         } else if self.view.unsaved {
             self.view.needs_readback = true;
             return Err(
-                "Unsaved outcome has no verified target. Refresh and inspect before another operation.".into(),
+                hyper_gpu_support::ui_text::operations::recovery::no_verified_target().into(),
             );
         }
         // Do not use View::published here: an external save must preserve any draft.
@@ -269,7 +274,7 @@ impl State {
             (Some(id), None)
         };
         let operation = vm_id.map_or_else(
-            || hyper_gpu_support::ui_text::operations::recovery::IMPORT_UNFINISHED.to_owned(),
+            || hyper_gpu_support::ui_text::operations::recovery::import_unfinished().to_owned(),
             |id| {
                 let name = self
                     .view
@@ -280,9 +285,10 @@ impl State {
                 hyper_gpu_support::ui_text::operations::recovery::vm_unfinished(name).into_string()
             },
         );
-        Some(format!(
-            "{operation}\n\nBefore verifying, repairing, removing GPU support or deleting an app profile, review what happened. Choose Review recovery to see the recorded operation and the available next step. Your edits are kept. Reviewing recovery does not make changes; any available recovery action needs separate confirmation."
-        ))
+        Some(
+            hyper_gpu_support::ui_text::operations::recovery::review_prompt(&operation)
+                .into_string(),
+        )
     }
 
     pub fn applied_text(&self, id: &str) -> String {
@@ -290,16 +296,16 @@ impl State {
         if let Some(record) = self.recovery_for_vm(id) {
             return match record.phase {
                 SavePhase::Admitted | SavePhase::EffectsStarted => {
-                    hyper_gpu_support::ui_text::operations::outcome::UNCERTAIN
+                    hyper_gpu_support::ui_text::operations::outcome::uncertain()
                 }
                 SavePhase::Verified(_) if record.publication_required => {
-                    hyper_gpu_support::ui_text::operations::outcome::PUBLICATION_PENDING
+                    hyper_gpu_support::ui_text::operations::outcome::publication_pending()
                 }
                 SavePhase::Published(_) => {
-                    hyper_gpu_support::ui_text::operations::outcome::FINALIZATION_PENDING
+                    hyper_gpu_support::ui_text::operations::outcome::finalization_pending()
                 }
                 SavePhase::Verified(_) => {
-                    hyper_gpu_support::ui_text::operations::outcome::VERIFY_FINALIZATION_PENDING
+                    hyper_gpu_support::ui_text::operations::outcome::verify_finalization_pending()
                 }
             }
             .into();
@@ -310,9 +316,9 @@ impl State {
             .as_ref()
             .is_some_and(|t| t.vm_id == id)
         {
-            hyper_gpu_support::ui_text::operations::outcome::SAVE_UNKNOWN.into()
+            hyper_gpu_support::ui_text::operations::outcome::save_unknown().into()
         } else {
-            hyper_gpu_support::ui_text::operations::outcome::ABSENT.into()
+            hyper_gpu_support::ui_text::operations::outcome::absent().into()
         }
     }
 }

@@ -1,5 +1,5 @@
 import { UiText } from "ui-text.slint";
-import { Button, CheckBox, ScrollView, Palette } from "std-widgets.slint";
+import { Button, CheckBox, ComboBox, ScrollView, Palette } from "std-widgets.slint";
 import { Theme, Heading, Label, Hint, Surface } from "theme.slint";
 
 export struct GpuRow { name: string, description: string }
@@ -9,6 +9,9 @@ export component Pages inherits Rectangle {
     in property <string> system-summary;
     in property <[GpuRow]> gpu-information;
     in-out property <int> theme-index: 0;
+    in property <[string]> language-options;
+    in-out property <int> language-index: 0;
+    callback language-selected(int);
     callback action(string);
     background: Theme.canvas;
     VerticalLayout {
@@ -45,6 +48,18 @@ export component Pages inherits Rectangle {
                         }
                         CheckBox { enabled: !Theme.modal-active; text: UiText.settings-appearance-help-label; checked <=> Theme.show-help; }
                         Hint { text: UiText.settings-appearance-palette-hint; }
+                    } }
+                    Surface { VerticalLayout { padding: 22px; spacing: 12px;
+                        Label { text: UiText.settings-language-title; font-weight: 600; }
+                        Hint { text: UiText.settings-language-label; }
+                        ComboBox {
+                            enabled: !Theme.modal-active;
+                            accessible-label: UiText.settings-language-label;
+                            model: root.language-options;
+                            current-index <=> root.language-index;
+                            selected => { root.language-selected(self.current-index); }
+                        }
+                        Hint { text: UiText.settings-language-hint; }
                     } }
                 }
                 if root.page == 3 : VerticalLayout {

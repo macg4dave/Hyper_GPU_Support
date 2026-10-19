@@ -20,6 +20,7 @@ mod wording;
 use slint::{Model, ModelRc, VecModel};
 use std::rc::Rc;
 slint::include_modules!();
+include!(concat!(env!("OUT_DIR"), "/ui_text_apply.rs"));
 
 fn model<T: Clone + 'static>(rows: Vec<T>) -> ModelRc<T> {
     Rc::new(VecModel::from(rows)).into()
@@ -72,10 +73,16 @@ fn dialog(ui: &AppWindow, kind: &str, title: &str, body: &str) {
 // Keep the typed backend envelope intact until both diagnostic views are built.
 fn failure_dialog(ui: &AppWindow, title: &str, error: &str, context: &str) {
     if hyper_gpu_support::reporting::installation_preflight_blocked(error) {
-        let title = "GPU support installation blocked";
+        let title = hyper_gpu_support::ui_text::operations::setup::blocked::title();
         dialog(ui, "error", title, error);
-        ui.set_dialog_body(diagnostics::failure_summary(title, error,
-            "This attempt stopped before driver installation or VM power changes. Your draft is retained.").into());
+        ui.set_dialog_body(
+            diagnostics::failure_summary(
+                title,
+                error,
+                hyper_gpu_support::ui_text::operations::setup::blocked::context(),
+            )
+            .into(),
+        );
         return;
     }
     dialog(ui, "error", title, error);
@@ -87,7 +94,9 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 fn set_details(ui: &AppWindow, details: &str) {
     let details = diagnostics::additional_details(ui.get_dialog_body().as_str(), details);
-    ui.set_dialog_details(if details.is_empty() { "".into() } else {
-        format!("Source: facts captured for this review/record. Fresh protected checks are required before any effects.\n\n{details}").into()
+    ui.set_dialog_details(if details.is_empty() {
+        "".into()
+    } else {
+        hyper_gpu_support::ui_text::diagnostics::details::source(&details).into()
     });
 }

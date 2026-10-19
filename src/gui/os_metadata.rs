@@ -46,8 +46,8 @@ fn resolve(directory: &Path, id: &str, fresh: Option<&str>) -> Result<Option<Str
 pub(super) fn remember(
     inventory: &mut hyper_gpu_support::gui_model::Inventory,
 ) -> Result<(), String> {
-    let directory =
-        std::env::var_os("LOCALAPPDATA").ok_or("Local user preference directory unavailable")?;
+    let directory = std::env::var_os("LOCALAPPDATA")
+        .ok_or(hyper_gpu_support::ui_text::common::errors::preference_directory_unavailable())?;
     let directory = std::path::PathBuf::from(directory).join("HyperGpuSupport/guest-os");
     remember_in(&directory, &mut inventory.discovery)
 }

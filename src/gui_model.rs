@@ -35,18 +35,26 @@ impl Inventory {
     /// This never certifies current health or uses an unread/mismatched journal.
     pub fn recorded_graphics_summary(&self, id: &str) -> &'static str {
         if self.recorded_state(id).recovery_required {
-            return "recovery required; current health unknown";
+            return crate::ui_text::diagnostics::history::summary::recovery_required();
         }
         let Some(journal) = self.managed.get(id).and_then(Option::as_ref) else {
-            return "unknown; no matching check record";
+            return crate::ui_text::diagnostics::history::summary::no_record();
         };
         match journal.latest_check {
-            Some(GuestCheck::Interrupted) => "latest check incomplete; current health unknown",
-            Some(GuestCheck::PayloadMismatch) => "latest check found a driver-file mismatch",
-            Some(GuestCheck::Failed) => "latest check failed; current health unknown",
-            Some(GuestCheck::Unavailable) => "latest check unavailable; current health unknown",
-            _ if journal.last_verified.is_some() => "previously verified; current health unknown",
-            _ => "not verified",
+            Some(GuestCheck::Interrupted) => {
+                crate::ui_text::diagnostics::history::summary::incomplete()
+            }
+            Some(GuestCheck::PayloadMismatch) => {
+                crate::ui_text::diagnostics::history::summary::mismatch()
+            }
+            Some(GuestCheck::Failed) => crate::ui_text::diagnostics::history::summary::failed(),
+            Some(GuestCheck::Unavailable) => {
+                crate::ui_text::diagnostics::history::summary::unavailable()
+            }
+            _ if journal.last_verified.is_some() => {
+                crate::ui_text::diagnostics::history::summary::previously_verified()
+            }
+            _ => crate::ui_text::diagnostics::history::summary::not_verified(),
         }
     }
 
@@ -55,7 +63,7 @@ impl Inventory {
     pub fn recorded_state(&self, id: &str) -> RecordedState {
         let unknown = |preparation: &str, recovery_required| RecordedState {
             preparation: preparation.into(),
-            graphics: crate::ui_text::diagnostics::history::graphics::UNKNOWN.into(),
+            graphics: crate::ui_text::diagnostics::history::graphics::unknown().into(),
             recovery_required,
         };
         if let Some(issue) = self.discovery.issues.iter().find(|issue| {
@@ -65,12 +73,12 @@ impl Inventory {
         }
         match self.managed.get(id) {
             None => unknown(
-                crate::ui_text::diagnostics::history::preparation::UNAVAILABLE,
+                crate::ui_text::diagnostics::history::preparation::unavailable(),
                 false,
             ),
             Some(None) => RecordedState {
-                preparation: crate::ui_text::diagnostics::history::preparation::ABSENT.into(),
-                graphics: crate::ui_text::diagnostics::history::graphics::ABSENT.into(),
+                preparation: crate::ui_text::diagnostics::history::preparation::absent().into(),
+                graphics: crate::ui_text::diagnostics::history::graphics::absent().into(),
                 recovery_required: false,
             },
             Some(Some(journal)) => {
@@ -81,17 +89,17 @@ impl Inventory {
                     })
                 {
                     return unknown(
-                        crate::ui_text::diagnostics::history::preparation::PAIR_MISMATCH,
+                        crate::ui_text::diagnostics::history::preparation::pair_mismatch(),
                         true,
                     );
                 }
                 RecordedState {
                     preparation: if journal.pending {
-                        crate::ui_text::diagnostics::history::preparation::PENDING
+                        crate::ui_text::diagnostics::history::preparation::pending()
                     } else if journal.prepared.is_some() {
-                        crate::ui_text::diagnostics::history::preparation::HISTORICAL
+                        crate::ui_text::diagnostics::history::preparation::historical()
                     } else {
-                        crate::ui_text::diagnostics::history::preparation::INCOMPLETE
+                        crate::ui_text::diagnostics::history::preparation::incomplete()
                     }
                     .into(),
                     graphics: format!(
@@ -99,18 +107,18 @@ impl Inventory {
                         match journal.latest_check {
                             None => "",
                             Some(GuestCheck::Interrupted) =>
-                                crate::ui_text::diagnostics::history::graphics::INTERRUPTED,
+                                crate::ui_text::diagnostics::history::graphics::interrupted(),
                             Some(GuestCheck::Passed) =>
-                                crate::ui_text::diagnostics::history::graphics::PASSED,
+                                crate::ui_text::diagnostics::history::graphics::passed(),
                             Some(GuestCheck::PayloadMismatch) =>
-                                crate::ui_text::diagnostics::history::graphics::MISMATCH,
+                                crate::ui_text::diagnostics::history::graphics::mismatch(),
                             Some(GuestCheck::Failed) =>
-                                crate::ui_text::diagnostics::history::graphics::FAILED,
+                                crate::ui_text::diagnostics::history::graphics::failed(),
                             Some(GuestCheck::Unavailable) =>
-                                crate::ui_text::diagnostics::history::graphics::UNAVAILABLE,
+                                crate::ui_text::diagnostics::history::graphics::unavailable(),
                         },
                         journal.last_verified.map_or_else(
-                            || crate::ui_text::diagnostics::history::graphics::ABSENT.into(),
+                            || crate::ui_text::diagnostics::history::graphics::absent().into(),
                             |time| crate::ui_text::diagnostics::history::graphics::last_success(
                                 time
                             )
@@ -158,23 +166,41 @@ impl View {
             .iter()
             .find(|target| target.vm_id == id)
             .map_or_else(
-                || crate::ui_text::diagnostics::history::saved::ABSENT.into(),
+                || crate::ui_text::diagnostics::history::saved::absent().into(),
                 |target| {
-                    let allocation = Resource::ALL.into_iter().map(|resource| {
-                        target.allocation(resource).map_or_else(
-                            || format!("No explicit {} request; existing/provider values are not reset", resource.name()),
-                            |value| format!("{} provider integers: {} / {} / {}", resource.name(), value.minimum, value.optimal, value.maximum),
-                        )
-                    }).collect::<Vec<_>>().join("; ");
-                    format!(
-                        "GPU {}; {}; {allocation}",
+                    let allocation = Resource::ALL
+                        .into_iter()
+                        .map(|resource| {
+                            target.allocation(resource).map_or_else(
+                                || {
+                                    crate::ui_text::diagnostics::history::saved::no_request(
+                                        resource.name(),
+                                    )
+                                    .into_string()
+                                },
+                                |value| {
+                                    crate::ui_text::diagnostics::history::saved::provider_values(
+                                        resource.name(),
+                                        &value.minimum.to_string(),
+                                        &value.optimal.to_string(),
+                                        &value.maximum.to_string(),
+                                    )
+                                    .into_string()
+                                },
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(crate::ui_text::common::list::separator());
+                    crate::ui_text::diagnostics::history::saved::summary(
                         if target.enabled {
-                            crate::ui_text::common::support::ENABLED_SENTENCE
+                            crate::ui_text::common::support::enabled_sentence()
                         } else {
-                            crate::ui_text::common::support::DISABLED_SENTENCE
+                            crate::ui_text::common::support::disabled_sentence()
                         },
-                        target.gpu_interface
+                        &target.gpu_interface,
+                        &allocation,
                     )
+                    .into_string()
                 },
             )
     }
@@ -218,48 +244,51 @@ impl View {
         if !self
             .inventory
             .as_ref()
-            .ok_or("Refresh inventory first.")?
+            .ok_or(crate::ui_text::dashboard::eligibility::refresh_inventory())?
             .enrolled
             .iter()
             .any(|t| t.vm_id == target.vm_id && t.gpu_interface == target.gpu_interface)
         {
-            return Err("This VM/GPU pair is not enrolled; separate enrollment review is required before Apply.".into());
+            return Err(crate::ui_text::dashboard::eligibility::not_enrolled().into());
         }
         Ok(())
     }
     /// Read-only proposal validation grants no execution/enrollment authority.
     pub fn proposal_eligibility(&self, target: &Target) -> Result<(), String> {
         if self.needs_readback {
-            return Err("Refresh VM information before applying changes.".into());
+            return Err(crate::ui_text::dashboard::eligibility::refresh_vm().into());
         }
         self.draft_eligibility(target)
     }
     /// Editing retained observations grants no execution or enrollment authority.
     pub fn draft_eligibility(&self, target: &Target) -> Result<(), String> {
-        let inventory = self.inventory.as_ref().ok_or("Refresh inventory first.")?;
+        let inventory = self
+            .inventory
+            .as_ref()
+            .ok_or(crate::ui_text::dashboard::eligibility::refresh_inventory())?;
         if inventory
             .discovery
             .issues
             .iter()
             .any(|issue| issue.target.as_deref() == Some(&target.vm_id))
         {
-            return Err("Selected VM observations are incomplete; correct access and refresh before applying.".into());
+            return Err(crate::ui_text::dashboard::eligibility::observations_incomplete().into());
         }
         let vm = self
             .vm(&target.vm_id)
-            .ok_or("The selected VM is no longer present; refresh or discard.")?;
+            .ok_or(crate::ui_text::dashboard::eligibility::vm_missing())?;
         if vm.generation != 2 || !matches!(vm.power, Power::Off | Power::Running) {
-            return Err("A stable Generation 2 VM is required.".into());
+            return Err(crate::ui_text::dashboard::eligibility::generation().into());
         }
         if vm.gpus.len() > 1 || vm.gpus.iter().any(|g| g != &target.gpu_interface) {
-            return Err("Another GPU assignment is present; reconcile it before applying.".into());
+            return Err(crate::ui_text::dashboard::eligibility::other_assignment().into());
         }
         let gpu = inventory
             .discovery
             .gpus
             .iter()
             .find(|g| g.interface == target.gpu_interface)
-            .ok_or("The enrolled GPU is unavailable.")?;
+            .ok_or(crate::ui_text::dashboard::eligibility::gpu_unavailable())?;
         if inventory
             .managed
             .get(&target.vm_id)
@@ -268,12 +297,10 @@ impl View {
                 j.schema != 1 || j.vm_id != target.vm_id || j.gpu_interface != target.gpu_interface
             })
         {
-            return Err(
-                "Managed state belongs to a different pair; reconcile enrollment first.".into(),
-            );
+            return Err(crate::ui_text::dashboard::eligibility::pair_mismatch().into());
         }
         if target.enabled && !gpu.preparation_supported {
-            return Err("Guest preparation is not supported for this GPU vendor.".into());
+            return Err(crate::ui_text::dashboard::eligibility::vendor_unsupported().into());
         }
         target.validate()?;
         if target.enabled {
@@ -284,15 +311,13 @@ impl View {
     /// Stage a toggle without touching configuration, journals, credentials or providers.
     pub fn stage(&mut self, id: &str, enabled: bool) -> Result<(), String> {
         if self.needs_readback {
-            return Err("Refresh after the uncertain operation before editing.".into());
+            return Err(crate::ui_text::dashboard::eligibility::refresh_uncertain().into());
         }
         if self.unsaved {
-            return Err(
-                "Save the completed configuration before staging another operation.".into(),
-            );
+            return Err(crate::ui_text::dashboard::eligibility::save_first().into());
         }
         if self.draft.as_ref().is_some_and(|t| t.vm_id != id) {
-            return Err("Apply or discard the other VM's pending change first.".into());
+            return Err(crate::ui_text::dashboard::eligibility::other_vm_draft().into());
         }
         let mut target = self
             .configuration
@@ -300,10 +325,12 @@ impl View {
             .iter()
             .find(|t| t.vm_id == id)
             .cloned()
-            .ok_or("Add this VM to configuration and enroll it first.")?;
+            .ok_or(crate::ui_text::dashboard::eligibility::not_configured())?;
         target.enabled = enabled;
         self.eligibility(&target)?;
-        let observed = self.vm(id).ok_or("The VM is unavailable.")?;
+        let observed = self
+            .vm(id)
+            .ok_or(crate::ui_text::dashboard::eligibility::vm_unavailable())?;
         let effective = observed.gpus == vec![target.gpu_interface.clone()];
         let pending = self
             .inventory
@@ -326,7 +353,7 @@ impl View {
                 .targets
                 .iter()
                 .find(|t| t.vm_id == id)
-                .ok_or("Unconfigured VM")?
+                .ok_or(crate::ui_text::dashboard::eligibility::unconfigured_vm())?
                 .clone(),
         );
         self.draft.as_mut().expect("just staged").enabled = true;
@@ -337,10 +364,14 @@ impl View {
         let mut pair = target.clone();
         pair.enabled = false;
         self.eligibility(&pair)?;
-        let inventory = self.inventory.as_ref().ok_or("Refresh first")?;
+        let inventory = self
+            .inventory
+            .as_ref()
+            .ok_or(crate::ui_text::dashboard::eligibility::refresh_first())?;
         crate::workflow::verification_power(
             target,
-            self.vm(&target.vm_id).ok_or("VM unavailable")?,
+            self.vm(&target.vm_id)
+                .ok_or(crate::ui_text::dashboard::eligibility::vm_unavailable_short())?,
             inventory
                 .managed
                 .get(&target.vm_id)
@@ -350,15 +381,15 @@ impl View {
     /// Revalidate the staged pair against fresh readback before requesting a plan.
     pub fn apply_target(&self) -> Result<Target, String> {
         if self.needs_readback {
-            return Err("Refresh/read back the uncertain operation before retrying.".into());
+            return Err(crate::ui_text::dashboard::eligibility::readback_before_retry().into());
         }
         if self.unsaved {
-            return Err(
-                "The operation succeeded; save its configuration instead of replaying apply."
-                    .into(),
-            );
+            return Err(crate::ui_text::dashboard::eligibility::save_instead().into());
         }
-        let target = self.draft.as_ref().ok_or("Stage a change first.")?;
+        let target = self
+            .draft
+            .as_ref()
+            .ok_or(crate::ui_text::dashboard::eligibility::stage_first())?;
         self.eligibility(target)?;
         Ok(target.clone())
     }
@@ -385,7 +416,7 @@ impl View {
             .as_ref()
             .is_some_and(|verified| verified != target)
         {
-            return Err("publication does not match verified-unsaved intent".into());
+            return Err(crate::ui_text::dashboard::eligibility::publication_mismatch().into());
         }
         self.configuration
             .targets
@@ -412,17 +443,22 @@ impl View {
             .iter()
             .find(|t| t.vm_id == vm.vm_id);
         let effective = if vm.gpus.is_empty() {
-            "Disabled"
+            crate::ui_text::common::support::disabled()
         } else if configured.is_some_and(|t| vm.gpus == vec![t.gpu_interface.clone()]) {
-            "Enabled"
+            crate::ui_text::common::support::enabled()
         } else {
-            "Other assignment"
+            crate::ui_text::dashboard::support::other_assignment()
         };
         match self.draft.as_ref().filter(|t| t.vm_id == vm.vm_id) {
-            Some(t) => format!(
-                "{effective} — Pending {}",
-                if t.enabled { "enable" } else { "disable" }
-            ),
+            Some(t) => crate::ui_text::dashboard::support::pending(
+                effective,
+                if t.enabled {
+                    crate::ui_text::common::support::enable_action()
+                } else {
+                    crate::ui_text::common::support::disable_action()
+                },
+            )
+            .into_string(),
             None => effective.into(),
         }
     }
@@ -430,11 +466,11 @@ impl View {
 /// Truthful provider allocation label, without GiB or enforcement interpretation.
 pub fn allocation_text(vm: &VmState) -> &'static str {
     if vm.gpus.is_empty() {
-        "Not assigned"
+        crate::ui_text::dashboard::allocation::not_assigned()
     } else if vm.vram.is_some() {
-        "Provider values"
+        crate::ui_text::dashboard::allocation::provider_values()
     } else {
-        "Provider default"
+        crate::ui_text::dashboard::allocation::provider_default()
     }
 }
 
@@ -446,10 +482,10 @@ pub fn save_configuration(
 ) -> Result<String, String> {
     let text = toml::to_string_pretty(configuration).map_err(|e| e.to_string())?;
     if std::fs::read_to_string(path)
-        .map_err(|e| format!("Read configuration before saving: {e}"))?
+        .map_err(|e| crate::ui_text::operations::save::read_failed(&e.to_string()).into_string())?
         != expected
     {
-        return Err("Configuration changed outside the GUI. Resolve the file before saving; do not replay the successful VM operation.".into());
+        return Err(crate::ui_text::operations::save::changed_outside().into());
     }
     use std::io::Write;
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -459,7 +495,7 @@ pub fn save_configuration(
         NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     let mut created = false;
-    let result = (|| {
+    let result = (|| -> Result<String, String> {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -471,9 +507,7 @@ pub fn save_configuration(
             .map_err(|e| e.to_string())?;
         drop(file);
         if std::fs::read_to_string(path).map_err(|e| e.to_string())? != expected {
-            return Err(
-                "Configuration changed during save; resolve the file before retrying save.".into(),
-            );
+            return Err(crate::ui_text::operations::save::changed_during().into());
         }
         std::fs::rename(&temp, path).map_err(|e| e.to_string())?;
         Ok(text)
@@ -482,10 +516,13 @@ pub fn save_configuration(
         && temp.exists()
         && let Err(cleanup) = std::fs::remove_file(&temp)
     {
-        return Err(format!(
-            "{}; temporary save cleanup failed: {cleanup}",
-            result.err().unwrap_or_else(|| "Save completed".into())
-        ));
+        return Err(crate::ui_text::operations::save::cleanup_failed(
+            &result
+                .err()
+                .unwrap_or_else(|| crate::ui_text::operations::save::completed().into()),
+            &cleanup.to_string(),
+        )
+        .into_string());
     }
     result
 }

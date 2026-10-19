@@ -1,993 +1,286 @@
-schema = 1
-locale = "en-GB"
-feature = "dashboard"
-
-[messages."dashboard.actions.more_label"]
-text = "More actions…"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.actions.more_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.actions.partial_removal.windows_required"]
-text = "Partial GPU removal requires Windows."
-screen = "present_actions presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.actions.partial_removal.windows_required"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.actions.permission_required"]
-text = "This VM/GPU pair is not authorized. Close this panel and review first-time setup."
-screen = "selected_actions presentation (src/gui/actions.rs)"
-state = "Selected branch: dashboard.actions.permission_required"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.apply.label"]
-text = "Apply"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.apply.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.attachment.absent"]
-text = "No GPU attached"
-screen = "vm_row presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.attachment.absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.attachment.identity_unknown"]
-text = "Attached GPU (identity unavailable)"
-screen = "vm_row presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.attachment.identity_unknown"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.capability.unknown"]
-text = "Capability unknown"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.capability.unknown"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.configuration.unavailable_title"]
-text = "Configuration is unavailable"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.configuration.unavailable_title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.diagnostics.inspect_label"]
-text = "Inspect diagnostics"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.diagnostics.inspect_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.draft.absent"]
-text = "No unapplied edits"
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.draft.absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.draft.changed"]
-text = "● Draft changed"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.draft.changed"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.draft.discard_label"]
-text = "Discard draft"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.draft.discard_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.draft.vm_removed"]
-text = "The draft VM is no longer present. Discard the draft and Refresh."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.draft.vm_removed"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.draft.vm_unavailable"]
-text = "Unapplied edits retained for the unavailable VM."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.draft.vm_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.eligibility.title"]
-text = "This VM is not eligible"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.eligibility.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.eligibility.unsupported_body"]
-text = "Non-Generation 2 guests are outside the GPU-P workflow."
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.eligibility.unsupported_body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.gpu.fixed_hint"]
-text = "This VM is authorized for its recorded GPU. Changing that GPU is unavailable; Refresh if the recorded GPU is missing. Your saved memory requests are kept."
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.gpu.fixed_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.gpu.label"]
-text = "Physical GPU"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.gpu.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.inventory.refresh"]
-text = "Refresh"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.inventory.refresh"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.inventory.updating"]
-text = "Updating VM status"
-screen = "background_for_vm presentation (src/gui/live.rs)"
-state = "Selected branch: dashboard.inventory.updating"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.inventory.updating_notice"]
-text = "Updating VM status..."
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: dashboard.inventory.updating_notice"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.memory.advanced_hint"]
-text = "Exact VRAM request for compatibility with saved settings. Minimum ≤ Optimal ≤ Maximum, in native bytes. Default placeholders are suggestions. Editing an empty group fills its other defaults. Clear all three fields for no explicit write. Use the GPU support toggle or Remove GPU support to disable support."
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.advanced_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.memory.input_accessible"]
-text = "GPU memory request in decimal GB"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.input_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.memory.label"]
-text = "GPU Memory Request"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.memory.slider_accessible"]
-text = "Requested GPU memory in GB"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.slider_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.memory.submit"]
-text = "Set"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.submit"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.memory.unit"]
-text = "GB"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.unit"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.memory.vram_label"]
-text = "VRAM"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.memory.vram_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.navigation.about"]
-text = "About"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: dashboard.navigation.about"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.navigation.dashboard"]
-text = "Dashboard"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.navigation.dashboard"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.navigation.settings"]
-text = "Settings"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.navigation.settings"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.navigation.system"]
-text = "System Information"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: dashboard.navigation.system"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.observation.historical_prefix"]
-text = "Historical: "
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.observation.historical_prefix"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.observation.unread"]
-text = "Not read"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.observation.unread"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.observation.vm_missing"]
-text = "Selected VM was not returned by the latest inventory read"
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.observation.vm_missing"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.os.linux_accessible"]
-text = "Linux guest, sample metadata"
-screen = "GuestOsIcon presentation (src/gui/ui/cards.slint)"
-state = "Selected branch: dashboard.os.linux_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.os.unknown_accessible"]
-text = "Unknown guest OS"
-screen = "GuestOsIcon presentation (src/gui/ui/cards.slint)"
-state = "Selected branch: dashboard.os.unknown_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.os.windows_accessible"]
-text = "Windows guest, sample metadata"
-screen = "GuestOsIcon presentation (src/gui/ui/cards.slint)"
-state = "Selected branch: dashboard.os.windows_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.outcome.absent"]
-text = "No unpublished operation recorded"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.outcome.absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.recovery.banner"]
-text = "Pending protected recovery record. New GPU changes are blocked; inspection does not clear recovery."
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.recovery.banner"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.recovery.inspect"]
-text = "Check recorded outcome"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.recovery.inspect"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.recovery.review_label"]
-text = "Check recorded outcome"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.recovery.review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.resources.gpu_required"]
-text = "Select an available physical GPU; capability unknown"
-screen = "resource_controls presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.resources.gpu_required"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.saved.absent"]
-text = "No saved configuration"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.saved.absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.selection.absent"]
-text = "No VM selected"
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.selection.absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.selection.prompt"]
-text = "Select a VM to read its state."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.selection.prompt"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.selection.required"]
-text = "Select a VM first."
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.selection.required"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.selection.vm_unavailable"]
-text = "Selected VM unavailable"
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.selection.vm_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.setup.body"]
-text = "GPU support is not enabled on this VM. Start GPU setup to enable it. Retained driver preparation is checked before deciding whether installation is required."
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.setup.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.setup.review_label"]
-text = "Start GPU setup"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.setup.review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.setup.title"]
-text = "First-time setup"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.setup.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.state.authorized"]
-text = "Authorized"
-screen = "observed_row presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.state.authorized"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.state.recovery"]
-text = "Recovery required"
-screen = "observed_row presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.state.recovery"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.state.refresh_required"]
-text = "Refresh needed"
-screen = "observed_row presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.state.refresh_required"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.state.status_unavailable"]
-text = "Status unavailable"
-screen = "observed_row presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.state.status_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.status.busy"]
-text = "Operation in progress"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.status.busy"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.status.draft_absent"]
-text = "No pending edits"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.status.draft_absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.status.draft_pending"]
-text = "Pending edits; review required before changes"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.status.draft_pending"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.status.idle"]
-text = "No operation running"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.status.idle"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.status.prerequisites"]
-text = "Check the selected VM's status; setup or Refresh may be required"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.status.prerequisites"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.status.recovery"]
-text = "Review recovery before new changes"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.status.recovery"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.status.selection_required"]
-text = "Select a VM"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.status.selection_required"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.status.updating"]
-text = "Updating VM information"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.status.updating"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.support.attached"]
-text = "GPU support is enabled."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.support.attached"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.support.host_unavailable"]
-text = "VM status unavailable - retry the status update. Saved settings and check history are in Technical Details."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.support.host_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.support.label"]
-text = "GPU support"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.support.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.support.recovery_hold"]
-text = "This VM has an unresolved operation. Review recovery before changing GPU support."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.support.recovery_hold"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.support.saved_unavailable"]
-text = "Saved settings unavailable - Refresh before reviewing changes."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.support.saved_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.support.toggle_accessible"]
-text = "Enable GPU support in this draft"
-screen = "VmDetails presentation (src/gui/ui/details.slint)"
-state = "Selected branch: dashboard.support.toggle_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.support.unattached"]
-text = "GPU support is not enabled on this VM. Start GPU setup to enable it."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.support.unattached"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.validation.stage"]
-text = "Configuration validation"
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.validation.stage"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.verification.absent"]
-text = "Not verified"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.verification.absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.verification.selection_absent"]
-text = "Unknown; no VM selected"
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.verification.selection_absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.verification.vm_unavailable"]
-text = "Unknown; the selected VM is unavailable"
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.verification.vm_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.vm_list.count"]
-text = "{count} VMs shown"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.vm_list.count"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "count", type = "usize" }]
-
-[messages."dashboard.vm_list.empty"]
-text = "No live VM rows available. Check the discovery message or Refresh."
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.vm_list.empty"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.vm_list.title"]
-text = "Virtual Machines"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.vm_list.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.workspace.body"]
-text = "Choose a discovered VM on the left. Discovery never enrolls or modifies it."
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.workspace.body"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.workspace.title"]
-text = "Your VM workspace starts here"
-screen = "AppWindow presentation (src/gui/ui/app.slint)"
-state = "Selected branch: dashboard.workspace.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.support.configuration_warning"]
-text = "GPU configuration differs from saved settings. Verify the setup and review Technical Details before making changes."
-screen = "present_inner presentation (src/gui/live/presentation.rs)"
-state = "Selected branch: dashboard.support.configuration_warning"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "warning"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dashboard.startup.loading"]
-text = "Loading your virtual machines..."
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
-
-[messages."dashboard.startup.continue_label"]
-text = "Continue to dashboard"
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
-
-[messages."dashboard.diagnostics.output_label"]
-text = "Technical details"
-screen = "Technical output"
-state = "Expanded diagnostics"
-audience = "operator"
-intent = "Name the diagnostic region for accessibility."
-consequences = "Read only presentation."
-severity = "information"
-space_hint = "Accessible label."
-placeholders = []
-
-[messages."dashboard.startup.inventory"]
-text = "Reading VM and GPU status from the protected service..."
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
-
-[messages."dashboard.startup.configuration"]
-text = "Reading saved VM settings..."
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
-
-[messages."dashboard.startup.recovery"]
-text = "Inspecting unfinished GPU operations and recovery records..."
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
-
-[messages."dashboard.startup.import_recovery"]
-text = "Inspecting configuration import recovery records..."
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
-
-[messages."dashboard.startup.enrollment_recovery"]
-text = "Inspecting permission recovery records..."
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
-
-[messages."dashboard.startup.worker"]
-text = "Checking protected worker availability..."
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
-
-[messages."dashboard.startup.waiting"]
-text = "An earlier cancelled check may still be finishing. These reads can take several minutes. Startup does not repair or replay GPU operations; unfinished work requires Review recovery."
-screen = "Startup splash"
-state = "Initial inventory read"
-audience = "operator"
-intent = "Present startup loading or continue after failure."
-consequences = "Presentation only; continuing grants no operation authority."
-severity = "information"
-space_hint = "Centre loading label; keep failure continuation reachable at minimum size."
-placeholders = []
+# Main VM page. British English is the reference catalogue:
+# it defines every key and argument; other languages translate the text only.
+
+[actions]
+generation_required = "GPU support requires a Generation 2 VM. Close this panel and select a supported VM."
+history_unavailable = "Managed operation history is unavailable. Use Refresh before reviewing new actions."
+more_label = "More actions…"
+observations_incomplete = "Selected VM observations are incomplete. Correct access and use Refresh; your edits are kept."
+outcome_unsaved = "The operation outcome is not saved. Use Refresh and inspect recovery before another action."
+permission_required = "This VM/GPU pair is not authorized. Close this panel and review first-time setup."
+power_unstable = "The VM is changing power state or is not running/off. Wait for a stable state, then Refresh."
+recovery_blocks = "An unfinished operation blocks new actions. Choose Review recovery; your edits are kept."
+recovery_first = "Review unfinished recovery first."
+refresh_first = "Use Refresh first."
+refresh_needed = "Current VM information is unavailable. Use Refresh; your edits are kept."
+reinstall_requires_pair = "Repair / Reinstall requires an authorized VM/GPU pair. Review enrollment first."
+review_or_discard = "Review and Apply, or discard the pending edits before Verify."
+select_vm = "Select a VM first."
+selected_unavailable = "The selected VM is unavailable. Use Refresh or discard its draft."
+vm_unavailable = "VM unavailable; use Refresh."
+
+[actions.partial_removal]
+windows_required = "Partial GPU removal requires Windows."
+
+[allocation]
+not_assigned = "Not assigned"
+provider_default = "Provider default"
+provider_values = "Provider values"
+
+[apply]
+label = "Apply"
+
+[attachment]
+absent = "No GPU attached"
+identity_unknown = "Attached GPU (identity unavailable)"
+
+[capability]
+unknown = "Capability unknown"
+
+[configuration]
+unavailable_title = "Configuration is unavailable"
+
+[diagnostics]
+inspect_label = "Inspect diagnostics"
+output_label = "Technical details"
+
+[draft]
+absent = "No unapplied edits"
+changed = "● Draft changed"
+discard_label = "Discard draft"
+vm_removed = "The draft VM is no longer present. Discard the draft and Refresh."
+vm_unavailable = "Unapplied edits retained for the unavailable VM."
+
+[editing]
+capacity_unmatched = "Physical VRAM capacity could not be matched to the selected GPU. Use raw Advanced Allocation within the provider range."
+configuration_changed = "Committed configuration changed or became unavailable. Draft preserved; discard it to reload the latest committed intent."
+configuration_unavailable = "Committed configuration unavailable; saved intent is unknown. Editing is blocked until the file can be read and validated."
+enrollment_changed = "Protected enrollment changed. Draft preserved; discard and Refresh before a new enrollment review."
+gpu_not_enrolled = "This selected GPU is not enrolled. Changing an enrolled GPU requires the separate replacement transition, which is not connected yet."
+gpu_unavailable = "Selected GPU is unavailable. Use Refresh to retry."
+reconciliation_required = "This VM or shared authority requires reconciliation or a save-only retry."
+recovery_pending = "The selected VM has pending or inconsistent managed recovery. Inspect and reconcile it before editing or reviewing new changes."
+removal_pair_required = "GPU removal requires this exact authorized VM/GPU pair; no enrollment or guest work was performed."
+removal_vm_changed = "The selected VM changed; review removal again."
+select_gpu = "Select an available physical GPU."
+status_unavailable = "Current VM status is unavailable. Refresh before editing or reviewing changes."
+triples_expected = "Expected four complete allocation triples"
+vram_bounds_unavailable = "VRAM bounds are unavailable. Use Refresh to retry."
+vram_fields_unavailable = "VRAM fields are unavailable."
+
+[editing.integers_required]
+args = ["resource: text"]
+text = "Enter all three {resource} values as unsigned provider integers, or leave all three empty."
+
+[eligibility]
+generation = "A stable Generation 2 VM is required."
+gpu_unavailable = "The enrolled GPU is unavailable."
+not_configured = "Add this VM to configuration and enroll it first."
+not_enrolled = "This VM/GPU pair is not enrolled; separate enrollment review is required before Apply."
+observations_incomplete = "Selected VM observations are incomplete; correct access and refresh before applying."
+other_assignment = "Another GPU assignment is present; reconcile it before applying."
+other_vm_draft = "Apply or discard the other VM's pending change first."
+pair_mismatch = "Managed state belongs to a different pair; reconcile enrollment first."
+publication_mismatch = "publication does not match verified-unsaved intent"
+readback_before_retry = "Refresh/read back the uncertain operation before retrying."
+refresh_first = "Refresh first"
+refresh_inventory = "Refresh inventory first."
+refresh_uncertain = "Refresh after the uncertain operation before editing."
+refresh_vm = "Refresh VM information before applying changes."
+save_first = "Save the completed configuration before staging another operation."
+save_instead = "The operation succeeded; save its configuration instead of replaying apply."
+stage_first = "Stage a change first."
+title = "This VM is not eligible"
+unconfigured_vm = "Unconfigured VM"
+unsupported_body = "Non-Generation 2 guests are outside the GPU-P workflow."
+vendor_unsupported = "Guest preparation is not supported for this GPU vendor."
+vm_missing = "The selected VM is no longer present; refresh or discard."
+vm_unavailable = "The VM is unavailable."
+vm_unavailable_short = "VM unavailable"
+
+[gpu]
+fixed_hint = "This VM is authorized for its recorded GPU. Changing that GPU is unavailable; Refresh if the recorded GPU is missing. Your saved memory requests are kept."
+label = "Physical GPU"
+
+[inventory]
+refresh = "Refresh"
+updating = "Updating VM status"
+updating_notice = "Updating VM status..."
+
+[memory]
+advanced_hint = "Exact VRAM request for compatibility with saved settings. Minimum ≤ Optimal ≤ Maximum, in native bytes. Default placeholders are suggestions. Editing an empty group fills its other defaults. Clear all three fields for no explicit write. Use the GPU support toggle or Remove GPU support to disable support."
+input_accessible = "GPU memory request in decimal GB"
+label = "GPU Memory Request"
+slider_accessible = "Requested GPU memory in GB"
+submit = "Set"
+unit = "GB"
+vram_label = "VRAM"
+
+[navigation]
+about = "About"
+dashboard = "Dashboard"
+settings = "Settings"
+system = "System Information"
+
+[observation]
+historical_prefix = "Historical: "
+unread = "Not read"
+vm_missing = "Selected VM was not returned by the latest inventory read"
+
+[observation.resource_default]
+args = ["resource: text"]
+text = "{resource}: unobserved or provider default"
+
+[observation.resource_readback]
+args = ["resource: text", "minimum: text", "optimal: text", "maximum: text"]
+text = "{resource} readback: {minimum} / {optimal} / {maximum} (raw)"
+
+[observation.summary]
+args = ["prefix: message", "gpu: text", "resources: text", "preparation: text"]
+text = "{prefix}{gpu}; {resources}; {preparation}"
+
+[os]
+linux_accessible = "Linux guest, sample metadata"
+unknown_accessible = "Unknown guest OS"
+windows_accessible = "Windows guest, sample metadata"
+
+[outcome]
+absent = "No unpublished operation recorded"
+
+[pending]
+disable = "disable GPU support"
+enable = "enable GPU support"
+fields_unavailable = "VRAM fields unavailable"
+invalid = "Pending edits retained. Correct the VRAM fields before reviewing."
+stays_disabled = "GPU support stays disabled"
+stays_enabled = "GPU support stays enabled"
+
+[pending.summary]
+args = ["change: message", "request: text"]
+text = "Pending: {change}. VRAM request: {request}. Review before applying."
+
+[recovery]
+banner = "Pending protected recovery record. New GPU changes are blocked; inspection does not clear recovery."
+inspect = "Check recorded outcome"
+review_label = "Check recorded outcome"
+
+[recovery_summary]
+gpu_change = "GPU change"
+gpu_verification = "GPU verification"
+import = "A configuration import requires recovery. Review recovery before new changes."
+permission_change = "permission change"
+
+[recovery_summary.other_vm]
+args = ["name: text", "id: text", "operation: message"]
+text = "Recovery is required for {name} ({id}): {operation}. Other VMs can still be changed."
+
+[recovery_summary.selected]
+args = ["name: text", "operation: message"]
+text = "{name}: {operation} requires recovery. Review recovery before new changes."
+
+[recovery_summary.shared]
+args = ["name: text", "id: text"]
+text = "Shared authority/configuration recovery for {name} ({id}) blocks new changes. Inspect recovery before continuing."
+
+[refresh]
+completion_incomplete = "Completion readback is incomplete. Refresh before another operation."
+management_unavailable = "GPU management is unavailable. Refresh before reviewing setup."
+other_vm_result = "The result belongs to another VM. Close it before refreshing the selected VM."
+setup_attention = "Setup requires attention. Use Refresh to continue."
+
+[refresh.poll_unavailable]
+args = ["error: text"]
+text = "VM status refresh unavailable: {error}. Use Refresh to retry."
+
+[refresh.start_failed]
+args = ["body: text", "error: text"]
+text = "{body}\n\nVM status update could not start: {error}\nRetry the status update before another review."
+
+[refresh.status_unavailable]
+args = ["body: text", "error: text"]
+text = "{body}\n\nCurrent VM status is unavailable: {error}\nRetry the status update before another review."
+
+[resources]
+gpu_required = "Select an available physical GPU; capability unknown"
+
+[resources.physical_memory]
+args = ["amount: text"]
+text = "; physical dedicated memory: {amount}"
+
+[saved]
+absent = "No saved configuration"
+
+[selection]
+absent = "No VM selected"
+prompt = "Select a VM to read its state."
+required = "Select a VM first."
+vm_unavailable = "Selected VM unavailable"
+
+[setup]
+body = "GPU support is not enabled on this VM. Start GPU setup to enable it. Retained driver preparation is checked before deciding whether installation is required."
+review_label = "Start GPU setup"
+title = "First-time setup"
+
+[startup]
+configuration = "Reading saved VM settings..."
+continue_label = "Continue to dashboard"
+enrollment_recovery = "Inspecting permission recovery records..."
+import_recovery = "Inspecting configuration import recovery records..."
+inventory = "Reading VM and GPU status from the protected service..."
+loading = "Loading your virtual machines..."
+recovery = "Inspecting unfinished GPU operations and recovery records..."
+waiting = "An earlier cancelled check may still be finishing. These reads can take several minutes. Startup does not repair or replay GPU operations; unfinished work requires Review recovery."
+worker = "Checking protected worker availability..."
+
+[state]
+authorized = "Authorized"
+recovery = "Recovery required"
+refresh_required = "Refresh needed"
+status_unavailable = "Status unavailable"
+
+[status]
+busy = "Operation in progress"
+draft_absent = "No pending edits"
+draft_pending = "Pending edits; review required before changes"
+idle = "No operation running"
+prerequisites = "Check the selected VM's status; setup or Refresh may be required"
+recovery = "Review recovery before new changes"
+selection_required = "Select a VM"
+updating = "Updating VM information"
+
+[support]
+attached = "GPU support is enabled."
+configuration_warning = "GPU configuration differs from saved settings. Verify the setup and review Technical Details before making changes."
+host_unavailable = "VM status unavailable - retry the status update. Saved settings and check history are in Technical Details."
+label = "GPU support"
+other_assignment = "Other assignment"
+recovery_hold = "This VM has an unresolved operation. Review recovery before changing GPU support."
+saved_unavailable = "Saved settings unavailable - Refresh before reviewing changes."
+toggle_accessible = "Enable GPU support in this draft"
+unattached = "GPU support is not enabled on this VM. Start GPU setup to enable it."
+
+[support.pending]
+args = ["effective: message", "action: message"]
+text = "{effective} — Pending {action}"
+
+[validation]
+stage = "Configuration validation"
+
+[verification]
+absent = "Not verified"
+selection_absent = "Unknown; no VM selected"
+vm_unavailable = "Unknown; the selected VM is unavailable"
+
+[vm_list]
+empty = "No live VM rows available. Check the discovery message or Refresh."
+title = "Virtual Machines"
+
+[vm_list.count]
+args = ["count: usize"]
+plural = "count"
+one = "{count} VM shown"
+other = "{count} VMs shown"
+
+[workspace]
+body = "Choose a discovered VM on the left. Discovery never enrolls or modifies it."
+title = "Your VM workspace starts here"

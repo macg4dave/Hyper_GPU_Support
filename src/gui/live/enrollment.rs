@@ -24,7 +24,9 @@ pub(super) fn review_enrollment(
     target: Target,
 ) -> Result<(), String> {
     let proposed = {
-        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let state = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         state.permission_review(&target, hyper_gpu_support::setup::operator_sid()?)?
     };
     if let Some(approved) = proposed {
@@ -39,7 +41,7 @@ pub(super) fn review_enrollment(
         busy,
         Operation::new(
             Kind::PermissionPlan,
-            hyper_gpu_support::ui_text::operations::enrollment::review::TITLE,
+            hyper_gpu_support::ui_text::operations::enrollment::review::title(),
         ),
         move || {
             let pending = hyper_gpu_support::runner::pending_setup()?;
@@ -59,8 +61,7 @@ pub(super) fn review_enrollment(
                     && (record.review != approved || record.artifacts != artifacts)
                 {
                     return Err(
-                        "Interrupted first-install setup belongs to another original pair/package. Select its original VM/GPU and reviewed package; setup recovery cannot replace authority."
-                            .into(),
+                        hyper_gpu_support::ui_text::operations::enrollment::other_pair().into(),
                     );
                 }
                 Ok((approved, Some(artifacts), true))
@@ -80,7 +81,12 @@ pub(super) fn review_enrollment(
                     )
                 });
             }
-            Err(error) => dialog(ui, "error", "GPU permission preparation failed", &error),
+            Err(error) => dialog(
+                ui,
+                "error",
+                hyper_gpu_support::ui_text::operations::enrollment::preparation_failed(),
+                &error,
+            ),
         },
     )
 }
@@ -95,7 +101,7 @@ fn enroll_live(
     expected: Target,
 ) -> Result<(), String> {
     if !ui.get_execution_ready() {
-        return Err("The protected worker is unavailable. Refresh before trying again.".into());
+        return Err(hyper_gpu_support::ui_text::operations::worker::unavailable_refresh().into());
     }
     if !with_state(ui, state, |state| {
         state.validate_permission_preparation(&expected, &draft_target(ui, state)?, &approved)
@@ -117,9 +123,9 @@ fn enroll_live(
                 Kind::Setup
             },
             if artifacts.is_some() {
-                hyper_gpu_support::ui_text::dialogs::workflow::INSTALL_PROGRESS_TITLE
+                hyper_gpu_support::ui_text::dialogs::workflow::install_progress_title()
             } else {
-                hyper_gpu_support::ui_text::operations::enrollment::PROGRESS_TITLE
+                hyper_gpu_support::ui_text::operations::enrollment::progress_title()
             },
         ),
         move || {
@@ -151,7 +157,7 @@ fn enroll_live(
                     dialog(
                         ui,
                         "error",
-                        hyper_gpu_support::ui_text::operations::plan::UNAVAILABLE_TITLE,
+                        hyper_gpu_support::ui_text::operations::plan::unavailable_title(),
                         &error,
                     );
                 }
@@ -168,9 +174,9 @@ fn enroll_live(
                 ui.set_execution_ready(false);
                 failure_dialog(
                     ui,
-                    hyper_gpu_support::ui_text::operations::enrollment::incomplete::TITLE,
+                    hyper_gpu_support::ui_text::operations::enrollment::incomplete::title(),
                     &error,
-                    "Your edits are kept. Use Refresh and Review recovery before retrying this permission step. GPU setup has not been confirmed.",
+                    hyper_gpu_support::ui_text::operations::enrollment::incomplete::context(),
                 );
             }
         },
@@ -185,20 +191,24 @@ pub(super) fn reconcile_enrollment_live(
     source: &Source,
 ) -> Result<(), String> {
     let (operation_id, expected) = {
-        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let state = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         let id = state
             .enrollment_recovery
             .as_ref()
-            .ok_or("Refresh enrollment recovery first")?
+            .ok_or(hyper_gpu_support::ui_text::operations::enrollment::refresh_recovery())?
             .operation_id
             .clone();
         let record = state
             .enrollment_recovery
             .as_ref()
-            .ok_or("Refresh enrollment recovery first")?;
+            .ok_or(hyper_gpu_support::ui_text::operations::enrollment::refresh_recovery())?;
         let expected = hyper_gpu_support::runner::pair_revision()?;
         if expected != record.resulting && expected != record.review.expected {
-            return Err("Authority does not match either recorded revision. Recovery remains held for administrator inspection.".into());
+            return Err(
+                hyper_gpu_support::ui_text::operations::enrollment::authority_mismatch().into(),
+            );
         }
         (id, expected)
     };
@@ -212,13 +222,13 @@ pub(super) fn reconcile_enrollment_live(
         busy,
         Operation::new(
             Kind::PermissionRecovery,
-            hyper_gpu_support::ui_text::operations::enrollment::recovery::PROGRESS_TITLE,
+            hyper_gpu_support::ui_text::operations::enrollment::recovery::progress_title(),
         ),
         move || hyper_gpu_support::worker::reconcile_pair(operation_id, expected, progress),
         move |ui, result| match result {
             Ok(_) => {
                 if let Err(error) = refresh(ui, &finished_state, &refresh_busy, &source, false) {
-                    dialog(ui, "error", hyper_gpu_support::ui_text::operations::enrollment::recovery::STATUS_UNAVAILABLE_TITLE, &error);
+                    dialog(ui, "error", hyper_gpu_support::ui_text::operations::enrollment::recovery::status_unavailable_title(), &error);
                 }
             }
             Err(error) => {
@@ -226,7 +236,7 @@ pub(super) fn reconcile_enrollment_live(
                 dialog(
                     ui,
                     "error",
-                    hyper_gpu_support::ui_text::operations::enrollment::recovery::RETAINED_TITLE,
+                    hyper_gpu_support::ui_text::operations::enrollment::recovery::retained_title(),
                     &error,
                 );
             }

@@ -88,7 +88,9 @@ impl Source {
                 if mode == Mode::Full {
                     return Ok(None);
                 }
-                return Err("Setup requires attention. Use Refresh to continue.".into());
+                return Err(
+                    hyper_gpu_support::ui_text::dashboard::refresh::setup_attention().into(),
+                );
             }
             let operation = match mode {
                 Mode::Full => Operation::Observe,
@@ -127,7 +129,9 @@ impl Source {
 
     pub(super) fn operation_readback(&self, target: Target) -> Result<Bundle, String> {
         self.observe(Mode::Completion, Some(target))?
-            .ok_or_else(|| "Protected completion unavailable".into())
+            .ok_or_else(|| {
+                hyper_gpu_support::ui_text::common::errors::completion_unavailable().into()
+            })
     }
 }
 
@@ -136,7 +140,10 @@ fn remember_os(result: InventoryRead) -> InventoryRead {
     {
         let (mut inventory, mut warning) = result;
         if let Err(error) = crate::gui::os_metadata::remember(&mut inventory) {
-            let message = format!("Could not save VM icon metadata: {error}");
+            let message = hyper_gpu_support::ui_text::system::discovery::icon_metadata_failed(
+                &error.to_string(),
+            )
+            .into_string();
             warning = Some(warning.map_or_else(|| message.clone(), |w| format!("{w}\n{message}")));
         }
         (inventory, warning)
@@ -168,13 +175,15 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
                     managed: Default::default(),
                     enrolled: vec![],
                 },
-                Some(format!(
-                    "{}. Native inventory only; editing is blocked.",
-                    hyper_gpu_support::reporting::operator_error(
-                        hyper_gpu_support::ui_text::system::discovery::PERMISSION_STAGE,
-                        &error
+                Some(
+                    hyper_gpu_support::ui_text::system::discovery::native_only(
+                        &hyper_gpu_support::reporting::operator_error(
+                            hyper_gpu_support::ui_text::system::discovery::permission_stage(),
+                            &error,
+                        ),
                     )
-                )),
+                    .into_string(),
+                ),
             ))
         }
         Err(error) => Err(error),
@@ -182,7 +191,7 @@ fn discover() -> Result<(Inventory, Option<String>), String> {
 }
 #[cfg(not(windows))]
 fn discover() -> Result<(Inventory, Option<String>), String> {
-    Err("Hyper-V discovery requires Windows x64".into())
+    Err(hyper_gpu_support::ui_text::common::errors::windows_required_discovery().into())
 }
 
 #[cfg(windows)]
@@ -195,5 +204,5 @@ fn credential_dialog(id: &str, name: &str) -> Result<bool, String> {
 }
 #[cfg(not(windows))]
 fn credential_dialog(_: &str, _: &str) -> Result<bool, String> {
-    Err("Guest credentials require Windows".into())
+    Err(hyper_gpu_support::ui_text::common::errors::windows_required_credentials().into())
 }

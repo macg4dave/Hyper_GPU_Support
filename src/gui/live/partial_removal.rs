@@ -24,28 +24,30 @@ pub(super) fn partial_removal_candidate(
     let record = state
         .recovery
         .as_ref()
-        .ok_or("No interrupted GPU setup is recorded for this VM.")?;
+        .ok_or(hyper_gpu_support::ui_text::operations::partial_removal::no_record())?;
     if state.observation_historical(&record.target.vm_id) {
         return Err(
-            "Current VM status is unavailable. Retry the status update before reviewing removal."
-                .into(),
+            hyper_gpu_support::ui_text::operations::partial_removal::status_unavailable().into(),
         );
     }
     if matches!(
         record.phase,
         hyper_gpu_support::configuration_store::SavePhase::Admitted
     ) {
-        return Err("This attempt stopped before VM/GPU changes. Use Check recorded outcome to confirm its unchanged starting state and end recovery.".into());
+        return Err(
+            hyper_gpu_support::ui_text::operations::partial_removal::stopped_before_changes()
+                .into(),
+        );
     }
     let inventory = state
         .view
         .inventory
         .as_ref()
-        .ok_or("Refresh inventory first")?;
+        .ok_or(hyper_gpu_support::ui_text::common::errors::refresh_inventory())?;
     let observed = state
         .view
         .vm(&record.target.vm_id)
-        .ok_or("Recovery VM missing; Refresh")?;
+        .ok_or(hyper_gpu_support::ui_text::operations::partial_removal::vm_missing())?;
     let approved = if let Some(review) = &record.reset {
         review.clone()
     } else {
@@ -56,13 +58,13 @@ pub(super) fn partial_removal_candidate(
                 .gpus
                 .iter()
                 .find(|g| g.interface == record.target.gpu_interface)
-                .ok_or("Recovery GPU missing; Refresh")?
+                .ok_or(hyper_gpu_support::ui_text::operations::partial_removal::gpu_missing())?
                 .clone(),
             journal: inventory
                 .managed
                 .get(&record.target.vm_id)
                 .and_then(Option::as_ref)
-                .ok_or("Recovery journal missing; Refresh")?
+                .ok_or(hyper_gpu_support::ui_text::operations::partial_removal::journal_missing())?
                 .clone(),
         }
     };
@@ -80,12 +82,14 @@ pub(super) fn review_reset(
     busy: &Arc<AtomicBool>,
 ) -> Result<(), String> {
     let (operation, revision, approved) = {
-        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let state = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         let (revision, approved) = partial_removal_candidate(&state)?;
         let operation = state
             .recovery
             .as_ref()
-            .ok_or("Refresh recovery first")?
+            .ok_or(hyper_gpu_support::ui_text::common::errors::refresh_recovery())?
             .operation_id
             .clone();
         (operation, revision, approved)
@@ -100,7 +104,7 @@ pub(super) fn review_reset(
         busy,
         Operation::new(
             Kind::Remove,
-            hyper_gpu_support::ui_text::operations::partial_removal::TITLE,
+            hyper_gpu_support::ui_text::operations::partial_removal::title(),
         ),
         Some(&name),
         false,
@@ -125,10 +129,15 @@ pub(super) fn review_reset(
                 Ok(_) => dialog(
                     ui,
                     "reset-complete",
-                    hyper_gpu_support::ui_text::operations::partial_removal::completed::TITLE,
-                    hyper_gpu_support::ui_text::operations::partial_removal::completed::BODY,
+                    hyper_gpu_support::ui_text::operations::partial_removal::completed::title(),
+                    hyper_gpu_support::ui_text::operations::partial_removal::completed::body(),
                 ),
-                Err(error) => dialog(ui, "error", "Partial GPU removal did not complete", &error),
+                Err(error) => dialog(
+                    ui,
+                    "error",
+                    hyper_gpu_support::ui_text::operations::partial_removal::failed_title(),
+                    &error,
+                ),
             }
         },
     )

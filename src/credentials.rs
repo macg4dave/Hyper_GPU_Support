@@ -147,6 +147,22 @@ pub fn forget(vm: &str) -> Result<(), String> {
 fn prompt_wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(Some(0)).collect()
 }
+
+/// Native credential-dialog text limited to `units` UTF-16 units including the terminator.
+/// Catalogue wording is translatable, so overlong text is shortened at a character boundary
+/// rather than making the native prompt fail.
+fn prompt_wide_bounded(text: &str, units: usize) -> Vec<u16> {
+    let mut wide = Vec::with_capacity(units);
+    for c in text.chars() {
+        if wide.len() + c.len_utf16() >= units {
+            break;
+        }
+        let mut buffer = [0u16; 2];
+        wide.extend_from_slice(c.encode_utf16(&mut buffer));
+    }
+    wide.push(0);
+    wide
+}
 /// Obtain VM credentials through the native Windows dialog with explicit optional storage.
 /// Credentials are scoped to the current user and VM and never passed in command arguments.
 #[allow(unsafe_code)]
@@ -213,7 +229,7 @@ fn explain_guest_sign_in(
     parent: windows::Win32::Foundation::HWND,
 ) -> Result<(), String> {
     use windows::Win32::UI::WindowsAndMessaging::{IDCANCEL, IDOK, MB_OKCANCEL, MessageBoxW};
-    let caption = prompt_wide(crate::ui_text::credentials::explanation::caption().as_str());
+    let caption = prompt_wide(crate::ui_text::credentials::explanation::caption());
     let guest_message = guest_prompt_message(vm, name);
     let message =
         prompt_wide(crate::ui_text::credentials::explanation::wrapper(&guest_message).as_str());
@@ -249,8 +265,9 @@ fn prompt_native(
     parent: windows::Win32::Foundation::HWND,
     replacing: bool,
 ) -> Result<Credential, String> {
-    let caption = prompt_wide(crate::ui_text::credentials::native::caption().as_str());
-    let message = prompt_wide(guest_prompt_message(vm, name).as_str());
+    // CREDUI_MAX_CAPTION_LENGTH and CREDUI_MAX_MESSAGE_LENGTH.
+    let caption = prompt_wide_bounded(crate::ui_text::credentials::native::caption(), 128);
+    let message = prompt_wide_bounded(guest_prompt_message(vm, name).as_str(), 1024);
     let target = prompt_wide(&format!("HyperGpuSupport/guest/{vm}"));
     let info = CREDUI_INFOW {
         cbSize: std::mem::size_of::<CREDUI_INFOW>() as u32,
@@ -333,6 +350,16 @@ fn guest_prompt_message(_vm: &str, name: &str) -> crate::ui_text::UiMessage {
 #[cfg(test)]
 mod prompt_tests {
     use super::*;
+
+    #[test]
+    fn native_prompt_text_is_bounded_at_a_character_boundary() {
+        assert_eq!(prompt_wide_bounded("ab", 8), [97, 98, 0]);
+        let long = "x".repeat(2000);
+        assert_eq!(prompt_wide_bounded(&long, 1024).len(), 1024);
+        // A surrogate pair is never split: '😀' needs two units, leaving room only for 'a'.
+        assert_eq!(prompt_wide_bounded("a😀", 3), [97, 0]);
+        assert_eq!(*prompt_wide_bounded(&long, 128).last().unwrap(), 0);
+    }
 
     #[test]
     fn settings_input_replaces_or_forgets_only_after_successful_input() {

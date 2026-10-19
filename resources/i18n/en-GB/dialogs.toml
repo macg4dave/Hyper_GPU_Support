@@ -1,971 +1,133 @@
-schema = 1
-locale = "en-GB"
-feature = "dialogs"
-
-[messages."dialogs.apply.label"]
-text = "Apply"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.apply.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.apply.review_label"]
-text = "Apply changes"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.apply.review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.apply.unavailable_hint"]
-text = "Apply is unavailable. Close this review and use Refresh to check setup or recovery."
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.apply.unavailable_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.apply.unavailable_label"]
-text = "Apply unavailable"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.apply.unavailable_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.availability.review_hint"]
-text = "Opens a fresh review. Changes require separate confirmation."
-screen = "ActionChoice presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.availability.review_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.availability.setup_required"]
-text = "Use Refresh to check application setup and worker availability."
-screen = "ActionChoice presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.availability.setup_required"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.availability.updating"]
-text = "VM information is updating. Wait for the update to finish."
-screen = "ActionChoice presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.availability.updating"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.busy.label"]
-text = "Operation in progress"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.busy.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.cancel.label"]
-text = "Cancel"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.cancel.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.close.label"]
-text = "Close"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.close.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.draft.discard_label"]
-text = "Discard draft"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.draft.discard_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.draft.keep_label"]
-text = "Keep editing"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.draft.keep_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.enrollment.confirm_label"]
-text = "Allow GPU management"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.enrollment.confirm_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.enrollment.new_permission_hint"]
-text = "Fresh enrollment requires a separate profile deletion review. Repair / Reinstall can reuse the existing permission."
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.enrollment.new_permission_hint"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.enrollment.reconcile_label"]
-text = "Reconcile enrollment authority"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.enrollment.reconcile_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.exit.discard_label"]
-text = "Discard & Close"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.exit.discard_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.inventory.refresh_label"]
-text = "Refresh"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.inventory.refresh_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.partial_removal.available"]
-text = "Remove partial GPU setup restores this VM's original host settings and leaves it off. Guest driver files are kept."
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.partial_removal.available"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.partial_removal.checking"]
-text = "Checking whether partial removal is safe..."
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.partial_removal.checking"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.partial_removal.confirm_label"]
-text = "Remove partial GPU setup"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.partial_removal.confirm_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.partial_removal.review_label"]
-text = "Remove partial GPU setup…"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.partial_removal.review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.power_consent.label"]
-text = "I agree to the power changes described above."
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.power_consent.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.profile_deletion.discard_review_label"]
-text = "Discard draft and delete profile"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.profile_deletion.discard_review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.profile_deletion.label"]
-text = "Delete profile"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.profile_deletion.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.profile_deletion.review_label"]
-text = "Delete profile"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.profile_deletion.review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.recovery.review_label"]
-text = "Check recorded outcome"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.recovery.review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.removal.label"]
-text = "Remove GPU support"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.removal.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.repair.label"]
-text = "Repair / Reinstall"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.repair.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.repair.review_label"]
-text = "Repair / Reinstall"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.repair.review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.setup.continue_label"]
-text = "Continue GPU setup"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.setup.continue_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.setup.new_review_label"]
-text = "Start new GPU setup"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.setup.new_review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.status.retry_label"]
-text = "Retry status update"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.status.retry_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.switch.discard_label"]
-text = "Discard & Switch"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.switch.discard_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.switch.review_label"]
-text = "Apply changes"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.switch.review_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.switch.stay_label"]
-text = "Stay on VM"
-screen = "OperationDialog presentation (src/gui/ui/dialogs.slint)"
-state = "Selected branch: dialogs.switch.stay_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."dialogs.install.review"]
-text = "Review"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: review"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.permissions"]
-text = "Permissions"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: permissions"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.applying"]
-text = "Applying changes"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: applying"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.completed"]
-text = "Changes applied successfully"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: completed"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.vm"]
-text = "Virtual Machine:"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: vm"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.wait"]
-text = "Please wait while the changes are applied. This includes driver preparation and GPU setup checks."
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: wait"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.pending"]
-text = "Pending"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: pending"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.summary"]
-text = "Summary"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: summary"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.technical"]
-text = "Technical details"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: technical"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.copy_log"]
-text = "Copy log"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: copy_log"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.view_log"]
-text = "View log"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: view_log"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.hide_log"]
-text = "Hide log"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: hide_log"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.cancel"]
-text = "Cancel operation"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: cancel"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.support"]
-text = "GPU support"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: support"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.gpu"]
-text = "Physical GPU"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: gpu"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.memory"]
-text = "GPU memory"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: memory"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.preparation"]
-text = "Driver preparation"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: preparation"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.checks"]
-text = "Setup checks"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: checks"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.prepared"]
-text = "Completed"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: prepared"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.unchanged"]
-text = "Existing preparation retained"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: unchanged"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.starting"]
-text = "Preparing protected worker"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: starting"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.readback"]
-text = "Reading saved settings and recovery records"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: readback"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.preparing_files"]
-text = "Preparing GPU driver files"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: preparing_files"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.finalising"]
-text = "Saving checked configuration"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: finalising"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.success_off"]
-text = "The GPU configuration has been updated and the virtual machine is now shut down."
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: success_off"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.success_running"]
-text = "The GPU configuration has been updated and the virtual machine is running."
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: success_running"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.checking_files"]
-text = "Checking VM and driver files"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: checking_files"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.installing_files"]
-text = "Installing GPU driver files"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: installing_files"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.not_required"]
-text = "Not required"
-screen = "GPU installation dialog (src/gui/ui/install-dialog.slint)"
-state = "Installation presentation: not_required"
-audience = "operator"
-intent = "Present authenticated installation progress or the confirmed terminal result."
-consequences = "Presentation only. Stage completion is not final success; terminal success requires saved configuration and independent readback. Cancellation remains disabled during Apply."
-severity = "information"
-space_hint = "Keep actions reachable and content scrollable at the supported minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.read"]
-text = "Read information"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: read"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.plan"]
-text = "Build plan"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: plan"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.verify_plan"]
-text = "Prepare verification"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: verify_plan"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.apply"]
-text = "Apply changes"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: apply"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.verify"]
-text = "Verify setup"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: verify"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.recover"]
-text = "Reconcile"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: recover"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.save"]
-text = "Save configuration"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: save"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.remove"]
-text = "Remove GPU setup"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: remove"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.delete"]
-text = "Delete profile"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: delete"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.permissions"]
-text = "Save permissions"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: permissions"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.permission_review"]
-text = "Check permissions"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: permission_review"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.install"]
-text = "Install app"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: install"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.credentials"]
-text = "Manage credentials"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: credentials"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.readback"]
-text = "Readback"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: readback"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.result"]
-text = "Result"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: result"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.install_review_title"]
-text = "Review app installation and GPU permission"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: install_review_title"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.permission_recovery"]
-text = "Reconcile permissions"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: permission_recovery"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.workflow.install_progress_title"]
-text = "Install app and authorize reviewed VM/GPU pair"
-screen = "Shared app dialogs (src/gui/ui/dialog-frame.slint)"
-state = "Workflow phase: install_progress_title"
-audience = "operator"
-intent = "Name only the selected operation and its actual review, execution or readback phase."
-consequences = "Presentation only; labels cannot grant authority or establish completion. Failed and cancelled work must not imply success."
-severity = "information"
-space_hint = "Wrap phase labels and retain reachable actions at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.cancelling.title"]
-text = "Cancelling, please wait..."
-screen = "Operation cancellation dialog"
-state = "Cancelled read-only preparation still holds background admission"
-audience = "operator"
-intent = "Explain the wait until abandoned preparation releases its block."
-consequences = "No effect cancellation or completion claim; late preparation results are discarded."
-severity = "information"
-space_hint = "Wrap at minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.cancelling.body"]
-text = "The background check is still finishing. Your request will not continue into execution. This dialog closes automatically when the check ends."
-screen = "Operation cancellation dialog"
-state = "Cancelled read-only preparation still holds background admission"
-audience = "operator"
-intent = "Explain the wait until abandoned preparation releases its block."
-consequences = "No effect cancellation or completion claim; late preparation results are discarded."
-severity = "information"
-space_hint = "Wrap at minimum window size in both themes."
-placeholders = []
-
-[messages."dialogs.install.gpu_type"]
-text = "GPU Type:"
-screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
-state = "Operation context, compatibility advisory or failure"
-audience = "operator"
-intent = "Identify the operation target and explain its actual outcome."
-consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
-severity = "information"
-space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.install.vram"]
-text = "VRAM Size:"
-screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
-state = "Operation context, compatibility advisory or failure"
-audience = "operator"
-intent = "Identify the operation target and explain its actual outcome."
-consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
-severity = "information"
-space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.install.windows_warning"]
-text = "Windows-version compatibility has not been checked. Other Windows versions may require manual configuration. This warning does not block installation."
-screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
-state = "Operation context, compatibility advisory or failure"
-audience = "operator"
-intent = "Identify the operation target and explain its actual outcome."
-consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
-severity = "information"
-space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
-placeholders = []
-
-[messages."dialogs.install.failure_title"]
-text = "GPU operation failed"
-screen = "GPU Support dialog (src/gui/ui/install-dialog.slint)"
-state = "Operation context, compatibility advisory or failure"
-audience = "operator"
-intent = "Identify the operation target and explain its actual outcome."
-consequences = "Display only. Windows-version warnings never block installation; uncertain outcomes retain recovery."
-severity = "information"
-space_hint = "Wrap within the existing scrollable dialog at minimum size in both themes."
-placeholders = []
+# Dialogs and their buttons. British English is the reference catalogue:
+# it defines every key and argument; other languages translate the text only.
+
+[apply]
+label = "Apply"
+review_label = "Apply changes"
+unavailable_hint = "Apply is unavailable. Close this review and use Refresh to check setup or recovery."
+unavailable_label = "Apply unavailable"
+
+[availability]
+review_hint = "Opens a fresh review. Changes require separate confirmation."
+setup_required = "Use Refresh to check application setup and worker availability."
+updating = "VM information is updating. Wait for the update to finish."
+
+[busy]
+label = "Operation in progress"
+
+[cancel]
+label = "Cancel"
+
+[cancelling]
+body = "The background check is still finishing. Your request will not continue into execution. This dialog closes automatically when the check ends."
+title = "Cancelling, please wait..."
+
+[close]
+label = "Close"
+
+[draft]
+discard_label = "Discard draft"
+keep_label = "Keep editing"
+
+[enrollment]
+confirm_label = "Allow GPU management"
+new_permission_hint = "Fresh enrollment requires a separate profile deletion review. Repair / Reinstall can reuse the existing permission."
+reconcile_label = "Reconcile enrollment authority"
+
+[exit]
+discard_label = "Discard & Close"
+
+[install]
+applying = "Applying changes"
+cancel = "Cancel operation"
+checking_files = "Checking VM and driver files"
+checks = "Setup checks"
+completed = "Changes applied successfully"
+copy_log = "Copy log"
+failure_title = "GPU operation failed"
+finalising = "Saving checked configuration"
+gpu = "Physical GPU"
+gpu_type = "GPU Type:"
+hide_log = "Hide log"
+installing_files = "Installing GPU driver files"
+memory = "GPU memory"
+not_required = "Not required"
+pending = "Pending"
+permissions = "Permissions"
+preparation = "Driver preparation"
+prepared = "Completed"
+preparing_files = "Preparing GPU driver files"
+readback = "Reading saved settings and recovery records"
+review = "Review"
+starting = "Preparing protected worker"
+success_off = "The GPU configuration has been updated and the virtual machine is now shut down."
+success_running = "The GPU configuration has been updated and the virtual machine is running."
+summary = "Summary"
+support = "GPU support"
+technical = "Technical details"
+unchanged = "Existing preparation retained"
+unconfirmed = "The terminal installation result could not be confirmed. Refresh and inspect recovery before trying again; do not repeat Apply."
+view_log = "View log"
+vm = "Virtual Machine:"
+vram = "VRAM Size:"
+wait = "Please wait while the changes are applied. This includes driver preparation and GPU setup checks."
+windows_warning = "Windows-version compatibility has not been checked. Other Windows versions may require manual configuration. This warning does not block installation."
+
+[inventory]
+refresh_label = "Refresh"
+
+[partial_removal]
+available = "Remove partial GPU setup restores this VM's original host settings and leaves it off. Guest driver files are kept."
+checking = "Checking whether partial removal is safe..."
+confirm_label = "Remove partial GPU setup"
+review_label = "Remove partial GPU setup…"
+
+[power_consent]
+label = "I agree to the power changes described above."
+
+[profile_deletion]
+discard_review_label = "Discard draft and delete profile"
+label = "Delete profile"
+review_label = "Delete profile"
+
+[recovery]
+review_label = "Check recorded outcome"
+
+[removal]
+label = "Remove GPU support"
+
+[repair]
+label = "Repair / Reinstall"
+review_label = "Repair / Reinstall"
+
+[setup]
+continue_label = "Continue GPU setup"
+new_review_label = "Start new GPU setup"
+
+[status]
+retry_label = "Retry status update"
+
+[switch]
+discard_label = "Discard & Switch"
+review_label = "Apply changes"
+stay_label = "Stay on VM"
+
+[workflow]
+apply = "Apply changes"
+credentials = "Manage credentials"
+delete = "Delete profile"
+install = "Install app"
+install_progress_title = "Install app and authorize reviewed VM/GPU pair"
+install_review_title = "Review app installation and GPU permission"
+permission_recovery = "Reconcile permissions"
+permission_review = "Check permissions"
+permissions = "Save permissions"
+plan = "Build plan"
+read = "Read information"
+readback = "Readback"
+recover = "Reconcile"
+remove = "Remove GPU setup"
+result = "Result"
+save = "Save configuration"
+verify = "Verify setup"
+verify_plan = "Prepare verification"

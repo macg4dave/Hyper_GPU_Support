@@ -23,26 +23,26 @@ pub(super) fn review_verification(
     busy: &Arc<AtomicBool>,
 ) -> Result<(), String> {
     let target = {
-        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let state = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         if state.view.draft.is_some() {
-            return Err(
-                "Discard or Apply the draft before reviewing a separate graphics check.".into(),
-            );
+            return Err(hyper_gpu_support::ui_text::operations::verify::discard_draft().into());
         }
         state.editor_eligibility(ui.get_selected_id().as_str())?;
         state.target(ui.get_selected_id().as_str())?
     };
     let expected = state
         .lock()
-        .map_err(|_| "Presentation state unavailable")?
+        .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?
         .committed
         .revision(&target.vm_id)?;
     let vm_name = state
         .lock()
-        .map_err(|_| "Presentation state unavailable")?
+        .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?
         .view
         .vm(&target.vm_id)
-        .ok_or(hyper_gpu_support::ui_text::dashboard::selection::VM_UNAVAILABLE)?
+        .ok_or(hyper_gpu_support::ui_text::dashboard::selection::vm_unavailable())?
         .name
         .clone();
     let approval_state = state.clone();
@@ -58,7 +58,7 @@ pub(super) fn review_verification(
         busy,
         Operation::new(
             Kind::Verify,
-            hyper_gpu_support::ui_text::operations::verify::title().as_str(),
+            hyper_gpu_support::ui_text::operations::verify::title(),
         ),
         Some(&vm_name),
         true,
@@ -70,7 +70,10 @@ pub(super) fn review_verification(
                     let hyper_gpu_support::worker::PreparedReview::Verify { plan, expected } =
                         review
                     else {
-                        return Err("Unexpected prepared operation".into());
+                        return Err(
+                            hyper_gpu_support::ui_text::common::errors::unexpected_preparation()
+                                .into(),
+                        );
                     };
                     let accepted = plan.clone();
                     let revision = expected.clone();
@@ -79,9 +82,14 @@ pub(super) fn review_verification(
                     let state = approval_state.clone();
                     super::background::accept_prepared(&approval_ui, move |ui| {
                         if !ui.get_review_preparing() {
-                            return Err("Read-only preparation cancelled".into());
+                            return Err(
+                                hyper_gpu_support::ui_text::common::errors::preparation_cancelled()
+                                    .into(),
+                            );
                         }
-                        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+                        let state = state.lock().map_err(|_| {
+                            hyper_gpu_support::ui_text::common::state::presentation_unavailable()
+                        })?;
                         state.editor_eligibility(&requested.vm_id)?;
                         if state.view.selected.as_deref() != Some(requested.vm_id.as_str())
                             || state.view.draft.is_some()
@@ -89,7 +97,10 @@ pub(super) fn review_verification(
                             || state.committed.revision(&requested.vm_id)? != revision
                             || revision != original_revision
                         {
-                            return Err("Selection or saved settings changed during verification preparation".into());
+                            return Err(
+                                hyper_gpu_support::ui_text::operations::verify::selection_changed()
+                                    .into(),
+                            );
                         }
                         ui.set_review_preparing(false);
                         ui.set_dialog_details(wording::verify_details(&accepted).into());
@@ -128,7 +139,7 @@ pub(super) fn review_verification(
                 Ok(outcome) if outcome.finished => dialog(
                     ui,
                     "info",
-                    hyper_gpu_support::ui_text::operations::verify::completed::TITLE,
+                    hyper_gpu_support::ui_text::operations::verify::completed::title(),
                     &hyper_gpu_support::ui_text::operations::verify::completed::body(
                         &(result_vm_name),
                     )
@@ -137,7 +148,7 @@ pub(super) fn review_verification(
                 Ok(_) => dialog(
                     ui,
                     "error",
-                    hyper_gpu_support::ui_text::operations::verify::unknown::TITLE,
+                    hyper_gpu_support::ui_text::operations::verify::unknown::title(),
                     &hyper_gpu_support::ui_text::operations::verify::unknown::body(
                         &(result_vm_name),
                     )
@@ -145,11 +156,11 @@ pub(super) fn review_verification(
                 ),
                 Err(error) => failure_dialog(
                     ui,
-                    hyper_gpu_support::ui_text::operations::verify::incomplete::TITLE,
+                    hyper_gpu_support::ui_text::operations::verify::incomplete::title(),
                     &error,
-                    &format!(
-                        "{result_vm_name}: The check did not complete. Current VM status was refreshed automatically. Power: {}. Inspect current status and any recovery requirement before another operation; prior successful checks do not establish current health.",
-                        ui.get_power(),
+                    &hyper_gpu_support::ui_text::operations::verify::incomplete::context(
+                        &result_vm_name,
+                        ui.get_power().as_str(),
                     ),
                 ),
             }
@@ -167,5 +178,5 @@ pub(super) fn review_verification(
     _: &SharedState,
     _: &Arc<AtomicBool>,
 ) -> Result<(), String> {
-    Err("Verify GPU setup requires Windows".into())
+    Err(hyper_gpu_support::ui_text::common::errors::windows_required_verify().into())
 }

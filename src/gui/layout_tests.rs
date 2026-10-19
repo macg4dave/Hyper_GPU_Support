@@ -74,7 +74,7 @@ fn single_phase_headers_are_unnumbered_and_dialog_editors_stay_white_in_both_the
     ui.set_startup_loading(false);
     ui.show().unwrap();
     window.set_size(LogicalSize::new(700., 520.));
-    for theme in [settings::appearance::LIGHT, settings::appearance::DARK] {
+    for theme in [settings::appearance::light(), settings::appearance::dark()] {
         ui.set_dialog_kind("".into());
         ui.set_page(2);
         draw(&window);
@@ -106,7 +106,7 @@ fn single_phase_headers_are_unnumbered_and_dialog_editors_stay_white_in_both_the
         });
         assert_eq!(numbers, 0, "one phase does not render a step number");
         assert_eq!(information_icons, 0);
-        control(&ui, diagnostics::SHOW_LABEL).accessible_action(&AccessibilityAction::Default);
+        control(&ui, diagnostics::show_label()).accessible_action(&AccessibilityAction::Default);
         draw(&window);
         let mut outputs = Vec::new();
         ItemRc::new_root(WindowInner::from_pub(ui.window()).component()).visit_descendants::<()>(
@@ -115,7 +115,7 @@ fn single_phase_headers_are_unnumbered_and_dialog_editors_stay_white_in_both_the
                     && item
                         .accessible_string_property(AccessibleStringProperty::Label)
                         .as_deref()
-                        == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::OUTPUT_LABEL)
+                        == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::output_label())
                 {
                     outputs.push(item.clone());
                 }
@@ -176,38 +176,38 @@ fn shared_dialog_footer_keeps_domain_actions_and_disabled_guards() {
     for (kind, label, expected) in [
         (
             "recovery",
-            operations::recovery::inspection::CONTINUE_LABEL,
+            operations::recovery::inspection::continue_label(),
             "reconcile",
         ),
         (
             "recovery",
-            dialogs::partial_removal::REVIEW_LABEL,
+            dialogs::partial_removal::review_label(),
             "review-reset",
         ),
-        ("switch", dialogs::switch::REVIEW_LABEL, "review"),
-        ("save", operations::save_only::PROGRESS_TITLE, "save-only"),
-        ("reset-complete", dialogs::repair::REVIEW_LABEL, "repair"),
+        ("switch", dialogs::switch::review_label(), "review"),
+        ("save", operations::save_only::progress_title(), "save-only"),
+        ("reset-complete", dialogs::repair::review_label(), "repair"),
         (
             "profile-deleted",
-            dialogs::setup::NEW_REVIEW_LABEL,
+            dialogs::setup::new_review_label(),
             "reapply",
         ),
         (
             "operation-error",
-            dialogs::recovery::REVIEW_LABEL,
+            dialogs::recovery::review_label(),
             "recovery",
         ),
         (
             "recovery-blocked",
-            dialogs::profile_deletion::LABEL,
+            dialogs::profile_deletion::label(),
             "forget-recovery-profile",
         ),
         (
             "recovery-blocked",
-            dialogs::partial_removal::REVIEW_LABEL,
+            dialogs::partial_removal::review_label(),
             "review-reset",
         ),
-        ("status-error", dialogs::status::RETRY_LABEL, "refresh"),
+        ("status-error", dialogs::status::retry_label(), "refresh"),
     ] {
         ui.set_dialog_kind("".into());
         ui.set_running(false);
@@ -249,13 +249,13 @@ fn shared_dialog_footer_keeps_domain_actions_and_disabled_guards() {
                     assert_ne!(
                         item.accessible_string_property(AccessibleStringProperty::Label)
                             .as_deref(),
-                        Some(dialogs::partial_removal::REVIEW_LABEL),
+                        Some(dialogs::partial_removal::review_label()),
                         "unavailable restoration is replaced by the status retry"
                     );
                     ControlFlow::Continue(())
                 });
                 actions.borrow_mut().clear();
-                control(&ui, dialogs::status::RETRY_LABEL)
+                control(&ui, dialogs::status::retry_label())
                     .accessible_action(&AccessibilityAction::Default);
                 assert_eq!(&*actions.borrow(), &["refresh"]);
             }
@@ -318,8 +318,8 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
         draw(&window);
     };
     for (theme, label) in [
-        ("light", settings::appearance::LIGHT),
-        ("dark", settings::appearance::DARK),
+        ("light", settings::appearance::light()),
+        ("dark", settings::appearance::dark()),
     ] {
         ui.set_dialog_kind("".into());
         ui.set_page(2);
@@ -347,9 +347,9 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                 ui.set_running(!completed);
                 ui.set_dialog_title(
                     if completed {
-                        install::COMPLETED
+                        install::completed()
                     } else {
-                        install::APPLYING
+                        install::applying()
                     }
                     .into(),
                 );
@@ -359,19 +359,19 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                 ui.set_install_vram("5.9 GB".into());
                 ui.set_dialog_body(
                     if completed {
-                        install::SUCCESS_OFF
+                        install::success_off()
                     } else if guest_work {
-                        install::WAIT
+                        install::wait()
                     } else {
-                        hyper_gpu_support::ui_text::operations::apply::HOST_PROGRESS
+                        hyper_gpu_support::ui_text::operations::apply::host_progress()
                     }
                     .into(),
                 );
                 ui.set_current_stage(
                     if guest_work {
-                        install::PREPARING_FILES
+                        install::preparing_files()
                     } else {
-                        hyper_gpu_support::ui_text::progress::stage::AUTHENTICATE
+                        hyper_gpu_support::ui_text::progress::stage::authenticate()
                     }
                     .into(),
                 );
@@ -409,32 +409,32 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                 ));
                 ui.set_install_facts(super::model(vec![
                     super::InstallFact {
-                        label: install::SUPPORT.into(),
+                        label: install::support().into(),
                         value: "Enabled".into(),
                     },
                     super::InstallFact {
-                        label: install::GPU.into(),
+                        label: install::gpu().into(),
                         value: "NVIDIA GeForce RTX 5060".into(),
                     },
                     super::InstallFact {
-                        label: install::MEMORY.into(),
+                        label: install::memory().into(),
                         value: "7 GB".into(),
                     },
                     super::InstallFact {
-                        label: install::PREPARATION.into(),
+                        label: install::preparation().into(),
                         value: if guest_work {
                             "Completed"
                         } else {
-                            install::NOT_REQUIRED
+                            install::not_required()
                         }
                         .into(),
                     },
                     super::InstallFact {
-                        label: install::CHECKS.into(),
+                        label: install::checks().into(),
                         value: if guest_work {
                             "Completed"
                         } else {
-                            install::NOT_REQUIRED
+                            install::not_required()
                         }
                         .into(),
                     },
@@ -450,17 +450,17 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                 let left = control(
                     &ui,
                     if completed {
-                        install::VIEW_LOG
+                        install::view_log()
                     } else {
-                        diagnostics::SHOW_LABEL
+                        diagnostics::show_label()
                     },
                 );
                 let right = control(
                     &ui,
                     if completed {
-                        hyper_gpu_support::ui_text::dialogs::close::LABEL
+                        hyper_gpu_support::ui_text::dialogs::close::label()
                     } else {
-                        install::CANCEL
+                        install::cancel()
                     },
                 );
                 let origin = right.map_to_window(right.geometry().origin);
@@ -501,7 +501,7 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                     .visit_descendants::<()>(|item| {
                         if item.accessible_role() == AccessibleRole::Groupbox
                             && item.accessible_string_property(AccessibleStringProperty::Label).as_deref()
-                                == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::OUTPUT_LABEL)
+                                == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::output_label())
                         {
                             outputs.push(item.clone());
                         }
@@ -515,14 +515,14 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                     output_top + output.geometry().height() < origin.y,
                     "expanded log must be visible above the fixed footer"
                 );
-                control(&ui, install::COPY_LOG).accessible_action(&AccessibilityAction::Default);
+                control(&ui, install::copy_log()).accessible_action(&AccessibilityAction::Default);
                 assert_eq!(*clipboard.borrow(), log);
                 let toggle = control(
                     &ui,
                     if completed {
-                        install::HIDE_LOG
+                        install::hide_log()
                     } else {
-                        diagnostics::HIDE_LABEL
+                        diagnostics::hide_label()
                     },
                 );
                 toggle.accessible_action(&AccessibilityAction::Default);
@@ -531,15 +531,15 @@ fn install_dialog_keeps_actions_reachable_and_log_copyable_in_both_themes() {
                 control(
                     &ui,
                     if completed {
-                        install::VIEW_LOG
+                        install::view_log()
                     } else {
-                        diagnostics::SHOW_LABEL
+                        diagnostics::show_label()
                     },
                 )
                 .accessible_action(&AccessibilityAction::Default);
                 ui.set_dialog_details(format!("{log}01:00   Final checks\n").into());
                 render();
-                control(&ui, install::COPY_LOG);
+                control(&ui, install::copy_log());
                 ui.set_dialog_kind("".into());
             }
         }
@@ -591,10 +591,10 @@ fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
         window.set_size(LogicalSize::new(width, height));
         ui.set_page(0);
         draw(&window);
-        assert!(buttons(&ui, navigation::DASHBOARD).is_empty());
-        assert!(buttons(&ui, navigation::SYSTEM).is_empty());
-        assert!(buttons(&ui, navigation::ABOUT).is_empty());
-        let gear = button(&ui, navigation::SETTINGS);
+        assert!(buttons(&ui, navigation::dashboard()).is_empty());
+        assert!(buttons(&ui, navigation::system()).is_empty());
+        assert!(buttons(&ui, navigation::about()).is_empty());
+        let gear = button(&ui, navigation::settings());
         let geometry = gear.geometry();
         let origin = gear.map_to_window(geometry.origin);
         assert!(origin.x > width - 100. && origin.x + geometry.width() <= width);
@@ -609,13 +609,13 @@ fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
         assert_eq!(ui.get_page(), 2);
         draw(&window);
 
-        for (label, page) in [(navigation::SYSTEM, 1), (navigation::ABOUT, 3)] {
+        for (label, page) in [(navigation::system(), 1), (navigation::about(), 3)] {
             let link = button(&ui, label);
             let origin = link.map_to_window(link.geometry().origin);
             assert!(link.is_visible());
             assert!(origin.x >= 28. && origin.x < width / 2.);
             assert!(origin.y > height - 110. && origin.y + link.geometry().height() < height - 30.);
-            let close = button(&ui, dialogs::close::LABEL);
+            let close = button(&ui, dialogs::close::label());
             let close_origin = close.map_to_window(close.geometry().origin);
             assert!(close_origin.x > width / 2.);
             assert!((close_origin.x + close.geometry().width() - (width - 28.)).abs() < 1.);
@@ -634,16 +634,16 @@ fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
             assert_eq!(ui.get_page(), page);
             draw(&window);
             retain_render(&format!("settings-{page}-{width}"));
-            let back = button(&ui, settings::navigation::BACK);
+            let back = button(&ui, settings::navigation::back());
             ui.set_dialog_kind("more".into());
             slint::platform::update_timers_and_animations();
             back.accessible_action(&AccessibilityAction::Default);
-            button(&ui, navigation::SETTINGS).accessible_action(&AccessibilityAction::Default);
+            button(&ui, navigation::settings()).accessible_action(&AccessibilityAction::Default);
             assert_eq!(ui.get_page(), page);
             ui.set_dialog_kind("".into());
             slint::platform::update_timers_and_animations();
             if page == 3 {
-                button(&ui, settings::help::OPEN_LABEL)
+                button(&ui, settings::help::open_label())
                     .accessible_action(&AccessibilityAction::Default);
                 assert_eq!(actions.borrow().as_slice(), &["shortcuts"]);
                 actions.borrow_mut().clear();
@@ -658,7 +658,7 @@ fn settings_gear_routes_to_existing_subpages_and_preserves_drafts() {
             gear.accessible_action(&AccessibilityAction::Default);
             draw(&window);
         }
-        button(&ui, dialogs::close::LABEL).accessible_action(&AccessibilityAction::Default);
+        button(&ui, dialogs::close::label()).accessible_action(&AccessibilityAction::Default);
         assert_eq!(ui.get_page(), 0);
         assert_eq!(ui.get_selected_id(), "12345678-1234-1234-1234-123456789abc");
         assert!(ui.get_dirty());
@@ -679,12 +679,12 @@ fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
     draw(&window);
     use hyper_gpu_support::ui_text::dashboard::startup;
     for stage in [
-        startup::INVENTORY,
-        startup::CONFIGURATION,
-        startup::RECOVERY,
-        startup::IMPORT_RECOVERY,
-        startup::ENROLLMENT_RECOVERY,
-        startup::WORKER,
+        startup::inventory(),
+        startup::configuration(),
+        startup::recovery(),
+        startup::import_recovery(),
+        startup::enrollment_recovery(),
+        startup::worker(),
     ] {
         ui.set_startup_stage(stage.into());
         draw(&window);
@@ -706,12 +706,12 @@ fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
     draw(&window);
     let continue_button = control(
         &ui,
-        hyper_gpu_support::ui_text::dashboard::startup::CONTINUE_LABEL,
+        hyper_gpu_support::ui_text::dashboard::startup::continue_label(),
     );
     assert!(continue_button.is_visible());
     assert!(continue_button.geometry().width() < 240.);
     assert!(continue_button.geometry().height() < 50.);
-    let technical = control(&ui, hyper_gpu_support::ui_text::diagnostics::SHOW_LABEL);
+    let technical = control(&ui, hyper_gpu_support::ui_text::diagnostics::show_label());
     assert!(technical.is_visible());
     technical.accessible_action(&AccessibilityAction::Default);
     draw(&window);
@@ -746,11 +746,11 @@ fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
     for (theme, label) in [
         (
             "light",
-            hyper_gpu_support::ui_text::settings::appearance::LIGHT,
+            hyper_gpu_support::ui_text::settings::appearance::light(),
         ),
         (
             "dark",
-            hyper_gpu_support::ui_text::settings::appearance::DARK,
+            hyper_gpu_support::ui_text::settings::appearance::dark(),
         ),
     ] {
         ui.set_page(2);
@@ -759,15 +759,15 @@ fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
         ui.set_page(0);
         draw(&window);
         for label in [
-            hyper_gpu_support::ui_text::dashboard::os::WINDOWS_ACCESSIBLE,
-            hyper_gpu_support::ui_text::dashboard::os::LINUX_ACCESSIBLE,
-            hyper_gpu_support::ui_text::dashboard::os::UNKNOWN_ACCESSIBLE,
+            hyper_gpu_support::ui_text::dashboard::os::windows_accessible(),
+            hyper_gpu_support::ui_text::dashboard::os::linux_accessible(),
+            hyper_gpu_support::ui_text::dashboard::os::unknown_accessible(),
         ] {
             assert!(control(&ui, label).is_visible());
         }
         control(
             &ui,
-            hyper_gpu_support::ui_text::resources::advanced::collapsed_accessible().as_str(),
+            hyper_gpu_support::ui_text::resources::advanced::collapsed_accessible(),
         )
         .accessible_action(&AccessibilityAction::Default);
         draw(&window);
@@ -783,7 +783,7 @@ fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
             if collapse {
                 control(
                     &ui,
-                    hyper_gpu_support::ui_text::resources::advanced::expanded_accessible().as_str(),
+                    hyper_gpu_support::ui_text::resources::advanced::expanded_accessible(),
                 )
                 .accessible_action(&AccessibilityAction::Default);
                 draw(&window);
@@ -803,10 +803,7 @@ fn expanded_allocation_scrolls_above_fixed_actions_after_resize() {
                 draw(&window);
             }
             retain_render(&format!("details-{theme}-{width}x{height}-{collapse}"));
-            let actions = control(
-                &ui,
-                hyper_gpu_support::ui_text::dashboard::apply::label().as_str(),
-            );
+            let actions = control(&ui, hyper_gpu_support::ui_text::dashboard::apply::label());
             let top = actions.map_to_window(actions.geometry().origin).y;
             assert!(
                 actions.is_visible(),
@@ -836,8 +833,8 @@ fn all_dialog_families_share_reachable_modal_actions_and_copyable_details() {
     ui.show().unwrap();
     window.set_size(LogicalSize::new(1240., 860.));
     for (theme, label) in [
-        ("light", settings::appearance::LIGHT),
-        ("dark", settings::appearance::DARK),
+        ("light", settings::appearance::light()),
+        ("dark", settings::appearance::dark()),
     ] {
         ui.set_dialog_kind("".into());
         ui.set_page(2);
@@ -894,11 +891,11 @@ fn all_dialog_families_share_reachable_modal_actions_and_copyable_details() {
                 draw(&window);
                 assert!(control(&ui, &title).is_visible(), "actual title: {kind}");
                 let dismiss = match kind {
-                    "switch" => dialogs::switch::STAY_LABEL,
-                    "exit" => dialogs::draft::KEEP_LABEL,
-                    "forget-review" => dialogs::cancel::LABEL,
-                    "progress" | "cancelling" => dialogs::busy::LABEL,
-                    _ => dialogs::close::LABEL,
+                    "switch" => dialogs::switch::stay_label(),
+                    "exit" => dialogs::draft::keep_label(),
+                    "forget-review" => dialogs::cancel::label(),
+                    "progress" | "cancelling" => dialogs::busy::label(),
+                    _ => dialogs::close::label(),
                 };
                 let close = control(&ui, dismiss);
                 let bounds = close.geometry();
@@ -925,13 +922,13 @@ fn all_dialog_families_share_reachable_modal_actions_and_copyable_details() {
                         | "profile-deleted"
                         | "reset-complete"
                 ) {
-                    dialogs::install::VIEW_LOG
+                    dialogs::install::view_log()
                 } else {
-                    diagnostics::SHOW_LABEL
+                    diagnostics::show_label()
                 };
                 control(&ui, toggle).accessible_action(&AccessibilityAction::Default);
                 draw(&window);
-                let copy = control(&ui, dialogs::install::COPY_LOG);
+                let copy = control(&ui, dialogs::install::copy_log());
                 let copy_origin = copy.map_to_window(copy.geometry().origin);
                 assert!(
                     copy_origin.y >= 0. && copy_origin.y + copy.geometry().height() <= origin.y,
@@ -961,7 +958,7 @@ fn operation_preparation_and_execution_have_no_review_confirmation_controls() {
     ui.set_startup_loading(false);
     ui.show().unwrap();
     window.set_size(LogicalSize::new(1240., 860.));
-    for theme in [settings::appearance::LIGHT, settings::appearance::DARK] {
+    for theme in [settings::appearance::light(), settings::appearance::dark()] {
         ui.set_dialog_kind("".into());
         ui.set_page(2);
         draw(&window);
@@ -999,7 +996,7 @@ fn operation_preparation_and_execution_have_no_review_confirmation_controls() {
                         && item
                             .accessible_string_property(AccessibleStringProperty::Label)
                             .as_deref()
-                            == Some(dialogs::apply::LABEL)
+                            == Some(dialogs::apply::label())
                     {
                         confirmations += 1;
                     }
@@ -1009,14 +1006,14 @@ fn operation_preparation_and_execution_have_no_review_confirmation_controls() {
                 assert!(
                     !ui.get_dialog_phases()
                         .iter()
-                        .any(|phase| phase == dialogs::install::REVIEW)
+                        .any(|phase| phase == dialogs::install::review())
                 );
                 let dismiss = control(
                     &ui,
                     if kind.review_preparation() {
-                        dialogs::cancel::LABEL
+                        dialogs::cancel::label()
                     } else {
-                        dialogs::install::CANCEL
+                        dialogs::install::cancel()
                     },
                 );
                 assert!(dismiss.is_visible());
@@ -1042,8 +1039,8 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
     ui.show().unwrap();
     window.set_size(LogicalSize::new(1240., 860.));
     for theme in [
-        hyper_gpu_support::ui_text::settings::appearance::LIGHT,
-        hyper_gpu_support::ui_text::settings::appearance::DARK,
+        hyper_gpu_support::ui_text::settings::appearance::light(),
+        hyper_gpu_support::ui_text::settings::appearance::dark(),
     ] {
         ui.set_dialog_kind("".into());
         ui.set_page(2);
@@ -1053,38 +1050,38 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
         for (kind, mut labels) in [
             (
                 "status-error",
-                vec![dialogs::close::LABEL, dialogs::status::RETRY_LABEL],
+                vec![dialogs::close::label(), dialogs::status::retry_label()],
             ),
             (
                 "permission-saved",
-                vec![dialogs::close::LABEL, dialogs::setup::CONTINUE_LABEL],
+                vec![dialogs::close::label(), dialogs::setup::continue_label()],
             ),
             (
                 "profile-deleted",
-                vec![dialogs::close::LABEL, dialogs::setup::NEW_REVIEW_LABEL],
+                vec![dialogs::close::label(), dialogs::setup::new_review_label()],
             ),
             (
                 "reset-complete",
                 vec![
-                    dialogs::close::LABEL,
-                    dialogs::repair::REVIEW_LABEL,
-                    dialogs::profile_deletion::DISCARD_REVIEW_LABEL,
+                    dialogs::close::label(),
+                    dialogs::repair::review_label(),
+                    dialogs::profile_deletion::discard_review_label(),
                 ],
             ),
             (
                 "recovery",
                 vec![
-                    dialogs::close::LABEL,
-                    hyper_gpu_support::ui_text::operations::recovery::inspection::CONTINUE_LABEL,
-                    dialogs::partial_removal::REVIEW_LABEL,
+                    dialogs::close::label(),
+                    hyper_gpu_support::ui_text::operations::recovery::inspection::continue_label(),
+                    dialogs::partial_removal::review_label(),
                 ],
             ),
             (
                 "recovery-blocked",
                 vec![
-                    dialogs::close::LABEL,
-                    dialogs::profile_deletion::LABEL,
-                    dialogs::partial_removal::REVIEW_LABEL,
+                    dialogs::close::label(),
+                    dialogs::profile_deletion::label(),
+                    dialogs::partial_removal::review_label(),
                 ],
             ),
         ] {
@@ -1093,13 +1090,13 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
             ui.set_dialog_details("Diagnostic section\n".repeat(30).into());
             ui.set_dialog_kind(kind.into());
             if matches!(kind, "profile-deleted" | "reset-complete") {
-                labels.retain(|label| *label != dialogs::close::LABEL);
-                labels.insert(0, hyper_gpu_support::ui_text::dialogs::install::VIEW_LOG);
-                labels.push(dialogs::close::LABEL);
+                labels.retain(|label| *label != dialogs::close::label());
+                labels.insert(0, hyper_gpu_support::ui_text::dialogs::install::view_log());
+                labels.push(dialogs::close::label());
             } else {
-                labels.retain(|label| *label != dialogs::close::LABEL);
-                labels.insert(0, diagnostics::SHOW_LABEL);
-                labels.push(dialogs::close::LABEL);
+                labels.retain(|label| *label != dialogs::close::label());
+                labels.insert(0, diagnostics::show_label());
+                labels.push(dialogs::close::label());
             }
             for (width, height) in [(1240., 860.), (700., 520.)] {
                 window.set_size(LogicalSize::new(width, height));
@@ -1132,10 +1129,10 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
                 }
                 retain_render(&format!("footer-{kind}-{theme}-{width}x{height}"));
                 if matches!(kind, "recovery" | "recovery-blocked") {
-                    control(&ui, diagnostics::SHOW_LABEL)
+                    control(&ui, diagnostics::show_label())
                         .accessible_action(&AccessibilityAction::Default);
                     draw(&window);
-                    let hide = control(&ui, diagnostics::HIDE_LABEL);
+                    let hide = control(&ui, diagnostics::hide_label());
                     let geometry = hide.geometry();
                     let origin = hide.map_to_window(geometry.origin);
                     let panel_left = (width - 660_f32.min(width - 40.)) / 2.;
@@ -1152,8 +1149,8 @@ fn follow_up_and_technical_actions_share_the_dialog_footer_except_more_actions()
         }
         ui.set_dialog_kind("more".into());
         draw(&window);
-        let verify = control(&ui, hyper_gpu_support::ui_text::operations::verify::TITLE);
-        let repair = control(&ui, dialogs::repair::LABEL);
+        let verify = control(&ui, hyper_gpu_support::ui_text::operations::verify::title());
+        let repair = control(&ui, dialogs::repair::label());
         assert!(
             repair.map_to_window(repair.geometry().origin).y
                 > verify.map_to_window(verify.geometry().origin).y,
@@ -1188,14 +1185,14 @@ fn cancelled_reads_leave_dialog_close_usable_while_new_operations_stay_disabled(
         actions.borrow_mut().clear();
         if kind == "more" {
             for label in [
-                hyper_gpu_support::ui_text::operations::verify::title().as_str(),
-                dialogs::repair::LABEL,
+                hyper_gpu_support::ui_text::operations::verify::title(),
+                dialogs::repair::label(),
             ] {
                 control(&ui, label).accessible_action(&AccessibilityAction::Default);
             }
             assert!(actions.borrow().is_empty(), "new work remains disabled");
         }
-        control(&ui, dialogs::close::LABEL).accessible_action(&AccessibilityAction::Default);
+        control(&ui, dialogs::close::label()).accessible_action(&AccessibilityAction::Default);
         assert_eq!(
             &*actions.borrow(),
             &["close"],
@@ -1221,7 +1218,7 @@ fn diagnostic_output_preserves_scrolled_reading_and_follows_only_the_tail() {
     ui.set_startup_loading(false);
     ui.set_page(2);
     ui.set_dialog_kind("install-progress".into());
-    ui.set_dialog_title(install::APPLYING.into());
+    ui.set_dialog_title(install::applying().into());
     ui.set_running(true);
     ui.set_install_vm_name("VM2".into());
     ui.set_install_gpu_name("NVIDIA GPU".into());
@@ -1233,9 +1230,9 @@ fn diagnostic_output_preserves_scrolled_reading_and_follows_only_the_tail() {
     ui.show().unwrap();
     window.set_size(LogicalSize::new(1000., 700.));
     render();
-    control(&ui, diagnostics::SHOW_LABEL).accessible_action(&AccessibilityAction::Default);
+    control(&ui, diagnostics::show_label()).accessible_action(&AccessibilityAction::Default);
     render();
-    let input = control(&ui, diagnostics::READ_ONLY_ACCESSIBLE);
+    let input = control(&ui, diagnostics::read_only_accessible());
     let origin = || input.map_to_window(input.geometry().origin).y;
     let tail = origin();
     text.push_str("New terminal diagnostic line\n");
@@ -1253,7 +1250,7 @@ fn diagnostic_output_preserves_scrolled_reading_and_follows_only_the_tail() {
                 && item
                     .accessible_string_property(AccessibleStringProperty::Label)
                     .as_deref()
-                    == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::OUTPUT_LABEL)
+                    == Some(hyper_gpu_support::ui_text::dashboard::diagnostics::output_label())
             {
                 editors.push(item.clone());
             }

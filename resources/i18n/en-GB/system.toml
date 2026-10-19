@@ -1,69 +1,24 @@
-schema = 1
-locale = "en-GB"
-feature = "system"
+# System page. British English is the reference catalogue:
+# it defines every key and argument; other languages translate the text only.
 
-[messages."system.discovery.initial_setup_notice"]
-text = "First-install inventory read through Windows elevation. Select a VM/GPU and Apply to review package setup and exact enrollment. GPU changes require a separate subsequent review."
-screen = "discover presentation (src/gui/live/source.rs)"
-state = "Selected branch: system.discovery.initial_setup_notice"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+host_label = "This computer"
+preparation_available = "available"
+preparation_unsupported = "not implemented"
+subtitle = "Virtual machines and GPUs discovered on this computer."
+title = "System Information"
 
-[messages."system.discovery.permission_stage"]
-text = "Protected enrollment"
-screen = "discover presentation (src/gui/live/source.rs)"
-state = "Selected branch: system.discovery.permission_stage"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[discovery]
+initial_setup_notice = "First-install inventory read through Windows elevation. Select a VM/GPU and Apply to review package setup and exact enrollment. GPU changes require a separate subsequent review."
+permission_stage = "Protected enrollment"
 
-[messages."system.host_label"]
-text = "This computer"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: system.host_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[discovery.icon_metadata_failed]
+args = ["error: text"]
+text = "Could not save VM icon metadata: {error}"
 
-[messages."system.preparation_unsupported"]
-text = "not implemented"
-screen = "refresh_with_result presentation (src/gui/live.rs)"
-state = "Selected branch: system.preparation_unsupported"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[discovery.native_only]
+args = ["error: text"]
+text = "{error}. Native inventory only; editing is blocked."
 
-[messages."system.subtitle"]
-text = "Virtual machines and GPUs discovered on this computer."
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: system.subtitle"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."system.title"]
-text = "System Information"
-screen = "Pages presentation (src/gui/ui/pages.slint)"
-state = "Selected branch: system.title"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[gpu.description]
+args = ["interface: text", "driver: text", "resources: text", "adapter: message"]
+text = "Interface: {interface}\nDriver: {driver}\n{resources}\nPreparation adapter: {adapter}\nAttachment does not prove guest graphics health; sharing is not qualified."

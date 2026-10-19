@@ -28,7 +28,7 @@ pub(super) struct MemorySlider {
 }
 
 pub(super) fn format_gb(bytes: u64) -> String {
-    format!("{} GB", decimal_gb(bytes))
+    hyper_gpu_support::ui_text::resources::units::gb(&decimal_gb(bytes)).into_string()
 }
 
 pub(super) fn decimal_gb(bytes: u64) -> String {
@@ -45,18 +45,22 @@ pub(super) fn decimal_gb(bytes: u64) -> String {
 // Presentation only. Quotient/remainder avoids overflow when rounding near u64::MAX.
 fn rounded_capacity(bytes: u64) -> String {
     let whole = bytes / BYTES_PER_GB + u64::from(bytes % BYTES_PER_GB >= BYTES_PER_GB / 2);
-    format!("{whole} GB")
+    hyper_gpu_support::ui_text::resources::units::gb(&whole.to_string()).into_string()
 }
 
 /// Physical capacity is displayed separately from the provider's byte request.
 pub(super) fn format_gib(bytes: u64) -> String {
-    format!("{:.2} GiB", bytes as f64 / (1u64 << 30) as f64)
+    hyper_gpu_support::ui_text::resources::units::gib(&format!(
+        "{:.2}",
+        bytes as f64 / (1u64 << 30) as f64
+    ))
+    .into_string()
 }
 
 /// Incomplete/invalid raw edits are never replaced by moving the slider.
 pub(super) fn request(values: &[String]) -> Result<Option<Allocation>, String> {
     if values.len() != 3 {
-        return Err("VRAM fields are unavailable.".into());
+        return Err(hyper_gpu_support::ui_text::resources::memory::fields_unavailable().into());
     }
     if values.iter().all(|v| v.trim().is_empty()) {
         return Ok(None);
@@ -65,7 +69,7 @@ pub(super) fn request(values: &[String]) -> Result<Option<Allocation>, String> {
         .iter()
         .map(|v| v.trim().parse::<u64>())
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| "Complete or clear all three VRAM fields to use the slider.")?;
+        .map_err(|_| hyper_gpu_support::ui_text::resources::memory::fields_incomplete())?;
     Ok(Some(Allocation {
         minimum: parsed[0],
         optimal: parsed[1],
@@ -81,18 +85,18 @@ fn parse_gb(text: &str) -> Result<u64, String> {
         || fraction.len() > 9
         || !fraction.bytes().all(|b| b.is_ascii_digit())
     {
-        return Err("Enter a decimal GB value with at most nine decimal places. The previous request is kept.".into());
+        return Err(hyper_gpu_support::ui_text::resources::memory::decimal_required().into());
     }
     let whole = whole
         .parse::<u64>()
-        .map_err(|_| "Memory value is too large")?;
+        .map_err(|_| hyper_gpu_support::ui_text::resources::memory::too_large())?;
     let fraction = format!("{fraction:0<9}")
         .parse::<u64>()
-        .map_err(|_| "Invalid decimal memory value")?;
+        .map_err(|_| hyper_gpu_support::ui_text::resources::memory::invalid_decimal())?;
     let bytes = whole
         .checked_mul(BYTES_PER_GB)
         .and_then(|b| b.checked_add(fraction))
-        .ok_or("Memory value is too large")?;
+        .ok_or(hyper_gpu_support::ui_text::resources::memory::too_large())?;
     Ok(bytes)
 }
 
@@ -113,23 +117,21 @@ impl MemorySlider {
     ) -> Result<Self, String> {
         limits.validate(limits)?;
         if physical_capacity < BYTES_PER_GB {
-            return Err("Detected physical VRAM is below the slider's 1 GB minimum. GPU memory selection is unavailable.".into());
+            return Err(hyper_gpu_support::ui_text::resources::memory::below_minimum().into());
         }
         let bounds = current.unwrap_or(limits);
         bounds
             .validate(bounds)
-            .map_err(|_| "Correct the VRAM range in Advanced Allocation to use the slider.")?;
+            .map_err(|_| hyper_gpu_support::ui_text::resources::memory::range_invalid())?;
         // Physical capacity bounds the slider. Reported partition metadata must
         // not impose a second (for example 1 GB) ceiling on byte requests.
         let lower = BYTES_PER_GB / BYTES_PER_STEP;
         let upper = physical_capacity.div_ceil(BYTES_PER_STEP);
         if bounds.optimal > physical_capacity {
-            return Err("The current request exceeds detected physical VRAM. Use Advanced Allocation; it has not been rewritten.".into());
+            return Err(hyper_gpu_support::ui_text::resources::memory::exceeds_physical().into());
         }
         if upper > MAX_EXACT_STEP {
-            return Err(
-                "VRAM bounds exceed exact slider precision. Use Advanced Allocation.".into(),
-            );
+            return Err(hyper_gpu_support::ui_text::resources::memory::precision_exceeded().into());
         }
         Ok(Self {
             minimum: lower as i32,
@@ -140,7 +142,7 @@ impl MemorySlider {
                 (bounds.optimal / BYTES_PER_STEP).clamp(lower, upper) as i32
             },
             label: current.map_or_else(
-                || hyper_gpu_support::ui_text::resources::REQUEST_ABSENT.into(),
+                || hyper_gpu_support::ui_text::resources::request_absent().into(),
                 |v| {
                     if v.optimal == physical_capacity {
                         rounded_capacity(physical_capacity)
@@ -154,10 +156,11 @@ impl MemorySlider {
             range_note: {
                 let mut notes = Vec::new();
                 if !physical_capacity.is_multiple_of(BYTES_PER_GB) {
-                    notes.push(hyper_gpu_support::ui_text::resources::ENDPOINT_ROUNDING_NOTE);
+                    notes.push(hyper_gpu_support::ui_text::resources::endpoint_rounding_note());
                 }
                 if bounds.optimal < BYTES_PER_GB {
-                    notes.push(hyper_gpu_support::ui_text::resources::RETAINED_BELOW_MINIMUM_NOTE);
+                    notes
+                        .push(hyper_gpu_support::ui_text::resources::retained_below_minimum_note());
                 }
                 (!notes.is_empty()).then(|| notes.join("\n"))
             },
@@ -168,12 +171,12 @@ impl MemorySlider {
 
     pub fn select(&self, position: i32) -> Result<Allocation, String> {
         if !(self.minimum..=self.maximum).contains(&position) {
-            return Err("The selected memory value is outside the current VRAM range.".into());
+            return Err(hyper_gpu_support::ui_text::resources::memory::outside_range().into());
         }
         let optimal = u64::try_from(position)
-            .map_err(|_| "Invalid memory value")?
+            .map_err(|_| hyper_gpu_support::ui_text::resources::memory::invalid_value())?
             .checked_mul(BYTES_PER_STEP)
-            .ok_or("Memory conversion overflow")?
+            .ok_or(hyper_gpu_support::ui_text::resources::memory::overflow())?
             .min(self.physical_capacity);
         self.select_bytes(optimal)
     }
@@ -182,10 +185,12 @@ impl MemorySlider {
     pub fn select_gb(&self, text: &str) -> Result<Allocation, String> {
         let bytes = parse_gb(text)?;
         if bytes < BYTES_PER_GB || bytes > self.physical_capacity {
-            return Err(format!(
-                "Enter a request from 1 GB to {}. The previous request is kept.",
-                format_gb(self.physical_capacity)
-            ));
+            return Err(
+                hyper_gpu_support::ui_text::resources::memory::request_range(&format_gb(
+                    self.physical_capacity,
+                ))
+                .into_string(),
+            );
         }
         self.select_bytes(bytes)
     }

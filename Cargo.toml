@@ -1,7 +1,7 @@
 [workspace]
-members = [".", "tools/ui-text"]
+members = [".", "tools/ui-text", "tools/app-install"]
 default-members = ["."]
-exclude = ["tools/ui-text/standalone", "vendor/i-slint-backend-winit"]
+exclude = ["vendor/i-slint-backend-winit"]
 resolver = "3"
 
 [package]
@@ -26,9 +26,6 @@ missing_docs = "warn"
 slint-build = "=1.18.1"
 ui-text = { path = "tools/ui-text" }
 
-[dev-dependencies]
-ui-text = { path = "tools/ui-text" }
-
 # Backport Windows exposure-region repainting without upgrading Slint.
 [patch.crates-io]
 i-slint-backend-winit = { path = "vendor/i-slint-backend-winit" }
@@ -46,6 +43,7 @@ rpassword = "7.5.4"
 windows = { version = "0.62.2", features = [
     "Data_Xml_Dom",
     "Win32_Foundation",
+    "Win32_Globalization",
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D11",
     "Win32_Graphics_Direct3D12",

@@ -24,10 +24,12 @@ pub(super) fn apply_live(
     reinstall: bool,
 ) -> Result<(), String> {
     if !ui.get_execution_ready() {
-        return Err("The reviewed protected worker is not available.".into());
+        return Err(hyper_gpu_support::ui_text::operations::apply::worker_unavailable().into());
     }
     let (selected, revision, gpu_name, vm_name, title) = {
-        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+        let state = state
+            .lock()
+            .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         let target = draft_target(ui, &state)?;
         state.editor_eligibility(&target.vm_id)?;
         let revision = state.committed.revision(&target.vm_id)?;
@@ -35,7 +37,7 @@ pub(super) fn apply_live(
             .view
             .inventory
             .as_ref()
-            .ok_or("Inventory unavailable")?;
+            .ok_or(hyper_gpu_support::ui_text::common::errors::inventory_unavailable())?;
         let gpu_name = inventory
             .discovery
             .gpus
@@ -45,7 +47,7 @@ pub(super) fn apply_live(
         let vm = state
             .view
             .vm(&target.vm_id)
-            .ok_or(hyper_gpu_support::ui_text::dashboard::selection::VM_UNAVAILABLE)?;
+            .ok_or(hyper_gpu_support::ui_text::dashboard::selection::vm_unavailable())?;
         let title = installation::apply_title(target.enabled, !vm.gpus.is_empty());
         (target, revision, gpu_name, vm.name.clone(), title)
     };
@@ -79,7 +81,10 @@ pub(super) fn apply_live(
                     let hyper_gpu_support::worker::PreparedReview::Apply { plan, expected } =
                         review
                     else {
-                        return Err("Unexpected prepared operation".into());
+                        return Err(
+                            hyper_gpu_support::ui_text::common::errors::unexpected_preparation()
+                                .into(),
+                        );
                     };
                     let revision = expected.clone();
                     let accepted = plan.clone();
@@ -87,9 +92,14 @@ pub(super) fn apply_live(
                     let gpu = preparation_gpu.clone();
                     let plan = super::background::accept_prepared(&approval_ui, move |ui| {
                         if !ui.get_review_preparing() {
-                            return Err("Read-only preparation cancelled".into());
+                            return Err(
+                                hyper_gpu_support::ui_text::common::errors::preparation_cancelled()
+                                    .into(),
+                            );
                         }
-                        let state = state.lock().map_err(|_| "Presentation state unavailable")?;
+                        let state = state.lock().map_err(|_| {
+                            hyper_gpu_support::ui_text::common::state::presentation_unavailable()
+                        })?;
                         let current = draft_target(ui, &state)?;
                         state.validate_prepared(&accepted, &current, &revision)?;
                         ui.set_review_preparing(false);
@@ -101,9 +111,9 @@ pub(super) fn apply_live(
                         );
                         Ok(accepted)
                     })?;
-                    *prepared_plan
-                        .lock()
-                        .map_err(|_| "Prepared result unavailable")? = Some(plan.clone());
+                    *prepared_plan.lock().map_err(|_| {
+                        hyper_gpu_support::ui_text::common::errors::prepared_result_unavailable()
+                    })? = Some(plan.clone());
                     let credential =
                         installation::credentials(plan.preview.credentials_required, || {
                             hyper_gpu_support::credentials::read(&plan.desired.vm_id)?.map_or_else(
@@ -169,7 +179,7 @@ pub(super) fn apply_live(
                                 dialog(
                                     ui,
                                     "install-complete",
-                                    hyper_gpu_support::ui_text::dialogs::install::COMPLETED,
+                                    hyper_gpu_support::ui_text::dialogs::install::completed(),
                                     &body,
                                 );
                                 ui.set_install_facts(model(facts));
@@ -177,9 +187,9 @@ pub(super) fn apply_live(
                             }
                             Err(error) => failure_dialog(
                                 ui,
-                                hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE,
+                                hyper_gpu_support::ui_text::operations::setup::incomplete::title(),
                                 &error,
-                                "Changes may have completed. Inspect current status and recovery before another operation.",
+                                hyper_gpu_support::ui_text::operations::apply::may_have_completed(),
                             ),
                         }
                     } else {
@@ -187,18 +197,17 @@ pub(super) fn apply_live(
                             ui,
                             "save",
                             if setup_required {
-                                hyper_gpu_support::ui_text::operations::setup::unsaved::TITLE
+                                hyper_gpu_support::ui_text::operations::setup::unsaved::title()
                             } else {
-                                hyper_gpu_support::ui_text::operations::apply::unsaved::TITLE
+                                hyper_gpu_support::ui_text::operations::apply::unsaved::title()
                             },
-                            &format!(
-                                "{}{}\nThe verified intent is retained separately from committed configuration. Retry saving only; do not repeat Apply.",
-                                if setup_required {
+                            &hyper_gpu_support::ui_text::operations::apply::unsaved::body(
+                                &if setup_required {
                                     hyper_gpu_support::ui_text::operations::setup::unsaved::effect_summary(&(result_vm_name)).into_string()
                                 } else {
                                     hyper_gpu_support::ui_text::operations::apply::unsaved::effect_summary(&(result_vm_name)).into_string()
                                 },
-                                outcome.save_error.unwrap_or_default(),
+                                &outcome.save_error.unwrap_or_default(),
                             ),
                         );
                     }
@@ -209,7 +218,7 @@ pub(super) fn apply_live(
     );
     if started.is_ok() {
         ui.set_review_preparing(true);
-        ui.set_dialog_body(hyper_gpu_support::ui_text::operations::plan::PROGRESS_BODY.into());
+        ui.set_dialog_body(hyper_gpu_support::ui_text::operations::plan::progress_body().into());
     }
     started
 }
@@ -219,26 +228,27 @@ pub(super) fn apply_live(
 fn present_failure(ui: &AppWindow, error: &str, setup_required: bool) {
     use slint::Model;
     let title = if setup_required {
-        hyper_gpu_support::ui_text::operations::setup::incomplete::TITLE
+        hyper_gpu_support::ui_text::operations::setup::incomplete::title()
     } else {
-        hyper_gpu_support::ui_text::operations::apply::incomplete::TITLE
+        hyper_gpu_support::ui_text::operations::apply::incomplete::title()
     };
     let last_stage = ui.get_stages().iter().last().map(|stage| stage.to_string());
     crate::gui::failure_dialog(
         ui,
         title,
         error,
-        &format!(
-            "{}\nCurrent VM status was refreshed automatically. Power: {}. Your draft is retained.{}",
-            last_stage.map_or_else(
-                || hyper_gpu_support::ui_text::operations::apply::STAGE_ABSENT.into(),
-                |stage| format!("Last reported step: {stage}"),
+        &hyper_gpu_support::ui_text::operations::apply::failure_context(
+            &last_stage.map_or_else(
+                || hyper_gpu_support::ui_text::operations::apply::stage_absent().into(),
+                |stage| {
+                    hyper_gpu_support::ui_text::operations::apply::last_stage(&stage).into_string()
+                },
             ),
-            ui.get_power(),
+            ui.get_power().as_str(),
             if ui.get_action_recovery() {
-                " Choose Review recovery before another operation; do not repeat Apply while recovery is required."
+                hyper_gpu_support::ui_text::operations::apply::next_recovery()
             } else {
-                " Inspect the failure before starting another operation."
+                hyper_gpu_support::ui_text::operations::apply::next_inspect()
             },
         ),
     );
@@ -252,7 +262,7 @@ pub(super) fn save_only_live(
 ) -> Result<(), String> {
     let record = state
         .lock()
-        .map_err(|_| "Presentation state unavailable")?
+        .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?
         .save_only_record()?;
     let finished_state = state.clone();
     let target = record.target.clone();
@@ -263,7 +273,7 @@ pub(super) fn save_only_live(
         busy,
         Operation::new(
             Kind::SaveOnly,
-            hyper_gpu_support::ui_text::operations::save_only::PROGRESS_TITLE,
+            hyper_gpu_support::ui_text::operations::save_only::progress_title(),
         ),
         None,
         false,
@@ -277,21 +287,21 @@ pub(super) fn save_only_live(
                     dialog(
                         ui,
                         "info",
-                        hyper_gpu_support::ui_text::operations::save_only::completed::TITLE,
-                        hyper_gpu_support::ui_text::operations::save_only::completed::BODY,
+                        hyper_gpu_support::ui_text::operations::save_only::completed::title(),
+                        hyper_gpu_support::ui_text::operations::save_only::completed::body(),
                     );
                 }
                 Ok(_) => dialog(
                     ui,
                     "error",
-                    hyper_gpu_support::ui_text::operations::save_only::unsaved::TITLE,
-                    hyper_gpu_support::ui_text::operations::save_only::unsaved::BODY,
+                    hyper_gpu_support::ui_text::operations::save_only::unsaved::title(),
+                    hyper_gpu_support::ui_text::operations::save_only::unsaved::body(),
                 ),
                 Err(error) => failure_dialog(
                     ui,
-                    hyper_gpu_support::ui_text::operations::save_only::blocked::TITLE,
+                    hyper_gpu_support::ui_text::operations::save_only::blocked::title(),
                     &error,
-                    "The protected recovery record remains; no GPU operation was repeated.",
+                    hyper_gpu_support::ui_text::operations::save_only::blocked::context(),
                 ),
             }
         },
@@ -305,7 +315,7 @@ pub(super) fn apply_live(
     _: &Arc<AtomicBool>,
     _: bool,
 ) -> Result<(), String> {
-    Err("GPU operations require Windows".into())
+    Err(hyper_gpu_support::ui_text::common::errors::windows_required_gpu().into())
 }
 
 #[cfg(not(windows))]
@@ -314,7 +324,7 @@ pub(super) fn save_only_live(
     _: &SharedState,
     _: &Arc<AtomicBool>,
 ) -> Result<(), String> {
-    Err("Protected publication requires Windows".into())
+    Err(hyper_gpu_support::ui_text::common::errors::windows_required_publication().into())
 }
 
 #[cfg(test)]

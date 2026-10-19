@@ -24,8 +24,8 @@ pub(super) fn register(ui: &AppWindow, state: &SharedState) {
                     dialog(
                         &ui,
                         "switch",
-                        hyper_gpu_support::ui_text::operations::draft::switch::TITLE,
-                        hyper_gpu_support::ui_text::operations::draft::switch::BODY,
+                        hyper_gpu_support::ui_text::operations::draft::switch::title(),
+                        hyper_gpu_support::ui_text::operations::draft::switch::body(),
                     );
                 } else {
                     state.select_vm(Some(id.to_string()))?;
@@ -78,7 +78,7 @@ pub(super) fn register(ui: &AppWindow, state: &SharedState) {
                     if changed {
                         pending_summary(ui.get_gpu_enabled(), Some(baseline.enabled), &raw_values)
                     } else {
-                        hyper_gpu_support::ui_text::dashboard::draft::ABSENT.to_owned()
+                        hyper_gpu_support::ui_text::dashboard::draft::absent().to_owned()
                     }
                     .into(),
                 );
@@ -102,7 +102,7 @@ pub(super) fn register(ui: &AppWindow, state: &SharedState) {
                         ui.set_draft_valid(false);
                         ui.set_validation(
                             hyper_gpu_support::reporting::operator_error(
-                                hyper_gpu_support::ui_text::operations::validation::STAGE,
+                                hyper_gpu_support::ui_text::operations::validation::stage(),
                                 &error,
                             )
                             .into(),
@@ -129,7 +129,9 @@ pub(super) fn register(ui: &AppWindow, state: &SharedState) {
             .collect::<Vec<_>>();
         let selection = memory_state
             .lock()
-            .map_err(|_| "Presentation state unavailable".to_owned())
+            .map_err(|_| {
+                hyper_gpu_support::ui_text::common::state::presentation_unavailable().to_owned()
+            })
             .and_then(|state| {
                 state.memory_values(
                     ui.get_selected_id().as_str(),
@@ -180,7 +182,9 @@ pub(super) fn register(ui: &AppWindow, state: &SharedState) {
             .collect::<Vec<_>>();
         let selection = numeric_state
             .lock()
-            .map_err(|_| "Presentation state unavailable".to_owned())
+            .map_err(|_| {
+                hyper_gpu_support::ui_text::common::state::presentation_unavailable().to_owned()
+            })
             .and_then(|state| {
                 state.memory_text_values(
                     ui.get_selected_id().as_str(),

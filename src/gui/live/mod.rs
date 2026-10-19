@@ -13,6 +13,7 @@ mod enrollment;
 mod install_dialog;
 #[cfg(any(windows, test))]
 mod installation;
+mod language;
 #[cfg(windows)]
 mod partial_removal;
 pub(super) mod polling;
@@ -49,12 +50,15 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
     ui.set_gpu_options(model(Vec::new()));
     ui.set_values(model(vec!["".into(); 12]));
     ui.set_eligible(false);
-    ui.set_system_summary(hyper_gpu_support::ui_text::operations::inventory::INITIAL_NOTICE.into());
     let busy = Arc::new(AtomicBool::new(false));
     let state = Arc::new(Mutex::new(State::default()));
     if let Ok(mut state) = state.lock() {
         state.view.selected = crate::gui::selection::load();
     }
+    language::register(&ui, &state);
+    ui.set_system_summary(
+        hyper_gpu_support::ui_text::operations::inventory::initial_notice().into(),
+    );
     editor::register(&ui, &state);
     actions::register(&ui, &state, &busy, &source);
     let weak = ui.as_weak();
@@ -67,8 +71,8 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                 dialog(
                     &ui,
                     "exit",
-                    hyper_gpu_support::ui_text::operations::draft::exit::TITLE,
-                    hyper_gpu_support::ui_text::operations::draft::exit::BODY,
+                    hyper_gpu_support::ui_text::operations::draft::exit::title(),
+                    hyper_gpu_support::ui_text::operations::draft::exit::body(),
                 );
                 return slint::CloseRequestResponse::KeepWindowShown;
             }
@@ -96,8 +100,10 @@ pub(super) fn run(ui: AppWindow, source: Source) -> Result<(), Box<dyn std::erro
                     && let Err(error) = refresh(&ui, &state, &busy, &source, true)
                 {
                     ui.set_notice(
-                        format!("VM status refresh unavailable: {error}. Use Refresh to retry.")
-                            .into(),
+                        hyper_gpu_support::ui_text::dashboard::refresh::poll_unavailable(
+                            &error.to_string(),
+                        )
+                        .into(),
                     );
                 }
             },

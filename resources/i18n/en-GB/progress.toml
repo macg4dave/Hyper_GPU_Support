@@ -1,234 +1,38 @@
-schema = 1
-locale = "en-GB"
-feature = "progress"
+# Progress screen. British English is the reference catalogue:
+# it defines every key and argument; other languages translate the text only.
 
-[messages."progress.stage.read_vm"]
-text = "Reading current VM state"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.read_vm"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
+[copy]
+complete = "Copying files · Complete"
 
-[messages."progress.stage.read_gpu"]
-text = "Reading selected GPU and driver version"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.read_gpu"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
+[log.heading]
+args = ["events: text"]
+text = "Reported events (not proof of final state):\n{events}"
 
-[messages."progress.stage.authenticate"]
-text = "Authenticating current signed driver files"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.authenticate"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
+[stage]
+allocation = "Applying your GPU resource settings"
+authenticate = "Authenticating current signed driver files"
+compatibility = "Updating GPU compatibility settings"
+permission_preparation = "Waiting for any earlier status check to finish, then checking the protected app and requesting Windows administrator permission. No GPU changes have started. A Windows UAC prompt may require your response."
+persist = "Saving progress"
+prepare = "Preparing GPU driver files"
+publish = "Saving the checked VM settings"
+read_gpu = "Reading selected GPU and driver version"
+read_vm = "Reading current VM state"
+recovery_credentials = "Preparing recovery: reading saved sign-in or waiting for local administrator sign-in; no guest check has started"
+recovery_outcome = "Checking the recorded recovery outcome; guest checks and final power restoration are not yet confirmed"
+recovery_preparation = "Preparing recovery: waiting for protected worker startup; the recorded outcome is not yet confirmed"
+save_only = "Retrying the bound configuration save"
+shutdown = "Shutting down the VM safely"
+start = "Starting the VM"
+worker_admission = "Checking protected worker admission: waiting for the operation lock and authenticating installed files"
+worker_connection = "Preparing protected worker: checking enrollment, waiting for Windows approval or connecting securely"
 
-[messages."progress.status.waiting_result"]
-text = "Waiting for final result; completion is not yet confirmed"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.status.waiting_result"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
+[status]
+complete = "Complete"
+failed = "Failed"
+in_progress = "In progress"
+waiting_result = "Waiting for final result; completion is not yet confirmed"
 
-[messages."progress.copy.complete"]
-text = "Copying files · Complete"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.copy.complete"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.allocation"]
-text = "Applying your GPU resource settings"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.allocation"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.compatibility"]
-text = "Updating GPU compatibility settings"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.compatibility"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.persist"]
-text = "Saving progress"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.persist"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.prepare"]
-text = "Preparing GPU driver files"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.prepare"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.publish"]
-text = "Saving the checked VM settings"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.publish"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.save_only"]
-text = "Retrying the bound configuration save"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.save_only"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.shutdown"]
-text = "Shutting down the VM safely"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.shutdown"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.start"]
-text = "Starting the VM"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.start"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.status.complete"]
-text = "Complete"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.status.complete"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.status.failed"]
-text = "Failed"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.status.failed"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.recovery_credentials"]
-text = "Preparing recovery: reading saved sign-in or waiting for local administrator sign-in; no guest check has started"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.recovery_credentials"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.recovery_preparation"]
-text = "Preparing recovery: waiting for protected worker startup; the recorded outcome is not yet confirmed"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.recovery_preparation"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.worker_connection"]
-text = "Preparing protected worker: checking enrollment, waiting for Windows approval or connecting securely"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.worker_connection"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.worker_admission"]
-text = "Checking protected worker admission: waiting for the operation lock and authenticating installed files"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.worker_admission"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.recovery_outcome"]
-text = "Checking the recorded recovery outcome; guest checks and final power restoration are not yet confirmed"
-screen = "progress_to_ui presentation (src/gui/live/progress.rs)"
-state = "Selected branch: progress.stage.recovery_outcome"
-audience = "operator"
-intent = "Explain the active read or wait without claiming a final outcome."
-consequences = "Read progress does not grant authority or prove successful completion."
-severity = "information"
-space_hint = "Wrapped progress hint; inspect at supported sizes and scaling."
-placeholders = []
-
-[messages."progress.stage.permission_preparation"]
-text = "Waiting for any earlier status check to finish, then checking the protected app and requesting Windows administrator permission. No GPU changes have started. A Windows UAC prompt may require your response."
-screen = "GPU setup and shared text inputs"
-state = "Selected branch: progress.stage.permission_preparation"
-audience = "operator"
-intent = "Describe the current operation or a standard editing action."
-consequences = "Presentation never substitutes for fresh protected admission or readback."
-severity = "information"
-space_hint = "Review wrapping, keyboard access and minimum-size layout."
-placeholders = []
+[status.line]
+args = ["label: text", "status: message"]
+text = "{label} · {status}"

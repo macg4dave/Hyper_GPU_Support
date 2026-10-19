@@ -5,14 +5,22 @@ use hyper_gpu_support::model::Target;
 impl State {
     /// Profile deletion changes app records only, including when GPU support remains active.
     pub fn forget_target(&self) -> Result<Target, String> {
-        let id = self.view.selected.as_deref().ok_or("Select a VM first.")?;
-        let inventory = self.view.inventory.as_ref().ok_or("Refresh first.")?;
+        let id = self
+            .view
+            .selected
+            .as_deref()
+            .ok_or(hyper_gpu_support::ui_text::dashboard::actions::select_vm())?;
+        let inventory = self
+            .view
+            .inventory
+            .as_ref()
+            .ok_or(hyper_gpu_support::ui_text::operations::profile_deletion::refresh_first())?;
         let mut target = inventory
             .enrolled
             .iter()
             .find(|t| t.vm_id == id)
             .cloned()
-            .ok_or("This VM has no authorized pairing; Refresh for current state.")?;
+            .ok_or(hyper_gpu_support::ui_text::operations::profile_deletion::no_pairing())?;
         target.enabled = false;
         target.clear_allocations();
         target.validate()?;
@@ -86,9 +94,7 @@ impl State {
                 && self.committed.errors.is_empty()
                 && review.configurations != revisions)
         {
-            return Err(
-                "Selection, saved profiles or pairing changed; review Delete profile again.".into(),
-            );
+            return Err(hyper_gpu_support::ui_text::operations::profile_deletion::changed().into());
         }
         Ok(())
     }

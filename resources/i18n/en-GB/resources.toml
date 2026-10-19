@@ -1,212 +1,58 @@
-schema = 1
-locale = "en-GB"
-feature = "resources"
+# GPU resource editor. British English is the reference catalogue:
+# it defines every key and argument; other languages translate the text only.
 
-[messages."resources.advanced.collapsed_accessible"]
-text = "Advanced Allocation, collapsed"
-screen = "AllocationDisclosure presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.advanced.collapsed_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+collapse_label = "Collapse"
+endpoint_rounding_note = "The maximum endpoint label is rounded to the nearest whole GB. Review and Technical Details retain the exact byte values."
+expand_label = "Expand"
+maximum_label = "Maximum"
+minimum_label = "Minimum"
+optimal_label = "Optimal"
+provider_unavailable = "Raw provider capability unknown; editing unavailable"
+request_absent = "No explicit request"
+retained_below_minimum_note = "The existing request is below 1 GB and has been retained exactly. The slider starts at 1 GB; edit it or use Advanced Allocation to change the request."
+unspecified = "Not specified"
 
-[messages."resources.advanced.expanded_accessible"]
-text = "Advanced Allocation, expanded"
-screen = "AllocationDisclosure presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.advanced.expanded_accessible"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."resources.advanced.label"]
-text = "Advanced Allocation"
-screen = "AllocationDisclosure presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.advanced.label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."resources.collapse_label"]
-text = "Collapse"
-screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.collapse_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."resources.default_suffix"]
+[default_suffix]
+args = ["default_value: formatted"]
 text = "{default_value} (default)"
-screen = "AllocationField presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.default_suffix"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "default_value", type = "formatted" }]
 
-[messages."resources.endpoint_rounding_note"]
-text = "The maximum endpoint label is rounded to the nearest whole GB. Review and Technical Details retain the exact byte values."
-screen = "new presentation (src/gui/memory.rs)"
-state = "Selected branch: resources.endpoint_rounding_note"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[advanced]
+collapsed_accessible = "Advanced Allocation, collapsed"
+expanded_accessible = "Advanced Allocation, expanded"
+label = "Advanced Allocation"
 
-[messages."resources.expand_label"]
-text = "Expand"
-screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.expand_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[edit]
+cut = "Cut"
+paste = "Paste"
+redo = "Redo"
+undo = "Undo"
 
-[messages."resources.field.accessible"]
+[field.accessible]
+args = ["field_label: message"]
 text = "{field_label} allocation"
-screen = "AllocationField presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.field.accessible"
-audience = "operator"
-intent = "Present the selected facts using code-owned data and formatting."
-consequences = "Preserve reviewed effects, uncertainty, final power and next steps; inserted values never select operations."
-severity = "information"
-space_hint = "Wrapped presentation; inspect long content at supported sizes and scaling."
-placeholders = [{ name = "field_label", type = "message" }]
 
-[messages."resources.maximum_label"]
-text = "Maximum"
-screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.maximum_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[memory]
+below_minimum = "Detected physical VRAM is below the slider's 1 GB minimum. GPU memory selection is unavailable."
+decimal_required = "Enter a decimal GB value with at most nine decimal places. The previous request is kept."
+exceeds_physical = "The current request exceeds detected physical VRAM. Use Advanced Allocation; it has not been rewritten."
+fields_incomplete = "Complete or clear all three VRAM fields to use the slider."
+fields_unavailable = "VRAM fields are unavailable."
+invalid_decimal = "Invalid decimal memory value"
+invalid_value = "Invalid memory value"
+outside_range = "The selected memory value is outside the current VRAM range."
+overflow = "Memory conversion overflow"
+precision_exceeded = "VRAM bounds exceed exact slider precision. Use Advanced Allocation."
+range_invalid = "Correct the VRAM range in Advanced Allocation to use the slider."
+too_large = "Memory value is too large"
 
-[messages."resources.minimum_label"]
-text = "Minimum"
-screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.minimum_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[memory.request_range]
+args = ["maximum: text"]
+text = "Enter a request from 1 GB to {maximum}. The previous request is kept."
 
-[messages."resources.optimal_label"]
-text = "Optimal"
-screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.optimal_label"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
+[units.gb]
+args = ["amount: text"]
+text = "{amount} GB"
 
-[messages."resources.provider_unavailable"]
-text = "Raw provider capability unknown; editing unavailable"
-screen = "ResourceEditor presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.provider_unavailable"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."resources.request_absent"]
-text = "No explicit request"
-screen = "new presentation (src/gui/memory.rs)"
-state = "Selected branch: resources.request_absent"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."resources.retained_below_minimum_note"]
-text = "The existing request is below 1 GB and has been retained exactly. The slider starts at 1 GB; edit it or use Advanced Allocation to change the request."
-screen = "new presentation (src/gui/memory.rs)"
-state = "Selected branch: resources.retained_below_minimum_note"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."resources.unspecified"]
-text = "Not specified"
-screen = "AllocationField presentation (src/gui/ui/resources.slint)"
-state = "Selected branch: resources.unspecified"
-audience = "operator"
-intent = "Present the existing selected state or action without changing its meaning."
-consequences = "Preserve the reviewed effect, uncertainty and next-step facts of this branch; copy never grants authority."
-severity = "information"
-space_hint = "Preserve the existing layout; review wrapping and accessibility at supported sizes and scaling."
-placeholders = []
-
-[messages."resources.edit.undo"]
-text = "Undo"
-screen = "GPU setup and shared text inputs"
-state = "Selected branch: resources.edit.undo"
-audience = "operator"
-intent = "Describe the current operation or a standard editing action."
-consequences = "Presentation never substitutes for fresh protected admission or readback."
-severity = "information"
-space_hint = "Review wrapping, keyboard access and minimum-size layout."
-placeholders = []
-
-[messages."resources.edit.redo"]
-text = "Redo"
-screen = "GPU setup and shared text inputs"
-state = "Selected branch: resources.edit.redo"
-audience = "operator"
-intent = "Describe the current operation or a standard editing action."
-consequences = "Presentation never substitutes for fresh protected admission or readback."
-severity = "information"
-space_hint = "Review wrapping, keyboard access and minimum-size layout."
-placeholders = []
-
-[messages."resources.edit.cut"]
-text = "Cut"
-screen = "GPU setup and shared text inputs"
-state = "Selected branch: resources.edit.cut"
-audience = "operator"
-intent = "Describe the current operation or a standard editing action."
-consequences = "Presentation never substitutes for fresh protected admission or readback."
-severity = "information"
-space_hint = "Review wrapping, keyboard access and minimum-size layout."
-placeholders = []
-
-[messages."resources.edit.paste"]
-text = "Paste"
-screen = "GPU setup and shared text inputs"
-state = "Selected branch: resources.edit.paste"
-audience = "operator"
-intent = "Describe the current operation or a standard editing action."
-consequences = "Presentation never substitutes for fresh protected admission or readback."
-severity = "information"
-space_hint = "Review wrapping, keyboard access and minimum-size layout."
-placeholders = []
+[units.gib]
+args = ["amount: text"]
+text = "{amount} GiB"

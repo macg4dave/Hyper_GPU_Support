@@ -10,7 +10,7 @@ pub(super) fn with_state(
     with_state_titled(
         ui,
         state,
-        hyper_gpu_support::ui_text::operations::action::UNAVAILABLE_TITLE,
+        hyper_gpu_support::ui_text::operations::action::unavailable_title(),
         operation,
     )
 }
@@ -23,7 +23,7 @@ fn with_state_titled(
 ) -> bool {
     let result = state
         .lock()
-        .map_err(|_| "Live presentation state is unavailable; restart the application.".to_owned())
+        .map_err(|_| hyper_gpu_support::ui_text::common::state::restart_required().to_owned())
         .and_then(|mut state| {
             let result = operation(&mut state);
             present_actions(ui, &state);
@@ -49,7 +49,7 @@ pub(super) fn with_completion_state<T>(
     let completed = with_state_titled(
         ui,
         state,
-        hyper_gpu_support::ui_text::dialogs::install::FAILURE_TITLE,
+        hyper_gpu_support::ui_text::dialogs::install::failure_title(),
         operation,
     );
     if !completed && let Err(primary) = outcome {
@@ -58,7 +58,7 @@ pub(super) fn with_completion_state<T>(
             ui.get_dialog_details().as_str(),
             primary,
         );
-        ui.set_dialog_title(hyper_gpu_support::ui_text::dialogs::install::FAILURE_TITLE.into());
+        ui.set_dialog_title(hyper_gpu_support::ui_text::dialogs::install::failure_title().into());
         ui.set_dialog_body(body.into());
         ui.set_dialog_details(details.into());
     }
@@ -125,7 +125,7 @@ mod tests {
         ));
         assert_eq!(
             ui.get_dialog_title(),
-            hyper_gpu_support::ui_text::dialogs::install::FAILURE_TITLE
+            hyper_gpu_support::ui_text::dialogs::install::failure_title()
         );
         let body = ui.get_dialog_body();
         assert!(body.contains("incomplete or invalid reply"), "{body}");

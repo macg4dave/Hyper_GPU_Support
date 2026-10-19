@@ -65,7 +65,7 @@ fn guest_os_icon(name: Option<&str>) -> &'static str {
 
 fn vm_row(vm: &VmState, discovery: &Discovery) -> VmRow {
     let gpu = if vm.gpus.is_empty() {
-        hyper_gpu_support::ui_text::dashboard::attachment::ABSENT.to_owned()
+        hyper_gpu_support::ui_text::dashboard::attachment::absent().to_owned()
     } else {
         vm.gpus
             .iter()
@@ -76,7 +76,7 @@ fn vm_row(vm: &VmState, discovery: &Discovery) -> VmRow {
                     .find(|gpu| gpu.interface.eq_ignore_ascii_case(interface))
                     .map_or_else(
                         || {
-                            hyper_gpu_support::ui_text::dashboard::attachment::IDENTITY_UNKNOWN
+                            hyper_gpu_support::ui_text::dashboard::attachment::identity_unknown()
                                 .to_owned()
                         },
                         |gpu| gpu.name.clone(),
@@ -92,15 +92,15 @@ fn vm_row(vm: &VmState, discovery: &Discovery) -> VmRow {
         id: vm.vm_id.clone().into(),
         name: vm.name.clone().into(),
         power: match vm.power {
-            Power::Running => hyper_gpu_support::ui_text::common::power::RUNNING,
-            Power::Off => hyper_gpu_support::ui_text::common::power::STOPPED,
-            Power::Other(_) => hyper_gpu_support::ui_text::common::state::UNKNOWN,
+            Power::Running => hyper_gpu_support::ui_text::common::power::running(),
+            Power::Off => hyper_gpu_support::ui_text::common::power::stopped(),
+            Power::Other(_) => hyper_gpu_support::ui_text::common::state::unknown(),
         }
         .into(),
         status: if vm.generation == 2 {
-            hyper_gpu_support::ui_text::common::state::UNKNOWN
+            hyper_gpu_support::ui_text::common::state::unknown()
         } else {
-            hyper_gpu_support::ui_text::common::eligibility::UNSUPPORTED
+            hyper_gpu_support::ui_text::common::eligibility::unsupported()
         }
         .into(),
         gpu: gpu.into(),
@@ -112,9 +112,9 @@ pub(super) fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool
     let mut row = vm_row(vm, &inventory.discovery);
     if vm.generation == 2 && inventory.enrolled.iter().any(|t| t.vm_id == vm.vm_id) {
         row.status = if inventory.recorded_state(&vm.vm_id).recovery_required {
-            hyper_gpu_support::ui_text::dashboard::state::RECOVERY
+            hyper_gpu_support::ui_text::dashboard::state::recovery()
         } else {
-            hyper_gpu_support::ui_text::dashboard::state::AUTHORIZED
+            hyper_gpu_support::ui_text::dashboard::state::authorized()
         }
         .into();
     }
@@ -122,9 +122,9 @@ pub(super) fn observed_row(vm: &VmState, inventory: &Inventory, historical: bool
         row.power_running = false;
         row.power_stopped = false;
         row.unsupported = false;
-        row.power = hyper_gpu_support::ui_text::dashboard::state::STATUS_UNAVAILABLE.into();
-        row.status = hyper_gpu_support::ui_text::dashboard::state::REFRESH_REQUIRED.into();
-        row.gpu = hyper_gpu_support::ui_text::dashboard::state::STATUS_UNAVAILABLE.into();
+        row.power = hyper_gpu_support::ui_text::dashboard::state::status_unavailable().into();
+        row.status = hyper_gpu_support::ui_text::dashboard::state::refresh_required().into();
+        row.gpu = hyper_gpu_support::ui_text::dashboard::state::status_unavailable().into();
     }
     row
 }
@@ -148,42 +148,37 @@ pub(in crate::gui) fn present(ui: &AppWindow, state: &State, reset_draft: bool) 
 }
 
 pub(in crate::gui) fn recovery_summary(state: &State, selected: &str) -> Option<String> {
-    let (id, fallback, operation) = if let Some(record) =
-        state.recovery_for_vm(selected).or(state.recovery.as_ref())
-    {
-        (
-            record.target.vm_id.as_str(),
-            record.initial.name.as_str(),
-            if record.publication_required {
-                "GPU change"
-            } else {
-                "GPU verification"
-            },
-        )
-    } else if let Some(record) = &state.enrollment_recovery {
-        (
-            record.review.vm_id.as_str(),
-            record.review.vm_id.as_str(),
-            "permission change",
-        )
-    } else if state.import_recovery.is_some() {
-        return Some(
-            "A configuration import requires recovery. Review recovery before new changes.".into(),
-        );
-    } else {
-        return None;
-    };
+    let (id, fallback, operation) =
+        if let Some(record) = state.recovery_for_vm(selected).or(state.recovery.as_ref()) {
+            (
+                record.target.vm_id.as_str(),
+                record.initial.name.as_str(),
+                if record.publication_required {
+                    hyper_gpu_support::ui_text::dashboard::recovery_summary::gpu_change()
+                } else {
+                    hyper_gpu_support::ui_text::dashboard::recovery_summary::gpu_verification()
+                },
+            )
+        } else if let Some(record) = &state.enrollment_recovery {
+            (
+                record.review.vm_id.as_str(),
+                record.review.vm_id.as_str(),
+                hyper_gpu_support::ui_text::dashboard::recovery_summary::permission_change(),
+            )
+        } else if state.import_recovery.is_some() {
+            return Some(hyper_gpu_support::ui_text::dashboard::recovery_summary::import().into());
+        } else {
+            return None;
+        };
     let name = state.view.vm(id).map_or(fallback, |vm| vm.name.as_str());
     Some(if id == selected {
-        format!("{name}: {operation} requires recovery. Review recovery before new changes.")
+        hyper_gpu_support::ui_text::dashboard::recovery_summary::selected(name, operation)
+            .into_string()
     } else if state.import_recovery.is_some() || state.enrollment_recovery.is_some() {
-        format!(
-            "Shared authority/configuration recovery for {name} ({id}) blocks new changes. Inspect recovery before continuing."
-        )
+        hyper_gpu_support::ui_text::dashboard::recovery_summary::shared(name, id).into_string()
     } else {
-        format!(
-            "Recovery is required for {name} ({id}): {operation}. Other VMs can still be changed."
-        )
+        hyper_gpu_support::ui_text::dashboard::recovery_summary::other_vm(name, id, operation)
+            .into_string()
     })
 }
 
@@ -253,7 +248,7 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
     ui.set_selected_recovery(vm_recovery(state, selected.as_str()));
     ui.set_recovery_summary(
         recovery_summary(state, ui.get_selected_id().as_str())
-            .unwrap_or_else(|| hyper_gpu_support::ui_text::dashboard::recovery::BANNER.to_owned())
+            .unwrap_or_else(|| hyper_gpu_support::ui_text::dashboard::recovery::banner().to_owned())
             .into(),
     );
     ui.set_vm_details(
@@ -296,7 +291,7 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
     {
         ui.set_reset_allowed(false);
         ui.set_reset_unavailable(
-            hyper_gpu_support::ui_text::dashboard::actions::partial_removal::WINDOWS_REQUIRED
+            hyper_gpu_support::ui_text::dashboard::actions::partial_removal::windows_required()
                 .into(),
         );
     }
@@ -306,41 +301,47 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
 pub(super) fn pending_summary(enabled: bool, baseline: Option<bool>, values: &[String]) -> String {
     let request = values
         .get(..3)
-        .ok_or_else(|| "VRAM fields unavailable".to_owned())
+        .ok_or_else(|| {
+            hyper_gpu_support::ui_text::dashboard::pending::fields_unavailable().to_owned()
+        })
         .and_then(memory::request);
     match request {
-        Ok(request) => format!(
-            "Pending: {}. VRAM request: {}. Review before applying.",
+        Ok(request) => hyper_gpu_support::ui_text::dashboard::pending::summary(
             match (baseline, enabled) {
-                (Some(true), true) => "GPU support stays enabled",
-                (Some(false), false) => "GPU support stays disabled",
-                (_, true) => "enable GPU support",
-                (_, false) => "disable GPU support",
+                (Some(true), true) => {
+                    hyper_gpu_support::ui_text::dashboard::pending::stays_enabled()
+                }
+                (Some(false), false) => {
+                    hyper_gpu_support::ui_text::dashboard::pending::stays_disabled()
+                }
+                (_, true) => hyper_gpu_support::ui_text::dashboard::pending::enable(),
+                (_, false) => hyper_gpu_support::ui_text::dashboard::pending::disable(),
             },
-            request.map_or_else(
-                || hyper_gpu_support::ui_text::common::allocation::PROVIDER_DEFAULT.to_owned(),
-                |v| memory::format_gb(v.optimal)
-            )
-        ),
-        Err(_) => "Pending edits retained. Correct the VRAM fields before reviewing.".into(),
+            &request.map_or_else(
+                || hyper_gpu_support::ui_text::common::allocation::provider_default().to_owned(),
+                |v| memory::format_gb(v.optimal),
+            ),
+        )
+        .into_string(),
+        Err(_) => hyper_gpu_support::ui_text::dashboard::pending::invalid().into(),
     }
 }
 
 fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     let Some(id) = state.view.selected.as_ref() else {
         ui.set_selected_id("".into());
-        ui.set_vm_name(hyper_gpu_support::ui_text::dashboard::selection::ABSENT.into());
-        ui.set_power(hyper_gpu_support::ui_text::common::state::UNKNOWN.into());
-        ui.set_status(hyper_gpu_support::ui_text::common::state::UNKNOWN.into());
+        ui.set_vm_name(hyper_gpu_support::ui_text::dashboard::selection::absent().into());
+        ui.set_power(hyper_gpu_support::ui_text::common::state::unknown().into());
+        ui.set_status(hyper_gpu_support::ui_text::common::state::unknown().into());
         ui.set_vm_unsupported(false);
-        ui.set_observed(hyper_gpu_support::ui_text::dashboard::selection::ABSENT.into());
-        ui.set_desired(hyper_gpu_support::ui_text::dashboard::selection::ABSENT.into());
-        ui.set_applied(hyper_gpu_support::ui_text::dashboard::selection::ABSENT.into());
-        ui.set_pending(hyper_gpu_support::ui_text::dashboard::draft::ABSENT.into());
+        ui.set_observed(hyper_gpu_support::ui_text::dashboard::selection::absent().into());
+        ui.set_desired(hyper_gpu_support::ui_text::dashboard::selection::absent().into());
+        ui.set_applied(hyper_gpu_support::ui_text::dashboard::selection::absent().into());
+        ui.set_pending(hyper_gpu_support::ui_text::dashboard::draft::absent().into());
         ui.set_verification(
-            hyper_gpu_support::ui_text::dashboard::verification::SELECTION_ABSENT.into(),
+            hyper_gpu_support::ui_text::dashboard::verification::selection_absent().into(),
         );
-        ui.set_support_summary(hyper_gpu_support::ui_text::dashboard::selection::PROMPT.into());
+        ui.set_support_summary(hyper_gpu_support::ui_text::dashboard::selection::prompt().into());
         ui.set_eligible(false);
         ui.set_recovery(state.blocks_vm(ui.get_selected_id().as_str()));
         ui.set_dirty(false);
@@ -351,28 +352,28 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     ui.set_selected_id(id.clone().into());
     let Some(vm) = state.view.vm(id) else {
         ui.set_eligible(false);
-        ui.set_vm_name(hyper_gpu_support::ui_text::dashboard::selection::VM_UNAVAILABLE.into());
-        ui.set_power(hyper_gpu_support::ui_text::common::state::UNKNOWN.into());
-        ui.set_status(hyper_gpu_support::ui_text::common::state::UNAVAILABLE.into());
+        ui.set_vm_name(hyper_gpu_support::ui_text::dashboard::selection::vm_unavailable().into());
+        ui.set_power(hyper_gpu_support::ui_text::common::state::unknown().into());
+        ui.set_status(hyper_gpu_support::ui_text::common::state::unavailable().into());
         ui.set_vm_unsupported(false);
         ui.set_support_summary(state.host_configuration_text(id).into());
-        ui.set_observed(hyper_gpu_support::ui_text::dashboard::observation::VM_MISSING.into());
+        ui.set_observed(hyper_gpu_support::ui_text::dashboard::observation::vm_missing().into());
         ui.set_verification(
-            hyper_gpu_support::ui_text::dashboard::verification::VM_UNAVAILABLE.into(),
+            hyper_gpu_support::ui_text::dashboard::verification::vm_unavailable().into(),
         );
         ui.set_desired(state.saved_desired_text(id).into());
         ui.set_applied(state.applied_text(id).into());
         ui.set_pending(
             if ui.get_dirty() {
-                hyper_gpu_support::ui_text::dashboard::draft::VM_UNAVAILABLE
+                hyper_gpu_support::ui_text::dashboard::draft::vm_unavailable()
             } else {
-                hyper_gpu_support::ui_text::dashboard::draft::ABSENT
+                hyper_gpu_support::ui_text::dashboard::draft::absent()
             }
             .into(),
         );
         ui.set_recovery(state.blocks_vm(ui.get_selected_id().as_str()));
         ui.set_draft_valid(false);
-        ui.set_validation(hyper_gpu_support::ui_text::dashboard::draft::VM_REMOVED.into());
+        ui.set_validation(hyper_gpu_support::ui_text::dashboard::draft::vm_removed().into());
         return;
     };
     let Some(inventory) = state.view.inventory.as_ref() else {
@@ -388,33 +389,37 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
     let recorded = inventory.recorded_state(id);
     ui.set_recovery(recorded.recovery_required || state.blocks_vm(id));
     ui.set_observed(
-        format!(
-            "{}{}; {}; {}",
+        hyper_gpu_support::ui_text::dashboard::observation::summary(
             if historical {
-                hyper_gpu_support::ui_text::dashboard::observation::HISTORICAL_PREFIX
+                hyper_gpu_support::ui_text::dashboard::observation::historical_prefix()
             } else {
                 ""
             },
-            row.gpu,
-            Resource::ALL
+            &row.gpu,
+            &Resource::ALL
                 .into_iter()
                 .map(|resource| {
                     vm.allocation(resource).map_or_else(
-                        || format!("{}: unobserved or provider default", resource.name()),
-                        |value| {
-                            format!(
-                                "{} readback: {} / {} / {} (raw)",
+                        || {
+                            hyper_gpu_support::ui_text::dashboard::observation::resource_default(
                                 resource.name(),
-                                value.minimum,
-                                value.optimal,
-                                value.maximum
                             )
+                            .into_string()
+                        },
+                        |value| {
+                            hyper_gpu_support::ui_text::dashboard::observation::resource_readback(
+                                resource.name(),
+                                &value.minimum.to_string(),
+                                &value.optimal.to_string(),
+                                &value.maximum.to_string(),
+                            )
+                            .into_string()
                         },
                     )
                 })
                 .collect::<Vec<_>>()
-                .join("; "),
-            recorded.preparation,
+                .join(hyper_gpu_support::ui_text::common::list::separator()),
+            &recorded.preparation,
         )
         .into(),
     );
@@ -431,24 +436,24 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
                     .collect::<Vec<_>>(),
             )
         } else {
-            hyper_gpu_support::ui_text::dashboard::draft::ABSENT.to_owned()
+            hyper_gpu_support::ui_text::dashboard::draft::absent().to_owned()
         }
         .into(),
     );
     ui.set_verification(recorded.graphics.into());
     ui.set_support_summary(
         if historical {
-            hyper_gpu_support::ui_text::dashboard::support::HOST_UNAVAILABLE.to_owned()
+            hyper_gpu_support::ui_text::dashboard::support::host_unavailable().to_owned()
         } else if vm_recovery(state, id) {
             recovery_summary(state, id).unwrap_or_else(|| {
-                hyper_gpu_support::ui_text::dashboard::support::RECOVERY_HOLD.to_owned()
+                hyper_gpu_support::ui_text::dashboard::support::recovery_hold().to_owned()
             })
         } else if state.committed.revision(id).is_err() {
-            hyper_gpu_support::ui_text::dashboard::support::SAVED_UNAVAILABLE.to_owned()
+            hyper_gpu_support::ui_text::dashboard::support::saved_unavailable().to_owned()
         } else if vm.gpus.is_empty() {
-            hyper_gpu_support::ui_text::dashboard::support::UNATTACHED.to_owned()
+            hyper_gpu_support::ui_text::dashboard::support::unattached().to_owned()
         } else {
-            hyper_gpu_support::ui_text::dashboard::support::ATTACHED.to_owned()
+            hyper_gpu_support::ui_text::dashboard::support::attached().to_owned()
         }
         .into(),
     );
@@ -484,7 +489,7 @@ fn present_inner(ui: &AppWindow, state: &State, reset_draft: bool) {
         ui.set_draft_valid(false);
         ui.set_validation(
             hyper_gpu_support::reporting::operator_error(
-                hyper_gpu_support::ui_text::dashboard::validation::STAGE,
+                hyper_gpu_support::ui_text::dashboard::validation::stage(),
                 &error,
             )
             .into(),
@@ -513,16 +518,17 @@ pub(super) fn resource_controls(ui: &AppWindow, state: &State) {
             .into_iter()
             .map(|resource| {
                 gpu.map_or_else(
-                    || hyper_gpu_support::ui_text::dashboard::resources::GPU_REQUIRED.into(),
+                    || hyper_gpu_support::ui_text::dashboard::resources::gpu_required().into(),
                     |gpu| {
                         let mut text = gpu.resource_text(resource);
                         if resource == Resource::Vram
                             && let Some(bytes) = gpu.physical_vram_bytes
                         {
-                            text.push_str(&format!(
-                                "; physical dedicated memory: {}",
-                                memory::format_gib(bytes)
-                            ));
+                            text.push_str(
+                                &hyper_gpu_support::ui_text::dashboard::resources::physical_memory(
+                                    &memory::format_gib(bytes),
+                                ),
+                            );
                         }
                         text
                     },
@@ -580,7 +586,7 @@ pub(super) fn resource_controls(ui: &AppWindow, state: &State) {
             ui.set_memory_minimum(1);
             ui.set_memory_maximum(2);
             ui.set_memory_position(1);
-            ui.set_memory_label(hyper_gpu_support::ui_text::common::state::UNAVAILABLE.into());
+            ui.set_memory_label(hyper_gpu_support::ui_text::common::state::unavailable().into());
             ui.set_memory_range_start("—".into());
             ui.set_memory_range_end("—".into());
             ui.set_memory_hint(reason.into());
@@ -764,7 +770,7 @@ mod tests {
                 pending_summary(enabled, Some(enabled), &["".into(), "".into(), "".into()]),
                 format!(
                     "Pending: {support}. VRAM request: {}. Review before applying.",
-                    hyper_gpu_support::ui_text::common::allocation::PROVIDER_DEFAULT
+                    hyper_gpu_support::ui_text::common::allocation::provider_default()
                 )
             );
         }

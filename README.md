@@ -33,8 +33,27 @@ The next source priority is [core simplification](docs/backlog.md#next-action): 
 | [Roadmap](docs/roadmap.md) | Agreed scope and milestone gates |
 | [Backlog](docs/backlog.md) | Simplification tasks, dependencies and next action |
 | [Agreed workflow](#agreed-workflow) | User workflow |
+| [Install](#install) | Clean reinstall of the built app through UAC |
+| [UI text and languages](resources/i18n/README.md) | GUI wording catalogue and adding a language |
 | [AGENTS.md](AGENTS.md) | Authoritative agent instructions (Codex and Claude Code) |
 
 Build prerequisites come from the current manifests/toolchain. Keep passwords, driver payloads, VM disks and machine-specific evidence out of Git.
+
+## Install
+
+Install or update the app with the clean-reinstall tool, from the repository root, with the app closed and no operation running:
+
+```powershell
+cargo run -p app-install            # build, review the plan, type "yes", approve UAC
+cargo run -p app-install -- --yes   # agents: skips the typed confirmation only
+```
+
+The tool builds the release binaries (`--skip-build` reuses the existing build) and refuses while any `hyper-gpu-*` process or product scheduled task is running. After the Windows UAC prompt it:
+
+1. Copies the protected state (`%ProgramData%\HyperGpuSupportProduct` and legacy `%ProgramData%\HyperGpuSupport`) to `%USERPROFILE%\HyperGpuSupport-archives\install-<time>`, so audit and recovery evidence survives. If the copy fails nothing is removed; `--no-archive` skips it.
+2. Removes the `\HyperGpuSupport-Product-v2` and legacy `\HyperGpuSupport\` scheduled tasks, `%ProgramFiles%\HyperGpuSupport`, `%ProgramFiles%\HyperGpuSupportProduct` and both state folders.
+3. Copies the four artifacts to `%ProgramFiles%\HyperGpuSupport` and checks each SHA-256 against the build.
+
+It then removes your preferences (`%LOCALAPPDATA%\HyperGpuSupport`) and remembered guest credentials (`HyperGpuSupport/guest/*`). VM, guest and `[paths] data_root` state are never touched. Launch `%ProgramFiles%\HyperGpuSupport\hyper-gpu-support.exe`; first-time setup re-enrolls the protected product. Declining UAC or any failed precondition leaves the installation unchanged.
 
 Codex and Claude Code start with [AGENTS.md](AGENTS.md), which routes to short task prompts and focused [Rust](.github/prompts/rust.prompt.md) and [Slint](.github/prompts/slint.prompt.md) guidance. Read only the guidance relevant to the requested task; product requirements stay in project docs.

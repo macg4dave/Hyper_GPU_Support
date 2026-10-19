@@ -27,7 +27,9 @@ pub(super) fn continue_prepared(
 ) {
     let result = prepared.and_then(|()| {
         if !ui.get_execution_ready() {
-            return Err("The protected worker is unavailable. Refresh before trying again.".into());
+            return Err(
+                hyper_gpu_support::ui_text::operations::worker::unavailable_refresh().into(),
+            );
         }
         execute()
     });
@@ -35,7 +37,7 @@ pub(super) fn continue_prepared(
         dialog(
             ui,
             "error",
-            hyper_gpu_support::ui_text::operations::action::UNAVAILABLE_TITLE,
+            hyper_gpu_support::ui_text::operations::action::unavailable_title(),
             &error,
         );
     }
@@ -59,7 +61,9 @@ pub(super) fn accept_prepared<T: Send + 'static>(
     .map_err(|e| e.to_string())?;
     result
         .recv_timeout(std::time::Duration::from_secs(30))
-        .map_err(|_| "Prepared operation acknowledgement expired".to_owned())?
+        .map_err(|_| {
+            hyper_gpu_support::ui_text::common::errors::acknowledgement_expired().to_owned()
+        })?
 }
 
 /// Abandon preparation without pretending the underlying read has stopped.
@@ -73,8 +77,8 @@ pub(super) fn cancel_preparation(ui: &AppWindow, state: &SharedState) {
     dialog(
         ui,
         "cancelling",
-        hyper_gpu_support::ui_text::dialogs::cancelling::TITLE,
-        hyper_gpu_support::ui_text::dialogs::cancelling::BODY,
+        hyper_gpu_support::ui_text::dialogs::cancelling::title(),
+        hyper_gpu_support::ui_text::dialogs::cancelling::body(),
     );
 }
 
@@ -146,14 +150,16 @@ pub(super) fn background_refresh<T: Send + 'static>(
                 // Ticket drop releases polling admission even for discarded results.
             });
         })
-        .map_err(|error| format!("Cannot start status poll: {error}"))?;
+        .map_err(|error| {
+            hyper_gpu_support::ui_text::common::errors::poll_start_failed(&error.to_string())
+                .into_string()
+        })?;
     Ok(())
 }
 
 fn run_background_task<T>(task: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(task)).unwrap_or_else(|_| {
-        Err("The backend task ended without a terminal outcome. Refresh and inspect protected recovery before retrying.".into())
-    })
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(task))
+        .unwrap_or_else(|_| Err(hyper_gpu_support::ui_text::common::errors::task_ended().into()))
 }
 
 /// Gather protected files while still busy, without blocking Slint completion.
@@ -175,7 +181,7 @@ pub(super) fn background_operation<T: Send + 'static>(
     let finished_state = state.clone();
     let target = state
         .lock()
-        .map_err(|_| "Presentation state unavailable")?
+        .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?
         .target(ui.get_selected_id().as_str())?;
     let readback_ui = ui.as_weak();
     background_for_vm(
@@ -189,7 +195,9 @@ pub(super) fn background_operation<T: Send + 'static>(
             let outcome = run_background_task(task);
             let _ = readback_ui.upgrade_in_event_loop(|ui| {
                 crate::gui::dialog_presentation::readback(&ui);
-                ui.set_current_stage(hyper_gpu_support::ui_text::dialogs::install::READBACK.into());
+                ui.set_current_stage(
+                    hyper_gpu_support::ui_text::dialogs::install::readback().into(),
+                );
                 ui.set_transfer_fraction(-1.0);
             });
             Ok((outcome, Source.operation_readback(target)))
@@ -219,11 +227,13 @@ pub(super) fn background_for_vm<T: Send + 'static>(
     complete: impl FnOnce(&AppWindow, Result<T, String>) + Send + 'static,
 ) -> Result<(), String> {
     if busy.swap(true, Ordering::AcqRel) {
-        return Err("Another GUI operation is still running.".into());
+        return Err(hyper_gpu_support::ui_text::common::errors::operation_running().into());
     }
     let admission = match state
         .lock()
-        .map_err(|_| "Read admission unavailable".to_owned())
+        .map_err(|_| {
+            hyper_gpu_support::ui_text::common::errors::read_admission_unavailable().to_owned()
+        })
         .and_then(|state| state.polling.foreground())
     {
         Ok(admission) => admission,
@@ -245,8 +255,10 @@ pub(super) fn background_for_vm<T: Send + 'static>(
         ui.set_operation_dialog_active(operation.kind.operation_dialog());
         if operation.kind.operation_dialog() && operation.kind != Kind::Apply {
             ui.set_install_vm_name(vm_name.map_or_else(|| ui.get_vm_name(), Into::into));
-            ui.set_install_gpu_name(hyper_gpu_support::ui_text::common::state::UNAVAILABLE.into());
-            ui.set_install_vram(hyper_gpu_support::ui_text::common::state::UNAVAILABLE.into());
+            ui.set_install_gpu_name(
+                hyper_gpu_support::ui_text::common::state::unavailable().into(),
+            );
+            ui.set_install_vram(hyper_gpu_support::ui_text::common::state::unavailable().into());
             if let Ok(state) = state.lock()
                 && let Ok(target) = super::presentation::draft_target(ui, &state)
             {
@@ -272,7 +284,7 @@ pub(super) fn background_for_vm<T: Send + 'static>(
         crate::gui::dialog_presentation::begin(ui, operation.kind);
         let guest_message = wording::guest_progress(
             operation.kind,
-            vm_name.unwrap_or(hyper_gpu_support::ui_text::operations::selection::FALLBACK),
+            vm_name.unwrap_or(hyper_gpu_support::ui_text::operations::selection::fallback()),
         );
         dialog(
             ui,
@@ -285,13 +297,13 @@ pub(super) fn background_for_vm<T: Send + 'static>(
             if guest_access {
                 &guest_message
             } else if operation.kind == Kind::Apply {
-                hyper_gpu_support::ui_text::operations::apply::HOST_PROGRESS
+                hyper_gpu_support::ui_text::operations::apply::host_progress()
             } else if operation.kind == Kind::Reconcile {
-                hyper_gpu_support::ui_text::operations::recovery::HOST_PROGRESS
+                hyper_gpu_support::ui_text::operations::recovery::host_progress()
             } else if operation.kind == Kind::SaveOnly {
-                hyper_gpu_support::ui_text::operations::save_only::PROGRESS_BODY
+                hyper_gpu_support::ui_text::operations::save_only::progress_body()
             } else {
-                hyper_gpu_support::ui_text::operations::background::READING
+                hyper_gpu_support::ui_text::operations::background::reading()
             },
         );
         if operation.kind.operation_dialog() {
@@ -330,8 +342,12 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                         ui.set_running(false);
                         ui.set_execution_ready(false);
                         ui.set_operation_dialog_active(false);
-                        dialog(&ui, "error", hyper_gpu_support::ui_text::operations::action::UNAVAILABLE_TITLE,
-                            "The protected reader has not confirmed release. New actions remain blocked; no operation was retried.");
+                        dialog(
+                            &ui,
+                            "error",
+                            hyper_gpu_support::ui_text::operations::action::unavailable_title(),
+                            hyper_gpu_support::ui_text::common::errors::reader_unreleased_blocked(),
+                        );
                         return;
                     }
                     if finish_cancelled_worker_preparation(&ui, operation_kind, released) {
@@ -348,7 +364,9 @@ pub(super) fn background_for_vm<T: Send + 'static>(
                         ui.set_dialog_kind("".into());
                     }
                     complete(&ui, result);
-                    if !released { ui.set_execution_ready(false); }
+                    if !released {
+                        ui.set_execution_ready(false);
+                    }
                 })
                 .is_err()
                 && released
@@ -364,7 +382,10 @@ pub(super) fn background_for_vm<T: Send + 'static>(
             ui.set_running(false);
             ui.set_dialog_kind("".into());
         }
-        return Err(format!("Cannot start backend task: {error}"));
+        return Err(
+            hyper_gpu_support::ui_text::common::errors::task_start_failed(&error.to_string())
+                .into_string(),
+        );
     }
     Ok(())
 }
@@ -469,9 +490,9 @@ mod tests {
             assert_eq!(
                 ui.get_current_stage(),
                 if kind == Kind::Reconcile {
-                    hyper_gpu_support::ui_text::progress::stage::RECOVERY_PREPARATION
+                    hyper_gpu_support::ui_text::progress::stage::recovery_preparation()
                 } else if matches!(kind, Kind::PermissionPlan | Kind::Setup | Kind::Install) {
-                    hyper_gpu_support::ui_text::progress::stage::PERMISSION_PREPARATION
+                    hyper_gpu_support::ui_text::progress::stage::permission_preparation()
                 } else {
                     crate::gui::dialog_presentation::task(kind)
                 }

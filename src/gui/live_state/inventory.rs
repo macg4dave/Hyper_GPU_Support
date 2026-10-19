@@ -36,13 +36,15 @@ impl State {
             return Ok(None);
         };
         if self.observation_historical(&target.vm_id) {
-            return Err("Inventory is historical. Refresh before requesting permissions.".into());
+            return Err(
+                hyper_gpu_support::ui_text::operations::enrollment::inventory_historical().into(),
+            );
         }
         let inventory = self
             .view
             .inventory
             .as_ref()
-            .ok_or("Inventory unavailable")?;
+            .ok_or(hyper_gpu_support::ui_text::common::errors::inventory_unavailable())?;
         let review = hyper_gpu_support::enrollment::PairReview {
             vm_id: target.vm_id.clone(),
             gpu_interface: target.gpu_interface.clone(),
@@ -58,7 +60,9 @@ impl State {
             .iter()
             .any(|current| current.vm_id.eq_ignore_ascii_case(&target.vm_id))
         {
-            return Err("Pair authority is absent or this VM is already enrolled. Refresh before requesting permissions.".into());
+            return Err(
+                hyper_gpu_support::ui_text::operations::enrollment::authority_absent().into(),
+            );
         }
         Ok(Some(review))
     }
@@ -140,7 +144,7 @@ impl State {
                     vram: None,
                 })
             })
-            .ok_or_else(|| "Select an available VM and physical GPU, then Refresh.".into())
+            .ok_or_else(|| hyper_gpu_support::ui_text::operations::enrollment::select_pair().into())
     }
 
     pub fn enrolled(&self, target: &Target) -> bool {

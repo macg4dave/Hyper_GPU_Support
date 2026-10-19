@@ -33,3 +33,6 @@
 !/data/README.md
 !/data/**/.gitkeep
 /data/staging/**
+
+# Personal Claude Code settings.
+/.claude/settings.local.json

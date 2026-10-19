@@ -3,11 +3,11 @@
 pub(super) fn apply_title(enabled: bool, attached: bool) -> &'static str {
     use hyper_gpu_support::ui_text::operations::apply;
     if enabled && !attached {
-        apply::SETUP_TITLE
+        apply::setup_title()
     } else if !enabled {
-        apply::REMOVE_TITLE
+        apply::remove_title()
     } else {
-        apply::PROGRESS_TITLE
+        apply::progress_title()
     }
 }
 
@@ -30,16 +30,16 @@ mod tests {
     fn setup_and_removal_titles_follow_host_attachment_without_inferring_guest_health() {
         assert_eq!(
             apply_title(true, false),
-            hyper_gpu_support::ui_text::operations::apply::SETUP_TITLE
+            hyper_gpu_support::ui_text::operations::apply::setup_title()
         );
         assert_eq!(
             apply_title(true, true),
-            hyper_gpu_support::ui_text::operations::apply::PROGRESS_TITLE
+            hyper_gpu_support::ui_text::operations::apply::progress_title()
         );
         for attached in [false, true] {
             assert_eq!(
                 apply_title(false, attached),
-                hyper_gpu_support::ui_text::operations::apply::REMOVE_TITLE
+                hyper_gpu_support::ui_text::operations::apply::remove_title()
             );
         }
     }

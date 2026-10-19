@@ -26,9 +26,9 @@ pub(super) fn review_operation(
     #[cfg(windows)]
     {
         let target = {
-            let state = state
-                .lock()
-                .map_err(|_| "Live presentation state unavailable")?;
+            let state = state.lock().map_err(|_| {
+                hyper_gpu_support::ui_text::common::state::live_presentation_unavailable()
+            })?;
             let target = draft_target(ui, &state)?;
             state.view.proposal_eligibility(&target)?;
             (!state.enrolled(&target)).then_some(target)
@@ -36,7 +36,8 @@ pub(super) fn review_operation(
         if let Some(target) = target {
             if reinstall {
                 return Err(
-                    "Repair / Reinstall requires an authorized VM/GPU pair. Review enrollment first.".into(),
+                    hyper_gpu_support::ui_text::dashboard::actions::reinstall_requires_pair()
+                        .into(),
                 );
             }
             return review_enrollment(ui, state, busy, target);

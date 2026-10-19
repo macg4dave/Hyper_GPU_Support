@@ -17,7 +17,7 @@ fn memory_slider(ui: &AppWindow) -> ItemRc {
         if item
             .accessible_string_property(AccessibleStringProperty::Label)
             .as_deref()
-            == Some(label.as_str())
+            == Some(label)
         {
             matches.push(item.clone());
         }
@@ -138,7 +138,7 @@ fn main_page_omits_recorded_outcome_and_technical_details_controls() {
         root.visit_descendants::<()>(|item| {
             if let Some(label) = item.accessible_string_property(AccessibleStringProperty::Label) {
                 assert!(
-                    !forbidden.iter().any(|text| label == text.as_str()),
+                    !forbidden.iter().any(|text| label == *text),
                     "main page exposes {label} for selection {selected}"
                 );
             }
