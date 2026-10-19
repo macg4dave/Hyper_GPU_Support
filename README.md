@@ -1,12 +1,10 @@
-<!-- Image placeholders: add the named files to docs/images/, then replace each placeholder with an image. -->
-
 <div align="center">
 
 <!-- Optional logo: docs/images/logo.png -->
 
 # Hyper GPU Support
 
-**GPU support for your existing Hyper-V virtual machines.**
+**GPU support for your Hyper-V virtual machines.**
 
 [![Windows](https://img.shields.io/badge/Windows-11-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](#requirements)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-target-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](#requirements)
@@ -19,8 +17,7 @@
 
 <br />
 
-<p><strong>Screenshot placeholder: Dashboard</strong><br />
-Add <code>docs/images/hero.png</code> here.</p>
+<img src="docs/images/hero.png" alt="Hyper GPU Support dashboard with GPU support enabled and GPU memory set for a Windows 11 VM" width="820" />
 
 </div>
 
@@ -28,11 +25,8 @@ Add <code>docs/images/hero.png</code> here.</p>
 
 ## Overview
 
-Hyper-V can share your computer's graphics card with virtual machines through GPU partitioning (GPU-PV). Hyper GPU Support brings GPU configuration, guest driver setup and graphics checks into one Windows app.
-
-Select a VM and GPU, turn on GPU support and choose its graphics memory. **Start GPU setup** approves that VM/GPU pair, configures the VM, copies the host's driver files into it and checks hardware graphics. Later changes use **Apply**.
-
-Use Hyper-V Manager for VM creation, system memory, disks and networking.
+Hyper-V can share your computer's graphics card with virtual machines through GPU partitioning (GPU-PV).
+Hyper GPU Support brings GPU configuration, guest driver setup and graphics checks into one Windows app.
 
 <br />
 
@@ -44,14 +38,14 @@ Use Hyper-V Manager for VM creation, system memory, disks and networking.
 
 ### Simple controls
 
-Turn GPU support on or off for an eligible VM, and choose its graphics memory from 1 GB up to the selected GPU's capacity.
+Turn GPU support on or off for an eligible VM, and choose its graphics memory.
 
 </td>
 <td width="50%" valign="top">
 
 ### Guided first-time setup
 
-First setup saves and confirms permission for the exact VM/GPU pair, then configures it, copies driver files and checks hardware graphics. Requested GPU settings are saved after the checks pass.
+First setup saves and confirms permission for the exact VM/GPU pair, then configures it, copies driver files and checks hardware graphics.
 
 </td>
 </tr>
@@ -95,18 +89,28 @@ Light, dark and system themes, optional help text, keyboard controls and accessi
 
 <div align="center">
 
-<p><strong>Screenshot placeholder: GPU memory controls</strong><br />
-Add <code>docs/images/setupdone.png</code> here.</p>
+<p><strong>Before setup</strong></p>
+<img src="docs/images/before%20setup.png" alt="A Windows 11 VM before GPU setup, with the Start GPU setup button" width="720" />
 
 <br /><br />
 
-<p><strong>Screenshot placeholder: First-time setup progress</strong><br />
-Add <code>docs/images/settingup.png</code> here.</p>
+<p><strong>First-time setup progress</strong></p>
+<img src="docs/images/settingup.png" alt="Applying GPU changes, with each setup step and its progress" width="720" />
 
 <br /><br />
 
-<p><strong>Screenshot placeholder: Setup result</strong><br />
-Add <code>docs/images/setupdone.png</code> here.</p>
+<p><strong>Setup result</strong></p>
+<img src="docs/images/setupdone.png" alt="Changes applied summary showing GPU support enabled and driver setup and checks completed" width="720" />
+
+<br /><br />
+
+<p><strong>Changing GPU memory</strong></p>
+<img src="docs/images/changea.png" alt="Changes applied summary after changing GPU memory to 5 GB" width="720" />
+
+<br /><br />
+
+<p><strong>The GPU working inside the VM</strong></p>
+<img src="docs/images/hypervfurmark.png" alt="FurMark running on the NVIDIA GeForce RTX 5060 inside a Hyper-V Windows 11 VM" width="720" />
 
 </div>
 
@@ -117,9 +121,8 @@ Add <code>docs/images/setupdone.png</code> here.</p>
 The current target configuration is:
 
 - An x64 Windows 11 Pro, Enterprise or Education host with Hyper-V enabled
-- An NVIDIA GPU reported by Hyper-V as available for partitioning, with its host driver installed
-- An existing Generation 2 Windows 11 VM, running or turned off when starting an operation
-- Administrator approval on the host for protected setup, and a guest administrator account for driver setup and graphics checks through PowerShell Direct
+- An NVIDIA GPU with its host driver installed
+- An existing Generation 2 Windows 11 VM
 
 > [!NOTE]
 > Automatic guest driver setup is implemented for NVIDIA GPUs only. Windows-version compatibility is not currently checked; an advisory warning does not establish that another guest OS is supported.
