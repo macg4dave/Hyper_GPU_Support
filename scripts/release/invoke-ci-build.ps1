@@ -8,17 +8,15 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted') {
-    throw 'This account-provisioning launcher is only for GitHub-hosted Actions runners.'
-}
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $administrator = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 if ($PSCmdlet.ParameterSetName -eq 'Worker') {
     if ($administrator) { throw 'The source build and non-hardware tests must run without administrator rights.' }
     $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-    # Start-Process inherits the caller's environment even with another credential.
-    # Restore this user's profile and Windows PowerShell's inbox module search path.
+    # The credentialed process may receive its own user environment rather than
+    # the runner's GitHub markers. Paths come from the explicit non-secret config.
+    # Use this user's profile and Windows PowerShell's inbox module search path.
     $env:USERPROFILE = [Environment]::GetFolderPath('UserProfile')
     $env:APPDATA = [Environment]::GetFolderPath('ApplicationData')
     $env:LOCALAPPDATA = [Environment]::GetFolderPath('LocalApplicationData')
@@ -38,6 +36,9 @@ if ($PSCmdlet.ParameterSetName -eq 'Worker') {
     exit 0
 }
 
+if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted') {
+    throw 'This account-provisioning launcher is only for GitHub-hosted Actions runners.'
+}
 if (-not $administrator) { throw 'Only the disposable runner administrator can provision the build account.' }
 $SourceDirectory = (Get-Item -LiteralPath $SourceDirectory).FullName
 $WorkDirectory = [IO.Path]::GetFullPath($WorkDirectory)
