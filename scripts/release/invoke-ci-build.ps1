@@ -85,10 +85,15 @@ try {
     $stderr = Join-Path $WorkDirectory 'build-stderr.log'
     $powershell = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell/v1.0/powershell.exe'
     Write-Host 'Starting the full source build under the standard build account.'
-    $process = Start-Process -FilePath $powershell -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', ('"{0}"' -f $worker), '-ConfigPath', ('"{0}"' -f $configuration)) -Credential $credential -LoadUserProfile -WorkingDirectory $SourceDirectory -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -Wait
-    Get-Content -LiteralPath $stdout | ForEach-Object { Write-Host $_ }
-    Get-Content -LiteralPath $stderr | ForEach-Object { Write-Host $_ }
-    if ($process.ExitCode -ne 0) { throw "Standard-user source build failed with exit $($process.ExitCode)." }
+    $process = Start-Process -FilePath $powershell -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', ('"{0}"' -f $worker), '-ConfigPath', ('"{0}"' -f $configuration)) -Credential $credential -LoadUserProfile -WorkingDirectory $SourceDirectory -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+    try {
+        # Start-Process -Wait also waits for descendants such as MSVC's lingering
+        # vctip process. The worker itself waits for every build/check command.
+        $process.WaitForExit()
+        Get-Content -LiteralPath $stdout | ForEach-Object { Write-Host $_ }
+        Get-Content -LiteralPath $stderr | ForEach-Object { Write-Host $_ }
+        if ($process.ExitCode -ne 0) { throw "Standard-user source build failed with exit $($process.ExitCode)." }
+    } finally { $process.Dispose() }
 } finally {
     Remove-LocalUser -SID $account.SID
 }
