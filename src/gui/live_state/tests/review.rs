@@ -15,7 +15,7 @@ fn permission_continuation_requires_fresh_matching_enrollment_without_approving_
             2 => s.view.selected = Some("another-vm".into()),
             3 => current.enabled = !current.enabled,
             4 => current.gpu_interface = "another-gpu".into(),
-            _ => s.recovery = Some(save_record(&s)),
+            _ => s.recoveries = vec![save_record(&s)],
         }
         assert!(
             s.enrollment_continuation(&target, &current).is_err(),
@@ -68,7 +68,7 @@ fn removal_does_not_bypass_recovery_authority_or_selection() {
         let vm_id = id(&s).to_owned();
         match scenario {
             0 => s.view.inventory.as_mut().unwrap().enrolled.clear(),
-            1 => s.recovery = Some(save_record(&s)),
+            1 => s.recoveries = vec![save_record(&s)],
             _ => s.view.selected = Some("another-vm".into()),
         }
         assert!(
@@ -106,7 +106,7 @@ fn prepared_acknowledgement_rejects_changed_target_selection_revision_and_recove
                 plan.observed.vm_id = "another-vm".into();
             }
             6 => s.view.needs_readback = true,
-            7 => s.recovery = Some(save_record(&s)),
+            7 => s.recoveries = vec![save_record(&s)],
             _ => {
                 s.committed
                     .errors
@@ -152,7 +152,7 @@ fn permission_preparation_rejects_changed_selection_draft_pair_or_eligibility_wi
             5 => pair.vm_id = "another-vm".into(),
             6 => pair.gpu_interface = "another-gpu".into(),
             7 => s.view.needs_readback = true,
-            8 => s.recovery = Some(save_record(&s)),
+            8 => s.recoveries = vec![save_record(&s)],
             9 => s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Other(32768),
             _ => s.view.inventory.as_mut().unwrap().discovery.gpus.clear(),
         }

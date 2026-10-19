@@ -22,8 +22,7 @@ pub(super) fn partial_removal_candidate(
     String,
 > {
     let record = state
-        .recovery
-        .as_ref()
+        .recovery_for_vm(state.view.selected.as_deref().unwrap_or_default())
         .ok_or(hyper_gpu_support::ui_text::operations::partial_removal::no_record())?;
     if state.observation_historical(&record.target.vm_id) {
         return Err(
@@ -87,8 +86,7 @@ pub(super) fn review_reset(
             .map_err(|_| hyper_gpu_support::ui_text::common::state::presentation_unavailable())?;
         let (revision, approved) = partial_removal_candidate(&state)?;
         let operation = state
-            .recovery
-            .as_ref()
+            .recovery_for_vm(state.view.selected.as_deref().unwrap_or_default())
             .ok_or(hyper_gpu_support::ui_text::common::errors::refresh_recovery())?
             .operation_id
             .clone();
@@ -178,7 +176,8 @@ mod tests {
             decode: None,
         };
         let mut state = State::default();
-        state.recovery = Some(SaveRecord {
+        state.view.selected = Some(target.vm_id.clone());
+        state.recoveries = vec![SaveRecord {
             reset: None,
             retirement: None,
             schema: 1,
@@ -204,7 +203,7 @@ mod tests {
             expected_settings: initial.settings.for_gpu(),
             initial,
             phase: SavePhase::EffectsStarted,
-        });
+        }];
         let mut other = target.clone();
         other.vm_id = "a5801e91-1083-4e79-a803-000000000002".into();
         let unavailable =
@@ -224,7 +223,7 @@ mod tests {
                 selected,
             });
             assert!(!state.view.needs_readback);
-            let before = state.recovery.clone();
+            let before = state.recoveries.clone();
             // No inventory is needed to reject an older VM's row. Fresh scope
             // continues to the existing inventory requirement instead.
             let error = partial_removal_candidate(&state).unwrap_err();
@@ -236,11 +235,20 @@ mod tests {
                     "Refresh inventory first"
                 }
             );
-            assert_eq!(state.recovery, before);
+            assert_eq!(state.recoveries, before);
         }
         state.view.needs_readback = true;
         assert_eq!(partial_removal_candidate(&state).unwrap_err(), unavailable);
-        state.recovery = None;
+        let retained = state.recoveries.clone();
+        for selected in [None, Some("a5801e91-1083-4e79-a803-000000000002".into())] {
+            state.view.selected = selected;
+            assert_eq!(
+                partial_removal_candidate(&state).unwrap_err(),
+                "No interrupted GPU setup is recorded for this VM."
+            );
+            assert_eq!(state.recoveries, retained);
+        }
+        state.recoveries.clear();
         assert_eq!(
             partial_removal_candidate(&state).unwrap_err(),
             "No interrupted GPU setup is recorded for this VM."

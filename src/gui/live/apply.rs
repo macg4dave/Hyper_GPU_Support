@@ -116,15 +116,10 @@ pub(super) fn apply_live(
                     })? = Some(plan.clone());
                     let credential =
                         installation::credentials(plan.preview.credentials_required, || {
-                            hyper_gpu_support::credentials::read(&plan.desired.vm_id)?.map_or_else(
-                                || {
-                                    hyper_gpu_support::credentials::prompt_named(
-                                        &plan.desired.vm_id,
-                                        &plan.observed.name,
-                                        windows::Win32::Foundation::HWND::default(),
-                                    )
-                                },
-                                Ok,
+                            hyper_gpu_support::credentials::prompt_named(
+                                &plan.desired.vm_id,
+                                &plan.observed.name,
+                                windows::Win32::Foundation::HWND::default(),
                             )
                         })?;
                     Ok(hyper_gpu_support::worker::Authorization {

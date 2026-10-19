@@ -158,11 +158,7 @@ impl State {
     pub fn select_vm(&mut self, id: Option<String>) -> Result<(), String> {
         self.view.selected = id;
         if !self.recoveries.is_empty() {
-            self.sync_recovery(
-                self.recoveries.clone(),
-                self.import_recovery.clone(),
-                self.enrollment_recovery.clone(),
-            )?;
+            self.update_recovery()?;
         }
         Ok(())
     }

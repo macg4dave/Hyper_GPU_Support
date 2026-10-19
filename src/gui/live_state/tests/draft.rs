@@ -421,7 +421,7 @@ fn pending_journal_blocks_new_reviews_without_a_save_record_and_retains_the_draf
             }),
         );
         s.refresh(next.clone());
-        assert!(s.recovery.is_none());
+        assert!(s.recoveries.is_empty());
         let actions = s.selected_actions(0, &allocation_values(&draft));
         assert!(actions.recovery);
         assert!(

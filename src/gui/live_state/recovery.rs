@@ -157,8 +157,7 @@ impl State {
     ) -> Result<hyper_gpu_support::configuration_store::SaveRecord, String> {
         use hyper_gpu_support::configuration_store::SavePhase;
         let record = self
-            .recovery
-            .as_ref()
+            .recovery_for_vm(self.view.selected.as_deref().unwrap_or_default())
             .ok_or(hyper_gpu_support::ui_text::operations::recovery::no_receipt())?;
         if !record.publication_required
             || !matches!(
@@ -181,23 +180,23 @@ impl State {
         import_recovery: Option<hyper_gpu_support::configuration_store::ImportRecord>,
         enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
     ) -> Result<(), String> {
-        use hyper_gpu_support::configuration_store::SavePhase;
         self.recoveries = recovery.into_iter().collect();
-        self.recovery = self
-            .recoveries
-            .iter()
-            .find(|r| Some(r.target.vm_id.as_str()) == self.view.selected.as_deref())
-            .or_else(|| self.recoveries.first())
-            .cloned();
         self.import_recovery = import_recovery;
         self.enrollment_recovery = enrollment_recovery;
-        if let Some(record) = self
-            .recovery_for_vm(self.view.selected.as_deref().unwrap_or_default())
-            .cloned()
+        self.update_recovery()
+    }
+
+    /// Reconcile selection-dependent presentation from the one receipt collection.
+    pub(super) fn update_recovery(&mut self) -> Result<(), String> {
+        use hyper_gpu_support::configuration_store::SavePhase;
+        if let Some(record) =
+            self.recovery_for_vm(self.view.selected.as_deref().unwrap_or_default())
         {
-            self.view.unsaved =
-                record.publication_required && matches!(record.phase, SavePhase::Verified(_));
-            self.view.verified_unsaved = self.view.unsaved.then(|| record.target.clone());
+            let unsaved = (record.publication_required
+                && matches!(record.phase, SavePhase::Verified(_)))
+            .then(|| record.target.clone());
+            self.view.unsaved = unsaved.is_some();
+            self.view.verified_unsaved = unsaved;
             return Ok(());
         }
         if let Some(target) = &self.view.verified_unsaved {
@@ -235,9 +234,8 @@ impl State {
         &self,
         id: &str,
     ) -> Option<&hyper_gpu_support::configuration_store::SaveRecord> {
-        self.recovery
+        self.recoveries
             .iter()
-            .chain(self.recoveries.iter())
             .find(|r| r.target.vm_id.eq_ignore_ascii_case(id))
     }
 

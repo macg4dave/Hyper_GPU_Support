@@ -27,8 +27,8 @@ fn recovery_presentation_and_editor_admission_are_vm_scoped() {
     s.view.selected = Some(affected.clone());
     let mut record = save_record(&s);
     record.phase = SavePhase::EffectsStarted;
-    s.recovery = Some(record);
-    let before = serde_json::to_value(&s.recovery).unwrap();
+    s.recoveries = vec![record];
+    let before = serde_json::to_value(&s.recoveries).unwrap();
     for selected in [&affected, &other.vm_id, &affected, &other.vm_id] {
         s.view.selected = Some(selected.clone());
         presentation::present(&ui, &s, true);
@@ -63,8 +63,8 @@ fn recovery_presentation_and_editor_admission_are_vm_scoped() {
     assert!(!ui.get_selected_recovery());
     assert!(ui.get_vm_details().is_empty());
     assert!(ui.get_recovery_summary().contains(&affected));
-    assert_eq!(serde_json::to_value(&s.recovery).unwrap(), before);
-    s.recovery = None;
+    assert_eq!(serde_json::to_value(&s.recoveries).unwrap(), before);
+    s.recoveries.clear();
     presentation::present(&ui, &s, true);
     assert!(!ui.get_recovery());
     assert!(!ui.get_selected_recovery());
@@ -122,7 +122,7 @@ fn multiple_vm_holds_preserve_independent_editing_and_save_only_selection() {
     assert!(s.draft(&third, true, 0, &values).is_ok());
     s.select_vm(Some(first.clone())).unwrap();
     assert_eq!(
-        s.recovery.as_ref().unwrap().operation_id,
+        s.recovery_for_vm(&first).unwrap().operation_id,
         failed.operation_id
     );
     assert!(s.save_only_record().is_err());
@@ -156,6 +156,26 @@ fn multiple_vm_holds_preserve_independent_editing_and_save_only_selection() {
 }
 
 #[test]
+fn save_only_never_borrows_another_vms_receipt_when_selection_changes_or_disappears() {
+    let mut s = state();
+    let record = save_record(&s);
+    let selected = record.target.vm_id.clone();
+    s.sync_recovery(Some(record.clone()), None, None).unwrap();
+    assert_eq!(s.save_only_record().unwrap(), record);
+    for selection in [Some("87654321-4321-4321-4321-cba987654321".into()), None] {
+        s.select_vm(selection).unwrap();
+        assert!(s.save_only_record().is_err());
+        assert!(!s.view.unsaved);
+        assert!(s.view.verified_unsaved.is_none());
+        assert_eq!(s.recovery_for_vm(&selected), Some(&record));
+        assert!(s.blocks_vm(&selected));
+    }
+    s.select_vm(Some(selected)).unwrap();
+    assert_eq!(s.save_only_record().unwrap(), record);
+    assert!(s.view.unsaved);
+}
+
+#[test]
 fn unfinished_operation_explains_recovery_without_discarding_edits_or_releasing_hold() {
     use hyper_gpu_support::configuration_store::SavePhase;
     let mut s = state();
@@ -167,7 +187,7 @@ fn unfinished_operation_explains_recovery_without_discarding_edits_or_releasing_
     assert!(s.recovery_without_guest(&record).unwrap());
     record.phase = SavePhase::EffectsStarted;
     assert!(!s.recovery_without_guest(&record).unwrap());
-    s.recovery = Some(record);
+    s.recoveries = vec![record];
     let summary = crate::gui::live::presentation::recovery_summary(&s, id(&s)).unwrap();
     assert!(summary.contains("GPU verification"));
     assert!(!summary.contains("Setup interrupted"));
@@ -177,7 +197,7 @@ fn unfinished_operation_explains_recovery_without_discarding_edits_or_releasing_
     assert!(body.contains("separate confirmation"));
     assert_eq!(s.view.draft, Some(draft));
     assert!(matches!(
-        s.recovery.as_ref().unwrap().phase,
+        s.recoveries.first().unwrap().phase,
         SavePhase::EffectsStarted
     ));
     assert!(s.editor_eligibility(id(&s)).is_err());
@@ -186,7 +206,7 @@ fn unfinished_operation_explains_recovery_without_discarding_edits_or_releasing_
     let summary = crate::gui::live::presentation::recovery_summary(&s, "another-vm").unwrap();
     assert!(summary.contains("Other VMs can still be changed") && summary.contains("Renamable VM"));
     assert!(s.action_recovery_message().is_none());
-    s.recovery = None;
+    s.recoveries.clear();
     assert!(s.action_recovery_message().is_none());
 }
 
@@ -211,7 +231,7 @@ fn recovery_identity_follows_the_record_when_an_unconfigured_vm_is_selected() {
         .vms
         .push(unrelated.clone());
     s.view.selected = Some(unrelated.vm_id.clone());
-    s.recovery = Some(record);
+    s.recoveries = vec![record];
 
     let summary = crate::gui::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
     assert!(summary.contains("Renamable VM") && summary.contains("GPU verification"));
@@ -237,12 +257,12 @@ fn recovery_identity_follows_the_record_when_an_unconfigured_vm_is_selected() {
     assert!(s.action_recovery_message().is_none());
     assert!(s.editor_eligibility(&unrelated.vm_id).is_ok());
 
-    s.recovery.as_mut().unwrap().publication_required = true;
+    s.recoveries.first_mut().unwrap().publication_required = true;
     let summary = crate::gui::live::presentation::recovery_summary(&s, &unrelated.vm_id).unwrap();
     assert!(summary.contains("Recorded VM name") && summary.contains("GPU change"));
     assert!(!summary.contains("verification"));
     assert!(matches!(
-        s.recovery.as_ref().unwrap().phase,
+        s.recoveries.first().unwrap().phase,
         SavePhase::EffectsStarted
     ));
     assert_eq!(
@@ -259,17 +279,17 @@ fn admitted_recovery_needs_no_guest_sign_in_even_when_presentation_is_stale() {
     record.phase = SavePhase::Admitted;
     record.graphics_required = Some(true);
     record.initial_journal = None;
-    s.recovery = Some(record.clone());
-    let retained = serde_json::to_value(&s.recovery).unwrap();
+    s.recoveries = vec![record.clone()];
+    let retained = serde_json::to_value(&s.recoveries).unwrap();
     assert!(s.recovery_without_guest(&record).unwrap());
     s.view.needs_readback = true;
     s.view.inventory = None;
     assert!(s.recovery_without_guest(&record).unwrap());
-    assert_eq!(serde_json::to_value(&s.recovery).unwrap(), retained);
+    assert_eq!(serde_json::to_value(&s.recoveries).unwrap(), retained);
     // Once effects started, stale facts cannot promise a record-only exit.
     record.phase = SavePhase::EffectsStarted;
     assert!(!s.recovery_without_guest(&record).unwrap());
-    assert_eq!(serde_json::to_value(&s.recovery).unwrap(), retained);
+    assert_eq!(serde_json::to_value(&s.recoveries).unwrap(), retained);
 }
 
 #[test]

@@ -13,12 +13,7 @@ use slint::ComponentHandle;
 use std::sync::{Arc, atomic::AtomicBool};
 
 /// Open a dismissible inspection before any protected recovery action.
-pub(super) fn start_recovery(
-    ui: &AppWindow,
-    state: &SharedState,
-    _busy: &Arc<AtomicBool>,
-    _source: &super::source::Source,
-) -> Result<(), String> {
+pub(super) fn start_recovery(ui: &AppWindow, state: &SharedState) -> Result<(), String> {
     review_records(
         ui,
         &mut *state
@@ -198,22 +193,13 @@ pub(super) fn reconcile_live(
         record.requires_graphics() && !restored_candidate,
         move || {
             let graphics = record.requires_graphics() && !restored_candidate;
-            let credential = if graphics && !restored_candidate {
-                Some(
-                    hyper_gpu_support::credentials::read(&record.target.vm_id)?.map_or_else(
-                        || {
-                            hyper_gpu_support::credentials::prompt_named(
-                                &record.target.vm_id,
-                                &prompt_name,
-                                windows::Win32::Foundation::HWND::default(),
-                            )
-                        },
-                        Ok,
-                    )?,
+            let credential = super::installation::credentials(graphics, || {
+                hyper_gpu_support::credentials::prompt_named(
+                    &record.target.vm_id,
+                    &prompt_name,
+                    windows::Win32::Foundation::HWND::default(),
                 )
-            } else {
-                None
-            };
+            })?;
             hyper_gpu_support::worker::reconcile(
                 record.operation_id,
                 graphics,

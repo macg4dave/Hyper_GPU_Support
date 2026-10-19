@@ -80,11 +80,10 @@ fn completed_profile_deletion_keeps_vm_and_other_profiles_without_host_changes()
     retained.target = other.clone();
     retained.initial = other_vm.clone();
     let retained_bytes = serde_json::to_value(&retained).unwrap();
-    s.recovery = Some(removed.clone());
     s.recoveries = vec![removed, retained];
     assert!(s.forget_target().is_ok());
     s.finish_profile_deletion(&selected.vm_id, Ok(())).unwrap();
-    assert!(s.recovery.is_none());
+    assert!(s.recovery_for_vm(&selected.vm_id).is_none());
     assert_eq!(s.recoveries.len(), 1);
     assert_eq!(
         serde_json::to_value(&s.recoveries[0]).unwrap(),
@@ -130,7 +129,7 @@ fn completed_profile_deletion_keeps_vm_and_other_profiles_without_host_changes()
 fn failed_or_partial_deletion_keeps_cache_unknown_and_retains_recovery() {
     let (mut s, selected, other) = profiles_for_deletion();
     let vm_before = s.view.vm(&selected.vm_id).unwrap().clone();
-    s.recovery = Some(save_record(&s));
+    s.recoveries = vec![save_record(&s)];
     assert!(
         s.finish_profile_deletion(
             &selected.vm_id,
@@ -143,7 +142,7 @@ fn failed_or_partial_deletion_keeps_cache_unknown_and_retains_recovery() {
     assert!(s.committed.documents.contains_key(&selected.vm_id));
     assert!(s.committed.documents.contains_key(&other.vm_id));
     assert!(s.view.needs_readback);
-    assert!(s.recovery.is_some());
+    assert!(!s.recoveries.is_empty());
     assert_eq!(
         serde_json::to_value(s.view.vm(&selected.vm_id).unwrap()).unwrap(),
         serde_json::to_value(&vm_before).unwrap()
@@ -190,7 +189,7 @@ fn profile_deletion_review_remains_available_during_power_changes_and_recovery()
         match scenario {
             0 => s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Other(32769),
             1 => s.view.inventory.as_mut().unwrap().discovery.vms[0].power = Power::Running,
-            2 => s.recovery = Some(save_record(&s)),
+            2 => s.recoveries = vec![save_record(&s)],
             3 => {
                 s.view.inventory.as_mut().unwrap().managed.remove(&vm_id);
             }

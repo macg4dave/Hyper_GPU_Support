@@ -27,7 +27,6 @@ pub(super) struct State {
     /// A draft's original committed revision changed; only discard releases it.
     committed_conflict: Option<String>,
     authority_conflict: Option<String>,
-    pub recovery: Option<hyper_gpu_support::configuration_store::SaveRecord>,
     pub recoveries: Vec<hyper_gpu_support::configuration_store::SaveRecord>,
     pub import_recovery: Option<hyper_gpu_support::configuration_store::ImportRecord>,
     pub enrollment_recovery: Option<hyper_gpu_support::enrollment::PendingPair>,
@@ -49,7 +48,6 @@ impl Default for State {
             committed: Default::default(),
             committed_conflict: None,
             authority_conflict: None,
-            recovery: None,
             recoveries: Vec::new(),
             import_recovery: None,
             enrollment_recovery: None,

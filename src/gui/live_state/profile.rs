@@ -45,13 +45,6 @@ impl State {
         self.committed.errors.remove(&format!("{id}.toml"));
         self.recoveries.retain(|record| record.target.vm_id != id);
         if self
-            .recovery
-            .as_ref()
-            .is_some_and(|record| record.target.vm_id == id)
-        {
-            self.recovery = None;
-        }
-        if self
             .view
             .draft
             .as_ref()

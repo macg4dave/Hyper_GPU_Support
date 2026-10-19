@@ -1,6 +1,42 @@
 # Architecture review and simplification
 
-Reviewed: 18 October 2026. Source baseline: `10016629350876d7eb785fa5e8903d53af10f79e` with a clean working tree.
+Initial review: 18 October 2026. Source baseline: `10016629350876d7eb785fa5e8903d53af10f79e`. Repository-wide follow-up: 19 October 2026, starting at clean `f86c7f4fe9aa230d86344e71c3fa1b508b7f72c6`.
+
+## Current repository-wide follow-up
+
+The independent follow-up traced the supported GUI requests through worker admission, workflow decisions, native/guest effects, independent confirmation and saved-state readback. It also inspected administrator recovery/import entrypoints, protected storage, credentials, diagnostics, text generation, installer, dependencies, vendor/probe responsibilities and isolated test effects. The earlier checkpoints below are historical, not validation of this candidate.
+
+Findings recorded before implementation, in priority order:
+
+1. **Duplicate recovery ownership:** `gui/live_state::State` stores the receipt collection and a selected/fallback receipt clone. `select_vm` clones the complete collection and shared records back through `sync_recovery` to select one receipt. Tests can construct conflicting copies. Keep only the collection; derive selected receipt access by GUID, keeping the other-VM summary fallback separate. Reuse the existing unsaved-publication reconciliation when selection changes. This removes mutable state rather than another module.
+2. **Repeated credential decisions:** Apply, Verify and graphics reconciliation read the vault before calling `credentials::prompt_named`, which already owns vault lookup, explanation, prompting and cancellation. Reuse that function directly, retaining the existing guest-work predicate and error propagation. Administrator console input has a different interaction contract and stays separate.
+3. **Parallel completion presentation investigated and retained:** partial removal resembles the merger used by Apply, Verify, save-only and reconciliation, but resets a clean editor from saved intent. The other non-publication completions preserve displayed inputs. Unifying this small path would require extra presentation policy; retain the existing shared `with_completion_state` primitive and distinct rendering behavior.
+4. **Documentation drift:** current source still has one Configure engine and one shared Apply/Verify worker lifecycle. Descriptions of a future replacement engine or removed handbooks/gate scripts do not describe current work. Retain useful historical evidence and document the available validation commands explicitly.
+5. **Unused request plumbing:** ordinary/reinstall review forwards an unused `Source` through a wrapper, including an otherwise unnecessary background clone. Recovery inspection also accepts unused busy/source arguments. Remove only these private parameters and the ordinary forwarding wrapper; keep source access in the callbacks that actually read it.
+
+No additional dependency or native/guest mechanism is established as obsolete. `security::read_optional` already owns common protected-read mechanics; record decoding/validation remains domain-specific and does not justify a configurable record framework. Full refresh, lightweight poll and selected completion have different metadata/freshness contracts. Authenticated pipe peer/process checks, scheduler release acknowledgement, consumed preparation tokens, workflow receipts, provider-job holds, final payload checks and exact publication protect different boundaries. Their repeated-looking checks are retained.
+
+Public runner enum variants also occur in stored audits; the reserved OS hook and `CheckOs` preview value remain exported compatibility surface. Removing them without a consumer/record compatibility decision is not justified. Guest Windows release checking is currently deferred, as stated in the README; it is not silently reinstated here. Catalogue locale support and the vendored Slint repaint fix are existing functionality, not removal candidates based on the current single-language data set.
+
+Implemented: remove the cloned `State::recovery`, its synchronization/deletion branches, full-collection/shared-record clones on selection, three outer vault lookup branches, three unused request parameters and the ordinary review forwarding function. Reuse `recovery_for_vm`, the existing unsaved-publication reconciliation, `credentials::prompt_named`, guest-work credential gating and protected execution. No new module, dependency, privilege route, file format or UI component is introduced. Save-only and partial-removal requests reject an unrelated or missing selection; other-VM banners and holds remain available. A new regression and extended removal coverage exercise these boundaries. Existing tests now use the sole receipt owner without deleting or weakening coverage.
+
+The current non-hardware checkpoint passed: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace --all-targets --locked` (**520 passed**: 339 library, 160 GUI/dispatch, 10 installer and 11 catalogue), `cargo test --workspace --doc --locked` (no doctests), `cargo build --workspace --bins --locked` and `cargo doc --workspace --no-deps --locked`. After strengthening the selected-receipt assertion, formatting/strict Clippy passed again and all **13 focused recovery tests passed**. Production source did not change after the full workspace run. `python -B scripts/testing/check-docs.py` checked **29 Markdown files and four task cards with zero errors**; `git diff --check` passed after final documentation edits. The existing Python validator is the checked-in link/task checker; no replacement tooling was added. The removed historical gate script was not recreated or claimed as run. No lint suppressions were added and no tests were removed or ignored.
+
+Current before/after accounting uses clean base `f86c7f4` and final working-tree source, physical lines including comments/blanks, and a temporary Rust `syn` span reader to separate test-only items/modules. Mixed Rust files contribute to both production and test file counts; the counts are not additive unique files. There are no file additions/deletions. Generated output, docs, third-party `vendor/`, upstream CUDA source and inert assets are excluded. The earlier measurements below describe different revisions and inventories.
+
+| Category | Before files | Before lines | After files | After lines |
+| --- | ---: | ---: | ---: | ---: |
+| Product Rust excluding tests | 119 | 26,790 | 119 | 26,737 |
+| Product Rust tests/helpers (23 test-only files, 77 mixed) | 100 | 18,731 | 100 | 18,760 |
+| Guest PowerShell bridge | 1 | 383 | 1 | 383 |
+| Slint GUI definitions | 13 | 1,613 | 13 | 1,613 |
+| Build/installer/catalogue Rust excluding tests | 8 | 2,124 | 8 | 2,124 |
+| Tool Rust tests/helpers | 4 | 523 | 4 | 523 |
+| Configuration/manifests/catalogue TOML or JSON | 22 | 1,712 | 22 | 1,712 |
+
+Production Rust decreases by **53 lines**, with **29 more test lines** and unchanged source-file counts. Product Rust physical size changes from 45,521 to 45,497 lines. Nothing moves into tests, generated code, tools or configuration to improve these measurements. No runtime speedup is claimed.
+
+Remaining concerns are explicit compatibility and runtime qualification limits: exported/stored contracts need a consumer/record design before removal; native provider outcomes, guest performance and installed interaction need live evidence. There is no demonstrated second GPU engine or unimplemented safe deletion left by this review. A broader frontend framework and merging distinct recovery records would add risk without an established benefit. The source cards are complete; candidate installation/live acceptance remains open. No live GUI launch, installed-product reset/write, enrollment, credential prompt, VM/GPU/guest action, driver installation or host restart was performed.
 
 ## Purpose and requirements
 
@@ -11,7 +47,7 @@ The application manages existing Hyper-V VM/GPU pairs. It must distinguish reque
 | User task | Required sequence and result |
 | --- | --- |
 | Open, Refresh and Poll | Read inventory, saved intent, authority and recovery; preserve drafts and stable identity; reject stale deliveries and wait for exact backend release. |
-| Install or enrol | Authenticate the fixed package/operator and exact pair; persist and read back authority separately from GPU changes. Preserve existing pairs on update. |
+| Install or enrol | Clean reinstall refuses active work and archives protected evidence before app-state reset. First-run setup authenticates the fixed package/operator and exact pair; additive pair enrollment preserves existing pairs and reads authority back separately from GPU changes. |
 | First setup or explicit Reinstall | Authenticate current files; prepare with GPU detached; stop, configure and attach; check guest files/graphics; finish Off and publish only the independently confirmed intent. |
 | Ordinary allocation/re-enable | Authenticate eligible preparation and current facts; write only required host categories; finish Off, independently confirm and save. Omitted categories cause no write. |
 | Disable | Gracefully stop, detach and restore only attributable settings; retain guest files and saved history; confirm and publish disabled intent without guest credentials. |
@@ -40,7 +76,7 @@ The review inspected the repository inventory/manifests and searched maintained 
 | Diagnostics/reporting/work counters | Progress completion cannot certify terminal success; safe error envelopes and opt-in protected tracing remain necessary. No measured speedup follows from fewer conversions. |
 | Build/text tooling, resources, dependencies, vendor patch and probes | Direct dependencies have production/build callers; no dependency removal is established. Catalogue contracts deliberately separate allowed keys/types/native bounds from editable wording. Vendored repaint fixes and inert probe binaries are not obsolete merely because they are outside the main Rust engine. Leave these interfaces and assets intact. |
 
-## Prioritised source changes implemented
+## Earlier prioritised source changes implemented
 
 These findings and priorities were recorded before implementation. All four changes are implemented, reusing existing owners without a replacement framework.
 
@@ -59,7 +95,7 @@ The selected completion change removes an internal representation that productio
 
 Remaining architectural cost is concentrated in frontend coordination and the native/guest/security footprint. Broader replacement would need concrete equivalence evidence for cancellation/release, interruption, lost replies, record migration and external interference. The user has withdrawn the numerical line target; source size remains a descriptive measurement. Simplification must preserve those contracts. Existing roadmap concerns remain open; no speculative backlog cards are added.
 
-## Measurements and verification
+## Earlier measurements and verification
 
 Baseline uses tracked plus non-ignored untracked existing files, physical lines including comments/blanks, and the existing temporary `syn` source-span audit to separate inline Rust test items and external test-only module trees. Generated output, third-party `vendor/`, CUDA upstream source, docs and inert assets are excluded from handwritten source. Mixed files appear in production file counts and also contribute separately reported test lines; those counts are not additive unique-file totals.
 
@@ -81,7 +117,7 @@ Active catalogue data is 5,497 lines in 10 files; text-contract data is 5,627 li
 
 The historical preview checkpoint reported nine fewer Rust test lines than this clean baseline; this table uses a fresh source-span inventory of the actual revision rather than carrying that old test total forward.
 
-## Verification results and limits
+## Earlier verification results and limits
 
 The complete `scripts/testing/check.ps1` gate (since removed) passed all ten stages on 18 October 2026 for the baseline revision plus this working-tree diff: catalogue validation/failure tests, copy checks, documentation, formatting, non-hardware tests, strict Clippy, four binary builds and API documentation. Product Rust tests: **477 passed**; separate catalogue tests: **12 passed**. Evidence: `local/evidence/m1-gate-20261018T155728482Z/report.json`. All **217** recorded source/build/test input hashes still matched after the gate; `input-readback.json` records the comparison. Final documentation checks passed separately: `python -B scripts/testing/check-docs.py` checked 36 Markdown files and four task cards with zero errors; `git diff --check` passed.
 
@@ -125,4 +161,4 @@ The next source-only OPT-009 follow-up reviewed remaining frontend callers again
 
 Two added dispatch regressions cover complete-bundle parsing and forbidden ordinary routes/options through the production validation helper, without filesystem or protected effects. Existing startup-dispatch coverage is retained. Builds, regression execution and the complete gate subsequently passed at the integrated checkpoint. Earlier candidate evidence remains historical.
 
-The integrated source follow-ups are validated. Next is to assess concrete foreground request/completion duplication under OPT-010. Keep pair authority, profile deletion, imports and native provider recovery as distinct domain handlers. Replacing those handlers with one configurable workflow or removing legacy records has no demonstrated maintenance benefit. A complete GUI replacement for administrator-only record resolution would be new product work, not a prerequisite for this bounded ordinary frontend deletion.
+At that integrated checkpoint the next step was foreground request/completion review under OPT-010; its results are now recorded in the current follow-up above. Pair authority, profile deletion, imports and native provider recovery remain distinct domain handlers. Replacing them with one configurable workflow or removing legacy records has no demonstrated maintenance benefit. A complete GUI replacement for administrator-only record resolution would be new product work, not a prerequisite for the bounded ordinary frontend deletion.

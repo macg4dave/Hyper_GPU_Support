@@ -6,7 +6,7 @@ use super::{
     presentation::present,
     recovery::{continue_recovery, review_records, start_recovery},
     refresh::refresh,
-    review::{review, review_operation},
+    review::review,
     source::Source,
     state_access::with_state,
     verification::review_verification,
@@ -190,7 +190,7 @@ pub(super) fn register(
                 }
                 review_forget_live(&ui, &action_state, &action_busy)
             }
-            "review" => review(&ui, &action_state, &action_busy, &action_source),
+            "review" => review(&ui, &action_state, &action_busy, false),
             "save-only" => save_only_live(&ui, &action_state, &action_busy),
             "verify" => review_verification(&ui, &action_state, &action_busy),
             #[cfg(windows)]
@@ -199,13 +199,13 @@ pub(super) fn register(
                 // Preserve allocation edits while deliberately previewing enabled support.
                 ui.set_gpu_enabled(true);
                 ui.invoke_edited();
-                review(&ui, &action_state, &action_busy, &action_source)
+                review(&ui, &action_state, &action_busy, false)
             }
             "repair" => {
                 // Reuse the enabled draft; reinstall intent belongs only to this review.
                 ui.set_gpu_enabled(true);
                 ui.invoke_edited();
-                review_operation(&ui, &action_state, &action_busy, &action_source, true)
+                review(&ui, &action_state, &action_busy, true)
             }
             "remove-gpu" => {
                 let removal = action_state
@@ -227,7 +227,7 @@ pub(super) fn register(
                 removal.and_then(|_| {
                     ui.set_gpu_enabled(false);
                     ui.invoke_edited();
-                    review(&ui, &action_state, &action_busy, &action_source)
+                    review(&ui, &action_state, &action_busy, false)
                 })
             }
             "close" => {
@@ -280,7 +280,7 @@ pub(super) fn register(
                 Ok(())
             }
             "credentials" => review_credentials(&ui, &action_state, &action_busy, &action_source),
-            "recovery" => start_recovery(&ui, &action_state, &action_busy, &action_source),
+            "recovery" => start_recovery(&ui, &action_state),
             "reconcile" if ui.get_dialog_kind() == "recovery" => {
                 continue_recovery(&ui, &action_state, &action_busy, &action_source)
             }

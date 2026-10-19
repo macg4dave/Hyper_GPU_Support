@@ -1,9 +1,9 @@
 //! Draft planning and acceptance of fresh ordinary or reinstall reviews.
+use super::SharedState;
 #[cfg(windows)]
 use super::enrollment::review_enrollment;
 #[cfg(windows)]
 use super::presentation::draft_target;
-use super::{SharedState, source::Source};
 use crate::gui::AppWindow;
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -11,16 +11,6 @@ pub(super) fn review(
     ui: &AppWindow,
     state: &SharedState,
     busy: &Arc<AtomicBool>,
-    source: &Source,
-) -> Result<(), String> {
-    review_operation(ui, state, busy, source, false)
-}
-
-pub(super) fn review_operation(
-    ui: &AppWindow,
-    state: &SharedState,
-    busy: &Arc<AtomicBool>,
-    source: &Source,
     reinstall: bool,
 ) -> Result<(), String> {
     #[cfg(windows)]
@@ -43,6 +33,5 @@ pub(super) fn review_operation(
             return review_enrollment(ui, state, busy, target);
         }
     }
-    let _ = source;
     super::apply::apply_live(ui, state, busy, reinstall)
 }

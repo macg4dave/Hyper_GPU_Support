@@ -106,17 +106,11 @@ pub(super) fn review_verification(
                         ui.set_dialog_details(wording::verify_details(&accepted).into());
                         Ok(())
                     })?;
-                    let credential = hyper_gpu_support::credentials::read(&plan.target.vm_id)?
-                        .map_or_else(
-                            || {
-                                hyper_gpu_support::credentials::prompt_named(
-                                    &plan.target.vm_id,
-                                    &plan.observed.name,
-                                    windows::Win32::Foundation::HWND::default(),
-                                )
-                            },
-                            Ok,
-                        )?;
+                    let credential = hyper_gpu_support::credentials::prompt_named(
+                        &plan.target.vm_id,
+                        &plan.observed.name,
+                        windows::Win32::Foundation::HWND::default(),
+                    )?;
                     Ok(hyper_gpu_support::worker::Authorization {
                         shutdown_approved: plan.observed.power
                             == hyper_gpu_support::model::Power::Off,

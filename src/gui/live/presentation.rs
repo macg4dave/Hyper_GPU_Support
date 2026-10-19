@@ -148,28 +148,30 @@ pub(in crate::gui) fn present(ui: &AppWindow, state: &State, reset_draft: bool) 
 }
 
 pub(in crate::gui) fn recovery_summary(state: &State, selected: &str) -> Option<String> {
-    let (id, fallback, operation) =
-        if let Some(record) = state.recovery_for_vm(selected).or(state.recovery.as_ref()) {
-            (
-                record.target.vm_id.as_str(),
-                record.initial.name.as_str(),
-                if record.publication_required {
-                    hyper_gpu_support::ui_text::dashboard::recovery_summary::gpu_change()
-                } else {
-                    hyper_gpu_support::ui_text::dashboard::recovery_summary::gpu_verification()
-                },
-            )
-        } else if let Some(record) = &state.enrollment_recovery {
-            (
-                record.review.vm_id.as_str(),
-                record.review.vm_id.as_str(),
-                hyper_gpu_support::ui_text::dashboard::recovery_summary::permission_change(),
-            )
-        } else if state.import_recovery.is_some() {
-            return Some(hyper_gpu_support::ui_text::dashboard::recovery_summary::import().into());
-        } else {
-            return None;
-        };
+    let (id, fallback, operation) = if let Some(record) = state
+        .recovery_for_vm(selected)
+        .or_else(|| state.recoveries.first())
+    {
+        (
+            record.target.vm_id.as_str(),
+            record.initial.name.as_str(),
+            if record.publication_required {
+                hyper_gpu_support::ui_text::dashboard::recovery_summary::gpu_change()
+            } else {
+                hyper_gpu_support::ui_text::dashboard::recovery_summary::gpu_verification()
+            },
+        )
+    } else if let Some(record) = &state.enrollment_recovery {
+        (
+            record.review.vm_id.as_str(),
+            record.review.vm_id.as_str(),
+            hyper_gpu_support::ui_text::dashboard::recovery_summary::permission_change(),
+        )
+    } else if state.import_recovery.is_some() {
+        return Some(hyper_gpu_support::ui_text::dashboard::recovery_summary::import().into());
+    } else {
+        return None;
+    };
     let name = state.view.vm(id).map_or(fallback, |vm| vm.name.as_str());
     Some(if id == selected {
         hyper_gpu_support::ui_text::dashboard::recovery_summary::selected(name, operation)
@@ -239,8 +241,7 @@ pub(super) fn present_actions(ui: &AppWindow, state: &State) {
                 .is_some_and(|vm| vm.generation == 2 && vm.gpus.is_empty()),
     );
     ui.set_has_recovery(
-        state.recovery.is_some()
-            || !state.recoveries.is_empty()
+        !state.recoveries.is_empty()
             || state.import_recovery.is_some()
             || state.enrollment_recovery.is_some()
             || vm_recovery(state, selected.as_str()),

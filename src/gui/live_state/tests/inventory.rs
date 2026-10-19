@@ -83,9 +83,9 @@ fn permission_proposals_use_the_observed_revision_and_reject_duplicate_stale_or_
     s.view.needs_readback = true;
     assert!(s.permission_review(&target, "operator".into()).is_err());
     s.view.needs_readback = false;
-    s.recovery = Some(save_record(&s));
+    s.recoveries = vec![save_record(&s)];
     assert!(s.permission_review(&target, "operator".into()).is_err());
-    s.recovery = None;
+    s.recoveries.clear();
     s.observation = None;
     assert!(
         s.permission_review(&target, "operator".into())
@@ -96,7 +96,7 @@ fn permission_proposals_use_the_observed_revision_and_reject_duplicate_stale_or_
     s.view.needs_readback = true;
     assert!(s.permission_review(&target, "operator".into()).is_err());
     s.view.needs_readback = false;
-    s.recovery = Some(save_record(&s));
+    s.recoveries = vec![save_record(&s)];
     assert!(s.permission_review(&target, "operator".into()).is_err());
 }
 
@@ -174,8 +174,8 @@ fn reopened_selection_survives_discovery_order_and_rename_with_or_without_recove
         // Startup restores the preference before accepting first discovery.
         let mut reopened = State::default();
         reopened.view.selected = Some(selected.clone());
-        reopened.recovery = held.then_some(record);
-        let recovery_before = serde_json::to_value(&reopened.recovery).unwrap();
+        reopened.recoveries = held.then_some(record).into_iter().collect();
+        let recovery_before = serde_json::to_value(&reopened.recoveries).unwrap();
         let inventory_before = serde_json::to_value(&next).unwrap();
         reopened.refresh(next.clone());
         assert_eq!(reopened.view.selected.as_deref(), Some(selected.as_str()));
@@ -184,7 +184,7 @@ fn reopened_selection_survives_discovery_order_and_rename_with_or_without_recove
             "Renamed selected VM"
         );
         assert_eq!(
-            serde_json::to_value(&reopened.recovery).unwrap(),
+            serde_json::to_value(&reopened.recoveries).unwrap(),
             recovery_before
         );
         assert_eq!(
@@ -209,14 +209,14 @@ fn reopened_selection_survives_discovery_order_and_rename_with_or_without_recove
             Some(next.discovery.vms[0].vm_id.as_str())
         );
         assert_eq!(
-            serde_json::to_value(&reopened.recovery).unwrap(),
+            serde_json::to_value(&reopened.recoveries).unwrap(),
             recovery_before
         );
         next.discovery.vms.clear();
         reopened.refresh(next);
         assert!(reopened.view.selected.is_none());
         assert_eq!(
-            serde_json::to_value(&reopened.recovery).unwrap(),
+            serde_json::to_value(&reopened.recoveries).unwrap(),
             recovery_before
         );
     }

@@ -191,7 +191,6 @@ pub(super) fn refresh_with_result(
         .clone();
     let state = state.clone();
     let source = source.clone();
-    let review_source = source.clone();
     let review_busy = busy.clone();
     let startup = ui.get_startup_loading();
     let startup_ui = ui.as_weak();
@@ -463,7 +462,7 @@ pub(super) fn refresh_with_result(
                         }
                         Ok(())
                     })
-                    .and_then(|()| review(ui, &state, &review_busy, &review_source));
+                    .and_then(|()| review(ui, &state, &review_busy, false));
                 if let Err(error) = continuation {
                     dialog(
                         ui,

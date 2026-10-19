@@ -121,7 +121,7 @@ fn unavailable_managed_history_requests_refresh_without_inventing_recovery() {
     for action in ["verify", "repair", "remove-gpu"] {
         assert!(actions.reason(action).unwrap().contains("Use Refresh"));
     }
-    assert!(s.recovery.is_none());
+    assert!(s.recoveries.is_empty());
     assert_eq!(s.view.draft, Some(target));
     assert!(
         !s.view
@@ -137,13 +137,13 @@ fn unavailable_managed_history_requests_refresh_without_inventing_recovery() {
 fn recovery_preserves_another_vms_draft_without_claiming_its_actions_need_recovery() {
     let mut s = action_state();
     let target = s.target(id(&s)).unwrap();
-    s.recovery = Some(save_record(&s));
+    s.recoveries = vec![save_record(&s)];
     s.view.draft = Some(target.clone());
     s.view.selected = Some("another-vm".into());
     let actions = s.selected_actions(0, &allocation_values(&target));
     assert!(!actions.recovery);
     assert!(!actions.remove.contains("Review recovery"));
-    assert!(s.recovery.is_some());
+    assert!(!s.recoveries.is_empty());
     assert_eq!(s.view.draft, Some(target));
 }
 
