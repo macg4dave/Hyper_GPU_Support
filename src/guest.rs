@@ -89,8 +89,21 @@ struct BridgeResult {
     worker_exit: Option<i32>,
     #[serde(default)]
     transport_hresult: Option<i32>,
+    /// Raw guest `cleanup-result.json` text, forwarded unparsed by the bridge.
     #[serde(default)]
-    cleaned: Vec<String>,
+    cleanup: String,
+}
+
+/// Parse the guest cleanup reply. It only retires host acknowledgements, so a
+/// failure here is diagnostic and never affects the GPU operation result.
+fn cleaned_bundles(text: &str) -> Result<Vec<String>, String> {
+    if text.is_empty() {
+        return Ok(Vec::new());
+    }
+    if text.len() > 65536 {
+        return Err("guest cleanup reply exceeds bound".into());
+    }
+    serde_json::from_str(text).map_err(|_| "invalid guest cleanup reply".into())
 }
 
 fn transport_script(module_literal: &str) -> String {
@@ -334,7 +347,7 @@ fn bridge(
             })?;
             let _ =
                 crate::diagnostics::run("guest-staging-retire", "guest cleanup readback", || {
-                    staging::received(&acknowledgements, &reply.cleaned)
+                    staging::received(&acknowledgements, &cleaned_bundles(&reply.cleanup)?)
                 });
             Ok(reply.output)
         },

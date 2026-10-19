@@ -22,3 +22,10 @@ windows = { version = "=0.62.2", features = [
 
 [lints.rust]
 unsafe_code = "deny"
+
+[lints.clippy]
+# Zero today; keep it that way. Fix causes rather than suppressing (AGENTS.md).
+dbg_macro = "deny"
+unimplemented = "deny"
+exit = "warn"
+unused_result_ok = "warn"

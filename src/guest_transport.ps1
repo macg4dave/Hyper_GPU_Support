@@ -347,17 +347,19 @@ try {
                 }
             }
             $workerExit = $LASTEXITCODE
-            $cleaned = @()
+            # Forward the worker's cleanup reply as opaque text; Rust parses it.
+            # Windows PowerShell's ConvertFrom-Json wraps arrays and cannot be relied on.
+            $cleanup = ''
             $cleanupResult = Join-Path $bundle 'cleanup-result.json'
             if (Test-Path -LiteralPath $cleanupResult) {
                 try {
                     $item = Get-Item -LiteralPath $cleanupResult -Force
                     if ($item.Length -le 65536 -and !($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -and !$item.LinkType) {
-                        $cleaned = @([IO.File]::ReadAllText($cleanupResult) | ConvertFrom-Json)
+                        $cleanup = [IO.File]::ReadAllText($cleanupResult)
                     }
-                } catch { $cleaned = @() }
+                } catch { $cleanup = '' }
             }
-            @{ output = ($reply -join "`n"); worker_exit = $workerExit; cleaned = $cleaned }
+            @{ output = ($reply -join "`n"); worker_exit = $workerExit; cleanup = $cleanup }
         } finally { foreach ($handle in $handles) { $handle.Dispose() }; if ($ownedMarker) { [IO.File]::Delete($marker) } }
     } | ForEach-Object {
         if ($_.phase) {
@@ -365,7 +367,7 @@ try {
         } else { $_ }
     }
     Write-Stage 'guest-integrity-and-worker' 'done' $r.mode $timer.ElapsedMilliseconds
-    @{ output = [string]$output.output; worker_exit = $output.worker_exit; cleaned = @($output.cleaned) } | ConvertTo-Json -Compress
+    @{ output = [string]$output.output; worker_exit = $output.worker_exit; cleanup = [string]$output.cleanup } | ConvertTo-Json -Compress
 } catch {
     Write-Stage 'transport' 'failed' "HRESULT=$($_.Exception.HResult); type=$($_.Exception.GetType().FullName)"
     [Console]::Error.WriteLine('Fixed guest transport failed; reconcile before retry.')

@@ -11,6 +11,16 @@ Applies to Codex and Claude Code. Complete one requested task; current user inst
 - For app installs/updates, use a clean reset of app-owned runtime data, enrollment/runner registration, saved profiles/history and user preferences rather than carrying previous app state forward. Confirm the app is closed and no operation is active before resetting; stop on active work. Keep the built app binaries, source and VM/guest state separate from this cleanup. Do not reset data on ordinary app launches. Install only with `cargo run -p app-install` ([Install](README.md#install)); pass `--yes` once the user has authorized the install, and do not hand-delete installed files, tasks or state.
 - Reuse existing components. Keep changes cohesive; no unrelated refactors, dependency upgrades, or restored tooling. Delegate only when explicitly requested.
 - Read only applicable guidance below. Requirements belong in project docs, not prompts.
+- Work autonomously on ordinary user-mode work (edits, builds, tests, lints, git status/diff/commit) without asking. Ask before elevation (sudo, UAC/RunAs), machine-wide changes (registry, services, scheduled tasks, Windows features), pushes or history rewrites, and the gated effects under [Boundaries](#boundaries).
+- Do not use Python for scripts or tooling unless no reasonable alternative exists; prefer Rust, PowerShell, shell or Node, and say why if Python is unavoidable.
+
+## Honest engineering (no cheating)
+
+- Fix warnings, lints and failing tests at their cause. Do not silence them: no new `#[allow]`/`#[expect]`/`cfg_attr(..., allow)`, lint-level downgrades in `Cargo.toml`/`clippy.toml`, `-A`/`--cap-lints` flags, `#[ignore]`d or deleted tests, weakened assertions, or `todo!`/`unimplemented!` stubs without explicit user approval.
+- A suppression is acceptable only when the lint is a genuine false positive or the code shape is deliberate; it must be the narrowest scope, carry `reason = "..."`, and be raised with the user. New `unsafe` needs a `// SAFETY:` comment.
+- Do not game checks: no special-casing test inputs, hardcoded expected values, swallowed errors (`let _ =`, `.ok()`, empty `match` arms) to make something compile or pass, or `unwrap`/`expect` on expected runtime failures.
+- Before reporting Rust work done, run `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` on the result and fix what they report. Report honestly what was run, what failed and what was not verified; never claim a check passed that was not run.
+- `.claude/hooks/lint-guard.mjs` enforces part of this by prompting the user; do not edit or bypass it to avoid the prompt.
 
 ## Load when relevant
 

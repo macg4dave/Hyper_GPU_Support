@@ -42,6 +42,10 @@ function Invoke-TestWorker {
     $phases = @('checking-copied','installing','checking-installed')
     if ($mode -eq 'verify') { $phases = @('checking-guest','graphics') }
     foreach ($phase in $phases) { 'HGPREPARATION ' + $phase }
+    # The real worker always records its cleanup reply as a compact JSON array.
+    $cleanup = '[]'
+    if ($mode -eq 'verify') { $cleanup = '["prepare-retired-bundle"]' }
+    [IO.File]::WriteAllText((Join-Path $bundle 'cleanup-result.json'), $cleanup, [Text.UTF8Encoding]::new($false))
     '{"digest":"test-payload","machine_guid":"test-machine","files":1}'
     $global:LASTEXITCODE = 0
 }
@@ -117,16 +121,36 @@ try {
             operation += 1;
         }
     }
-    for (monitor, reply) in [(&cold, &replies[0]), (&warm, &replies[1])] {
+    for (monitor, reply, cleaned) in [
+        (&cold, &replies[0], vec![]),
+        (
+            &warm,
+            &replies[1],
+            vec!["prepare-retired-bundle".to_string()],
+        ),
+    ] {
         monitor.require_worker_phases().unwrap();
         assert_eq!(reply.worker_exit, Some(0));
         let receipt: Receipt = serde_json::from_str(&reply.output).unwrap();
         assert_eq!(receipt.digest, "test-payload");
+        assert_eq!(cleaned_bundles(&reply.cleanup).unwrap(), cleaned);
     }
     let cold = cold.take_progress(now).unwrap().unwrap();
     assert_eq!((cold.bytes, cold.total, cold.files), (15, 15, 3));
     let warm = warm.take_progress(now).unwrap().unwrap();
     assert_eq!((warm.bytes, warm.total, warm.files), (0, 0, 0));
+}
+
+#[test]
+fn cleanup_reply_is_parsed_in_rust_and_rejects_malformed_or_oversized_text() {
+    assert!(cleaned_bundles("").unwrap().is_empty());
+    assert!(cleaned_bundles("[]").unwrap().is_empty());
+    assert_eq!(cleaned_bundles(r#"["a","b"]"#).unwrap(), ["a", "b"]);
+    // Windows PowerShell's wrapped array shape must never be accepted as bundles.
+    assert!(cleaned_bundles(r#"[{"value":[],"Count":0}]"#).is_err());
+    assert!(cleaned_bundles("not json").is_err());
+    let oversized = format!(r#"["{}"]"#, "a".repeat(65536));
+    assert!(cleaned_bundles(&oversized).is_err());
 }
 
 #[test]

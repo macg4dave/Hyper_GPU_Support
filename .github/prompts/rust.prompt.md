@@ -24,3 +24,13 @@ For significant changes, review the existing implementation and propose the simp
 - Keep unsafe Windows/FFI code narrow, with safety comments covering validity, ownership, lifetime, and cleanup. Respect existing lints; no broad suppression.
 - Keep effects behind existing backend interfaces. Separate planning, effects, readback, and persistence; make each stage diagnosable without secrets.
 - Reuse useful coverage; avoid tests that merely copy implementation. Test execution follows the root policy.
+
+## Rust craft
+
+- Make invalid states unrepresentable: newtypes for IDs/units/validated input, enums over boolean flags and stringly-typed state, `#[must_use]` on results callers must not drop.
+- Errors: typed error enums per domain with `Display` that says what failed and where; convert with `From`/`map_err` adding context; use `?` rather than manual matching. `unwrap`/`expect` only for proven invariants, with the invariant stated in the `expect` message.
+- Ownership: take `&str`/`&[T]`/`&Path` and `impl AsRef<_>` at inputs, return owned values; avoid `clone()` to satisfy the borrow checker—restructure instead. Prefer iterators and slice patterns over index arithmetic; use `checked_*`/`try_from` at untrusted boundaries.
+- Concurrency: keep locks short and never hold one across blocking I/O or callbacks; prefer message passing to shared mutable state; make `Send`/`Sync` requirements explicit.
+- Resources: wrap Windows handles/COM objects in RAII types whose `Drop` releases them; unsafe blocks stay minimal and each one carries a `// SAFETY:` comment.
+- Tests: name the behaviour under test, cover failure and boundary paths, not only the happy path; tests are deterministic and use temp directories.
+- Lints are signals, not obstacles: fix the code, never suppress to make a check pass (see [Honest engineering](../../AGENTS.md#honest-engineering-no-cheating)). Prefer the clippy-suggested idiom unless it hurts clarity, and say so if you deviate.
