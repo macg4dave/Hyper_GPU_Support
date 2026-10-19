@@ -17,11 +17,7 @@ export component StartupSplash inherits Rectangle {
         Rectangle { vertical-stretch: 1; }
         HorizontalLayout {
             Rectangle { horizontal-stretch: 1; }
-            Rectangle {
-                width: 140px; height: 140px; border-radius: 28px;
-                background: Theme.tint; border-color: Theme.line; border-width: 1px;
-                Text { text: UiText.common-branding-monogram; color: Theme.text; font-size: 88px; font-weight: 700; }
-            }
+            Image { width: 140px; height: 140px; source: @image-url("../../../icons/Appicon.svg"); image-fit: contain; }
             Rectangle { horizontal-stretch: 1; }
         }
         Rectangle { vertical-stretch: 1; }

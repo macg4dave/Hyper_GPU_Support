@@ -12,6 +12,7 @@ export { InstallStep, InstallFact }
 
 export component AppWindow inherits Window {
     title: UiText.common-branding-title;
+    icon: @image-url("../../../icons/Appicon.svg");
     preferred-width: 1240px; preferred-height: 860px;
     min-width: 700px; min-height: 520px;
     background: Theme.canvas;
@@ -135,7 +136,7 @@ export component AppWindow inherits Window {
         Rectangle {
             height: 64px; background: Theme.surface;
             HorizontalLayout { padding: 12px; padding-left: 20px; padding-right: 20px; spacing: 14px;
-                Rectangle { width: 30px; height: 30px; border-radius: 7px; background: Theme.navigation; Text { text: UiText.common-branding-monogram; color: Theme.text; font-weight: 700; font-size: 20px; } }
+                Image { width: 30px; height: 30px; source: @image-url("../../../icons/Appicon.svg"); image-fit: contain; }
                 Label { text: UiText.common-branding-title; font-size: 18px; font-weight: 600; }
                 Rectangle { horizontal-stretch: 1; }
                 settings := Button {

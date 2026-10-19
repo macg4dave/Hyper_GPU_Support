@@ -42,6 +42,7 @@ VersionInfoProductName=Hyper GPU Support
 LicenseFile={#PayloadDir}\LICENSE
 InfoBeforeFile=reset-notice.txt
 WizardStyle=modern
+SetupIconFile=..\icons\Appicon.ico
 Compression=lzma2
 SolidCompression=yes
 CloseApplications=no

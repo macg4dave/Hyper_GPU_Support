@@ -5,7 +5,6 @@
 provider_default = "Hyper-V default"
 
 [branding]
-monogram = "H"
 title = "Hyper GPU Support"
 
 [compatibility]

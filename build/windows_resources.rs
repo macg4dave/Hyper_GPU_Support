@@ -1,13 +1,26 @@
 //! Windows version resources shared by the product and installer helper builds.
 
-use std::{env, fs, path::PathBuf, process::Command};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 /// Embed a consistent product identity into each executable, including helpers.
-pub fn compile(binaries: &[&str]) -> Result<(), String> {
+pub fn compile(binaries: &[&str], icon_path: &Path) -> Result<(), String> {
     println!("cargo:rerun-if-env-changed=RC");
+    println!("cargo:rerun-if-changed={}", icon_path.display());
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return Ok(());
     }
+    let manifest =
+        env::var_os("CARGO_MANIFEST_DIR").ok_or("Cargo CARGO_MANIFEST_DIR is missing")?;
+    let icon_path = PathBuf::from(manifest).join(icon_path);
+    let icon = icon_path
+        .to_str()
+        .ok_or("Windows icon path must be valid UTF-8")?
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
     let version = env::var("CARGO_PKG_VERSION").map_err(|error| error.to_string())?;
     let numbers = version
         .split('.')
@@ -35,6 +48,7 @@ pub fn compile(binaries: &[&str]) -> Result<(), String> {
         let resource = output.join(format!("{binary}-version.res"));
         let contents = format!(
             r#"LANGUAGE 9, 2
+1 ICON "{icon}"
 1 VERSIONINFO
 FILEVERSION {major},{minor},{patch},0
 PRODUCTVERSION {major},{minor},{patch},0

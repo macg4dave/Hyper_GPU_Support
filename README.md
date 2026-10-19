@@ -1,6 +1,6 @@
 <div align="center">
 
-<!-- Optional logo: docs/images/logo.png -->
+<img src="icons/Appicon.svg" alt="Hyper GPU Support app icon" width="128" height="128" />
 
 # Hyper GPU Support
 
@@ -9,8 +9,6 @@
 [![Windows](https://img.shields.io/badge/Windows-11-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](#requirements)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-target-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](#requirements)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-4f46e5?style=for-the-badge)](LICENSE)
-
-[![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 
 [Features](#features) &nbsp;·&nbsp;
 [Getting started](#getting-started) &nbsp;·&nbsp;
@@ -148,7 +146,7 @@ cargo build --locked --release --bins     # compile only; does not install
 powershell -NoProfile -File scripts/build-installer.ps1  # build the unsigned installer and binaries ZIP
 ```
 
-The packaging script checks and builds the product, then creates `dist/HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe`, `dist/HyperGpuSupport-<version>-windows-x64-unsigned-binaries.zip` and `dist/SHA256SUMS.txt` with both package hashes. Both packages contain the same five executables and licence notices; the ZIP also retains the executable hash manifest. The script does not launch Setup or change installed state. If Inno is not on PATH or in its standard installation folder, pass `-IsccPath 'C:\path\to\ISCC.exe'`.
+The packaging script checks and builds the product, then creates `dist/HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe`, `dist/HyperGpuSupport-<version>-windows-x64-unsigned-binaries.zip` and `dist/SHA256SUMS.txt` with both package hashes. Both packages contain the same five executables and licence notices; the ZIP also retains the executable hash manifest and includes [install.txt](packaging/install.txt) with simple installation instructions. The script does not launch Setup or change installed state. If Inno is not on PATH or in its standard installation folder, pass `-IsccPath 'C:\path\to\ISCC.exe'`.
 
 Run the release installer, or your locally built installer, to install or update. To build and launch the local installer from the source checkout, use `cargo run -p app-install`. It asks you to type `yes` before building and launching the same setup wizard; `-- --yes` skips that launcher confirmation. Setup presents the reset warning and asks for administrator permission.
 
@@ -337,7 +335,7 @@ Prepare official downloads with the GitHub-hosted release workflow, which verifi
 
 The app is written in Rust and the interface is built with [Slint](https://slint.dev). GUI text uses a compiled catalogue, with British English as the reference. Backend and worker diagnostics remain English.
 
-Image spaces are marked above. Put the optional logo and real app screenshots in [docs/images/](docs/images/) using the indicated filenames, then replace the matching placeholders with image links.
+The app icon is in [icons/](icons/). Put real app screenshots in [docs/images/](docs/images/) using the indicated filenames, then replace the matching placeholders with image links.
 
 Please keep passwords, driver payloads, VM disks and machine-specific evidence out of Git.
 
@@ -347,4 +345,5 @@ Please keep passwords, driver payloads, VM disks and machine-specific evidence o
 
 <div align="center">
 <sub>Released under the <a href="LICENSE">MIT licence</a>.</sub>
+<p><a href="https://slint.dev"><img src="https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png" alt="Made with Slint" width="120" /></a></p>
 </div>

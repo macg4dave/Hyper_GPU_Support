@@ -13,12 +13,15 @@ fn write_changed(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 
 fn main() {
     println!("cargo:rerun-if-changed=build/windows_resources.rs");
-    windows_resources::compile(&[
-        "hyper-gpu-support",
-        "hyper-gpu-runner",
-        "hyper-gpu-guest",
-        "d3d11-probe",
-    ])
+    windows_resources::compile(
+        &[
+            "hyper-gpu-support",
+            "hyper-gpu-runner",
+            "hyper-gpu-guest",
+            "d3d11-probe",
+        ],
+        Path::new("icons/Appicon.ico"),
+    )
     .expect("compile Windows version resources");
     println!("cargo:rerun-if-changed=tools/ui-text/src");
     let loaded = ui_text::load(Path::new("resources/i18n")).unwrap_or_else(|errors| {

@@ -75,6 +75,15 @@ try {
     $zipFiles = @('expected.exe', 'licenses/notice.txt')
     Write-Zip $zip $zipFiles @('fixture', 'licence fixture')
     Assert-ZipPayload $zip $files $zipFiles
+    $instructions = Join-Path $fixture 'install.txt'
+    [IO.File]::WriteAllText($instructions, 'Installation instructions fixture')
+    $withInstructions = Join-Path $fixture 'with-instructions.zip'
+    Write-Zip $withInstructions ($zipFiles + @('install.txt')) @('fixture', 'licence fixture', 'Installation instructions fixture')
+    Assert-ZipPayload $withInstructions $files $zipFiles -InstallInstructions $instructions
+    Assert-Fails { Assert-ZipPayload $zip $files $zipFiles -InstallInstructions $instructions } 'missing or unexpected'
+    Assert-Fails { Assert-ZipPayload $withInstructions $files $zipFiles } 'missing or unexpected'
+    [IO.File]::WriteAllText($instructions, 'Changed installation instructions fixture')
+    Assert-Fails { Assert-ZipPayload $withInstructions $files $zipFiles -InstallInstructions $instructions } 'ZIP payload differs: install.txt'
     $wrongZip = Join-Path $fixture 'wrong.zip'
     Write-Zip $wrongZip $zipFiles @('changed', 'licence fixture')
     Assert-Fails { Assert-ZipPayload $wrongZip $files $zipFiles } 'ZIP payload differs'

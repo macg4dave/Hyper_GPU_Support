@@ -28,7 +28,7 @@ if ($executables.Count -ne $script:ProductExecutables.Count -or @(Compare-Object
 Assert-FileHashes $payload $script:ProductExecutables
 foreach ($name in $script:ProductExecutables) { Assert-UnsignedProduct (Join-Path $payload $name) $metadata.Version -RequireX64 }
 Assert-UnsignedProduct $metadata.SetupPath $metadata.Version
-Assert-ZipPayload $metadata.BinaryZipPath $payload $payloadFiles
+Assert-ZipPayload $metadata.BinaryZipPath $payload $payloadFiles -InstallInstructions (Join-Path $PSScriptRoot '../../packaging/install.txt')
 $extraction = Join-Path $WorkDirectory 'verified-extraction'
 if (Test-Path -LiteralPath $extraction) { throw 'Extraction directory already exists; use a fresh work directory.' }
 if (-not (Test-Path -LiteralPath $UnpackerPath -PathType Leaf)) { throw 'Pinned innounp is required.' }

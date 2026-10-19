@@ -1,0 +1,19 @@
+Hyper GPU Support - Installation
+
+1. Download the matching HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe
+   from the same release as this ZIP:
+   https://github.com/macg4dave/Hyper_GPU_Support/releases
+
+2. Close Hyper GPU Support and let any operation finish.
+
+3. Double-click the Setup file normally (do not use "Run as administrator").
+   Follow the setup wizard and approve the Windows administrator prompt.
+
+4. Open "Hyper GPU Support" from the Windows Start menu.
+
+Installing or updating resets app settings, saved profiles and remembered guest
+sign-in details. Protected recovery records are backed up first. Your VMs,
+virtual disks and guest files are not changed by the installer.
+
+Extracting this ZIP does not install the app. Use Setup, rather than running
+app-install.exe from this ZIP. No Rust, Cargo or source checkout is needed.

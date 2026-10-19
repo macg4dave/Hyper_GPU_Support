@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Outline GPU Chip H</title>
+  <desc id="description">A white H inside a black chip with a green outline and six green side contacts.</desc>
+  <path fill="#40d879" d="M12 64h28v24H12z M12 116h28v24H12z M12 168h28v24H12z M216 64h28v24h-28z M216 116h28v24h-28z M216 168h28v24h-28z"/>
+  <path fill="#101714" stroke="#40d879" stroke-width="10" stroke-linejoin="miter" d="M56 36h144l20 20v144l-20 20H56l-20-20V56z"/>
+  <path fill="#ffffff" d="M72 68h32v44h48V68h32v120h-32v-44h-48v44H72z"/>
+</svg>

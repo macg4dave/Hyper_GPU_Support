@@ -59,7 +59,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [System.IO.Compression.ZipFile]::OpenRead($metadata.BinaryZipPath)
 try {
     $entries = @($zip.Entries | Where-Object { $_.Name })
-    $expectedPaths = @($names) + @('LICENSE', 'SHA256SUMS.txt', 'licenses/THIRD_PARTY_NOTICES.md', 'licenses/nested/LICENSE-MIT')
+    $expectedPaths = @($names) + @('LICENSE', 'SHA256SUMS.txt', 'licenses/THIRD_PARTY_NOTICES.md', 'licenses/nested/LICENSE-MIT', 'install.txt')
     $actualPaths = @($entries | ForEach-Object { $_.FullName })
     if (@($actualPaths | Where-Object { $_.Contains('\') }).Count -ne 0) {
         throw 'Binary ZIP entry paths must use portable forward slashes.'
@@ -72,7 +72,8 @@ try {
         $sha = [System.Security.Cryptography.SHA256]::Create()
         try { $zipHash = ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '') }
         finally { $sha.Dispose(); $stream.Dispose() }
-        $sourceHash = (Get-FileHash -LiteralPath (Join-Path $payload $entry.FullName) -Algorithm SHA256).Hash
+        $source = if ($entry.FullName -ceq 'install.txt') { Join-Path $root 'packaging/install.txt' } else { Join-Path $payload $entry.FullName }
+        $sourceHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
         if ($zipHash -cne $sourceHash) { throw "Binary ZIP changed staged content: $($entry.FullName)" }
     }
 } finally { $zip.Dispose() }

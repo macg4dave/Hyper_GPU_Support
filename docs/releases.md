@@ -5,11 +5,11 @@ Each official Windows x64 release provides two unsigned downloads:
 | Download | Contents and use |
 | --- | --- |
 | `HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe` | Inno Setup installer for installing, updating and uninstalling the application |
-| `HyperGpuSupport-<version>-windows-x64-unsigned-binaries.zip` | The same four product executables, maintenance helper, executable hash manifest and licence notices, at the ZIP root |
+| `HyperGpuSupport-<version>-windows-x64-unsigned-binaries.zip` | The same four product executables, maintenance helper, executable hash manifest and licence notices, plus `install.txt` with simple installation instructions, at the ZIP root |
 
 SignPath Foundation declined the project. Releases no longer depend on Foundation approval, a signing account or signing credentials. Neither the executables nor the generated installer/uninstaller carry this project's code-signing signature. Windows may display an unknown-publisher warning. SHA-256 checksums detect changed downloads; they do not establish a certified publisher identity.
 
-Use Setup to install the application and maintain its protected registration, files, shortcuts and uninstall entry. Extracting the binaries ZIP does not install the application, enrol its runner or reset app data. The ZIP's `app-install.exe` is the installer maintenance helper and source-checkout launcher; it is not a replacement for Setup. Keep the included licence notices with redistributed binaries. GitHub's automatic source archives contain source, rather than these compiled packages.
+Use Setup to install the application and maintain its protected registration, files, shortcuts and uninstall entry. The ZIP's [install.txt](../packaging/install.txt) directs users to the matching Setup download. Extracting the binaries ZIP does not install the application, enrol its runner or reset app data. The ZIP's `app-install.exe` is the installer maintenance helper and source-checkout launcher; it is not a replacement for Setup. Keep the included licence notices with redistributed binaries. GitHub's automatic source archives contain source, rather than these compiled packages.
 
 ## Shared build
 

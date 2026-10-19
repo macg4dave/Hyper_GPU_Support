@@ -215,6 +215,7 @@ try {
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     $outputName = "HyperGpuSupport-$version-windows-x64-unsigned-setup"
     $zipPath = Join-Path $OutputDirectory "HyperGpuSupport-$version-windows-x64-unsigned-binaries.zip"
+    $installInstructions = (Get-Item -LiteralPath (Join-Path $root 'packaging/install.txt') -ErrorAction Stop).FullName
     Write-PayloadHashes $PayloadDirectory
     Invoke-Compiler
     Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
@@ -227,6 +228,7 @@ try {
             $entryName = $file.FullName.Substring($PayloadDirectory.Length + 1).Replace('\', '/')
             [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
         }
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $installInstructions, 'install.txt', [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
     } finally { $archive.Dispose() }
     Move-Item -LiteralPath $zipTemporaryPath -Destination $zipPath -Force
     $metadata.BinaryZipPath = $zipPath

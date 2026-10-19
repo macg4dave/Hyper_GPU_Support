@@ -93,7 +93,9 @@ function Assert-UnsignedProduct {
 }
 
 function Assert-ZipPayload {
-    param([Parameter(Mandatory)][string]$ZipPath, [Parameter(Mandatory)][string]$PayloadDirectory, [Parameter(Mandatory)][string[]]$RelativePaths)
+    param([Parameter(Mandatory)][string]$ZipPath, [Parameter(Mandatory)][string]$PayloadDirectory, [Parameter(Mandatory)][string[]]$RelativePaths, [string]$InstallInstructions)
+    $expectedPaths = @($RelativePaths)
+    if ($InstallInstructions) { $expectedPaths += 'install.txt' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     Add-Type -AssemblyName System.IO.Compression
     $archive = [IO.Compression.ZipFile]::OpenRead($ZipPath)
@@ -106,21 +108,22 @@ function Assert-ZipPayload {
                 throw "Unsafe ZIP entry: $name"
             }
             if ((($entry.ExternalAttributes -shr 16) -band 0xf000) -eq 0xa000) { throw "ZIP links are not permitted: $name" }
-            if ($name.EndsWith('/') -and @($RelativePaths | Where-Object { $_.StartsWith($name, [StringComparison]::Ordinal) }).Count -eq 0) {
+            if ($name.EndsWith('/') -and @($expectedPaths | Where-Object { $_.StartsWith($name, [StringComparison]::Ordinal) }).Count -eq 0) {
                 throw "Unexpected ZIP directory: $name"
             }
             if ($entries.ContainsKey($name)) { throw "Duplicate ZIP entry: $name" }
             $entries.Add($name, $entry)
         }
         $files = @($entries.Keys | Where-Object { -not $_.EndsWith('/') } | Sort-Object)
-        if ($files.Count -ne $RelativePaths.Count -or @(Compare-Object @($RelativePaths | Sort-Object) $files -CaseSensitive).Count -ne 0) {
+        if ($files.Count -ne $expectedPaths.Count -or @(Compare-Object @($expectedPaths | Sort-Object) $files -CaseSensitive).Count -ne 0) {
             throw 'ZIP has missing or unexpected payload files.'
         }
         foreach ($name in $files) {
             $stream = $entries[$name].Open()
             $hasher = [Security.Cryptography.SHA256]::Create()
             try { $hash = [BitConverter]::ToString($hasher.ComputeHash($stream)).Replace('-', '') } finally { $hasher.Dispose(); $stream.Dispose() }
-            if ($hash -cne (Get-FileHash -LiteralPath (Join-Path $PayloadDirectory $name) -Algorithm SHA256).Hash) { throw "ZIP payload differs: $name" }
+            $source = if ($name -ceq 'install.txt' -and $InstallInstructions) { $InstallInstructions } else { Join-Path $PayloadDirectory $name }
+            if ($hash -cne (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash) { throw "ZIP payload differs: $name" }
         }
     } finally { $archive.Dispose() }
 }
