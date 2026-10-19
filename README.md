@@ -217,6 +217,8 @@ British English (<code>en-GB</code>) is currently the only bundled language. The
 
 If you find a problem or have a suggestion, please [open an issue](https://github.com/macg4dave/Hyper_GPU_Support/issues). Reports from hardware and configurations that have not been tested yet are particularly helpful.
 
+The app collects no telemetry and keeps its data on your computer; see the [Privacy policy](docs/privacy.md).
+
 <br />
 
 ---
