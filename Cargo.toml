@@ -6,7 +6,7 @@ resolver = "3"
 
 [package]
 name = "hyper-gpu-support"
-version = "0.1.0"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.94.0"
 description = "Hyper-V GPU partition management core"
