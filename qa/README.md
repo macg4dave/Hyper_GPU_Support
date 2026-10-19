@@ -1,6 +1,6 @@
 # QA report inbox
 
-This folder is the hand-off between **your GUI testing** and **Codex fixing defects**. Start with [the QA roadmap](../docs/roadmap.md) and [test backlog](../docs/backlog.md). The product's existing [agent rules](../AGENTS.md) and validation boundaries continue to apply.
+This folder is the hand-off between **your GUI testing** and **Codex fixing defects**. Start with the current user task and its acceptance criteria. The product's existing [agent rules](../AGENTS.md) and validation boundaries continue to apply.
 
 ## The two forms
 

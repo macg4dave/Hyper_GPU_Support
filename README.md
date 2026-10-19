@@ -10,6 +10,8 @@
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-target-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](#requirements)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-4f46e5?style=for-the-badge)](LICENSE)
 
+[![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
+
 [Features](#features) &nbsp;·&nbsp;
 [Getting started](#getting-started) &nbsp;·&nbsp;
 [FAQ](#frequently-asked-questions) &nbsp;·&nbsp;
@@ -133,20 +135,25 @@ The current target configuration is:
 
 ### Install
 
-Install from source on Windows. You need Git, [Rust](https://rustup.rs), and the Visual Studio C++ build tools with a Windows SDK for the `x86_64-pc-windows-msvc` target. Rustup uses the version pinned in [rust-toolchain.toml](rust-toolchain.toml).
+Official Windows downloads are distributed through [GitHub Releases](https://github.com/macg4dave/Hyper_GPU_Support/releases). Every official installer and its executable payload must be signed through SignPath Foundation. The first official release is held pending Foundation approval and successful signing; no unsigned bootstrap release is published. See the [Code signing policy](docs/code-signing.md).
+
+For local testing or building from source, you need Git, [Rust](https://rustup.rs), and Visual Studio C++ build tools with a Windows SDK for the `x86_64-pc-windows-msvc` target. Rustup uses [rust-toolchain.toml](rust-toolchain.toml). Building a local installer also needs [Inno Setup 6.7.3](https://github.com/jrsoftware/issrc/releases/tag/is-6_7_3). Local builds need no SignPath account, credentials or approval and are unsigned.
 
 Close the app and let any operation finish before installing or updating.
 
 ```powershell
 git clone https://github.com/macg4dave/Hyper_GPU_Support.git
 cd Hyper_GPU_Support
-cargo run -p app-install
+cargo build --locked --release --bins     # compile only; does not install
+powershell -NoProfile -File scripts/build-installer.ps1  # build a local unsigned installer
 ```
 
-The installer builds the app, shows its plan and asks you to type `yes`, then asks for administrator permission. Add `-- --yes` to skip the typed confirmation.
+The packaging script checks and builds the product, then creates `dist/HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe` and its `SHA256SUMS.txt`. It does not launch Setup or change installed state. If Inno is not on PATH or in its standard installation folder, pass `-IsccPath 'C:\path\to\ISCC.exe'`.
+
+Run an official signed installer, or your locally built unsigned installer, to install or update. To build and launch the local installer from the source checkout, use `cargo run -p app-install`. It asks you to type `yes` before building and launching the same setup wizard; `-- --yes` skips that launcher confirmation. Setup presents the reset warning and asks for administrator permission.
 
 > [!WARNING]
-> Installing or updating resets app-owned state, including saved profiles, history, recovery records, protected registration, preferences and remembered guest sign-in details. Protected state is archived by default. The installer does not change VMs, disks or guest files. See [Install details](#install-details).
+> Installing or updating resets app-owned state, including saved profiles, history, recovery records, protected registration, preferences and remembered guest sign-in details. Protected state is archived before reset. The installer does not change VMs, disks or guest files. See [Install details](#install-details).
 
 Then launch the installed app from PowerShell:
 
@@ -296,20 +303,24 @@ Configuration files use TOML schema 2 or 3; see [config/product.example.toml](co
 <summary><b>Install details</b></summary>
 <br />
 
-`cargo run -p app-install` is the only supported way to install or update. Run it from the repository root with the app closed and no operation running:
+Use the Inno Setup installer for installs and updates, including when building from source. The source entry point builds and launches that same installer. Start from an ordinary user session with the app closed and no operation running:
 
 ```powershell
-cargo run -p app-install            # build, review the plan, type "yes", approve UAC
-cargo run -p app-install -- --yes   # skips the typed confirmation only
+cargo run -p app-install            # confirm, build local Setup, use its wizard
+cargo run -p app-install -- --yes   # skips the source launcher's typed confirmation
 ```
 
-The tool builds the release binaries (`--skip-build` reuses the existing build), then checks that the app and its helpers are closed. Before resetting anything, the elevated phase checks again and refuses if a product scheduled task is running. It does not stop an active operation for you.
+The build script discovers Cargo's actual output directory, including `CARGO_TARGET_DIR` overrides. `--skip-build` on the source launcher reuses existing release binaries while still running checks and packaging. Use the ordinary debug source launcher; a running release helper cannot rebuild itself. The packaged installer needs no Git, Rust, Cargo, Inno compiler or source checkout on the destination machine.
 
-After the UAC prompt it archives protected state from `%ProgramData%\HyperGpuSupportProduct` and the legacy `%ProgramData%\HyperGpuSupport` to `%USERPROFILE%\HyperGpuSupport-archives\install-<time>`. If archiving fails, nothing is removed. `--no-archive` explicitly skips this evidence copy.
+Before resetting anything, Setup checks that the app and helpers are closed, product tasks are idle and existing operation locks are available. It never closes or restarts the app for you. After UAC it archives protected state from `%ProgramData%\HyperGpuSupportProduct` and the legacy `%ProgramData%\HyperGpuSupport` to an administrator/SYSTEM-only `%ProgramData%\HyperGpuSupport-archives\install-<time>-<process>` folder, with hash readback. An archive failure stops cleanup; a partial archive is retained. Archives survive upgrades and uninstall. The former `--no-archive` option is rejected to preserve recovery evidence.
 
-It then removes the previous app installation, protected product registration, scheduled tasks and runtime state; installs the four executables to `%ProgramFiles%\HyperGpuSupport`; and checks their SHA-256 hashes against the build. After that succeeds, it clears `%LOCALAPPDATA%\HyperGpuSupport` and remembered guest credentials for the current user. VMs, guest files and the configured `data_root` are not changed.
+The Rust maintenance helper resets protected product registration, scheduled tasks and runtime state. Inno owns `%ProgramFiles%\HyperGpuSupport`, installs the four product executables and maintenance helper, and maintains the Start menu shortcut and Windows Installed Apps entry. Setup verifies the five executable hashes against the package manifest before clearing `%LOCALAPPDATA%\HyperGpuSupport` and remembered guest credentials for the person who started Setup, including when UAC uses a different administrator account. Manually elevated launches are refused before cleanup; start Setup normally. VMs, guest files and the configured `data_root` are not changed.
 
 First-time setup in the app enrols the protected runner again. This reset happens during installs and updates, not ordinary launches.
+
+Uninstall through Windows **Installed apps**. Uninstall refuses active work, archives protected evidence, removes protected registration/state and the installed application, and preserves individual users' preferences and saved guest credentials. It does not scan other users' profiles or vaults.
+
+Official releases require the GitHub-hosted signing workflow and maintainer approvals; locally built installers must not be uploaded as official release assets. See [release preparation and publication](docs/code-signing.md#preparing-and-publishing-an-update) and [third-party notices](licenses/THIRD_PARTY_NOTICES.md).
 
 </details>
 

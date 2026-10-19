@@ -1,0 +1,7 @@
+Close Hyper GPU Support and finish all operations before continuing.
+
+Installing or updating performs a clean reset of app-owned state. Setup archives protected state before removing the old protected registration, saved profiles, operation history and recovery records. Setup then resets the initiating user's preferences, display cache and remembered guest credentials. A new launch does not reset anything.
+
+VM configuration, guest files, GPU drivers and other VM or guest state are preserved. Setup refuses to continue while an operation is active or when a safety check or archive fails. A previous unresolved recovery record remains in the protected archive; installation does not establish whether an interrupted operation completed.
+
+Start Setup normally from your Windows account and allow its UAC prompt when requested. Do not start it from an elevated terminal or use Run as administrator: Setup needs to identify the user whose preferences it will reset.

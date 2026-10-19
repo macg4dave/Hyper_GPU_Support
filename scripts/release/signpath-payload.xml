@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="payload/hyper-gpu-support.exe" product-name="Hyper GPU Support" product-version="${version}"><authenticode-sign /></pe-file>
+    <pe-file path="payload/hyper-gpu-runner.exe" product-name="Hyper GPU Support" product-version="${version}"><authenticode-sign /></pe-file>
+    <pe-file path="payload/hyper-gpu-guest.exe" product-name="Hyper GPU Support" product-version="${version}"><authenticode-sign /></pe-file>
+    <pe-file path="payload/d3d11-probe.exe" product-name="Hyper GPU Support" product-version="${version}"><authenticode-sign /></pe-file>
+    <pe-file path="payload/app-install.exe" product-name="Hyper GPU Support" product-version="${version}"><authenticode-sign /></pe-file>
+    <pe-file path="uninstaller/uninst-*.exe" product-name="Hyper GPU Support" product-version="${version}"><authenticode-sign /></pe-file>
+  </zip-file>
+</artifact-configuration>

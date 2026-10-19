@@ -1,4 +1,4 @@
-"""Check tracked Markdown links, anchors, task references and whitespace locally."""
+"""Check working-tree Markdown links, anchors, task references and whitespace."""
 from pathlib import Path
 import re
 import subprocess
@@ -22,12 +22,13 @@ def anchors(text):
 
 
 def main():
-    tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode().split("\0")
+    listed = subprocess.check_output(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT
+    ).decode().split("\0")
     deleted = set(subprocess.check_output(["git", "ls-files", "--deleted", "-z"], cwd=ROOT).decode().split("\0"))
     # Validate the working tree, including deliberate unstaged deletions. Links
     # from remaining documents to removed files must still fail below.
-    files = {ROOT / name for name in tracked if name.endswith(".md") and name not in deleted}
-    files.update((ROOT / "docs").rglob("*.md"))
+    files = {ROOT / name for name in listed if name.endswith(".md") and name not in deleted}
     errors = []
     for path in sorted(files):
         if not path.exists():
@@ -44,7 +45,21 @@ def main():
                 errors.append(f"{path.relative_to(ROOT)}: missing link {target}")
             elif fragment and destination.suffix == ".md" and fragment not in anchors(destination.read_text(encoding="utf-8")):
                 errors.append(f"{path.relative_to(ROOT)}: missing anchor {target}")
-    backlog = (ROOT / "docs/backlog.md").read_text(encoding="utf-8")
+    card_count = check_tasks(errors)
+    whitespace = subprocess.run(["git", "-c", "core.safecrlf=false", "diff", "--check"], cwd=ROOT)
+    for error in errors:
+        print(error, file=sys.stderr)
+    print(f"Checked {len(files)} Markdown files and {card_count} task cards; {len(errors)} errors.")
+    return int(bool(errors) or whitespace.returncode != 0)
+
+
+def check_tasks(errors):
+    # Backlog/roadmap documents are optional user-owned planning inputs. Their
+    # absence is valid; when a backlog exists all its consistency checks apply.
+    backlog_path = ROOT / "docs/backlog.md"
+    if not backlog_path.is_file():
+        return 0
+    backlog = backlog_path.read_text(encoding="utf-8")
     cards = re.findall(rf"^### ({TASK_ID})\b", backlog, re.M)
     registered = re.findall(rf"^\| ({TASK_ID}) \|", backlog, re.M)
     if (
@@ -58,7 +73,10 @@ def main():
     # Validate task families registered in the active plan; other IDs are historical.
     families = {task.split("-", 1)[0] for task in cards + registered}
     for name in ("roadmap.md", "backlog.md"):
-        for task in set(re.findall(TASK_ID, (ROOT / "docs" / name).read_text(encoding="utf-8"))):
+        plan_path = ROOT / "docs" / name
+        if not plan_path.is_file():
+            continue
+        for task in set(re.findall(TASK_ID, plan_path.read_text(encoding="utf-8"))):
             if task.split("-", 1)[0] in families and task not in cards:
                 errors.append(f"{name}: unknown task {task}")
     header = next(
@@ -104,11 +122,7 @@ def main():
 
     for task in graph:
         visit(task)
-    whitespace = subprocess.run(["git", "-c", "core.safecrlf=false", "diff", "--check"], cwd=ROOT)
-    for error in errors:
-        print(error, file=sys.stderr)
-    print(f"Checked {len(files)} Markdown files and {len(cards)} task cards; {len(errors)} errors.")
-    return int(bool(errors) or whitespace.returncode != 0)
+    return len(cards)
 
 
 if __name__ == "__main__":

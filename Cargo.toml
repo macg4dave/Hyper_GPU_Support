@@ -10,6 +10,8 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.94.0"
 description = "Hyper-V GPU partition management core"
+license = "MIT"
+repository = "https://github.com/macg4dave/Hyper_GPU_Support"
 publish = false
 default-run = "hyper-gpu-support"
 
@@ -30,6 +32,7 @@ exit = "warn"
 unused_result_ok = "warn"
 
 [build-dependencies]
+find-msvc-tools = "=0.1.14"
 slint-build = "=1.18.1"
 ui-text = { path = "tools/ui-text" }
 
