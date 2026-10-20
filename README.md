@@ -1,349 +1,299 @@
 <div align="center">
 
-<img src="icons/Appicon.svg" alt="Hyper GPU Support app icon" width="128" height="128" />
+<img src="icons/Appicon.svg" alt="Hyper GPU Support icon" width="112" height="112" />
 
 # Hyper GPU Support
 
-**GPU support for your Hyper-V virtual machines.**
+**Use your NVIDIA graphics card in a Hyper-V virtual machine.**
 
-[![Windows](https://img.shields.io/badge/Windows-11-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](#requirements)
-[![NVIDIA](https://img.shields.io/badge/NVIDIA-target-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](#requirements)
-[![Licence: MIT](https://img.shields.io/badge/licence-MIT-4f46e5?style=for-the-badge)](LICENSE)
+Hyper GPU Support makes GPU sharing easier to set up and manage on Windows 11. It handles the VM settings, installs the required NVIDIA driver files and checks that graphics acceleration works — all from a Windows app.
 
-[Features](#features) &nbsp;·&nbsp;
-[Getting started](#getting-started) &nbsp;·&nbsp;
-[FAQ](#frequently-asked-questions) &nbsp;·&nbsp;
-[Report a problem](https://github.com/macg4dave/Hyper_GPU_Support/issues)
+[Download](https://github.com/macg4dave/Hyper_GPU_Support/releases) · [Requirements](#requirements) · [Getting started](#getting-started) · [FAQ](#frequently-asked-questions) · [Report a problem](https://github.com/macg4dave/Hyper_GPU_Support/issues)
 
-<br />
-
-<img src="docs/images/hero.png" alt="Hyper GPU Support dashboard with GPU support enabled and GPU memory set for a Windows 11 VM" width="820" />
+<img src="docs/images/hero.png" alt="Hyper GPU Support showing a Windows 11 VM with GPU support enabled" width="820" />
 
 </div>
 
-<br />
+## What can it do?
 
-## Overview
+- **Set up GPU support.** Choose a VM and graphics card, then let the app configure GPU sharing and install the NVIDIA driver files inside the VM.
+- **Control graphics memory.** Turn GPU support on or off and change the amount of graphics memory assigned to each VM.
+- **Check or repair a setup.** Check the installed driver files and graphics acceleration, or reinstall the drivers when needed.
+- **Handle problems safely.** The app records interrupted changes and lets you review them before doing anything else. It doesn't force a VM to shut down or restart your PC.
+- **Keep your details private.** Guest sign-in details are saved only if you choose **Remember**. The app collects no telemetry.
 
-Hyper-V can share your computer's graphics card with virtual machines through GPU partitioning (GPU-PV).
-Hyper GPU Support brings GPU configuration, guest driver setup and graphics checks into one Windows app.
-
-<br />
-
-## Features
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### Simple controls
-
-Turn GPU support on or off for an eligible VM, and choose its graphics memory.
-
-</td>
-<td width="50%" valign="top">
-
-### Guided first-time setup
-
-First setup saves and confirms permission for the exact VM/GPU pair, then configures it, copies driver files and checks hardware graphics.
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### Built-in safeguards
-
-Actions start after fresh checks, including any required VM starts and normal shutdowns. Uncertain results block further changes until recovery is resolved. The app never forces a VM off or restarts your computer.
-
-</td>
-<td width="50%" valign="top">
-
-### Checking and repair
-
-Check driver files and hardware graphics, reinstall drivers or detach GPU support through <b>More actions</b>.
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-### Your sign-in stays yours
-
-VM sign-in details are used only for the steps you approve, and saved in Windows Credential Manager only if you choose <b>Remember</b>.
-
-</td>
-<td width="50%" valign="top">
-
-### Designed for Windows
-
-Light, dark and system themes, optional help text, keyboard controls and accessibility labels. British English is currently the only bundled language.
-
-</td>
-</tr>
-</table>
-
-<br />
-
-## Screenshots
-
-<div align="center">
-
-<p><strong>Before setup</strong></p>
-<img src="docs/images/before%20setup.png" alt="A Windows 11 VM before GPU setup, with the Start GPU setup button" width="720" />
-
-<br /><br />
-
-<p><strong>First-time setup progress</strong></p>
-<img src="docs/images/settingup.png" alt="Applying GPU changes, with each setup step and its progress" width="720" />
-
-<br /><br />
-
-<p><strong>Setup result</strong></p>
-<img src="docs/images/setupdone.png" alt="Changes applied summary showing GPU support enabled and driver setup and checks completed" width="720" />
-
-<br /><br />
-
-<p><strong>Changing GPU memory</strong></p>
-<img src="docs/images/changea.png" alt="Changes applied summary after changing GPU memory to 5 GB" width="720" />
-
-<br /><br />
-
-<p><strong>The GPU working inside the VM</strong></p>
-<img src="docs/images/hypervfurmark.png" alt="FurMark running on the NVIDIA GeForce RTX 5060 inside a Hyper-V Windows 11 VM" width="720" />
-
-</div>
-
-<br />
+The interface has light and dark themes, keyboard controls and accessibility labels. The current interface language is British English.
 
 ## Requirements
 
-The current target configuration is:
+You'll need:
 
-- An x64 Windows 11 Pro, Enterprise or Education host with Hyper-V enabled
-- An NVIDIA GPU with its host driver installed
-- An existing Generation 2 Windows 11 VM
+- A 64-bit PC running **Windows 11 Pro, Enterprise or Education**, with Hyper-V enabled.
+- An **NVIDIA graphics card** with its Windows driver installed on the host PC.
+- An existing **Generation 2 VM running Windows 11**.
 
-> [!NOTE]
-> Automatic guest driver setup is implemented for NVIDIA GPUs only. Windows-version compatibility is not currently checked; an advisory warning does not establish that another guest OS is supported.
-
-<br />
+**Compatibility note:** Automatic guest driver setup currently supports NVIDIA GPUs only. The app doesn't verify the Windows version inside a VM; it displays an advisory warning instead. Don't assume other guest operating systems are supported.
 
 ## Getting started
 
-### Install
+### 1. Download and install
 
-Official Windows x64 downloads are distributed through [GitHub Releases](https://github.com/macg4dave/Hyper_GPU_Support/releases) as two unsigned packages: an Inno Setup installer and a ZIP of the binaries and licence notices. Use the installer for installation or updates; the ZIP contains build outputs and does not register the protected runner or perform installation. These files have no code-signing certificate, so Windows may display an unknown-publisher warning. Check their SHA-256 hashes against the release notes. See [Release packaging](docs/releases.md).
+Get the latest Windows x64 installer from [GitHub Releases](https://github.com/macg4dave/Hyper_GPU_Support/releases). Download the **Setup `.exe`** rather than the binaries ZIP, and run the installer.
 
-For local testing or building from source, you need Git, [Rust](https://rustup.rs), and Visual Studio C++ build tools with a Windows SDK for the `x86_64-pc-windows-msvc` target. Rustup uses [rust-toolchain.toml](rust-toolchain.toml). Building the packages also needs [Inno Setup 6.7.3](https://github.com/jrsoftware/issrc/releases/tag/is-6_7_3). Builds need no signing account or credentials.
+The downloads are currently **unsigned**, so Windows may warn that the publisher is unknown. You can compare the file's SHA-256 hash with the one published in the release notes.
 
-Close the app and let any operation finish before installing or updating.
+**Important when updating:** Installing or updating resets the app's saved profiles, preferences, history, recovery records and remembered VM sign-in details. Protected state is archived first. Your virtual machines, virtual disks and files inside the VMs are not changed by the installer. Close the app and finish any running operation before installing or updating.
 
-```powershell
-git clone https://github.com/macg4dave/Hyper_GPU_Support.git
-cd Hyper_GPU_Support
-cargo build --locked --release --bins     # compile only; does not install
-powershell -NoProfile -File scripts/build-installer.ps1  # build the unsigned installer and binaries ZIP
-```
+The ZIP contains the program files for advanced use. It does **not** install or register the protected runner. For package details, see [Release packaging](docs/releases.md).
 
-The packaging script checks and builds the product, then creates `dist/HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe`, `dist/HyperGpuSupport-<version>-windows-x64-unsigned-binaries.zip` and `dist/SHA256SUMS.txt` with both package hashes. Both packages contain the same five executables and licence notices; the ZIP also retains the executable hash manifest and includes [install.txt](packaging/install.txt) with simple installation instructions. The script does not launch Setup or change installed state. If Inno is not on PATH or in its standard installation folder, pass `-IsccPath 'C:\path\to\ISCC.exe'`.
+### 2. Set up your VM
 
-Run the release installer, or your locally built installer, to install or update. To build and launch the local installer from the source checkout, use `cargo run -p app-install`. It asks you to type `yes` before building and launching the same setup wizard; `-- --yes` skips that launcher confirmation. Setup presents the reset warning and asks for administrator permission.
+1. **Save any work in the VM.** The app may start and shut it down during setup. The VM must be running or turned off, not saved or paused.
+2. Open **Hyper GPU Support**, then select your VM and graphics card on the dashboard.
+3. Turn on **GPU support**, choose how much graphics memory to assign and select **Start GPU setup**.
+4. Approve any Windows administrator prompts. When asked, enter the Windows sign-in details for the VM. Selecting **Remember** is optional.
+5. Follow the setup progress until you see the final result. The app checks the driver files and tests hardware graphics, not just whether the files copied successfully.
 
-> [!WARNING]
-> Installing or updating resets app-owned state, including saved profiles, history, recovery records, protected registration, preferences and remembered guest sign-in details. Protected state is archived before reset. The installer does not change VMs, disks or guest files. See [Install details](#install-details).
+When setup finishes successfully, the VM is left **turned off**. Start it again in Hyper-V Manager whenever you're ready.
 
-Then launch the installed app from PowerShell:
+### 3. Change settings later
 
-```powershell
-& "$env:ProgramFiles\HyperGpuSupport\hyper-gpu-support.exe"
-```
+Select a VM, change GPU support or graphics memory, and choose **Apply**. The app checks the VM before making changes and handles any normal shutdowns it needs. It leaves the VM turned off after the change.
 
-### Set up a VM
+Most changes don't need the full driver setup or graphics test again. Changes begin without an extra review screen; Windows permission and VM sign-in prompts still appear when needed.
 
-1. **Save work inside the VM.** Setup can start and shut down the VM. It must be running or turned off, rather than saved or paused.
-2. **Select the VM and GPU** on the Dashboard, turn on GPU support and choose how much graphics memory to assign.
-3. **Select Start GPU setup.** Fresh checks prepare the request, the app saves and confirms permission for that VM/GPU pair, then continues into GPU setup. Approve Windows administrator prompts when shown and use the local Windows sign-in prompt for the guest account. **Remember** is optional.
-4. **Wait for the final result.** Successful first setup confirms driver files and hardware graphics, leaves the VM off and saves your requested settings. Start the VM in Hyper-V Manager when ready. A completed file transfer alone is not a successful setup result.
+## Screenshots
 
-> [!TIP]
-> After successful first setup, use **Apply** for memory and on/off changes. Actions begin after fresh checks without a separate review or second confirmation; they include their required power changes. Ordinary changes do not repeat guest setup or graphics verification unless needed, and leave the VM off when complete.
+<details>
+<summary><b>Show more screenshots</b></summary>
 
-<br />
+**Before GPU setup**
+
+<img src="docs/images/before%20setup.png" alt="Dashboard before GPU support has been configured" width="720" />
+
+**Setting up GPU support**
+
+<img src="docs/images/settingup.png" alt="Setup progress and individual steps" width="720" />
+
+**Setup complete**
+
+<img src="docs/images/setupdone.png" alt="Summary of completed setup and checks" width="720" />
+
+**Changing graphics memory**
+
+<img src="docs/images/changea.png" alt="Summary after changing graphics memory to 5 GB" width="720" />
+
+**GPU acceleration inside the VM**
+
+<img src="docs/images/hypervfurmark.png" alt="FurMark running with an NVIDIA GeForce RTX 5060 inside the VM" width="720" />
+
+</details>
 
 ## Frequently asked questions
 
 <details>
-<summary><b>Will this change anything else about my VM?</b></summary>
-<br />
-GPU setup can change the VM's MMIO ranges, guest cache setting and automatic-checkpoint policy, as well as its GPU attachment and allocation. Operations can start and normally shut down the VM, and driver setup writes files inside the guest. Disk configuration, system RAM amounts, CPU counts and networking are outside the app's scope.
+<summary><b>Will it change anything else in my VM?</b></summary>
+
+It changes the Hyper-V settings needed for GPU sharing. These can include GPU attachment and memory allocation, MMIO settings, guest cache settings and automatic checkpoints. Driver setup also copies files into the VM.
+
+It doesn't change the VM's disk configuration, system RAM, CPU count or network settings.
+
 </details>
 
 <details>
-<summary><b>What happens if an operation is interrupted?</b></summary>
-<br />
-An interrupted or uncertain change retains a recovery record. Open <b>More actions &gt; Review recovery</b> to inspect the outcome and available recovery actions. A hold tied to one VM normally blocks that VM; shared, unreadable or unknown-scope records can block all new changes. Uncertain work is never repeated automatically.
+<summary><b>What if setup fails or gets interrupted?</b></summary>
+
+The app keeps a record of what happened rather than automatically trying the same change again. Open **More actions → Review recovery** to see what it can check or recover.
+
+An unresolved problem normally prevents further changes to that VM. If the problem affects shared settings, or the app can't determine which VM it affects, other changes may also be blocked until it's reviewed.
+
 </details>
 
 <details>
-<summary><b>Can I remove GPU support later?</b></summary>
-<br />
-Yes. <b>More actions &gt; Remove GPU support</b> detaches the app's GPU partition, restores compatibility values it still owns and leaves the VM off. It keeps guest driver files, permission and history. <b>Delete profile</b> separately removes the app's records without detaching the GPU or changing the VM.
+<summary><b>Can I remove GPU support?</b></summary>
+
+Yes. Choose **More actions → Remove GPU support**. This disconnects the GPU partition and restores the compatibility settings that the app still controls. The VM is left turned off.
+
+It doesn't remove driver files from inside the VM or delete the app's saved permission and history. **Delete profile** removes the app's records for that VM, but doesn't disconnect the GPU or change the VM itself.
+
 </details>
 
 <details>
-<summary><b>Does the app store my VM sign-in details?</b></summary>
-<br />
-Only if you select <b>Remember</b>. They are then stored in Windows Credential Manager and are available to your Windows account only. Otherwise they are used only for the steps you approved.
+<summary><b>Can multiple VMs use the same graphics card?</b></summary>
+
+Yes, but you must manage the allocations yourself. The app doesn't automatically balance GPU memory or warn if the total amount requested by your VMs exceeds the card's capacity. The memory allocation settings don't guarantee that one VM's usage is isolated from another's.
+
 </details>
 
 <details>
-<summary><b>Can several VMs share one graphics card?</b></summary>
-<br />
-The app allows multiple VM profiles to use the same physical GPU. Allocations are manual: it does not balance them or warn when the combined requested memory exceeds the card's capacity. The VRAM range does not guarantee enforced isolation between VMs.
+<summary><b>Does it save the password for my VM?</b></summary>
+
+Only if you select **Remember** when entering the VM's sign-in details. Saved details are kept in Windows Credential Manager for your Windows account. Otherwise, they're used only for the steps you approve.
+
 </details>
 
 <details>
-<summary><b>Is the app available in my language?</b></summary>
-<br />
-British English (<code>en-GB</code>) is currently the only bundled language. The Settings language control can follow Windows or select a compiled language; with the current catalogue, both resolve to British English. See <a href="resources/i18n/README.md">UI text and languages</a> for the catalogue format.
+<summary><b>Will the VM be running when the operation finishes?</b></summary>
+
+First-time setup, ordinary changes, driver reinstallations and GPU removal leave the VM turned off. A standalone verification returns a previously stopped VM to the off state; an already running VM stays running after successful verification.
+
 </details>
 
-<br />
+<details>
+<summary><b>Are other languages available?</b></summary>
 
-## Support and feedback
+Not yet. British English (`en-GB`) is the only language included. The language setting can follow Windows or select an available compiled language, but both currently use British English. See [UI text and languages](resources/i18n/README.md).
 
-If you find a problem or have a suggestion, please [open an issue](https://github.com/macg4dave/Hyper_GPU_Support/issues). Reports from hardware and configurations that have not been tested yet are particularly helpful.
+</details>
 
-The app collects no telemetry and keeps its data on your computer; see the [Privacy policy](docs/privacy.md).
+## Help and feedback
 
-<br />
+Found a bug, or have a suggestion? [Open a GitHub issue](https://github.com/macg4dave/Hyper_GPU_Support/issues). Reports from hardware and VM configurations that haven't been tested are particularly useful.
+
+The app collects no telemetry. Its data stays on your computer. See the [Privacy policy](docs/privacy.md).
 
 ---
 
-<div align="center">
+## Technical information
 
-### Technical information
-
-<sub>Additional detail for advanced users and contributors.</sub>
-
-</div>
+Details for advanced users, troubleshooting and contributors. You don't need these sections to use the app.
 
 <details>
-<summary><b>All actions in detail</b></summary>
-<br />
+<summary><b>What each action does</b></summary>
 
-| Action | What it does |
+| Action | Behaviour |
 | --- | --- |
-| **Start GPU setup** | Saves and confirms permission for the exact VM/GPU pair, assigns the partition, copies and checks drivers inside the VM, tests Direct3D 11, then leaves the VM off and saves requested settings. |
-| **Apply** | Applies the requested GPU toggle or allocation after fresh checks. Ordinary changes use host readback and leave the VM off; required driver work can also trigger guest setup and graphics checks. |
-| **Verify GPU setup** | Checks driver files, the setup record, device status and hardware graphics without reinstalling drivers. An off VM is temporarily started and returned to off; a running VM stays running after successful verification. |
-| **Repair / Reinstall** | Runs the full signed driver setup again, even if earlier checks passed, then checks graphics and turns the VM off. |
-| **Remove GPU support** | Detaches the app's GPU partition, restores compatibility values it still owns and leaves the VM off. Keeps driver files in the VM, permission and history. No guest sign-in needed. |
-| **Remove partial GPU setup** | When available in recovery, removes the interrupted attachment, restores its recorded original compatibility settings and leaves the VM off. Keeps guest files and failure evidence. |
-| **Delete profile** | Deletes the app's saved settings, permission, history and recovery records for one VM. Doesn't touch the VM, its power state, GPU assignment, disks or guest files. |
-| **Review recovery** | Checks an interrupted or uncertain outcome and offers the recovery actions supported by the recorded and current state. Unresolved uncertainty keeps the hold. |
+| **Start GPU setup** | Saves and confirms permission for the chosen VM and GPU, attaches a GPU partition, installs and checks the driver files inside the VM, tests Direct3D 11 and leaves the VM off. It then saves the requested settings. |
+| **Apply** | Checks current VM and GPU settings, then applies the requested GPU on/off state or allocation. Normal changes leave the VM off. Driver-related work can also run guest setup and graphics checks. |
+| **Verify GPU setup** | Checks driver files, the setup record, device status and hardware graphics without reinstalling anything. It restores a previously off VM to off; a VM that was already running stays running after successful verification. |
+| **Repair / Reinstall** | Reinstalls the signed driver files even if previous checks passed, tests graphics and leaves the VM off. |
+| **Remove GPU support** | Detaches the GPU partition, restores the compatibility settings the app still owns and leaves the VM off. It keeps the guest driver files, permission and history. No guest sign-in is needed. |
+| **Remove partial GPU setup** | If offered during recovery, removes an interrupted GPU attachment and restores the original compatibility settings recorded for it. It preserves guest files and failure evidence. |
+| **Delete profile** | Deletes the app's saved settings, permission, history and recovery records for that VM. It doesn't change the VM, its GPU attachment, power state, disks or guest files. |
+| **Review recovery** | Reviews an interrupted or uncertain operation against the recorded and current state, and offers available recovery actions. Unresolved uncertainty keeps the hold in place. |
 
-Setup, Apply, Verify, Repair / Reinstall, Remove GPU support and Delete profile start after fresh checks without a separate review or confirmation screen. Windows sign-in and administrator prompts remain separate. Recovery offers its own actions based on the recorded state. Most maintenance actions are in **More actions**; availability depends on the selected VM and any recovery hold.
+These actions start after fresh checks, without a separate review or confirmation screen. Windows permission and sign-in prompts are handled separately. Most maintenance actions are under **More actions**, and their availability depends on the selected VM and any recovery hold.
 
-**Advanced allocation** sets exact Minimum / Optimal / Maximum VRAM values in bytes. It preserves existing values exactly (including values below 1 GB) and keeps any saved compute, encode and decode settings.
+**Advanced allocation** allows exact minimum, optimal and maximum VRAM values in bytes. The app preserves existing values, including values below 1 GB, and keeps saved compute, encode and decode settings.
 
-The VRAM range is a Hyper-V allocation setting and doesn't guarantee isolation between VMs. The app doesn't balance memory automatically or warn when a GPU is fully allocated. It doesn't check which Windows version the VM runs; instead it shows a non-blocking warning before GPU installation, driver refresh or Repair / Reinstall.
+Hyper-V VRAM allocations don't guarantee isolation between VMs. The app doesn't balance them or warn if you allocate more than the card's capacity. It also doesn't check the Windows version inside the guest. Instead it shows a non-blocking warning before GPU installation, driver refresh or repair.
 
 </details>
 
 <details>
 <summary><b>Safety and recovery</b></summary>
-<br />
 
-- Protected changes are recorded before effects begin. Interrupted or uncertain results retain a recovery hold. A known VM hold normally blocks that VM; shared or unreadable recovery can block all changes.
-- Recovery checks the recorded result without repeating Apply, and only enters the VM if needed.
-- The app never repeats an uncertain operation automatically, never forces a VM off and never restarts the host.
-- Starting the app only checks for unfinished work; it never repairs or repeats GPU operations.
-- **Delete profile** explicitly discards that VM's app records, including its recovery records. It does not resolve or undo the VM's actual GPU state.
-- If a change succeeds but its settings can't be saved, saving can be retried on its own.
-- Failures keep the original error alongside freshly read power and recovery facts.
-- The host's GPU configuration is compared with saved settings, and differences are reported before any repair or removal.
-
-</details>
-
-<details>
-<summary><b>Security</b></summary>
-<br />
-
-- Protected work runs in a separate installed runner, started from a scheduled task. The GUI runs without elevation; first-time protected setup uses a separate UAC-approved process.
-- Installed executables are checked against pinned SHA-256 hashes. Protected policy, path and access checks restrict execution, and local pipe connections authenticate their peers.
-- Driver payloads are checked through embedded signatures or catalogue membership. Guest helpers and probes are checked against approved hashes. An invalid guest reply counts as a communication failure.
-- Guest credentials are used only for approved steps, and stored in Windows Credential Manager (current user only) only when **Remember** is selected.
+- The app records protected changes before they begin. An interrupted operation retains a recovery record and may prevent further changes until reviewed.
+- Recovery checks the recorded outcome without repeating an **Apply** operation. It accesses the VM only when needed.
+- The app never automatically repeats an uncertain change, forces a VM off or restarts the host PC.
+- Opening the app checks for unfinished operations but doesn't repair or repeat them.
+- **Delete profile** removes recovery records as well as other app data. It doesn't undo changes made to the VM.
+- If the GPU change succeeds but saving its settings fails, you can retry saving without repeating the change.
+- Failure details retain the original error alongside the latest VM power and recovery state.
+- The app checks live GPU settings against its saved record and reports differences before repair or removal.
 
 </details>
 
 <details>
-<summary><b>Command line</b></summary>
-<br />
+<summary><b>Security and permissions</b></summary>
 
-Launching `hyper-gpu-support.exe` without arguments opens the GUI. Use the GUI for ordinary GPU operations. These commands remain for existing records and recovery; `--help` lists their syntax:
+- The GUI normally runs without administrator rights. Protected operations use a separate installed runner started by a scheduled task. First-time protected setup uses its own UAC-approved process.
+- Installed executables are verified against pinned SHA-256 hashes. Protected policy, path and permission checks restrict execution; local pipe connections authenticate their peers.
+- Driver files are checked using embedded signatures or catalogue membership. Guest helpers and diagnostic checks use approved hashes. Invalid replies from the VM are treated as communication failures.
+- VM credentials are used only for approved steps. They're saved to Windows Credential Manager for the current user only when **Remember** is selected.
+
+</details>
+
+<details>
+<summary><b>Command-line tools</b></summary>
+
+Running `hyper-gpu-support.exe` without arguments opens the interface. The commands below are mainly for existing configuration records and recovery; use the GUI for routine operations. Run `--help` for command syntax.
 
 | Command | Purpose |
 | --- | --- |
-| `install --config FILE` | Protected-runner installation/enrolment for existing configuration; use `app-install` below for app installs and updates |
-| `import --config FILE` | Import settings into missing per-VM configuration files (never approves or applies anything) |
-| `save-only --operation ID` | Retry saving a recorded, verified result |
-| `reconcile --operation ID [--approve-shutdown]` | Check a recorded result without repeating Apply |
-| `import-reconcile --operation ID` | Resume an interrupted import |
-| `native-review --job REFERENCE` | Review a recorded Hyper-V job |
-| `native-reconcile --review TOKEN` | Approve clearing a reviewed Hyper-V job record |
+| `install --config FILE` | Register the protected runner using existing configuration. For normal installation and updates, use the installer instead. |
+| `import --config FILE` | Import settings into missing per-VM files without approving or applying changes. |
+| `save-only --operation ID` | Retry saving an operation that's already been verified. |
+| `reconcile --operation ID [--approve-shutdown]` | Review a recorded operation without repeating it. |
+| `import-reconcile --operation ID` | Resume an interrupted import. |
+| `native-review --job REFERENCE` | Review a recorded Hyper-V job. |
+| `native-reconcile --review TOKEN` | Approve clearing a previously reviewed Hyper-V job record. |
 
-Configuration files use TOML schema 2 or 3; see [config/product.example.toml](config/product.example.toml).
+Configuration files use TOML schema 2 or 3. See [product.example.toml](config/product.example.toml).
 
 </details>
 
-<a name="install-details"></a>
 <details>
-<summary><b>Install details</b></summary>
-<br />
+<summary><b>Build from source</b></summary>
 
-Use the Inno Setup installer for installs and updates, including when building from source. The source entry point builds and launches that same installer. Start from an ordinary user session with the app closed and no operation running:
+You need Git, [Rust](https://rustup.rs), Visual Studio C++ build tools and a Windows SDK for the `x86_64-pc-windows-msvc` target. The Rust version is selected by [rust-toolchain.toml](rust-toolchain.toml). Creating an installer also requires [Inno Setup 6.7.3](https://github.com/jrsoftware/issrc/releases/tag/is-6_7_3).
 
 ```powershell
-cargo run -p app-install            # confirm, build local Setup, use its wizard
-cargo run -p app-install -- --yes   # skips the source launcher's typed confirmation
+git clone https://github.com/macg4dave/Hyper_GPU_Support.git
+cd Hyper_GPU_Support
+cargo build --locked --release --bins
+powershell -NoProfile -File scripts/build-installer.ps1
 ```
 
-The build script discovers Cargo's actual output directory, including `CARGO_TARGET_DIR` overrides. `--skip-build` on the source launcher reuses existing release binaries while still running checks and packaging. Use the ordinary debug source launcher; a running release helper cannot rebuild itself. The packaged installer needs no Git, Rust, Cargo, Inno compiler or source checkout on the destination machine.
+The first build command compiles the executables; it doesn't install the app. The packaging script checks the build and produces:
 
-Before resetting anything, Setup checks that the app and helpers are closed, product tasks are idle and existing operation locks are available. It never closes or restarts the app for you. After UAC it archives protected state from `%ProgramData%\HyperGpuSupportProduct` and the legacy `%ProgramData%\HyperGpuSupport` to an administrator/SYSTEM-only `%ProgramData%\HyperGpuSupport-archives\install-<time>-<process>` folder, with hash readback. An archive failure stops cleanup; a partial archive is retained. Archives survive upgrades and uninstall. The former `--no-archive` option is rejected to preserve recovery evidence.
+- `dist/HyperGpuSupport-<version>-windows-x64-unsigned-setup.exe`
+- `dist/HyperGpuSupport-<version>-windows-x64-unsigned-binaries.zip`
+- `dist/SHA256SUMS.txt`
 
-The Rust maintenance helper resets protected product registration, scheduled tasks and runtime state. Inno owns `%ProgramFiles%\HyperGpuSupport`, installs the four product executables and maintenance helper, and maintains the Start menu shortcut and Windows Installed Apps entry. Setup verifies the five executable hashes against the package manifest before clearing `%LOCALAPPDATA%\HyperGpuSupport` and remembered guest credentials for the person who started Setup, including when UAC uses a different administrator account. Manually elevated launches are refused before cleanup; start Setup normally. VMs, guest files and the configured `data_root` are not changed.
+Both packages contain five executables and licence notices. The ZIP also includes the executable hash manifest and [install.txt](packaging/install.txt). If Inno Setup isn't found automatically, pass `-IsccPath 'C:\path\to\ISCC.exe'` to the packaging script. No signing account or credentials are needed.
 
-First-time setup in the app enrols the protected runner again. This reset happens during installs and updates, not ordinary launches.
+To build the local installer and launch its setup wizard:
 
-Uninstall through Windows **Installed apps**. Uninstall refuses active work, archives protected evidence, removes protected registration/state and the installed application, and preserves individual users' preferences and saved guest credentials. It does not scan other users' profiles or vaults.
+```powershell
+cargo run -p app-install
+```
 
-Prepare official downloads with the GitHub-hosted release workflow, which verifies the tag, versions and matching ZIP/installer contents before returning both unsigned packages. Publication remains manual. See [release preparation and publication](docs/releases.md#preparing-and-publishing-an-update) and [third-party notices](licenses/THIRD_PARTY_NOTICES.md).
+The launcher asks you to type `yes` before it proceeds. Add `-- --yes` to skip that typed confirmation. `--skip-build` can reuse existing release binaries while still running packaging checks. The debug source launcher should be used because a running release helper cannot rebuild itself. The installer asks for administrator permission and shows the state-reset warning.
+
+The script doesn't install or launch the app by itself. To run the installed app directly:
+
+```powershell
+& "$env:ProgramFiles\HyperGpuSupport\hyper-gpu-support.exe"
+```
+
+See [Release packaging](docs/releases.md) for distribution details. Official release preparation uses a GitHub workflow to check the tag, versions and package contents. Publishing a release is still a manual step.
+
+</details>
+
+<details>
+<summary><b>Installation, updates and removal</b></summary>
+
+Use the Inno Setup installer for both fresh installs and updates. Close the app and let operations finish first. Setup checks that the app and helpers are stopped, protected tasks are idle and operation locks are available; it doesn't close or restart the app for you.
+
+After Windows administrator approval, Setup archives protected state from `%ProgramData%\HyperGpuSupportProduct` and the older `%ProgramData%\HyperGpuSupport` folder into an administrator/SYSTEM-only folder under `%ProgramData%\HyperGpuSupport-archives\install-<time>-<process>`. It verifies the archive by hash, stops cleanup if archiving fails, and retains any partial archive. These archives survive updates and uninstall. The former `--no-archive` option isn't supported.
+
+A Rust maintenance helper resets protected registration, scheduled tasks and runtime state. Inno installs the four main executables and maintenance helper into `%ProgramFiles%\HyperGpuSupport`, along with the Start menu shortcut and Windows Installed Apps entry. Before clearing local preferences and remembered guest sign-in details for the person who ran Setup, it checks the five executable hashes against the package manifest. This also applies if the administrator approval uses a different account. Launching Setup manually as administrator is refused; start it normally.
+
+**Installing or updating clears app-owned state**, including profiles, history, recovery records, preferences, remembered VM sign-in details and protected registration. It doesn't alter your VMs, disks, guest files or a configured `data_root`. First-time setup in the app registers the protected runner again. Opening the app normally doesn't trigger this reset.
+
+To uninstall, use Windows **Installed apps**. Uninstall won't proceed while protected work is active. It archives protected records, removes registration and app state, and removes the installed files. It leaves other users' preferences and saved VM credentials untouched and doesn't scan their profiles or credential stores.
+
+For more information, see [Release packaging](docs/releases.md), [release preparation](docs/releases.md#preparing-and-publishing-an-update) and [third-party notices](licenses/THIRD_PARTY_NOTICES.md).
 
 </details>
 
 <details>
 <summary><b>Contributing</b></summary>
-<br />
 
-| Document | Purpose |
-| --- | --- |
-| [UI text and languages](resources/i18n/README.md) | Compiled wording catalogue and its format |
-| [AGENTS.md](AGENTS.md) | Instructions for Codex and Claude Code |
+The app is written in **Rust**, with its interface built using [Slint](https://slint.dev). UI text is stored in a compiled catalogue, using British English as the reference; backend and worker diagnostics remain in English.
 
-The app is written in Rust and the interface is built with [Slint](https://slint.dev). GUI text uses a compiled catalogue, with British English as the reference. Backend and worker diagnostics remain English.
+- [AGENTS.md](AGENTS.md) — guidance for Codex and Claude Code.
+- [UI text and languages](resources/i18n/README.md) — language catalogue and format.
 
-The app icon is in [icons/](icons/). Put real app screenshots in [docs/images/](docs/images/) using the indicated filenames, then replace the matching placeholders with image links.
-
-Please keep passwords, driver payloads, VM disks and machine-specific evidence out of Git.
+The app icon is in [icons/](icons/), and screenshots are in [docs/images/](docs/images/). Don't commit passwords, VM disks, driver payloads or machine-specific diagnostic evidence.
 
 </details>
 
-<br />
+---
 
 <div align="center">
-<sub>Released under the <a href="LICENSE">MIT licence</a>.</sub>
-<p><a href="https://slint.dev"><img src="https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png" alt="Made with Slint" width="120" /></a></p>
+
+Released under the [MIT licence](LICENSE). Built with [Slint](https://slint.dev).
+
 </div>
